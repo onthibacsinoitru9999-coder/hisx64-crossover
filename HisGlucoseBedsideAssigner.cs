@@ -684,21 +684,30 @@ public class MainForm : Form
     private async void MainForm_Load(object sender, EventArgs e)
     {
         lblStatusText.Text = "Đang kiểm tra kết nối hệ thống HIS / MOS...";
+        bool connected = false;
+        string errorMsg = null;
+
         await Task.Run(() =>
         {
             try
             {
                 InitSession();
+                connected = true;
             }
             catch (Exception ex)
             {
-                this.Invoke(new Action(() =>
-                {
-                    lblStatusText.Text = "Lỗi kết nối: " + ex.Message;
-                }));
+                errorMsg = ex.Message;
             }
         });
-        lblStatusText.Text = "✔ Kết nối HIS thành công! Sẵn sàng chỉ định BM02426.";
+
+        if (connected)
+        {
+            lblStatusText.Text = "✔ Kết nối HIS thành công! Sẵn sàng chỉ định BM02426.";
+        }
+        else
+        {
+            lblStatusText.Text = "⚠️ Chưa kết nối HIS: " + (errorMsg ?? "Lỗi không xác định");
+        }
     }
 
     private List<string> GetSelectedTimeSlots()
@@ -1426,31 +1435,60 @@ class Program
     [STAThread]
     static void Main(string[] args)
     {
-        Console.OutputEncoding = Encoding.UTF8;
+        try
+        {
+            Console.OutputEncoding = Encoding.UTF8;
+        }
+        catch { }
 
         AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
         {
-            string folderPath = AppDomain.CurrentDomain.BaseDirectory;
-            string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
-            string path1 = Path.Combine(folderPath, name);
-            if (File.Exists(path1)) return Assembly.LoadFrom(path1);
-            string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
-            if (File.Exists(path2)) return Assembly.LoadFrom(path2);
-            string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
-            if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+            try
+            {
+                string folderPath = AppDomain.CurrentDomain.BaseDirectory;
+                string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
+                string path1 = Path.Combine(folderPath, name);
+                if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+                string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+                if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+                string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
+                if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+            }
+            catch { }
             return null;
+        };
+
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (s, e) =>
+        {
+            MessageBox.Show("Lỗi trong ứng dụng:\n\n" + e.Exception.ToString(), "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        };
+        AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+        {
+            MessageBox.Show("Lỗi nghiêm trọng:\n\n" + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "Unknown"), "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
         };
 
         if (args.Length > 0 && (args[0] == "-p" || args[0] == "--patient" || args[0] == "-f" || args[0] == "--file" || args[0] == "--help" || args[0] == "-h"))
         {
-            AttachConsole(-1);
+            try
+            {
+                AttachConsole(-1);
+            }
+            catch { }
             RunCli(args);
             return;
         }
 
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MainForm());
+        try
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new MainForm());
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Không thể khởi động ứng dụng:\n\n" + ex.ToString(), "Lỗi khởi động", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     static void RunCli(string[] args)
