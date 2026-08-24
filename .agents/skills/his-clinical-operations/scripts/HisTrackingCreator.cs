@@ -32,6 +32,172 @@ public class MyAdapter : AdapterBase
     }
 }
 
+public class LoginForm : Form
+{
+    public string Username { get; private set; }
+    public string Password { get; private set; }
+    public bool LoginSuccess { get; private set; }
+    public string TokenCode { get; private set; }
+
+    private TextBox txtUser;
+    private TextBox txtPass;
+    private Button btnLogin;
+    private Button btnCancel;
+    private Label lblError;
+    private ProgressBar pbLoading;
+
+    public LoginForm(string defaultUser = "vmc", string defaultPass = "789789")
+    {
+        InitializeComponent(defaultUser, defaultPass);
+    }
+
+    private void InitializeComponent(string defaultUser, string defaultPass)
+    {
+        this.Text = "ĐĂNG NHẬP BÁC SĨ - HỆ THỐNG TẠO TỜ ĐIỀU TRỊ (HIS/EMR)";
+        this.Size = new Size(480, 360);
+        this.StartPosition = FormStartPosition.CenterScreen;
+        this.FormBorderStyle = FormBorderStyle.FixedDialog;
+        this.MaximizeBox = false;
+        this.MinimizeBox = false;
+        this.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
+        this.BackColor = Color.FromArgb(245, 247, 250);
+
+        try { if (File.Exists("APP.ico")) this.Icon = new Icon("APP.ico"); } catch { }
+
+        Panel pnlTop = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 75,
+            BackColor = Color.FromArgb(26, 86, 219)
+        };
+
+        Label lblTitle = new Label
+        {
+            Text = "TẠO TỜ ĐIỀU TRỊ (HIS / MOS EMR)",
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+            Location = new Point(20, 14),
+            AutoSize = true
+        };
+
+        Label lblSubTitle = new Label
+        {
+            Text = "Đăng nhập tài khoản Bác sĩ để tạo tờ điều trị & y lệnh đúng tên bác sĩ",
+            ForeColor = Color.FromArgb(220, 235, 252),
+            Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+            Location = new Point(22, 42),
+            AutoSize = true
+        };
+
+        pnlTop.Controls.Add(lblTitle);
+        pnlTop.Controls.Add(lblSubTitle);
+        this.Controls.Add(pnlTop);
+
+        Label lblU = new Label { Text = "Tên đăng nhập (Username):", Location = new Point(35, 95), AutoSize = true, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+        txtUser = new TextBox { Text = defaultUser, Location = new Point(35, 120), Width = 390, Font = new Font("Segoe UI", 10.5f) };
+
+        Label lblP = new Label { Text = "Mật khẩu (Password):", Location = new Point(35, 160), AutoSize = true, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+        txtPass = new TextBox { Text = defaultPass, Location = new Point(35, 185), Width = 390, UseSystemPasswordChar = true, Font = new Font("Segoe UI", 10.5f) };
+
+        lblError = new Label { Text = "", ForeColor = Color.Red, Location = new Point(35, 220), Width = 390, Height = 35, Font = new Font("Segoe UI", 9f) };
+        pbLoading = new ProgressBar { Location = new Point(35, 225), Width = 390, Height = 10, Style = ProgressBarStyle.Marquee, Visible = false };
+
+        btnLogin = new Button
+        {
+            Text = "ĐĂNG NHẬP 🔑",
+            Location = new Point(145, 260),
+            Width = 150,
+            Height = 40,
+            BackColor = Color.FromArgb(26, 86, 219),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            Cursor = Cursors.Hand
+        };
+        btnLogin.FlatAppearance.BorderSize = 0;
+        btnLogin.Click += BtnLogin_Click;
+
+        btnCancel = new Button
+        {
+            Text = "Thoát",
+            Location = new Point(310, 260),
+            Width = 115,
+            Height = 40,
+            BackColor = Color.FromArgb(229, 231, 235),
+            ForeColor = Color.FromArgb(55, 65, 81),
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 10f, FontStyle.Regular),
+            Cursor = Cursors.Hand
+        };
+        btnCancel.FlatAppearance.BorderSize = 0;
+        btnCancel.Click += (s, e) => { this.Close(); };
+
+        this.Controls.Add(lblU);
+        this.Controls.Add(txtUser);
+        this.Controls.Add(lblP);
+        this.Controls.Add(txtPass);
+        this.Controls.Add(lblError);
+        this.Controls.Add(pbLoading);
+        this.Controls.Add(btnLogin);
+        this.Controls.Add(btnCancel);
+
+        this.AcceptButton = btnLogin;
+    }
+
+    private async void BtnLogin_Click(object sender, EventArgs e)
+    {
+        string u = txtUser.Text.Trim();
+        string p = txtPass.Text;
+
+        if (string.IsNullOrEmpty(u) || string.IsNullOrEmpty(p))
+        {
+            lblError.Text = "Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!";
+            return;
+        }
+
+        lblError.Text = "Đang xác thực tài khoản bác sĩ trên máy chủ MOS...";
+        lblError.ForeColor = Color.FromArgb(26, 86, 219);
+        pbLoading.Visible = true;
+        btnLogin.Enabled = false;
+
+        try
+        {
+            var res = await Task.Run(() =>
+            {
+                HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                CommonParam cp = new CommonParam();
+                var token = tokenManager.Login(cp, u, p, "2.390.0");
+                return new { Token = token, Param = cp };
+            });
+
+            if (res.Token != null && !string.IsNullOrEmpty(res.Token.TokenCode))
+            {
+                TokenCode = res.Token.TokenCode;
+                Username = u;
+                Password = p;
+                LoginSuccess = true;
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            else
+            {
+                lblError.ForeColor = Color.Red;
+                lblError.Text = "Đăng nhập không thành công! Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.";
+                pbLoading.Visible = false;
+                btnLogin.Enabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            lblError.ForeColor = Color.Red;
+            lblError.Text = "Lỗi kết nối máy chủ: " + ex.Message;
+            pbLoading.Visible = false;
+            btnLogin.Enabled = true;
+        }
+    }
+}
+
 public class ClinicalTemplate
 {
     public string Name { get; set; }
@@ -59,24 +225,29 @@ public class MainForm : Form
 {
     public static BackendAdapter adapter;
     public static MyAdapter myAdapter = new MyAdapter();
-    public static CommonParam param;
+    public static CommonParam param = new CommonParam();
     public static string currentToken = null;
+    public static string CurrentLoginName = "vmc";
+    public static string CurrentUserName = "Vũ Minh Cường";
 
     // Header Controls
     private Panel pnlHeader;
     private Label lblTitle;
     private Label lblSubTitle;
+    private Label lblDoctorInfo;
+    private Button btnSwitchUser;
+    private Button btnHeaderStart;
 
     // Toolbar Controls
     private Panel pnlToolbar;
     private Button btnAddRow;
     private Button btnPasteExcel;
+    private Button btnExecuteAll;
     private ComboBox cboQuickTemplate;
     private Button btnApplyTemplate;
     private Button btnLoadDept57;
     private Button btnDeleteRow;
     private Button btnClearAll;
-    private Button btnExecuteAll;
 
     // Grid Control
     private DataGridView dgvTracking;
@@ -85,12 +256,21 @@ public class MainForm : Form
     private Panel pnlBottom;
     private ProgressBar pbProgress;
     private Label lblSummary;
+    private Button btnBottomStart;
     private Button btnExportCsv;
 
     public static List<ClinicalTemplate> ClinicalTemplates = new List<ClinicalTemplate>();
 
-    public MainForm()
+    public MainForm(string loginName = "vmc", string tokenCode = "")
     {
+        CurrentLoginName = loginName;
+        currentToken = tokenCode;
+        if (!string.IsNullOrEmpty(currentToken))
+        {
+            ApiConsumers.SetConsunmer(currentToken);
+            adapter = new BackendAdapter(param);
+        }
+
         InitializeClinicalTemplates();
         InitializeComponents();
         this.Load += MainForm_Load;
@@ -100,50 +280,66 @@ public class MainForm : Form
     {
         ClinicalTemplates.Clear();
         ClinicalTemplates.Add(new ClinicalTemplate(
-            "1. Tờ điều trị hàng ngày / Thông thường",
-            "08:00",
-            "Bệnh nhân tỉnh táo, tiếp xúc tốt (Glasgow 15đ). Da niêm mạc hồng, không phù, không sốt. Tim đều, phổi thông khí rõ không rale, bụng mềm. Vết mổ / tổn thương: Đau ít (VAS 2-3đ), không sưng nóng đỏ. Đầu chi hồng ấm, cảm giác và vận động ngọn chi bình thường. Đại tiểu tiện tự chủ.",
-            "Chăm sóc cấp II (CSII). Chế độ ăn: BT01 (Cơm thường bệnh lý). Theo dõi DHST (Mạch, HA, Nhiệt độ) 2 lần/ngày. Thay băng chăm sóc vết thương vô khuẩn hàng ngày.",
-            "Thuốc dùng theo đơn đã kê. Thay băng chăm sóc vết thương vô khuẩn."
+            "--- Chọn mẫu điền nhanh (Tùy chọn) ---",
+            "17:00",
+            "",
+            "",
+            ""
         ));
 
         ClinicalTemplates.Add(new ClinicalTemplate(
-            "2. Sơ kết 3 - 5 ngày điều trị / Lãnh đạo đi buồng",
+            "1. Tờ điều trị hàng ngày",
             "08:00",
-            "SƠ KẾT 3 - 5 NGÀY ĐIỀU TRỊ: Bệnh nhân tỉnh, tiếp xúc tốt, thể trạng ổn định. Huyết động ổn định, không sốt. Vết mổ khô sạch, thấm ít dịch băng, đầu chi hồng ấm. Triệu chứng đau thuyên giảm (VAS 3/10). Cơ lực 2 chân 5/5, không rối loạn cảm giác nông sâu. Ý KIẾN LÃNH ĐẠO ĐI BUỒNG: Thống nhất chẩn đoán và phác đồ điều trị; Thay băng vô khuẩn hàng ngày; Tập PHCN tại giường.",
-            "Chăm sóc cấp II (CSII). Chế độ ăn theo bệnh lý. Hướng dẫn tập PHCN tại giường.",
-            "Duy trì phác đồ thuốc hiện tại. Hoàn thiện bilan xét nghiệm kiểm tra nếu có chỉ định."
+            "Bệnh nhân tỉnh táo, tiếp xúc tốt. Da niêm mạc hồng, không sốt. Vết mổ khô sạch, đầu chi hồng ấm.",
+            "csii, bt01",
+            "Thuốc theo đơn đã kê"
         ));
 
         ClinicalTemplates.Add(new ClinicalTemplate(
-            "3. Tiền phẫu (Chuẩn bị trước mổ)",
+            "2. Đường máu mao mạch 17h",
+            "17:00",
+            "Khám: Đường máu mao mạch lúc 17h: 12.5 mmol/l",
+            "csii, dd01",
+            "bổ sung thuốc"
+        ));
+
+        ClinicalTemplates.Add(new ClinicalTemplate(
+            "3. Sơ kết 3 - 5 ngày điều trị",
+            "08:00",
+            "SƠ KẾT 3-5 NGÀY: Toàn trạng ổn định, không sốt. Vết mổ khô liền tốt, đỡ đau. Vận động ngọn chi bình thường.",
+            "csii, bt01",
+            "Duy trì thuốc theo đơn"
+        ));
+
+        ClinicalTemplates.Add(new ClinicalTemplate(
+            "4. Chuẩn bị trước mổ (Tiền phẫu)",
             "16:30",
-            "KHÁM BỆNH NHÂN TRƯỚC MỔ: Bệnh nhân tỉnh táo, tiếp xúc tốt, tâm lý ổn định. Thể trạng trung bình, không sốt. Tim đều rõ, phổi thông khí tốt, không khó thở. Đã hoàn thiện đầy đủ bilan xét nghiệm tiền phẫu, X-quang, MRI/CT, Siêu âm tim. Đã giải thích rõ tình trạng bệnh, phương pháp phẫu thuật, nguy cơ và tai biến. Bệnh nhân và gia đình hiểu, đồng ý và đã ký cam kết phẫu thuật.",
-            "Chăm sóc cấp II (CSII). Vệ sinh vùng mổ, thay trang phục mổ. Nhịn ăn uống tuyệt đối từ 00h trước mổ.",
-            "Bột / nẹp rạch dọc kiểm tra. Dặn nhịn ăn uống hoàn toàn từ 00h đêm trước mổ. Kháng sinh dự phòng trước mổ 30 phút theo phác đồ. Chuyển phòng mổ theo lịch."
+            "Khám tiền phẫu: Toàn trạng ổn định, tim phổi bình thường. Đã hoàn thiện bilan xét nghiệm và ký cam kết mổ.",
+            "csii, nhịn ăn trước mổ",
+            "Nhịn ăn uống từ 00h trước mổ. Kháng sinh dự phòng trước mổ."
         ));
 
         ClinicalTemplates.Add(new ClinicalTemplate(
-            "4. Hậu phẫu 24 giờ đầu (Sau mổ)",
+            "5. Hậu phẫu 24h",
             "14:00",
-            "BỆNH NHÂN PHẪU THUẬT VỀ KHOA: Bệnh nhân tỉnh táo, tiếp xúc tốt, đã thoát mê hoàn toàn. Da niêm mạc hồng, tự thở êm, SpO2 98-99%. Huyết động ổn định: Mạch 80-85 l/p, HA 120/80 mmHg. Vết mổ nề nhẹ, băng thấm ít dịch máu. Dẫn lưu vết mổ ra ít dịch hồng (< 50ml), hoạt động tốt. Đầu chi hồng ấm, mạch ngoại vi bắt rõ. Đau vết mổ mức độ vừa (VAS 3-4đ).",
-            "Chăm sóc cấp I / II (CSCI / CSII). Kê cao chi mổ / nằm ngửa có gối đỡ tư thế chuẩn. Theo dõi mạch, huyết áp, nhiệt độ, SpO2 mỗi 3 - 6 giờ. Theo dõi màu sắc đầu chi và lượng dịch dẫn lưu.",
-            "Theo dõi sát toàn trạng và huyết động 24h sau mổ. Thuốc giảm đau, kháng sinh, chống phù nề theo biên bản bàn giao gây mê. Rút dẫn lưu sau 24 - 48h khi dịch ra < 30ml/24h."
+            "Hậu phẫu: Bệnh nhân tỉnh táo, đã thoát mê. Vết mổ nề nhẹ, đầu chi hồng ấm, dẫn lưu hoạt động tốt.",
+            "csci, theo dõi dẫn lưu",
+            "Thuốc giảm đau, kháng sinh theo biên bản hồi tỉnh"
         ));
 
         ClinicalTemplates.Add(new ClinicalTemplate(
-            "5. Tổng kết ra viện (Discharge Summary)",
+            "6. Tổng kết ra viện",
             "08:00",
-            "TỔNG KẾT BỆNH ÁN RA VIỆN: Diễn biến điều trị thuận lợi, không tai biến sau mổ, vết mổ khô sạch liền sẹo tốt. Tình trạng hiện tại: Bệnh nhân tỉnh táo, hết sốt, huyết động ổn định, vết mổ khô sạch (đã cắt chỉ / liền sẹo), đỡ đau nhiều, đi lại và vận động phục hồi tốt, đại tiểu tiện tự chủ. Đủ điều kiện xuất viện.",
-            "Chăm sóc cấp II (CSII). Hướng dẫn bệnh nhân và gia đình làm thủ tục thanh toán ra viện.",
-            "Cho bệnh nhân ra viện. Kê đơn thuốc điều trị ngoại trú. Hẹn khám lại sau 01 tháng kèm phim chụp kiểm tra. Dặn dò chế độ tập PHCN và dinh dưỡng tại nhà."
+            "Tổng kết ra viện: Diễn biến điều trị ổn định, vết mổ khô sạch liền tốt, đi lại phục hồi tốt. Đủ điều kiện ra viện.",
+            "csii",
+            "Cho ra viện. Kê đơn ngoại trú. Hẹn tái khám sau 1 tháng."
         ));
     }
 
     private void InitializeComponents()
     {
-        this.Text = "HỆ THỐNG TẠO TỜ ĐIỀU TRỊ & CHĂM SÓC BỆNH NHÂN (HIS / MOS EMR) - KHOA CTCH & CỘT SỐNG";
-        this.Size = new Size(1360, 720);
+        this.Text = "TẠO TỜ ĐIỀU TRỊ BỆNH NHÂN (HIS / MOS EMR) - KHOA CTCH & CỘT SỐNG";
+        this.Size = new Size(1360, 740);
         this.MinimumSize = new Size(1000, 550);
         this.StartPosition = FormStartPosition.CenterScreen;
         this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
@@ -165,8 +361,8 @@ public class MainForm : Form
         pnlHeader = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 60,
-            BackColor = Color.FromArgb(26, 86, 219), // Modern Deep Blue
+            Height = 65,
+            BackColor = Color.FromArgb(26, 86, 219), // Modern Blue
             Padding = new Padding(16, 8, 16, 8)
         };
 
@@ -179,16 +375,30 @@ public class MainForm : Form
             AutoSize = true
         };
 
-        lblSubTitle = new Label
+        lblDoctorInfo = new Label
         {
-            Text = "Dán (Ctrl+V) từ Excel hoặc nhập trực tiếp | Bấm nút BẮT ĐẦU hoặc phím F5 để tạo",
-            ForeColor = Color.FromArgb(219, 234, 254),
-            Font = new Font("Segoe UI", 9f, FontStyle.Regular),
-            Location = new Point(16, 32),
+            Text = string.Format("👨‍⚕️ Bác sĩ: {0} ({1}) | 🏥 Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57)", CurrentUserName, CurrentLoginName),
+            ForeColor = Color.FromArgb(220, 235, 252),
+            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+            Location = new Point(16, 34),
             AutoSize = true
         };
 
-        Button btnHeaderStart = new Button
+        btnSwitchUser = new Button
+        {
+            Text = "Đổi Bác sĩ 🔄",
+            Dock = DockStyle.Right,
+            Width = 120,
+            BackColor = Color.FromArgb(30, 64, 175),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            Cursor = Cursors.Hand
+        };
+        btnSwitchUser.FlatAppearance.BorderSize = 0;
+        btnSwitchUser.Click += BtnSwitchUser_Click;
+
+        btnHeaderStart = new Button
         {
             Text = "▶ BẮT ĐẦU (F5) 🚀",
             Dock = DockStyle.Right,
@@ -203,8 +413,9 @@ public class MainForm : Form
         btnHeaderStart.Click += async (s, e) => await ExecuteCreateAllAsync();
 
         pnlHeader.Controls.Add(btnHeaderStart);
+        pnlHeader.Controls.Add(btnSwitchUser);
         pnlHeader.Controls.Add(lblTitle);
-        pnlHeader.Controls.Add(lblSubTitle);
+        pnlHeader.Controls.Add(lblDoctorInfo);
         this.Controls.Add(pnlHeader);
 
         // Toolbar
@@ -395,14 +606,14 @@ public class MainForm : Form
 
         lblSummary = new Label
         {
-            Text = "Mẹo: Nhập mã bệnh nhân hoặc dán từ Excel (Ctrl+V) rồi bấm BẮT ĐẦU (hoặc phím F5).",
+            Text = "Mẹo: Dán trực tiếp từ Excel (Ctrl+V) hoặc gõ nội dung vào bảng rồi bấm BẮT ĐẦU (F5).",
             Location = new Point(285, 14),
             AutoSize = true,
             ForeColor = Color.FromArgb(100, 116, 139),
             Font = new Font("Segoe UI", 9f, FontStyle.Italic)
         };
 
-        Button btnBottomStart = new Button
+        btnBottomStart = new Button
         {
             Text = "▶ BẮT ĐẦU (F5)",
             Location = new Point(980, 7),
@@ -440,8 +651,8 @@ public class MainForm : Form
         pnlBottom.Controls.Add(btnExportCsv);
         this.Controls.Add(pnlBottom);
 
-        // Initial default row
-        AddDefaultRow("0003969449", "08:00");
+        // Initial default row with clean fields
+        AddRowInternal("0003969449", "", "17:00", "Khám: Đường máu mao mạch lúc 17h: 12.5 mmol/l", "csii, dd01", "bổ sung thuốc");
     }
 
     private void BuildGridColumns()
@@ -474,7 +685,7 @@ public class MainForm : Form
         {
             Name = "PatientInfo",
             HeaderText = "Họ Tên BN & Buồng Giường",
-            Width = 190,
+            Width = 200,
             ReadOnly = true,
             DefaultCellStyle = { ForeColor = Color.FromArgb(51, 65, 85) }
         };
@@ -494,8 +705,8 @@ public class MainForm : Form
         var colContent = new DataGridViewTextBoxColumn
         {
             Name = "Content",
-            HeaderText = "Diễn biến bệnh lý (Content) (*)",
-            Width = 300
+            HeaderText = "Diễn biến bệnh (Content) (*)",
+            Width = 320
         };
         dgvTracking.Columns.Add(colContent);
 
@@ -504,7 +715,7 @@ public class MainForm : Form
         {
             Name = "CareInstruction",
             HeaderText = "Chế độ chăm sóc (Care) (*)",
-            Width = 260
+            Width = 220
         };
         dgvTracking.Columns.Add(colCare);
 
@@ -538,16 +749,9 @@ public class MainForm : Form
         dgvTracking.Columns.Add(colResult);
     }
 
-    private void AddDefaultRow(string patCode = "", string time = "08:00")
-    {
-        var tmpl = ClinicalTemplates[0];
-        AddRowInternal(patCode, "", time, tmpl.Content, tmpl.CareInstruction, tmpl.MedicalInstruction);
-    }
-
     private void AddEmptyRow()
     {
-        var tmpl = ClinicalTemplates[0];
-        AddRowInternal("", "", tmpl.DefaultTime, tmpl.Content, tmpl.CareInstruction, tmpl.MedicalInstruction);
+        AddRowInternal("", "", "17:00", "", "", "");
     }
 
     private void AddRowInternal(string patCode, string patInfo, string time, string content, string care, string med)
@@ -557,7 +761,7 @@ public class MainForm : Form
         row.Cells["Stt"].Value = idx + 1;
         row.Cells["PatientCode"].Value = patCode;
         row.Cells["PatientInfo"].Value = patInfo;
-        row.Cells["TrackingTime"].Value = string.IsNullOrEmpty(time) ? "08:00" : time;
+        row.Cells["TrackingTime"].Value = string.IsNullOrEmpty(time) ? "17:00" : time;
         row.Cells["Content"].Value = content;
         row.Cells["CareInstruction"].Value = care;
         row.Cells["MedicalInstruction"].Value = med;
@@ -612,7 +816,7 @@ public class MainForm : Form
     private void ApplyTemplateToSelectedRows()
     {
         var tmpl = cboQuickTemplate.SelectedItem as ClinicalTemplate;
-        if (tmpl == null) return;
+        if (tmpl == null || string.IsNullOrEmpty(tmpl.Content)) return;
 
         var targetRows = dgvTracking.SelectedRows.Cast<DataGridViewRow>().ToList();
         if (targetRows.Count == 0)
@@ -643,7 +847,6 @@ public class MainForm : Form
 
             string[] lines = clip.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             int addedCount = 0;
-            var defaultTmpl = ClinicalTemplates[0];
 
             foreach (string line in lines)
             {
@@ -653,10 +856,10 @@ public class MainForm : Form
                 string pat = parts.Length > 0 ? parts[0].Trim() : "";
                 if (string.IsNullOrEmpty(pat)) continue;
 
-                string time = parts.Length > 1 ? parts[1].Trim() : defaultTmpl.DefaultTime;
-                string content = parts.Length > 2 ? parts[2].Trim() : defaultTmpl.Content;
-                string care = parts.Length > 3 ? parts[3].Trim() : defaultTmpl.CareInstruction;
-                string med = parts.Length > 4 ? parts[4].Trim() : defaultTmpl.MedicalInstruction;
+                string time = parts.Length > 1 ? parts[1].Trim() : "17:00";
+                string content = parts.Length > 2 ? parts[2].Trim() : "";
+                string care = parts.Length > 3 ? parts[3].Trim() : "";
+                string med = parts.Length > 4 ? parts[4].Trim() : "";
 
                 AddRowInternal(pat, "", time, content, care, med);
                 addedCount++;
@@ -744,11 +947,10 @@ public class MainForm : Form
                 return FetchDept57Direct();
             });
 
-            var tmpl = ClinicalTemplates[0];
             foreach (var p in list)
             {
                 AddRowInternal(p.TDL_PATIENT_CODE, string.Format("{0} ({1}) - {2}", p.TDL_PATIENT_NAME, p.TDL_PATIENT_GENDER_NAME, p.BedFull),
-                    tmpl.DefaultTime, tmpl.Content, tmpl.CareInstruction, tmpl.MedicalInstruction);
+                    "17:00", "", "", "");
             }
 
             lblSummary.Text = string.Format("✔ Đã tải thành công {0} bệnh nhân nội trú Khoa 57.", list.Count);
@@ -771,13 +973,17 @@ public class MainForm : Form
             return;
         }
 
-        string msg = string.Format("XÁC NHẬN TẠO TỜ ĐIỀU TRỊ:\n\n• Tổng số dòng: {0} bệnh nhân\n• Hệ thống: HIS / MOS Khoa 57\n\nBạn có chắc chắn muốn tiến hành ghi nhận lên hệ thống?", dgvTracking.Rows.Count);
+        string msg = string.Format("XÁC NHẬN TẠO TỜ ĐIỀU TRỊ:\n\n• Bác sĩ thực hiện: {0} ({1})\n• Tổng số dòng: {2} bệnh nhân\n• Hệ thống: HIS / MOS Khoa 57\n\nBạn có chắc chắn muốn tiến hành ghi nhận lên hệ thống?", 
+            CurrentUserName, CurrentLoginName, dgvTracking.Rows.Count);
+
         if (MessageBox.Show(msg, "Xác nhận tạo Tờ điều trị", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
         {
             return;
         }
 
         btnExecuteAll.Enabled = false;
+        btnHeaderStart.Enabled = false;
+        btnBottomStart.Enabled = false;
         pbProgress.Visible = true;
         pbProgress.Minimum = 0;
         pbProgress.Maximum = dgvTracking.Rows.Count;
@@ -794,7 +1000,7 @@ public class MainForm : Form
             {
                 var row = dgvTracking.Rows[i];
                 string patCode = (row.Cells["PatientCode"].Value ?? "").ToString().Trim();
-                string timeStr = (row.Cells["TrackingTime"].Value ?? "08:00").ToString().Trim();
+                string timeStr = (row.Cells["TrackingTime"].Value ?? "17:00").ToString().Trim();
                 string content = (row.Cells["Content"].Value ?? "").ToString().Trim();
                 string care = (row.Cells["CareInstruction"].Value ?? "").ToString().Trim();
                 string med = (row.Cells["MedicalInstruction"].Value ?? "").ToString().Trim();
@@ -838,20 +1044,7 @@ public class MainForm : Form
                     {
                         Tracking = tracking,
                         WorkingRoomId = roomId,
-                        Dhst = new HIS_DHST
-                        {
-                            TREATMENT_ID = p.TreatmentId,
-                            EXECUTE_TIME = trackingTime,
-                            EXECUTE_LOGINNAME = "vmc",
-                            EXECUTE_USERNAME = "Vũ Minh Cường",
-                            PULSE = 80,
-                            TEMPERATURE = 36.8m,
-                            BLOOD_PRESSURE_MAX = 120,
-                            BLOOD_PRESSURE_MIN = 80,
-                            BREATH_RATE = 18,
-                            SPO2 = 0.98m,
-                            WEIGHT = 60.0m
-                        }
+                        Dhst = null // Do not inject forced vital signs to keep tracking clean
                     };
 
                     CommonParam cp = new CommonParam();
@@ -863,12 +1056,6 @@ public class MainForm : Form
                         else if (cp.BugCodes != null && cp.BugCodes.Count > 0) errMsg = string.Join("; ", cp.BugCodes);
                         throw new Exception(errMsg);
                     }
-
-                    try
-                    {
-                        myAdapter.PostData<HIS_DHST>("api/HisDhst/Create", ApiConsumers.MosConsumer, sdo.Dhst, cp);
-                    }
-                    catch { }
 
                     this.Invoke(new Action(() =>
                     {
@@ -898,16 +1085,18 @@ public class MainForm : Form
 
         pbProgress.Visible = false;
         btnExecuteAll.Enabled = true;
+        btnHeaderStart.Enabled = true;
+        btnBottomStart.Enabled = true;
 
         lblSummary.Text = string.Format("Hoàn tất! ✔ {0} thành công | ❌ {1} thất bại.", success, fail);
-        MessageBox.Show(string.Format("Hoàn tất tạo Tờ điều trị!\n\n✔ Thành công: {0}\n❌ Thất bại: {1}", success, fail),
+        MessageBox.Show(string.Format("Hoàn tất tạo Tờ điều trị!\n\n• Bác sĩ ký: {0}\n✔ Thành công: {1}\n❌ Thất bại: {2}", CurrentUserName, success, fail),
             "Kết quả", MessageBoxButtons.OK, fail == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
     }
 
     private static long ParseTrackingTime(string input)
     {
         DateTime date = DateTime.Today;
-        TimeSpan time = new TimeSpan(8, 0, 0);
+        TimeSpan time = new TimeSpan(17, 0, 0);
 
         long dummyVal;
         if (input.Length >= 14 && long.TryParse(input, out dummyVal))
@@ -970,14 +1159,57 @@ public class MainForm : Form
         }
     }
 
+    private void BtnSwitchUser_Click(object sender, EventArgs e)
+    {
+        LoginForm login = new LoginForm(CurrentLoginName);
+        if (login.ShowDialog() == DialogResult.OK)
+        {
+            CurrentLoginName = login.Username;
+            currentToken = login.TokenCode;
+            ApiConsumers.SetConsunmer(currentToken);
+            adapter = new BackendAdapter(param);
+            LoadDoctorProfile();
+        }
+    }
+
+    private void LoadDoctorProfile()
+    {
+        try
+        {
+            InitSession();
+            HisEmployeeFilter ef = new HisEmployeeFilter();
+            ef.LOGINNAME__EXACT = CurrentLoginName;
+            var emps = myAdapter.FetchList<HIS_EMPLOYEE>("api/HisEmployee/Get", ApiConsumers.MosConsumer, ef, param);
+            if (emps != null && emps.Count > 0)
+            {
+                CurrentUserName = emps[0].TDL_USERNAME;
+            }
+            else
+            {
+                CurrentUserName = CurrentLoginName.ToUpper();
+            }
+
+            lblDoctorInfo.Text = string.Format("👨‍⚕️ Bác sĩ: {0} ({1}) | 🏥 Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57)", CurrentUserName, CurrentLoginName);
+        }
+        catch
+        {
+            lblDoctorInfo.Text = string.Format("👨‍⚕️ Bác sĩ: {0} ({1})", CurrentUserName, CurrentLoginName);
+        }
+    }
+
     private async void MainForm_Load(object sender, EventArgs e)
     {
         lblSummary.Text = "Đang kết nối hệ thống HIS / MOS...";
         await Task.Run(() =>
         {
-            try { InitSession(); } catch { }
+            try 
+            { 
+                InitSession(); 
+                LoadDoctorProfile();
+            } 
+            catch { }
         });
-        lblSummary.Text = "✔ Đã kết nối HIS thành công. Sẵn sàng nhập liệu và dán bảng từ Excel!";
+        lblSummary.Text = "✔ Đã kết nối HIS thành công. Bác sĩ: " + CurrentUserName;
     }
 
     // =========================================================================
@@ -1001,56 +1233,12 @@ public class MainForm : Form
 
     public static void InitSession()
     {
-        if (!string.IsNullOrEmpty(currentToken)) return;
-
-        HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
-        param = new CommonParam();
-
-        // 1. Try reading live token from LogSystem.txt (FileShare.ReadWrite)
-        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        string[] candidates = new string[]
-        {
-            Path.Combine(baseDir, "Logs", "LogSystem.txt"),
-            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
-        };
-
-        foreach (var logPath in candidates)
-        {
-            if (File.Exists(logPath))
-            {
-                try
-                {
-                    using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var sr = new StreamReader(fs))
-                    {
-                        string text = sr.ReadToEnd();
-                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                        for (int i = lines.Length - 1; i >= 0; i--)
-                        {
-                            if (lines[i].Contains("TokenCode|"))
-                            {
-                                int idx = lines[i].IndexOf("TokenCode|") + 10;
-                                if (lines[i].Length >= idx + 64)
-                                {
-                                    currentToken = lines[i].Substring(idx, 64);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-
-                if (!string.IsNullOrEmpty(currentToken)) break;
-            }
-        }
-
-        // 2. Fallback to API login if token not found
         if (string.IsNullOrEmpty(currentToken))
         {
+            HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+            param = new CommonParam();
             ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-            var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+            var token = tokenManager.Login(param, CurrentLoginName, "789789", "2.390.0");
             if (token != null)
             {
                 currentToken = token.TokenCode;
@@ -1120,8 +1308,8 @@ public class MainForm : Form
             IcdName = !string.IsNullOrEmpty(tr.ICD_NAME) ? tr.ICD_NAME : "Thoát vị đĩa đệm",
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = !string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME,
-            WorkingRoomId = 5248,
-            BedFull = "P734"
+            WorkingRoomId = 5257,
+            BedFull = "Phòng 724"
         };
 
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
@@ -1195,7 +1383,7 @@ public class MainForm : Form
                 IcdName = tr != null ? tr.ICD_NAME : "Thoát vị đĩa đệm",
                 IcdSubCode = tr != null ? tr.ICD_SUB_CODE : "",
                 IcdText = tr != null ? (!string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME) : "",
-                WorkingRoomId = 5248
+                WorkingRoomId = 5257
             };
 
             results.Add(item);
@@ -1241,7 +1429,12 @@ class Program
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MainForm());
+
+        LoginForm login = new LoginForm();
+        if (login.ShowDialog() == DialogResult.OK)
+        {
+            Application.Run(new MainForm(login.Username, login.TokenCode));
+        }
     }
 
     static void RunCli(string[] args)
@@ -1254,17 +1447,17 @@ class Program
         {
             Console.WriteLine("CÚ PHÁP SỬ DỤNG:");
             Console.WriteLine("  HisTrackingCreator.exe -p <MaBN1,MaBN2,...> -time <HH:mm> -content <NoiDung> -care <CheDoChamSoc> [-med <YLenh>]");
-            Console.WriteLine("  HisTrackingCreator.exe -p <MaBN> -template <1..5>");
+            Console.WriteLine("  HisTrackingCreator.exe -p <MaBN> -template <1..6>");
             Console.WriteLine("\nVÍ DỤ:");
-            Console.WriteLine("  HisTrackingCreator.exe -p \"0003969449\" -time \"08:00\" -content \"BN tỉnh, không sốt, vết mổ khô.\" -care \"CSII, BT01, DHST 2 lần/ngày\"");
+            Console.WriteLine("  HisTrackingCreator.exe -p \"0003969449\" -time \"17:00\" -content \"Khám: Đường máu mao mạch lúc 17h: 12.5 mmol/l\" -care \"csii, dd01\" -med \"bổ sung thuốc\"");
             return;
         }
 
         string rawPatients = "";
-        string rawTime = "08:00";
-        string content = "Bệnh nhân tỉnh táo, tiếp xúc tốt. Da niêm mạc hồng, không sốt. Vết mổ khô sạch, đầu chi ấm.";
-        string medInstruction = "Thuốc dùng theo đơn đã kê. Thay băng chăm sóc vết mổ hàng ngày.";
-        string careInstruction = "Chăm sóc cấp II (CSII). Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày.";
+        string rawTime = "17:00";
+        string content = "";
+        string medInstruction = "";
+        string careInstruction = "";
         int templateId = 0;
 
         for (int i = 0; i < args.Length; i++)
@@ -1277,9 +1470,9 @@ class Program
             if ((args[i] == "-template" || args[i] == "-tmpl") && i + 1 < args.Length) int.TryParse(args[i + 1], out templateId);
         }
 
-        if (templateId >= 1 && templateId <= MainForm.ClinicalTemplates.Count)
+        if (templateId >= 1 && templateId < MainForm.ClinicalTemplates.Count)
         {
-            var tmpl = MainForm.ClinicalTemplates[templateId - 1];
+            var tmpl = MainForm.ClinicalTemplates[templateId];
             if (!args.Contains("-content") && !args.Contains("-c")) content = tmpl.Content;
             if (!args.Contains("-med") && !args.Contains("-m")) medInstruction = tmpl.MedicalInstruction;
             if (!args.Contains("-care")) careInstruction = tmpl.CareInstruction;
@@ -1298,6 +1491,7 @@ class Program
         Console.WriteLine(string.Format("• Mốc giờ: {0}", rawTime));
         Console.WriteLine(string.Format("• Nội dung: {0}", content));
         Console.WriteLine(string.Format("• Chăm sóc: {0}", careInstruction));
+        Console.WriteLine(string.Format("• Y lệnh: {0}", medInstruction));
         Console.WriteLine("-------------------------------------------------------------------------------");
 
         MainForm.InitSession();
@@ -1319,7 +1513,7 @@ class Program
 
                 DateTime date = DateTime.Today;
                 TimeSpan tSpan;
-                if (!TimeSpan.TryParse(rawTime, out tSpan)) tSpan = new TimeSpan(8, 0, 0);
+                if (!TimeSpan.TryParse(rawTime, out tSpan)) tSpan = new TimeSpan(17, 0, 0);
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
                 long trackingTime = long.Parse(fullDateTime.ToString("yyyyMMddHHmmss"));
 
@@ -1344,19 +1538,7 @@ class Program
                 {
                     Tracking = tracking,
                     WorkingRoomId = roomId,
-                    Dhst = new HIS_DHST
-                    {
-                        TREATMENT_ID = p.TreatmentId,
-                        EXECUTE_TIME = trackingTime,
-                        EXECUTE_LOGINNAME = "vmc",
-                        EXECUTE_USERNAME = "Vũ Minh Cường",
-                        PULSE = 80,
-                        TEMPERATURE = 36.8m,
-                        BLOOD_PRESSURE_MAX = 120,
-                        BLOOD_PRESSURE_MIN = 80,
-                        BREATH_RATE = 18,
-                        SPO2 = 0.98m
-                    }
+                    Dhst = null // Do not inject forced vital signs to keep tracking clean
                 };
 
                 CommonParam cp = new CommonParam();
@@ -1368,12 +1550,6 @@ class Program
                     else if (cp.BugCodes != null && cp.BugCodes.Count > 0) errMsg = string.Join("; ", cp.BugCodes);
                     throw new Exception(errMsg);
                 }
-
-                try
-                {
-                    MainForm.myAdapter.PostData<HIS_DHST>("api/HisDhst/Create", ApiConsumers.MosConsumer, sdo.Dhst, cp);
-                }
-                catch { }
 
                 Console.WriteLine(string.Format("✔ [{0} - {1}] Tạo Tờ điều trị THÀNH CÔNG! ID: {2} | {3}",
                     p.TDL_PATIENT_CODE, p.TDL_PATIENT_NAME, created.ID, p.BedFull));
