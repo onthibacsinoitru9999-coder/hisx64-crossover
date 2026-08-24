@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CacheMonitorKeyLoadConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" DateTimeValue="2016-04-29">
+  <CacheMonitorKeyList>
+    <!-- <CacheMonitorKeyData CacheMonitorKeyName="Dữ liệu điều khiển cache" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_CACHE_MONITOR" IsReload="1" /> -->
+    <CacheMonitorKeyData CacheMonitorKeyName="Loại thuốc (v)" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEDICINE_TYPE" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Loại vật tư (v)" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MATERIAL_TYPE" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="ICD" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ICD" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Chính sách giá dịch vụ (v)" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE_PATY" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Dịch vụ (v)" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Dịch vụ - Phòng (v)" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE_ROOM" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Danh mục bệnh viện" CacheMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDI_ORG" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Tỉnh (v)" CacheMonitorKeyCode="SDA.EFMODEL.DataModels.V_SDA_PROVINCE" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Huyện (v)" CacheMonitorKeyCode="SDA.EFMODEL.DataModels.V_SDA_DISTRICT" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Xã (v)" CacheMonitorKeyCode="SDA.EFMODEL.DataModels.V_SDA_COMMUNE" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Quốc gia" CacheMonitorKeyCode="SDA.EFMODEL.DataModels.SDA_NATIONAL" IsReload="1" />
+    <CacheMonitorKeyData CacheMonitorKeyName="Dân tộc" CacheMonitorKeyCode="SDA.EFMODEL.DataModels.SDA_ETHNIC" IsReload="1" />
+  </CacheMonitorKeyList>
+</CacheMonitorKeyLoadConfig>

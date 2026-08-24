@@ -186,3 +186,22 @@ Phần mềm tự động quét và giám sát 100% các chỉ định Cận Lâ
   - Bắt buộc ghi rõ từng xương, đoạn gãy, độ di lệch, tình trạng gân cơ:
     - ✅ **Đúng:** `Gãy di lệch xương tháp và xương thang cổ tay trái`, `Gãy 1/3 giữa xương đòn phải`, `Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`.
     - ❌ **Cấm kỵ:** `Gãy xương cổ tay`, `Gãy xương đòn`, `Đứt gân bàn tay`.
+
+---
+
+## 8. Công Cụ Chỉ Định Đường Máu Mao Mạch Tại Giường (`HisGlucoseBedsideAssigner.exe`)
+
+Công cụ chuyên dụng cho phép chỉ định hàng loạt cận lâm sàng **`BM02426`** (*Xét nghiệm đường máu mao mạch tại giường*) cho bệnh nhân nội trú:
+- **Tập tin chạy**: `HisGlucoseBedsideAssigner.exe` (kèm file config `HisGlucoseBedsideAssigner.exe.config` và file kích hoạt nhanh `Chay_ChiDinh_BM02426.bat`)
+- **Mã dịch vụ**: `BM02426` (Service ID: `6217`)
+- **Phòng thực hiện**: `931` (Phòng Tiểu Phẫu Nhà Q) / `531` (P289 Khoa CTCH)
+- **Tính năng nổi bật**:
+  - Hỗ trợ chọn đồng thời nhiều khung giờ (`06:00`, `11:00`, `17:00`, `21:00`, `Hiện tại`, Giờ tùy chỉnh `HH:mm`).
+  - Nhập mã BN từ clipboard / Excel hoặc 1-click tải toàn bộ bệnh nhân nội trú Khoa 57.
+  - Tự động liên kết hoặc tạo mới tờ điều trị `HIS_TRACKING` tương ứng với giờ chỉ định.
+  - Xuất báo cáo CSV / Excel và Copy kết quả tiện lợi.
+  - Chạy giao diện WinForms trực quan hoặc CLI:
+    ```powershell
+    .\HisGlucoseBedsideAssigner.exe -p "0003969449,0003298895" -time "06:00,11:00,17:00,21:00"
+    ```
+

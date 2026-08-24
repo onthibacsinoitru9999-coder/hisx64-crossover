@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RamMonitorKeyLoadConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" DateTimeValue="2016-04-29">
+  <RamMonitorKeyList>
+    <RamMonitorKeyData RamMonitorKeyName="Dữ liệu điều khiển cache" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_CACHE_MONITOR" />
+	<RamMonitorKeyData RamMonitorKeyName="Tài khoản truy cập" RamMonitorKeyCode="ACS.EFMODEL.DataModels.ACS_USER" />
+	<RamMonitorKeyData RamMonitorKeyName="Ứng dụng" RamMonitorKeyCode="ACS.EFMODEL.DataModels.ACS_APPLICATION" />
+	<RamMonitorKeyData RamMonitorKeyName="Ngôn ngữ" RamMonitorKeyCode="SDA.EFMODEL.DataModels.SDA_LANGUAGE" />
+	<RamMonitorKeyData RamMonitorKeyName="Trường - Chức năng" RamMonitorKeyCode="SDA.EFMODEL.DataModels.SDA_MODULE_FIELD" />
+	<RamMonitorKeyData RamMonitorKeyName="Mẫu báo cáo" RamMonitorKeyCode="SAR.EFMODEL.DataModels.SAR_REPORT_TEMPLATE" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại báo cáo" RamMonitorKeyCode="SAR.EFMODEL.DataModels.SAR_REPORT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Trạng thái báo cáo" RamMonitorKeyCode="SAR.EFMODEL.DataModels.SAR_REPORT_STT" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại báo cáo" RamMonitorKeyCode="SAR.EFMODEL.DataModels.SAR_PRINT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Thiết lập Loại báo cáo - Trường dữ liệu (v)" RamMonitorKeyCode="SAR.EFMODEL.DataModels.V_SAR_RETY_FOFI" />
+	<RamMonitorKeyData RamMonitorKeyName="Trường dữ liệu" RamMonitorKeyCode="SAR.EFMODEL.DataModels.SAR_FORM_FIELD" />
+	<RamMonitorKeyData RamMonitorKeyName="Module xử lý dịch vụ" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXE_SERVICE_MODULE " />
+    <RamMonitorKeyData RamMonitorKeyName="Loại thuốc (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEDICINE_TYPE" />
+    <RamMonitorKeyData RamMonitorKeyName="Loại vật tư (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MATERIAL_TYPE" />
+    <RamMonitorKeyData RamMonitorKeyName="ICD" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ICD" />
+    <RamMonitorKeyData RamMonitorKeyName="Chính sách giá dịch vụ (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE_PATY" />
+    <RamMonitorKeyData RamMonitorKeyName="Dịch vụ (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE" />
+    <RamMonitorKeyData RamMonitorKeyName="Dịch vụ - Phòng (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho xuất - Phòng (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEST_ROOM" />
+    <RamMonitorKeyData RamMonitorKeyName="Danh mục bệnh viện" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDI_ORG" />
+	<RamMonitorKeyData RamMonitorKeyName="Cơ sở/Xã phường" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BRANCH" />
+	<RamMonitorKeyData RamMonitorKeyName="Phòng (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Khoa phòng" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_DEPARTMENT" />
+    <RamMonitorKeyData RamMonitorKeyName="Tỉnh (v)" RamMonitorKeyCode="SDA.EFMODEL.DataModels.V_SDA_PROVINCE" />
+    <RamMonitorKeyData RamMonitorKeyName="Huyện (v)" RamMonitorKeyCode="SDA.EFMODEL.DataModels.V_SDA_DISTRICT" />
+    <RamMonitorKeyData RamMonitorKeyName="Xã (v)" RamMonitorKeyCode="SDA.EFMODEL.DataModels.V_SDA_COMMUNE" />
+    <RamMonitorKeyData RamMonitorKeyName="Quốc gia" RamMonitorKeyCode="SDA.EFMODEL.DataModels.SDA_NATIONAL" />
+    <RamMonitorKeyData RamMonitorKeyName="Dân tộc" RamMonitorKeyCode="SDA.EFMODEL.DataModels.SDA_ETHNIC" />
+	
+	<RamMonitorKeyData RamMonitorKeyName="Bộ vật tư y tế" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EQUIPMENT_SET" />
+	<RamMonitorKeyData RamMonitorKeyName="Dịch vụ - Máy" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_MACHINE" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhân viên" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EMPLOYEE" />
+	<RamMonitorKeyData RamMonitorKeyName="Gói" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PACKAGE" />
+	<RamMonitorKeyData RamMonitorKeyName="Dạng nợ viện phí" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_OWE_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Lý do xuất" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXP_MEST_REASON" />
+	<RamMonitorKeyData RamMonitorKeyName="Hướng dẫn dùng - thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDICINE_TYPE_TUT" />
+	<RamMonitorKeyData RamMonitorKeyName="Chính sách giá thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDICINE_PATY" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDICINE_GROUP" />
+	<RamMonitorKeyData RamMonitorKeyName="Phòng thu ngân" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_CASHIER_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="ICD CM" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ICD_CM" />
+	<RamMonitorKeyData RamMonitorKeyName="Chặn kê thuốc theo khoa" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEST_METY_DEPA" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho - Loại vật tư" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDI_STOCK_MATY" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho - Loại vật tư (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEDI_STOCK_MATY" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho - Loại thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDI_STOCK_METY" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho - Loại thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEDI_STOCK_METY" />
+	<RamMonitorKeyData RamMonitorKeyName="Hoạt chất cho thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ACIN_INTERACTIVE" />
+	<RamMonitorKeyData RamMonitorKeyName="Hoạt chất cho thuốc (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_ACIN_INTERACTIVE" />
+	<RamMonitorKeyData RamMonitorKeyName="Cách dùng thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_HTU" />
+	<RamMonitorKeyData RamMonitorKeyName="Tài khoản - Phòng" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_USER_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho - Đối tượng" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEST_PATIENT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Buồng (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_BED_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Giường (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_BED" />
+	<RamMonitorKeyData RamMonitorKeyName="Đơn thuốc mẫu" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXP_MEST_TEMPLATE" />
+	<RamMonitorKeyData RamMonitorKeyName="Phòng xử lý (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_EXECUTE_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Phòng xử lý" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXECUTE_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Hợp đồng khám sức khỏe" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_KSK_CONTRACT" />
+	<RamMonitorKeyData RamMonitorKeyName="Nghề nghiệp" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_CAREER" />
+	<RamMonitorKeyData RamMonitorKeyName="Nguyên nhân tử vong" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_DEATH_CAUSE" />
+	<RamMonitorKeyData RamMonitorKeyName="Thời gian đau" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_DEATH_WITHIN" />
+	<RamMonitorKeyData RamMonitorKeyName="Đối tượng bệnh nhân" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PATIENT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại nhập" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_IMP_MEST_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Trạng thái nhập" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_IMP_MEST_STT" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại phòng" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ROOM_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Đối tượng chuyển đổi" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_PATIENT_TYPE_ALLOW" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm xử lý" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXECUTE_GROUP" />
+	<RamMonitorKeyData RamMonitorKeyName="Hình thức chuyển" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TRAN_PATI_FORM" />
+	<RamMonitorKeyData RamMonitorKeyName="Lý do chuyển" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TRAN_PATI_REASON" />
+	<RamMonitorKeyData RamMonitorKeyName="Thông tin chuyển đến" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TRAN_PATI_TECH" />
+	<RamMonitorKeyData RamMonitorKeyName="Trạng thái yêu cầu DV" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_REQ_STT" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại yêu cầu DV" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_REQ_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Đơn vị tính dịch vụ" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_UNIT" />
+	<RamMonitorKeyData RamMonitorKeyName="Giới tính" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_GENDER" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại dịch vụ BHYT" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_HEIN_SERVICE_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Dòng thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDICINE_LINE" />
+	<RamMonitorKeyData RamMonitorKeyName="Đường dùng" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDICINE_USE_FORM" />
+	<RamMonitorKeyData RamMonitorKeyName="Phản ứng thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDI_REACT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Trạng thái xuất" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXP_MEST_STT" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại kết thúc điều trị" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TREATMENT_END_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Kết quả điều trị" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TREATMENT_RESULT" />
+	<RamMonitorKeyData RamMonitorKeyName="Gói dịch vụ (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE_PACKAGE" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm dịch vụ (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_GROUP" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm dịch vụ (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERV_SEGR" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại dịch vụ" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Kho (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEDI_STOCK" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại xuất" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXP_MEST_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Hãng sản xuất" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MANUFACTURER" />
+	<RamMonitorKeyData RamMonitorKeyName="Hoạt chất cho thuốc (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_MEDICINE_TYPE_ACIN" />
+	<RamMonitorKeyData RamMonitorKeyName="Quy cách đóng gói" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PACKING_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Dải kết quả chỉ số xét nghiệm (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_TEST_INDEX_RANGE" />
+	<RamMonitorKeyData RamMonitorKeyName="Chỉ số xét nghiệm (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_TEST_INDEX" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại điều trị" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TREATMENT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Quân hàm" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MILITARY_RANK" />
+	<RamMonitorKeyData RamMonitorKeyName="Nơi sinh" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_WORK_PLACE" />
+	<RamMonitorKeyData RamMonitorKeyName="Thời gian cấp cứu" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EMERGENCY_WTIME" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại tập PHCN" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_REHA_TRAIN_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm máu ABO" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BLOOD_ABO" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm máu RH" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BLOOD_RH" />
+	<RamMonitorKeyData RamMonitorKeyName="Hình thức thanh toán" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PAY_FORM" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại máu (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_BLOOD_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhà cung cấp" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SUPPLIER" />
+	<RamMonitorKeyData RamMonitorKeyName="Nguồn nhập" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_IMP_SOURCE" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại giao dịch" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_TRANSACTION_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Loại sinh" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BORN_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Ngôi thai" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BORN_POSITION" />
+	<RamMonitorKeyData RamMonitorKeyName="Kết quả sinh" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BORN_RESULT" />
+	<RamMonitorKeyData RamMonitorKeyName="Dự trù" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ANTICIPATE" />
+	<RamMonitorKeyData RamMonitorKeyName="Nguyên nhân tai nạn" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_ACCIDENT_HURT_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Phòng thu ngân" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_CASHIER_ROOM" />
+	<RamMonitorKeyData RamMonitorKeyName="Quỹ thanh toán" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_FUND" />
+	<RamMonitorKeyData RamMonitorKeyName="Dịch vụ đính kèm" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_SERVICE_FOLLOW" />
+	<RamMonitorKeyData RamMonitorKeyName="Dịch vụ đính kèm (v)" RamMonitorKeyCode="MOS.EFMODEL.DataModels.V_HIS_SERVICE_FOLLOW" />
+	<RamMonitorKeyData RamMonitorKeyName="Phương thức PTTT" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PTTT_METHOD" />
+	<RamMonitorKeyData RamMonitorKeyName="Nhóm PTTT" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PTTT_GROUP" />
+	<RamMonitorKeyData RamMonitorKeyName="Kỳ tài chính" RamMonitorKeyCode="HTC.EFMODEL.DataModels.HTC_PERIOD" />
+	<RamMonitorKeyData RamMonitorKeyName="Khoản tăng giảm" RamMonitorKeyCode="HTC.EFMODEL.DataModels.HTC_EXPENSE_TYPE" />
+	<RamMonitorKeyData RamMonitorKeyName="Trạng thái mẫu" RamMonitorKeyCode="LIS.EFMODEL.DataModels.LIS_SAMPLE_STT" />
+	<RamMonitorKeyData RamMonitorKeyName="Vai trò thực hiện" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_EXECUTE_ROLE" />
+	<RamMonitorKeyData RamMonitorKeyName="Thẻ BHYT không hợp lệ" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BHYT_BLACKLIST" />
+	<RamMonitorKeyData RamMonitorKeyName="Đầu mã thẻ BHYT" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_BHYT_WHITELIST" />
+	<RamMonitorKeyData RamMonitorKeyName="Vị trí sinh thiết" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PAAN_POSITION" />
+	<RamMonitorKeyData RamMonitorKeyName="Dung dịch sinh thiết" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_PAAN_LIQUID" />
+	<RamMonitorKeyData RamMonitorKeyName="Lý do hoàn ứng" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_REPAY_REASON" />
+	<RamMonitorKeyData RamMonitorKeyName="Kỳ tài chính" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HTC_PERIOD" />
+	<RamMonitorKeyData RamMonitorKeyName="Phòng chỉ định - loại thuốc" RamMonitorKeyCode="MOS.EFMODEL.DataModels.HIS_MEDICINE_TYPE_ROOM" />	
+  </RamMonitorKeyList>
+</RamMonitorKeyLoadConfig>

@@ -466,25 +466,19 @@ if (trackingResult != null && trackingResult.Tracking != null)
 
 Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọi Windows 10/11):
 
-### 10.1. Đường dẫn trình biên dịch C#:
-`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
+### 10.4. Ứng Dụng Chỉ Định Đường Máu Mao Mạch Tại Giường BM02426 (`HisGlucoseBedsideAssigner.exe`):
+Ứng dụng chuyên dụng cho phép chỉ định hàng loạt cận lâm sàng **`BM02426`** (*Xét nghiệm đường máu mao mạch tại giường*) cho bệnh nhân nội trú với khả năng chọn linh hoạt nhiều khung giờ trong ngày:
+- **Tập tin chạy**: `HisGlucoseBedsideAssigner.exe` (kèm file config `HisGlucoseBedsideAssigner.exe.config`)
+- **Tập tin kích hoạt nhanh 1-Click**: `Chay_ChiDinh_BM02426.bat`
+- **Mã dịch vụ**: `BM02426` (Service ID: `6217`)
+- **Phòng thực hiện mặc định**: Room ID `931` (*Phòng Tiểu Phẫu Nhà Q - Khoa CTCH*) hoặc `531` (*P289*)
+- **Tính năng nổi bật**:
+  1. *Đa khung giờ*: Hỗ trợ chọn đồng thời `06:00`, `11:00`, `17:00`, `21:00`, `Hiện tại`, hoặc khung giờ tùy chỉnh `HH:mm`.
+  2. *Nhập liệu siêu tốc*: Nhập trực tiếp danh sách mã BN/mã BA (copy paste từ Excel/Word/Text) hoặc 1-click tải toàn bộ bệnh nhân nội trú Khoa 57.
+  3. *Tự động liên kết/tạo tờ điều trị*: Tự động dò tìm tờ điều trị trong ngày hoặc tạo tờ điều trị mới (`HIS_TRACKING`) khớp với giờ chỉ định để đảm bảo hệ số y lệnh hợp lệ 100%.
+  4. *Báo cáo & Xuất file*: Xuất báo cáo kết quả ra file CSV/Excel và copy nhanh kết quả vào Clipboard.
+  5. *Hỗ trợ CLI*: Chạy ngầm hoặc qua dòng lệnh với cú pháp:
+     ```powershell
+     .\HisGlucoseBedsideAssigner.exe -p "0003969449,0003298895" -time "06:00,11:00,17:00,21:00" -date "2026-08-25"
+     ```
 
-### 10.2. Lệnh biên dịch công cụ `QuickTracking.exe`:
-```powershell
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /out:"E:\his-x64-28-11fix GDYK\his-x64\QuickTracking.exe" "C:\Users\1995\.gemini\antigravity\brain\7ad79d6e-a822-4ade-8dd8-b5328bdc21da\scratch\QuickTracking.cs"
-```
-
-### 10.3. Cơ chế Nạp Assembly Động (Assembly Resolve Pattern):
-Mọi mã nguồn C# độc lập đều gắn đoạn hook sau tại `Main()` để tự động nhận diện tất cả các file DLL trong thư mục gốc và thư mục `ReferencedAssemblies`:
-```csharp
-AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
-{
-    string folderPath = @"E:\his-x64-28-11fix GDYK\his-x64\";
-    string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
-    string path1 = Path.Combine(folderPath, name);
-    if (File.Exists(path1)) return Assembly.LoadFrom(path1);
-    string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
-    if (File.Exists(path2)) return Assembly.LoadFrom(path2);
-    return null;
-};
-```
