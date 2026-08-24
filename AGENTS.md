@@ -27,3 +27,11 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
      git commit -m "fix/feat: <mô tả ngắn gọn nội dung sửa/cập nhật tri thức>"
      git push origin main
      ```
+
+## 4. QUY TẮC BẮT BUỘC VỀ CHẨN ĐOÁN HÌNH ẢNH (ĐÍCH DANH VỊ TRÍ & TẦNG TỔN THƯƠNG)
+* **Tuyệt đối không tóm tắt chung chung** các kết quả MRI, CT Scanner, X-quang trong tóm tắt bệnh án, biên bản hội chẩn hay tờ điều trị (như ghi "xẹp lún các đốt sống", "gãy xương", "thoái hóa đĩa đệm").
+* **Bắt buộc trích xuất đích danh, chính xác từng tầng/vị trí tổn thương:**
+  - *Ví dụ về cột sống:* Phải ghi rõ **`Xẹp cấp L2, L3, L5`** (để phục vụ chỉ định bơm xi măng chính xác), **`Xẹp cũ T12`**, **`Rách vòng xơ đĩa đệm L4/5`**, **`Trượt đốt sống L4 ra trước độ I`**, **`Hẹp ống sống tầng L3-L4-L5`**.
+  - *Ví dụ về xương chi:* Phải ghi rõ **`Gãy xương tháp và xương thang cổ tay trái di lệch`**, **`Gãy 1/3 giữa xương đòn phải`**, **`Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`**.
+* **Ý nghĩa an toàn:** Tránh nguy cơ phẫu thuật sai vị trí hoặc bỏ sót tổn thương cấp cần can thiệp.
+

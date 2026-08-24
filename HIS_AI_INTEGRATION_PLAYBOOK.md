@@ -441,6 +441,7 @@ if (trackingResult != null && trackingResult.Tracking != null)
 | **5** | Tràn bộ nhớ / treo lệnh khi query buồng giường | Filter `HisTreatmentBedRoom` sai tên trường lọc | Luôn lọc bằng `TREATMENT_IDs = [treatmentId]` |
 | **6** | Lỗi định dạng giờ tờ điều trị | Truyền sai 14 số | Chuẩn hóa `yyyyMMddHHmmss` (VD: `20260823080000`) |
 | **7** | Phần mềm báo không tồn tại mã ICD (VD: `B18.1`, `M60.0`...) | Hệ thống HIS/MOS áp dụng **danh mục ICD-10 5 ký tự chuẩn Bộ Y tế** mới; các mã 3-4 ký tự cũ đã chuyển `IsActive = 0` | Bắt buộc tra cứu và sử dụng mã ICD 5 ký tự đang khả dụng (`IsActive = 1`): VD dùng `B18.19` (thay vì `B18.1`), `M60.05` (thay vì `M60.0`), `M47.00†`, `S62.11`... |
+| **8** | Rút ngắn/tóm tắt chung chung kết quả MRI, X-quang, CT (VD: ghi "xẹp lún các đốt sống", "gãy xương chi") | Tóm tắt sơ sài làm mất dữ liệu tầng đốt sống và vị trí giải phẫu cụ thể, gây nguy cơ chỉ định can thiệp nhầm vị trí (đặc biệt là phẫu thuật bơm xi măng sinh học BXM) | **Bắt buộc trích xuất đích danh, chính xác từng tầng/vị trí tổn thương:** VD ghi rõ `Xẹp cấp L2, L3, L5`, `Xẹp cũ T12`, `Trượt L4 ra trước độ I`, `Rách vòng xơ L4/5`, `Gãy xương tháp và xương thang cổ tay trái`... |
 
 ---
 
@@ -451,6 +452,13 @@ if (trackingResult != null && trackingResult.Tracking != null)
   - Thoái hóa cột sống: Dùng **`M47.00†`**, **`M47.8`**, **`M51.2`**, **`M51.3`**...
   - Gãy xương cổ bàn tay / đòn: Dùng **`S62.11`**, **`S42.00`**, **`M84.04`**...
 - Khi xây dựng công cụ tra cứu hoặc tạo bệnh án tự động: Luôn filter với điều kiện `IS_ACTIVE == 1` trong bảng `HIS_ICD` (`api/HisIcd/Get`).
+
+### 9.2. Quy Tắc Trích Xuất Chẩn Đoán Hình Ảnh (Đích Danh Tầng & Vị Trí Tổn Thương):
+- **Cột sống:** Phải nêu rõ từng tầng đốt sống bị tổn thương cấp (có phù tủy xương) và tổn thương cũ:
+  - *Đúng chuẩn:* `Xẹp cấp L2, L3, L5 (phù tủy xương)`, `Xẹp cũ T12`, `Trượt L4 ra trước độ I kèm hẹp ống sống`, `Rách vòng xơ đĩa đệm L4/5`.
+  - *Sai/Cấm kỵ:* `Xẹp lún phù tủy xương các đốt sống thắt lưng` (chung chung, thiếu an toàn lâm sàng).
+- **Xương khớp chi:** Ghi rõ từng xương, vị trí đoạn gãy (1/3 trên, giữa, dưới), độ di lệch hoặc tên cụ thể từng gân đứt:
+  - *Đúng chuẩn:* `Gãy xương tháp và xương thang cổ tay trái di lệch`, `Gãy 1/3 giữa xương đòn phải`, `Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`.
 
 ---
 

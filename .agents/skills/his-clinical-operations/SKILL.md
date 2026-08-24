@@ -171,3 +171,18 @@ Phần mềm tự động quét và giám sát 100% các chỉ định Cận Lâ
   - ✅ `S62.11` (Gãy xương tháp/cổ tay), `S42.00` (Gãy xương đòn), `S33.0` (Rách vòng xơ đĩa đệm thắt lưng)
   - ✅ `E11.9` (Đái tháo đường type 2), `K74.0` (Xơ hóa gan), `B95.6` (Tụ cầu vàng)
 - **Quy tắc cho code C#:** Khi tra cứu `api/HisIcd/Get`, luôn lọc `IS_ACTIVE == 1` để đảm bảo 100% mã hợp lệ trên giao diện HIS/MOS.
+
+---
+
+## 7. Quy Chuẩn Trích Xuất Chẩn Đoán Hình Ảnh (Bắt Buộc Đích Danh Tầng & Vị Trí)
+
+⚠️ **Nguyên tắc an toàn phẫu thuật:** Tuyệt đối không mô tả rút ngắn chung chung các kết quả MRI, X-quang, CT Scanner. Phải nêu đích danh từng tầng giải phẫu, tình trạng cấp/cũ để phục vụ chính xác cho việc thông qua mổ và can thiệp ngoại khoa:
+
+- **Tổn thương Cột sống:**
+  - Bắt buộc ghi rõ từng tầng đốt sống bị **xẹp cấp (có phù tủy xương)** và **xẹp cũ**:
+    - ✅ **Đúng:** `Xẹp cấp L2, L3, L5 (phù tủy xương)`, `Xẹp cũ T12`, `Trượt L4 ra trước độ I kèm hẹp ống sống`, `Rách vòng xơ đĩa đệm L4/5`.
+    - ❌ **Cấm kỵ:** `Xẹp lún phù tủy xương các đốt sống thắt lưng` (mơ hồ, gây nguy cơ can thiệp hoặc bơm xi măng nhầm vị trí).
+- **Tổn thương Xương khớp chi:**
+  - Bắt buộc ghi rõ từng xương, đoạn gãy, độ di lệch, tình trạng gân cơ:
+    - ✅ **Đúng:** `Gãy di lệch xương tháp và xương thang cổ tay trái`, `Gãy 1/3 giữa xương đòn phải`, `Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`.
+    - ❌ **Cấm kỵ:** `Gãy xương cổ tay`, `Gãy xương đòn`, `Đứt gân bàn tay`.
