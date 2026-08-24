@@ -151,18 +151,28 @@ public class MainForm : Form
 
         try { if (File.Exists("APP.ico")) this.Icon = new Icon("APP.ico"); } catch { }
 
+        this.KeyPreview = true;
+        this.KeyDown += async (s, e) =>
+        {
+            if (e.KeyCode == Keys.F5)
+            {
+                e.Handled = true;
+                await ExecuteCreateAllAsync();
+            }
+        };
+
         // Top Header
         pnlHeader = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 58,
+            Height = 60,
             BackColor = Color.FromArgb(26, 86, 219), // Modern Deep Blue
             Padding = new Padding(16, 8, 16, 8)
         };
 
         lblTitle = new Label
         {
-            Text = "📋 NHẬP LIỆU & TẠO TỜ ĐIỀU TRỊ BỆNH NHÂN (HIS / MOS)",
+            Text = "📋 TẠO TỜ ĐIỀU TRỊ BỆNH NHÂN (HIS / MOS EMR)",
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 12f, FontStyle.Bold),
             Location = new Point(14, 8),
@@ -171,13 +181,28 @@ public class MainForm : Form
 
         lblSubTitle = new Label
         {
-            Text = "Hỗ trợ nhập trực tiếp hoặc dán (Ctrl+V) từ Excel/Clipboard | Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57)",
+            Text = "Dán (Ctrl+V) từ Excel hoặc nhập trực tiếp | Bấm nút BẮT ĐẦU hoặc phím F5 để tạo",
             ForeColor = Color.FromArgb(219, 234, 254),
             Font = new Font("Segoe UI", 9f, FontStyle.Regular),
             Location = new Point(16, 32),
             AutoSize = true
         };
 
+        Button btnHeaderStart = new Button
+        {
+            Text = "▶ BẮT ĐẦU (F5) 🚀",
+            Dock = DockStyle.Right,
+            Width = 200,
+            BackColor = Color.FromArgb(16, 185, 129), // Emerald Green
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
+            Cursor = Cursors.Hand
+        };
+        btnHeaderStart.FlatAppearance.BorderSize = 0;
+        btnHeaderStart.Click += async (s, e) => await ExecuteCreateAllAsync();
+
+        pnlHeader.Controls.Add(btnHeaderStart);
         pnlHeader.Controls.Add(lblTitle);
         pnlHeader.Controls.Add(lblSubTitle);
         this.Controls.Add(pnlHeader);
@@ -186,18 +211,19 @@ public class MainForm : Form
         pnlToolbar = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 50,
+            Height = 52,
             BackColor = Color.FromArgb(248, 250, 252),
             BorderStyle = BorderStyle.FixedSingle,
-            Padding = new Padding(8, 6, 8, 6)
+            Padding = new Padding(8, 6, 8, 6),
+            AutoScroll = true
         };
 
         btnAddRow = new Button
         {
             Text = "➕ Thêm dòng",
             Location = new Point(10, 8),
-            Width = 115,
-            Height = 32,
+            Width = 110,
+            Height = 34,
             BackColor = Color.FromArgb(238, 242, 255),
             ForeColor = Color.FromArgb(67, 56, 202),
             FlatStyle = FlatStyle.Flat,
@@ -210,9 +236,9 @@ public class MainForm : Form
         btnPasteExcel = new Button
         {
             Text = "📋 Dán từ Excel (Ctrl+V)",
-            Location = new Point(132, 8),
+            Location = new Point(125, 8),
             Width = 175,
-            Height = 32,
+            Height = 34,
             BackColor = Color.FromArgb(236, 253, 245),
             ForeColor = Color.FromArgb(4, 120, 87),
             FlatStyle = FlatStyle.Flat,
@@ -222,12 +248,27 @@ public class MainForm : Form
         btnPasteExcel.FlatAppearance.BorderColor = Color.FromArgb(167, 243, 208);
         btnPasteExcel.Click += (s, e) => PasteFromClipboard();
 
-        Label lblM = new Label { Text = "Mẫu:", Location = new Point(315, 14), AutoSize = true, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+        btnExecuteAll = new Button
+        {
+            Text = "▶ BẮT ĐẦU TẠO (F5) 🚀",
+            Location = new Point(306, 6),
+            Width = 210,
+            Height = 38,
+            BackColor = Color.FromArgb(16, 185, 129), // Emerald Green
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+            Cursor = Cursors.Hand
+        };
+        btnExecuteAll.FlatAppearance.BorderSize = 0;
+        btnExecuteAll.Click += async (s, e) => await ExecuteCreateAllAsync();
+
+        Label lblM = new Label { Text = "Mẫu:", Location = new Point(525, 15), AutoSize = true, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
 
         cboQuickTemplate = new ComboBox
         {
-            Location = new Point(355, 11),
-            Width = 240,
+            Location = new Point(565, 12),
+            Width = 210,
             DropDownStyle = ComboBoxStyle.DropDownList,
             Font = new Font("Segoe UI", 9f)
         };
@@ -237,9 +278,9 @@ public class MainForm : Form
         btnApplyTemplate = new Button
         {
             Text = "Áp dụng mẫu",
-            Location = new Point(602, 8),
-            Width = 105,
-            Height = 32,
+            Location = new Point(780, 8),
+            Width = 100,
+            Height = 34,
             BackColor = Color.FromArgb(241, 245, 249),
             ForeColor = Color.FromArgb(51, 65, 85),
             FlatStyle = FlatStyle.Flat,
@@ -251,10 +292,10 @@ public class MainForm : Form
 
         btnLoadDept57 = new Button
         {
-            Text = "🏥 Tải toàn bộ BN Khoa 57",
-            Location = new Point(714, 8),
-            Width = 180,
-            Height = 32,
+            Text = "🏥 Tải BN Khoa 57",
+            Location = new Point(885, 8),
+            Width = 150,
+            Height = 34,
             BackColor = Color.FromArgb(240, 249, 255),
             ForeColor = Color.FromArgb(3, 105, 161),
             FlatStyle = FlatStyle.Flat,
@@ -267,9 +308,9 @@ public class MainForm : Form
         btnDeleteRow = new Button
         {
             Text = "Xóa dòng",
-            Location = new Point(900, 8),
-            Width = 85,
-            Height = 32,
+            Location = new Point(1040, 8),
+            Width = 80,
+            Height = 34,
             BackColor = Color.FromArgb(254, 242, 242),
             ForeColor = Color.FromArgb(185, 28, 28),
             FlatStyle = FlatStyle.Flat,
@@ -282,9 +323,9 @@ public class MainForm : Form
         btnClearAll = new Button
         {
             Text = "Xóa hết",
-            Location = new Point(990, 8),
-            Width = 75,
-            Height = 32,
+            Location = new Point(1125, 8),
+            Width = 70,
+            Height = 34,
             BackColor = Color.FromArgb(241, 245, 249),
             ForeColor = Color.FromArgb(100, 116, 139),
             FlatStyle = FlatStyle.Flat,
@@ -294,31 +335,15 @@ public class MainForm : Form
         btnClearAll.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
         btnClearAll.Click += (s, e) => { dgvTracking.Rows.Clear(); UpdateRowCount(); };
 
-        btnExecuteAll = new Button
-        {
-            Text = "🚀 TẠO TẤT CẢ TỜ ĐIỀU TRỊ",
-            Location = new Point(1075, 6),
-            Width = 250,
-            Height = 36,
-            BackColor = Color.FromArgb(16, 185, 129), // Emerald Green
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        btnExecuteAll.FlatAppearance.BorderSize = 0;
-        btnExecuteAll.Click += async (s, e) => await ExecuteCreateAllAsync();
-
         pnlToolbar.Controls.Add(btnAddRow);
         pnlToolbar.Controls.Add(btnPasteExcel);
+        pnlToolbar.Controls.Add(btnExecuteAll);
         pnlToolbar.Controls.Add(lblM);
         pnlToolbar.Controls.Add(cboQuickTemplate);
         pnlToolbar.Controls.Add(btnApplyTemplate);
         pnlToolbar.Controls.Add(btnLoadDept57);
         pnlToolbar.Controls.Add(btnDeleteRow);
         pnlToolbar.Controls.Add(btnClearAll);
-        pnlToolbar.Controls.Add(btnExecuteAll);
         this.Controls.Add(pnlToolbar);
 
         // DataGridView
@@ -354,35 +379,51 @@ public class MainForm : Form
         pnlBottom = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 44,
+            Height = 48,
             BackColor = Color.FromArgb(248, 250, 252),
             BorderStyle = BorderStyle.FixedSingle,
-            Padding = new Padding(12, 8, 12, 8)
+            Padding = new Padding(12, 6, 12, 6)
         };
 
         pbProgress = new ProgressBar
         {
-            Location = new Point(12, 10),
-            Width = 280,
+            Location = new Point(12, 12),
+            Width = 260,
             Height = 22,
             Visible = false
         };
 
         lblSummary = new Label
         {
-            Text = "Mẹo: Nhập mã bệnh nhân hoặc chọn dòng trong Excel copy rồi bấm 'Dán từ Excel' (Ctrl+V) để nạp siêu tốc.",
-            Location = new Point(305, 12),
+            Text = "Mẹo: Nhập mã bệnh nhân hoặc dán từ Excel (Ctrl+V) rồi bấm BẮT ĐẦU (hoặc phím F5).",
+            Location = new Point(285, 14),
             AutoSize = true,
             ForeColor = Color.FromArgb(100, 116, 139),
             Font = new Font("Segoe UI", 9f, FontStyle.Italic)
         };
 
+        Button btnBottomStart = new Button
+        {
+            Text = "▶ BẮT ĐẦU (F5)",
+            Location = new Point(980, 7),
+            Width = 190,
+            Height = 32,
+            BackColor = Color.FromArgb(16, 185, 129),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+        };
+        btnBottomStart.FlatAppearance.BorderSize = 0;
+        btnBottomStart.Click += async (s, e) => await ExecuteCreateAllAsync();
+
         btnExportCsv = new Button
         {
-            Text = "📊 Xuất Excel (CSV)",
-            Location = new Point(1210, 6),
-            Width = 135,
-            Height = 30,
+            Text = "📊 Xuất CSV",
+            Location = new Point(1180, 7),
+            Width = 110,
+            Height = 32,
             BackColor = Color.FromArgb(241, 245, 249),
             ForeColor = Color.FromArgb(51, 65, 85),
             FlatStyle = FlatStyle.Flat,
@@ -395,6 +436,7 @@ public class MainForm : Form
 
         pnlBottom.Controls.Add(pbProgress);
         pnlBottom.Controls.Add(lblSummary);
+        pnlBottom.Controls.Add(btnBottomStart);
         pnlBottom.Controls.Add(btnExportCsv);
         this.Controls.Add(pnlBottom);
 
