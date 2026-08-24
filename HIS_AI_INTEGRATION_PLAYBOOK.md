@@ -512,4 +512,19 @@ Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọ
   .\HisTrackingCreator.exe -p "0003969449,0003298895" -template 1 -time "08:00" -date "2026-08-25"
   ```
 
+### 10.6. Ứng Dụng Tổng Hợp Báo Cáo Giao Ban Ca Trực & Bilan Phẫu Thuật (`HospitalShiftReporter.exe`):
+Ứng dụng chuyên dụng phục vụ công tác giao ban, tổng hợp ca trực, lọc bệnh nhân vào khoa, bệnh nhân sau mổ về khoa, rà soát bilan 12 bệnh nhân dự kiến mổ và tra cứu bệnh nhân truyền máu:
+- **Tập tin chạy**: `HospitalShiftReporter.exe` (kèm file config `HospitalShiftReporter.exe.config`)
+- **Vị trí file mã nguồn & binary**: `HospitalShiftReporter.exe`, `HospitalShiftReporter.cs` (Thư mục gốc & `.agents/skills/his-clinical-operations/scripts/`)
+- **Lệnh biên dịch siêu tốc (khi sang máy mới)**:
+  ```powershell
+  & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HospitalShiftReporter.exe /lib:.,ReferencedAssemblies,HisAutoPrescribe_Portable /r:System.dll,System.Core.dll,System.Data.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HospitalShiftReporter.cs
+  ```
+- **Quy tắc tra cứu**:
+  1. *Bệnh nhân vào khoa ca trực*: Query `V_HIS_DEPARTMENT_TRAN` theo `DEPARTMENT_ID == 57` và `DEPARTMENT_IN_TIME` trong khoảng thời gian trực.
+  2. *Bệnh nhân mổ về ca trực*: Query `V_HIS_SERVICE_REQ` có `SERVICE_REQ_TYPE_ID == 6` và `FINISH_TIME` hoặc `INTRUCTION_TIME` trong ngày trực, kết hợp đối chiếu diễn biến hậu phẫu trên `V_HIS_TRACKING`.
+  3. *Bệnh nhân dự kiến mổ*: Query hồ sơ bệnh án theo tên hoặc `TREATMENT_BED_ROOM` đang nằm, trích xuất toàn bộ CTM, Đông máu, Sinh hóa, Điện giải, Nhóm máu, Virus, CĐHA, MRI, CT.
+  4. *Bệnh nhân truyền máu*: Query `V_HIS_SERE_SERV` có tên dịch vụ chứa "máu", "Khối hồng cầu", "Huyết tương", trích xuất chỉ số HGB/HCT các thời điểm trước và sau truyền.
+
+
 
