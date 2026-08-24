@@ -1126,20 +1126,16 @@ public class MainForm : Form
             ApiConsumers.SetConsunmer(currentToken);
             adapter = new BackendAdapter(param);
 
-            // Bind token session to working rooms on MOS backend
+            // Bind token session to all 23 valid working rooms in Department 57 on MOS backend
+            long[] validRoomIds = new long[] {
+                931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
+                5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
+                5267, 6622, 6623
+            };
+
             var workInfo = new WorkInfoSDO
             {
-                Rooms = new List<RoomSDO>
-                {
-                    new RoomSDO { RoomId = 5248 }, // Phòng 734 (Phòng trực CTCH)
-                    new RoomSDO { RoomId = 5252 }, // Phòng 712
-                    new RoomSDO { RoomId = 5251 }, // Phòng 714
-                    new RoomSDO { RoomId = 5257 }, // Phòng 724
-                    new RoomSDO { RoomId = 5255 }, // Phòng 722
-                    new RoomSDO { RoomId = 5253 }, // Phòng 711
-                    new RoomSDO { RoomId = 5259 }, // Phòng 740
-                    new RoomSDO { RoomId = 5265 }  // Phòng 731
-                }
+                Rooms = validRoomIds.Select(id => new RoomSDO { RoomId = id }).ToList()
             };
             var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
             HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
@@ -1223,6 +1219,19 @@ public class MainForm : Form
 
         List<PatientItemDto> results = new List<PatientItemDto>();
 
+        // Query Bed Rooms to map BED_ROOM_ID -> ROOM_ID
+        HisBedRoomViewFilter brfAll = new HisBedRoomViewFilter();
+        brfAll.DEPARTMENT_ID = 57;
+        var allBedRooms = myAdapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", ApiConsumers.MosConsumer, brfAll, param);
+        Dictionary<long, long> bedRoomToRoomMap = new Dictionary<long, long>();
+        if (allBedRooms != null)
+        {
+            foreach (var br in allBedRooms)
+            {
+                if (!bedRoomToRoomMap.ContainsKey(br.ID)) bedRoomToRoomMap.Add(br.ID, br.ROOM_ID);
+            }
+        }
+
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
         tbrf.IS_IN_ROOM = true;
         tbrf.TREATMENT_IS_ACTIVE = true;
@@ -1257,6 +1266,12 @@ public class MainForm : Form
             V_HIS_TREATMENT tr = null;
             treatMap.TryGetValue(b.TREATMENT_ID, out tr);
 
+            long workingRoomId = 5248;
+            if (bedRoomToRoomMap.TryGetValue(b.BED_ROOM_ID, out workingRoomId) == false)
+            {
+                workingRoomId = 5248;
+            }
+
             PatientItemDto item = new PatientItemDto
             {
                 TreatmentId = b.TREATMENT_ID,
@@ -1274,7 +1289,7 @@ public class MainForm : Form
                 IcdName = tr != null ? tr.ICD_NAME : "Thoát vị đĩa đệm",
                 IcdSubCode = tr != null ? tr.ICD_SUB_CODE : "",
                 IcdText = tr != null ? (!string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME) : "",
-                WorkingRoomId = 5248
+                WorkingRoomId = workingRoomId
             };
 
             results.Add(item);
@@ -1358,7 +1373,25 @@ public class MainForm : Form
         }
 
         // 2. Prepare AssignServiceSDO
-        long requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : ((targetTracking != null && targetTracking.ROOM_ID.HasValue && targetTracking.ROOM_ID.Value > 0) ? targetTracking.ROOM_ID.Value : 5257);
+        long[] validRoomIds = new long[] {
+            931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
+            5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
+            5267, 6622, 6623
+        };
+
+        long requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 5248;
+        if (targetTracking != null && targetTracking.ROOM_ID.HasValue && targetTracking.ROOM_ID.Value > 0)
+        {
+            if (validRoomIds.Contains(targetTracking.ROOM_ID.Value))
+            {
+                requestRoomId = targetTracking.ROOM_ID.Value;
+            }
+        }
+        if (!validRoomIds.Contains(requestRoomId))
+        {
+            requestRoomId = 5248;
+        }
+
         string instructionNote = string.Format("Đo ĐMMM lúc {0}{1}", slotTimeStr, !string.IsNullOrEmpty(note) ? " - " + note : "").Trim();
 
         AssignServiceSDO assignSDO = new AssignServiceSDO
