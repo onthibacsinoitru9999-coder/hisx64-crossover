@@ -333,9 +333,9 @@ public class MainForm : Form
             DropDownStyle = ComboBoxStyle.DropDownList,
             Font = new Font("Segoe UI", 9.0f)
         };
-        cboExecuteRoom.Items.Add(new RoomOption(931, "Q.T7TP", "Phòng Tiểu Phẫu (Nhà Q) - Khoa CTCH (Khuyên dùng)"));
-        cboExecuteRoom.Items.Add(new RoomOption(531, "P289", "Khoa CTCH & Cột Sống (Phòng 289)"));
-        cboExecuteRoom.Items.Add(new RoomOption(533, "P291", "Khoa CTCH & Cột Sống (Phòng 291)"));
+        cboExecuteRoom.Items.Add(new RoomOption(931, "Q.T7TP", "Phòng Tiểu Phẫu Tầng 7 Nhà Q (Khoa CTCH & CS)"));
+        cboExecuteRoom.Items.Add(new RoomOption(531, "P289", "P289 - Khoa CTCH & Cột Sống"));
+        cboExecuteRoom.Items.Add(new RoomOption(533, "P291", "P291 - Khoa CTCH & Cột Sống"));
         cboExecuteRoom.Items.Add(new RoomOption(410, "P168", "Phòng Xét Nghiệm Sinh Hóa (P168)"));
         cboExecuteRoom.SelectedIndex = 0;
         pnlScroll.Controls.Add(cboExecuteRoom);
