@@ -355,16 +355,27 @@ if (trackingResult != null && trackingResult.Tracking != null)
 
 ---
 
-### 5.7. Công Cụ Sẵn Có: `QuickTracking.exe`
-Được đóng gói tại thư mục gốc: `QuickTracking.exe`.
-* **Tốc độ thực thi**: ~0.25 – 0.35 giây / 1 tờ điều trị.
+### 5.7. Ứng Dụng Toàn Diện: `HisTrackingCreator.exe` (GUI & CLI Siêu Tốc)
+Được đóng gói tại thư mục gốc: `HisTrackingCreator.exe` (kèm file kích hoạt nhanh `Chay_Tao_ToDieuTri.bat`).
+* **Tính năng Giao diện WinForms (GUI)**:
+  - Tra cứu bệnh nhân tức thì theo Mã bệnh nhân / Mã điều trị (Treatment Code) / Treatment ID.
+  - Hiển thị Patient Card trực quan: Tên BN, Giới tính, Tuổi, Đối tượng (BHYT/Viện phí), Buồng - Giường, Chẩn đoán ICD bệnh chính & bệnh kèm theo.
+  - Hỗ trợ 1-Click nạp toàn bộ bệnh nhân nội trú Khoa CTCH & Cột sống (Khoa 57), lọc theo buồng bệnh, tìm kiếm nhanh.
+  - 6 Mẫu lâm sàng chuẩn (Thông thường, Sơ kết 3-5 ngày, Tiền phẫu, Hậu phẫu 24h, Tổng kết ra viện, Hội chẩn bệnh nặng).
+  - Chọn nhanh cấp chăm sóc (`CSCI`, `CSCII`, `CSCIII`), chế độ ăn (`BT01`, `DD01`, `TM01`...), tích chọn y lệnh điều dưỡng tự động tổng hợp text `CARE_INSTRUCTION`.
+  - Tích hợp nhập Dấu hiệu sinh tồn (DHST: Mạch, HA Max/Min, Nhiệt độ, Nhịp thở, SpO2, Cân nặng) đồng bộ thời gian.
+  - 1-Click Xuất Excel (CSV) và Copy báo cáo kết quả.
+* **Tốc độ thực thi**: ~0.20 – 0.35 giây / 1 tờ điều trị.
 * **Cú pháp dòng lệnh (CLI)**:
   ```powershell
   # Tạo tờ điều trị thường ngày:
-  .\QuickTracking.exe -p 0003979720 -time 08:00 -content "bn tỉnh không sốt vết mổ khô đầu chi ấm" -med "thuốc theo đơn" -care "CSII, BT01"
+  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "Bệnh nhân tỉnh táo, không sốt, vết mổ khô sạch đầu chi ấm." -med "Thuốc theo đơn đã kê" -care "Chăm sóc cấp II (CSII). Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày."
   
-  # Tạo tờ sơ kết hoặc tổng kết ra viện:
-  .\QuickTracking.exe -p 0003979720 -time 08:00 -content "TỔNG KẾT RA VIỆN: BN tỉnh, hđ ổn, vết mổ liền tốt, hết đau -> Ra viện" -med "Đơn về, hẹn khám lại sau 1 tháng"
+  # Tạo theo mẫu lâm sàng chuẩn (Mẫu 1..6):
+  .\HisTrackingCreator.exe -p "0003969449,0003298895" -template 1 -time "08:00" -date "2026-08-25"
+  
+  # Tạo kèm chỉ số sinh tồn (DHST) tùy chỉnh:
+  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "BN ổn định" -care "CSII, BT01" -pulse 78 -temp 36.6 -bpmax 120 -bpmin 80 -spo2 99
   ```
 
 ---
@@ -481,4 +492,23 @@ Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọ
      ```powershell
      .\HisGlucoseBedsideAssigner.exe -p "0003969449,0003298895" -time "06:00,11:00,17:00,21:00" -date "2026-08-25"
      ```
+
+### 10.5. Ứng Dụng Tạo Tờ Điều Trị & Chế Độ Chăm Sóc Bệnh Nhân (`HisTrackingCreator.exe`):
+Ứng dụng chuyên dụng tạo Tờ điều trị (`HIS_TRACKING`) và Dấu hiệu sinh tồn (`HIS_DHST`) cho bệnh nhân có mã bệnh nhân cụ thể, vào giờ cụ thể, nội dung cụ thể và chế độ chăm sóc cụ thể:
+- **Tập tin chạy**: `HisTrackingCreator.exe` (kèm file config `HisTrackingCreator.exe.config`)
+- **Tập tin kích hoạt nhanh 1-Click**: `Chay_Tao_ToDieuTri.bat`
+- **Vị trí file mã nguồn & binary**: `HisTrackingCreator.exe`, `HisTrackingCreator.cs` (Thư mục gốc & `.agents/skills/his-clinical-operations/scripts/`)
+- **Lệnh biên dịch siêu tốc (khi sang máy mới)**:
+  ```powershell
+  & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HisTrackingCreator.exe /lib:.,ReferencedAssemblies,HisAutoPrescribe_Portable /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisTrackingCreator.cs
+  ```
+- **Cú pháp CLI**:
+  ```powershell
+  # Tạo tờ điều trị đơn lẻ:
+  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "Bệnh nhân tỉnh táo, không sốt, vết mổ khô sạch." -care "Chăm sóc cấp II. Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày." -med "Thuốc theo đơn."
+  
+  # Tạo theo mẫu lâm sàng chuẩn 1..6:
+  .\HisTrackingCreator.exe -p "0003969449,0003298895" -template 1 -time "08:00" -date "2026-08-25"
+  ```
+
 

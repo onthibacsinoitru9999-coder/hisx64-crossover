@@ -126,11 +126,17 @@ Phần mềm tự động quét và giám sát 100% các chỉ định Cận Lâ
 
 ---
 
-## 5. Quy trình 2: Tạo Tờ Điều Trị & Dấu Hiệu Sinh Tồn
+## 5. Quy trình 2: Tạo Tờ Điều Trị & Dấu Hiệu Sinh Tồn (`HisTrackingCreator.exe`)
 
 ### Endpoint: `api/HisTracking/Create` và `api/HisDhst/Create`
-- `HisTrackingSDO`: Ghi nhận diễn biến bệnh (`Content`), chẩn đoán ICD, khoa điều trị (`DepartmentId: 57`).
-- `HIS_DHST`: Lưu các chỉ số Mạch, Nhiệt độ, Huyết áp (`BLOOD_PRESSURE_MAX`/`MIN`), Nhịp thở, SpO2.
+- `HisTrackingSDO`: Ghi nhận diễn biến bệnh (`Content`), chẩn đoán ICD, khoa điều trị (`DepartmentId: 57`), phòng làm việc (`WorkingRoomId`).
+- `HIS_DHST`: Lưu các chỉ số Mạch, Nhiệt độ, Huyết áp (`BLOOD_PRESSURE_MAX`/`MIN`), Nhịp thở, SpO2, Cân nặng.
+- **Ứng dụng đóng gói sẵn**: `HisTrackingCreator.exe` (Thư mục gốc & `.agents/skills/his-clinical-operations/scripts/HisTrackingCreator.exe`) kèm `Chay_Tao_ToDieuTri.bat`.
+- **Cú pháp CLI**:
+  ```powershell
+  # Tạo tờ điều trị cho mã BN cụ thể:
+  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "BN tỉnh táo, không sốt, vết mổ khô sạch đầu chi ấm" -care "Chăm sóc cấp II. Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày" -med "Thuốc theo đơn"
+  ```
 
 ---
 
