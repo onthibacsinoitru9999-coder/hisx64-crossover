@@ -41,9 +41,12 @@ Hãy phân tích ảnh và trích xuất CHÍNH XÁC theo định dạng JSON sa
 Quy tắc quan trọng:
 1. Mã bệnh nhân (patient_code) thường có dạng 10 chữ số (VD: 0003969449). Nếu chỉ thấy tên, ghi tên vào patient_name và để patient_code rỗng.
 2. Kết quả đường huyết tính theo mmol/L (nếu đơn vị là mg/dL thì chia 18 để quy đổi).
-3. Liều Insulin: ghi rõ tên (Actrapid, Mixtard, Lantus, Humulin R, NovoRapid, Levemir...) và số đơn vị (UI/đv).
+3. **KÝ HIỆU VIẾT TẮT INSULIN CỦA ĐIỀU DƯỠNG (BẮT BUỘC QUY ĐỔI CHUẨN XÁC):**
+   - **`R`** (VD: `6R`, `8R`, `4R`, `R6`, `R8`): là **Actrapid** (Insulin Regular tác dụng nhanh). Ví dụ `6R` -> `insulin_name: "Actrapid"`, `insulin_dose_ui: 6`.
+   - **`L`** (VD: `10L`, `12L`, `14L`, `L10`, `L12`): là **Lantus** (Insulin Glargine nền kéo dài). Ví dụ `10L` -> `insulin_name: "Lantus"`, `insulin_dose_ui: 10`.
+   - **`M`** (VD: `8M`, `10M`, `12M`, `M8`, `M10`): là **Mixtard** (Insulin hỗn hợp / Mix 30/70). Ví dụ `8M` -> `insulin_name: "Mixtard"`, `insulin_dose_ui: 8`.
 4. Nếu cột không có kết quả (chưa đo, bỏ trống) thì glucose_mmol = null.
-5. Nếu không tiêm insulin (đường huyết thấp hoặc ghi "0" hoặc bỏ trống) thì inject = false, insulin_dose_ui = 0.
+5. Nếu không tiêm insulin (đường huyết thấp hoặc ghi "0" hoặc bỏ trống hoặc gạch ngang) thì inject = false, insulin_dose_ui = 0.
 6. Xác định ngày báo cáo (report_date) từ ảnh. Mốc 06:00 thuộc NGÀY HÔM SAU (thêm 1 ngày).
 7. Nếu không đọc được mã BN, ghi chú vào trường "note" để bác sĩ xác nhận thủ công.
 

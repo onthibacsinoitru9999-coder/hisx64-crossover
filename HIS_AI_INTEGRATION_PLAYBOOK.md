@@ -343,6 +343,10 @@ var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsu
   1. **Bước 1 (Tờ điều trị)**: Gọi `HisTrackingCreator.exe` ghi nhận kết quả ĐMMM lúc 17h, 21h, 6h và ghi y lệnh tiêm insulin.
   2. **Bước 2 (Chỉ định CLS BM02426)**: Gọi `HisGlucoseBedsideAssigner.exe` chỉ định xét nghiệm đường máu mao mạch tại giường theo từng mốc giờ (mốc 06:00 tự động tính sang ngày hôm sau).
   3. **Bước 3 (Kê đơn Insulin)**: Gọi `HisAutoPrescribe.exe --batch` (hoặc CLI) kê đơn thuốc tiêm Insulin (Actrapid, Lantus, Mixtard...) tương ứng với liều trong bảng.
+* **Quy chuẩn ký hiệu viết tắt Insulin của Điều dưỡng (Bắt buộc ghi nhớ)**:
+  - **`R`** (VD: **`6R`**, **`8R`**, **`4R`**): là **Actrapid** (Insulin Regular tác dụng nhanh). Ví dụ `6R` = `6 đơn vị Actrapid`.
+  - **`L`** (VD: **`10L`**, **`12L`**, **`14L`**): là **Lantus** (Insulin Glargine nền kéo dài). Ví dụ `10L` = `10 đơn vị Lantus`.
+  - **`M`** (VD: **`8M`**, **`10M`**, **`12M`**): là **Mixtard** (Insulin hỗn hợp / Mix). Ví dụ `8M` = `8 đơn vị Mixtard`.
 * **Bộ công cụ cốt lõi**:
   - Script điều phối: [`HisDiabetesOrchestrator.ps1`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HisDiabetesOrchestrator.ps1)
   - Parser thị giác: [`parse_glucose_image.py`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/parse_glucose_image.py)
