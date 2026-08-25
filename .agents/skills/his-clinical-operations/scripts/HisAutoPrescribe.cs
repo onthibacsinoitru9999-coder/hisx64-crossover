@@ -1056,6 +1056,22 @@ public class MainForm : Form
 
 class Program
 {
+    // Parse một dòng CSV hỗ trợ field có dấu phẩy trong ngoặc kép
+    static List<string> ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        bool inQuotes = false;
+        var current = new StringBuilder();
+        foreach (char c in line)
+        {
+            if (c == '"') { inQuotes = !inQuotes; }
+            else if (c == ',' && !inQuotes) { fields.Add(current.ToString()); current.Clear(); }
+            else { current.Append(c); }
+        }
+        fields.Add(current.ToString());
+        return fields;
+    }
+
     [STAThread]
     static void Main(string[] args)
     {
@@ -1115,6 +1131,218 @@ class Program
             Console.OutputEncoding = Encoding.UTF8;
         }
         catch { }
+
+        // ──────────────────────────────────────────────────────────
+        // CHẾ ĐỘ --batch: Đọc file CSV hàng loạt, kê đơn Insulin
+        // CSV format: patient_code,dose,medicine,tutorial,time,date
+        // VD: HisAutoPrescribe.exe --batch insulin_orders.csv
+        // ──────────────────────────────────────────────────────────
+        if (args != null && args.Length >= 2 && (args[0] == "--batch" || args[0] == "-b"))
+        {
+            string csvPath = args[1];
+            string batchUser = args.Length > 2 ? args[2] : "vmc";
+            string batchPass = args.Length > 3 ? args[3] : "789789";
+
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine("  HIS AUTO PRESCRIBE - CHẾ ĐỘ KÊ ĐƠN HÀNG LOẠT (BATCH MODE)");
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine("• File CSV: " + csvPath);
+            Console.WriteLine("• Bác sĩ: " + batchUser);
+
+            if (!File.Exists(csvPath))
+            {
+                Console.WriteLine("❌ Không tìm thấy file CSV: " + csvPath);
+                return;
+            }
+
+            // Đọc & parse CSV
+            var csvLines = File.ReadAllLines(csvPath, Encoding.UTF8)
+                               .Skip(1) // bỏ header
+                               .Where(l => !string.IsNullOrWhiteSpace(l))
+                               .ToList();
+
+            Console.WriteLine(string.Format("• Số lệnh: {0}", csvLines.Count));
+            Console.WriteLine("-------------------------------------------------------------------------------");
+
+            if (csvLines.Count == 0) { Console.WriteLine("⚠ File CSV không có dữ liệu!"); return; }
+
+            try
+            {
+                HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+                ClientTokenManager btm = new ClientTokenManager("HIS");
+                CommonParam bp = new CommonParam();
+                var btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
+                if (btok == null) { Console.WriteLine("❌ Đăng nhập thất bại!"); return; }
+                ApiConsumers.SetConsunmer(btok.TokenCode);
+                MyAdapter bad = new MyAdapter();
+
+                // Cache: tra cứu BN và thuốc chỉ 1 lần
+                var treatmentCache = new Dictionary<string, V_HIS_TREATMENT>();
+                var medicineCache  = new Dictionary<string, V_HIS_MEDICINE_TYPE>();
+
+                int bSucc = 0, bFail = 0;
+
+                foreach (var line in csvLines)
+                {
+                    // Parse CSV: hỗ trợ field có dấu phẩy trong ngoặc kép
+                    var fields = ParseCsvLine(line);
+                    if (fields.Count < 3)
+                    {
+                        Console.WriteLine("  ⚠ Bỏ qua dòng không hợp lệ: " + line);
+                        bFail++;
+                        continue;
+                    }
+
+                    string bPatKey  = fields[0].Trim().Trim('"');
+                    string bDoseStr = fields.Count > 1 ? fields[1].Trim().Trim('"') : "1";
+                    string bMedKw   = fields.Count > 2 ? fields[2].Trim().Trim('"') : "";
+                    string bTut     = fields.Count > 3 ? fields[3].Trim().Trim('"') : "Tiêm dưới da theo chỉ dẫn bác sĩ";
+                    string bTime    = fields.Count > 4 ? fields[4].Trim().Trim('"') : "";
+                    string bDate    = fields.Count > 5 ? fields[5].Trim().Trim('"') : DateTime.Today.ToString("yyyy-MM-dd");
+
+                    decimal bAmount = 1;
+                    decimal.TryParse(bDoseStr, out bAmount);
+
+                    if (string.IsNullOrEmpty(bPatKey) || string.IsNullOrEmpty(bMedKw))
+                    {
+                        Console.WriteLine("  ⚠ Bỏ qua: thiếu Mã BN hoặc Tên thuốc");
+                        bFail++;
+                        continue;
+                    }
+
+                    // Tính instructionTime từ bTime + bDate
+                    DateTime targetDate = DateTime.Today;
+                    DateTime.TryParse(bDate, out targetDate);
+                    int bHour = 17, bMin = 0;
+                    if (!string.IsNullOrEmpty(bTime))
+                    {
+                        var tp = bTime.Split(':');
+                        int.TryParse(tp[0], out bHour);
+                        if (tp.Length > 1) int.TryParse(tp[1], out bMin);
+                    }
+                    DateTime instructionDt = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, bHour, bMin, 0);
+                    long instructionTime   = long.Parse(instructionDt.ToString("yyyyMMddHHmmss"));
+
+                    try
+                    {
+                        // 1. Tra cứu bệnh nhân (cache)
+                        if (!treatmentCache.ContainsKey(bPatKey))
+                        {
+                            HisTreatmentViewFilter btf = new HisTreatmentViewFilter();
+                            btf.KEY_WORD = bPatKey;
+                            var btrs = bad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, btf, bp);
+                            if (btrs == null || btrs.Count == 0) throw new Exception("Không tìm thấy BN: " + bPatKey);
+                            treatmentCache[bPatKey] = btrs[0];
+                        }
+                        var btr = treatmentCache[bPatKey];
+
+                        // 2. Tìm tờ điều trị gần nhất TRÙNG giờ chỉ định (trong ±30 phút)
+                        HisTrackingViewFilter btkf = new HisTrackingViewFilter();
+                        btkf.TREATMENT_ID    = btr.ID;
+                        btkf.ORDER_FIELD     = "TRACKING_TIME";
+                        btkf.ORDER_DIRECTION = "DESC";
+                        var btks = bad.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, btkf, bp);
+
+                        long bTkId   = 0;
+                        long bTkTime = instructionTime;
+
+                        if (btks != null && btks.Count > 0)
+                        {
+                            // Tìm tờ điều trị có TRACKING_TIME gần nhất với instructionTime (±30 phút)
+                            long tolerance = 3000; // 30 phút = 3000 (đơn vị HHMMSS)
+                            var matched = btks.Where(tk =>
+                            {
+                                long diff = Math.Abs(tk.TRACKING_TIME - instructionTime);
+                                return diff <= tolerance;
+                            }).OrderBy(tk => Math.Abs(tk.TRACKING_TIME - instructionTime)).FirstOrDefault();
+
+                            if (matched != null)
+                            {
+                                bTkId   = matched.ID;
+                                bTkTime = matched.TRACKING_TIME;
+                            }
+                            else
+                            {
+                                // Dùng tờ điều trị mới nhất nếu không có tờ trùng giờ
+                                bTkId   = btks[0].ID;
+                                bTkTime = instructionTime; // Dùng đúng giờ chỉ định
+                            }
+                        }
+
+                        // 3. Tra cứu thuốc (cache theo tên)
+                        if (!medicineCache.ContainsKey(bMedKw))
+                        {
+                            HisMedicineTypeViewFilter bmtf = new HisMedicineTypeViewFilter();
+                            bmtf.KEY_WORD  = bMedKw;
+                            bmtf.IS_ACTIVE = 1;
+                            var bmeds = bad.FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, bmtf, bp);
+                            if (bmeds == null || bmeds.Count == 0) throw new Exception("Không tìm thấy thuốc: " + bMedKw);
+                            medicineCache[bMedKw] = bmeds[0];
+                        }
+                        var bMed = medicineCache[bMedKw];
+
+                        // Xác định kho thuốc: Insulin thường lấy từ kho tủ trực (810)
+                        // hoặc kho thuốc ống (4209) tùy tên thuốc
+                        long bStockId = 810; // Tủ trực Khoa 57 (mặc định cho Insulin)
+
+                        // 4. Tạo đơn thuốc nội trú
+                        InPatientPresSDO bPresSDO = new InPatientPresSDO
+                        {
+                            TreatmentId       = btr.ID,
+                            InstructionTimes  = new List<long> { bTkTime },
+                            UseTimes          = new List<long> { bTkTime },
+                            TrackingId        = bTkId,
+                            TrackingInfos     = new List<TrackingInfoSDO>
+                            {
+                                new TrackingInfoSDO { TrackingId = bTkId, IntructionTime = bTkTime }
+                            },
+                            RequestRoomId     = 5248,
+                            RequestLoginName  = batchUser,
+                            RequestUserName   = batchUser.ToUpper(),
+                            IcdCode           = btr.ICD_CODE,
+                            IcdName           = btr.ICD_NAME,
+                            IcdSubCode        = btr.ICD_SUB_CODE,
+                            IcdText           = btr.ICD_TEXT,
+                            Medicines = new List<PresMedicineSDO>
+                            {
+                                new PresMedicineSDO
+                                {
+                                    MedicineTypeId = bMed.ID,
+                                    MediStockId    = bStockId,
+                                    Amount         = bAmount,
+                                    PatientTypeId  = btr.TDL_PATIENT_TYPE_ID ?? 1,
+                                    Tutorial       = bTut
+                                }
+                            }
+                        };
+
+                        var bRes = bad.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, bPresSDO, bp);
+                        string bCode = (bRes != null && bRes.ServiceReqs != null && bRes.ServiceReqs.Count > 0)
+                            ? bRes.ServiceReqs[0].SERVICE_REQ_CODE : "OK";
+
+                        Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã: {5}",
+                            bPatKey, btr.TDL_PATIENT_NAME, bMed.MEDICINE_TYPE_NAME, bAmount, bTime, bCode));
+                        bSucc++;
+                    }
+                    catch (Exception bex)
+                    {
+                        Console.WriteLine(string.Format("  ❌ [{0}] Lỗi: {1}", bPatKey, bex.Message));
+                        bFail++;
+                    }
+
+                    System.Threading.Thread.Sleep(300); // Tránh spam API
+                }
+
+                Console.WriteLine("===============================================================================");
+                Console.WriteLine(string.Format("KẾT THÚC BATCH: ✔ Thành công: {0} | ❌ Lỗi: {1}", bSucc, bFail));
+                Console.WriteLine("===============================================================================");
+            }
+            catch (Exception batchEx)
+            {
+                Console.WriteLine("❌ Lỗi nghiêm trọng batch mode: " + batchEx.Message);
+            }
+            return;
+        }
 
         if (args != null && args.Length >= 3)
         {
