@@ -1,4 +1,4 @@
-﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
 > **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
 > **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
@@ -336,6 +336,19 @@ var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsu
 3. 👁️ **Khám chuyên khoa Mắt (Soi đáy mắt):**
    - Áp dụng cho bệnh nhân phẫu thuật có **tư thế nằm sấp** (Cột sống ngực, thắt lưng, giải ép, CĐCS, BXM) có **tiền sử Đái tháo đường**.
    - Mục đích sàng lọc bệnh võng mạc đái tháo đường, dự phòng thiếu máu thị thần kinh.
+
+### 8.4. Luồng Tự Động Hóa 1-Click: Bí Danh "Thợ Cho Đường Huyết" (HisDiabetesOrchestrator)
+* **Bí danh đặc quyền**: `"thợ cho đường huyết"` (Hoặc `"tho cho duong huyet"`).
+* **Mục tiêu**: Bác sĩ chỉ cần gửi ảnh báo cáo đường huyết của điều dưỡng (hoặc bảng text) kèm lời gọi bí danh, Agent Antigravity tự động trích xuất và thực thi 100% cả 3 tác vụ y lệnh cho toàn bộ bệnh nhân mà **không cần hỏi lại hay bắt bác sĩ chỉnh sửa gì thêm**:
+  1. **Bước 1 (Tờ điều trị)**: Gọi `HisTrackingCreator.exe` ghi nhận kết quả ĐMMM lúc 17h, 21h, 6h và ghi y lệnh tiêm insulin.
+  2. **Bước 2 (Chỉ định CLS BM02426)**: Gọi `HisGlucoseBedsideAssigner.exe` chỉ định xét nghiệm đường máu mao mạch tại giường theo từng mốc giờ (mốc 06:00 tự động tính sang ngày hôm sau).
+  3. **Bước 3 (Kê đơn Insulin)**: Gọi `HisAutoPrescribe.exe --batch` (hoặc CLI) kê đơn thuốc tiêm Insulin (Actrapid, Lantus, Mixtard...) tương ứng với liều trong bảng.
+* **Bộ công cụ cốt lõi**:
+  - Script điều phối: [`HisDiabetesOrchestrator.ps1`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HisDiabetesOrchestrator.ps1)
+  - Parser thị giác: [`parse_glucose_image.py`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/parse_glucose_image.py)
+  - Công cụ kê đơn hàng loạt: [`HisAutoPrescribe.exe --batch`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HisAutoPrescribe.exe)
+  - Công cụ chỉ định ĐMMM: [`HisGlucoseBedsideAssigner.exe`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/.agents/skills/his-clinical-operations/scripts/HisGlucoseBedsideAssigner.exe)
+  - Công cụ tạo tờ điều trị: [`HisTrackingCreator.exe`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/.agents/skills/his-clinical-operations/scripts/HisTrackingCreator.exe)
 
 ---
 

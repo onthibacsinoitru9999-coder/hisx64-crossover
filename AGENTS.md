@@ -35,3 +35,12 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   - *Ví dụ về xương chi:* Phải ghi rõ **`Gãy xương tháp và xương thang cổ tay trái di lệch`**, **`Gãy 1/3 giữa xương đòn phải`**, **`Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`**.
 * **Ý nghĩa an toàn:** Tránh nguy cơ phẫu thuật sai vị trí hoặc bỏ sót tổn thương cấp cần can thiệp.
 
+## 5. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ CHO ĐƯỜNG HUYẾT" (DIABETES 1-CLICK PROTOCOL)
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin hoặc gửi ảnh báo cáo đường huyết và gọi/nhắc đến **"thợ cho đường huyết"**, Agent PHẢI tự động nhận diện và kích hoạt ngay luồng xử lý toàn diện mà **KHÔNG CẦN HỎI LẠI HAY TINH CHỈNH GÌ THÊM**:
+  1. **Tự đọc & trích xuất dữ liệu:** Phân tích trực tiếp ảnh/bảng dữ liệu gửi kèm (Mã BN, Họ tên, ĐH các mốc 17h, 21h, 6h sáng hôm sau, liều Insulin tương ứng: Actrapid, Lantus...).
+  2. **Thực thi đồng thời 3 tác vụ y lệnh cho 100% bệnh nhân:**
+     - **Tác vụ 1 - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
+     - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):** Chỉ định xét nghiệm đường máu mao mạch tại giường **`BM02426`** cho các mốc giờ (mốc 06:00 tự động tính ngày hôm sau).
+     - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):** Kê đơn thuốc tiêm Insulin (Actrapid / Lantus...) đúng liều và hướng dẫn dùng.
+  3. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
+
