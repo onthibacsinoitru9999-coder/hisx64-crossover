@@ -83,3 +83,23 @@ Skill này cung cấp quy trình và mã nguồn chuẩn hóa để **Tạo đơ
    - `Morning`, `Noon`, `Afternoon`, `Evening` được phân bổ chính xác.
    - `NumOfDays = 1`.
 3. **Kiểm tra phản hồi**: Đánh giá thành công qua `result.ExpMests != null && result.ExpMests.Count > 0`.
+
+---
+
+## 4. QUY TẮC AN TOÀN BẢO HIỂM & ĐIỀU PHỐI KHO/TỦ TRỰC (BẮT BUỘC GHI NHỚ)
+
+### 4.1. Quy tắc Chẩn đoán Bệnh nền (VD: Tăng huyết áp, Đái tháo đường):
+* Trước khi đề xuất thuốc điều trị bệnh nền (như thuốc hạ áp Amlodipin, hạ đường huyết...):
+  - Phải kiểm tra xem trên HIS hồ sơ điều trị đã có **Mã ICD chẩn đoán chính thức** (`ICD_CODE`, `ICD_SUB_CODE`, `ICD_TEXT`) hay chưa.
+  - Nếu chỉ mới có trong phần hỏi bệnh/tiền sử mà chưa được gán mã ICD chính thức, **phải chủ động đề xuất Bác sĩ bổ sung chẩn đoán bệnh nền** trước khi kê đơn.
+
+### 4.2. Quy tắc Kê thuốc nhóm PPI (Nexium, Pantoloc, Esomeprazole, Omeprazole...):
+* **Bắt buộc đối soát chẩn đoán dạ dày**: Quy định BHYT yêu cầu chỉ định PPI phải có chẩn đoán kèm theo là **Viêm/loét dạ dày tá tràng (`K29`, `K25`, `K27`...)** hoặc **Trào ngược dạ dày thực quản (`K21`)**.
+* **Nguyên tắc**: Nếu hồ sơ bệnh nhân chưa có mã chẩn đoán dạ dày, **tuyệt đối không tự ý kê PPI** mà phải **đề xuất Bác sĩ bổ sung mã chẩn đoán phụ** trước khi kê đơn để chống xuất toán BHYT 100%.
+
+### 4.3. Quy tắc Lĩnh dược sau 14h & Chiến lược chia đơn Tủ trực cho BN mới vào viện:
+* **Quy luật vận hành Kho Dược**: Thuốc kê từ Kho Dược (`4209`, `4210`, `804`...) sau **14h00 chiều** thì phải đến **10h00 sáng hôm sau** Kho Dược mới duyệt và trả thuốc về khoa.
+* **Chiến lược chia đơn cho BN mới vào viện buổi chiều**:
+  1. **Phần thuốc KHÔNG CÓ trong tủ trực**: Kê bình thường từ Kho Dược (để lĩnh lúc 10h sáng mai).
+  2. **Phần thuốc CÓ trong Tủ trực Khoa 57 (`MediStockId = 810`)** (các thuốc cấp bách cữ sáng như kháng sinh, giảm đau truyền, Solu-Medrol, dịch truyền, hạ áp): **Đề xuất để sáng hôm sau Bác sĩ vào khoa kê trực tiếp từ Tủ trực để Điều dưỡng lấy dùng ngay buổi sáng**, không để bệnh nhân bị gián đoạn/chậm trễ y lệnh.
+
