@@ -342,8 +342,11 @@ var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsu
 * **Mục tiêu**: Bác sĩ chỉ cần gửi ảnh báo cáo đường huyết của điều dưỡng (hoặc bảng text) kèm lời gọi bí danh, Agent Antigravity tự động trích xuất và thực thi 100% cả 3 tác vụ y lệnh cho toàn bộ bệnh nhân mà **không cần hỏi lại hay bắt bác sĩ chỉnh sửa gì thêm**:
   1. **Bước 1 (Tờ điều trị)**: Gọi `HisTrackingCreator.exe` ghi nhận kết quả ĐMMM lúc 17h, 21h, 6h và ghi y lệnh tiêm insulin.
   2. **Bước 2 (Chỉ định CLS BM02426)**: Gọi `HisGlucoseBedsideAssigner.exe` chỉ định xét nghiệm đường máu mao mạch tại giường theo từng mốc giờ (mốc 06:00 tự động tính sang ngày hôm sau).
-  3. **Bước 3 (Kê đơn Insulin)**: Gọi `HisAutoPrescribe.exe --batch` (hoặc CLI) kê đơn thuốc tiêm Insulin (Actrapid, Lantus, Mixtard...) tương ứng với liều trong bảng.
-* **Quy chuẩn ký hiệu viết tắt Insulin của Điều dưỡng (Bắt buộc ghi nhớ)**:
+  3. **Bước 3 (Kê đơn Insulin)**: Gọi `HisAutoPrescribe.exe --batch` (hoặc CLI) kê đơn thuốc tiêm Insulin từ **Tủ trực Khoa 57 (`MediStockId = 810`)**.
+* **Hai Quy Tắc Cốt Lõi Bắt Buộc Ghi Nhớ**:
+  - 🔍 **Quy tắc 1 (Đối chiếu Bệnh nhân)**: Mặc định lọc, đối chiếu bệnh nhân đang nằm điều trị nội trú tại **Khoa Chấn thương Chỉnh hình & Cột sống (`DEPARTMENT_ID = 57`)**. Nếu không tìm thấy bệnh nhân tại Khoa 57, báo lại ngay cho Bác sĩ.
+  - 💉 **Quy tắc 2 (Kho Thuốc Insulin)**: Đơn thuốc Insulin theo dõi đường huyết **BẮT BUỘC chỉ định từ Kho Tủ Trực Khoa 57 (`MediStockId = 810` - `TT_KCTCHCS`)**, **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
+* **Quy chuẩn ký hiệu viết tắt Insulin của Điều dưỡng**:
   - **`R`** (VD: **`6R`**, **`8R`**, **`4R`**): là **Actrapid** (Insulin Regular tác dụng nhanh). Ví dụ `6R` = `6 đơn vị Actrapid`.
   - **`L`** (VD: **`10L`**, **`12L`**, **`14L`**): là **Lantus** (Insulin Glargine nền kéo dài). Ví dụ `10L` = `10 đơn vị Lantus`.
   - **`M`** (VD: **`8M`**, **`10M`**, **`12M`**): là **Mixtard** (Insulin hỗn hợp / Mix). Ví dụ `8M` = `8 đơn vị Mixtard`.

@@ -1281,14 +1281,28 @@ class Program
 
                     try
                     {
-                        // 1. Tra cứu bệnh nhân (cache)
+                        // 1. Tra cứu bệnh nhân: Mặc định ưu tiên đối chiếu BN đang điều trị tại Khoa 57
                         if (!treatmentCache.ContainsKey(bPatKey))
                         {
                             HisTreatmentViewFilter btf = new HisTreatmentViewFilter();
                             btf.KEY_WORD = bPatKey;
                             var btrs = bad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, btf, bp);
                             if (btrs == null || btrs.Count == 0) throw new Exception("Không tìm thấy BN: " + bPatKey);
-                            treatmentCache[bPatKey] = btrs[0];
+
+                            // Ưu tiên hồ sơ bệnh nhân đang điều trị nội trú tại Khoa 57
+                            var dept57Tr = btrs.Where(t => t.END_DEPARTMENT_ID == 57 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0))
+                                               .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
+                            if (dept57Tr == null)
+                            {
+                                dept57Tr = btrs.Where(t => !t.OUT_TIME.HasValue || t.OUT_TIME == 0)
+                                               .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
+                            }
+                            if (dept57Tr == null)
+                            {
+                                dept57Tr = btrs.OrderByDescending(t => t.IN_TIME).First();
+                            }
+
+                            treatmentCache[bPatKey] = dept57Tr;
                         }
                         var btr = treatmentCache[bPatKey];
 
@@ -1337,8 +1351,8 @@ class Program
                         }
                         var bMed = medicineCache[bMedKw];
 
-                        // Xác định kho thuốc: Thuốc tiêm/Insulin lấy từ Kho thuốc ống (4209 - KT_KD14)
-                        long bStockId = 4209; // Kho thuốc ống
+                        // Xác định kho thuốc: BẮT BUỘC lấy từ Kho Tủ Trực Khoa 57 (810 - TT_KCTCHCS)
+                        long bStockId = 810; // Tủ trực Khoa CTCH & Cột sống (Mặc định chuẩn lâm sàng)
 
                         // 4. Tạo đơn thuốc nội trú
                         InPatientPresSDO bPresSDO = new InPatientPresSDO

@@ -42,9 +42,14 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
        * **`R`** (VD: **`6R`**, **`8R`**, **`4R`**): là **Actrapid** (Insulin Regular tác dụng nhanh). Ví dụ `6R` = `6 đơn vị Actrapid`.
        * **`L`** (VD: **`10L`**, **`12L`**, **`14L`**): là **Lantus** (Insulin Glargine nền kéo dài). Ví dụ `10L` = `10 đơn vị Lantus`.
        * **`M`** (VD: **`8M`**, **`10M`**, **`12M`**): là **Mixtard** (Insulin hỗn hợp / Mix). Ví dụ `8M` = `8 đơn vị Mixtard`.
+     - 🔍 **Mặc định đối chiếu Bệnh nhân tại Khoa CTCH & Cột sống (Khoa 57):**
+       * Trừ khi có chỉ định khác, luôn tìm kiếm và đối chiếu hồ sơ bệnh nhân đang điều trị nội trú tại **Khoa 57 (`DEPARTMENT_ID = 57`)**.
+       * Trường hợp không tìm thấy bệnh nhân tại Khoa 57, Agent PHẢI báo lại ngay cho Bác sĩ.
   2. **Thực thi đồng thời 3 tác vụ y lệnh cho 100% bệnh nhân:**
      - **Tác vụ 1 - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
      - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):** Chỉ định xét nghiệm đường máu mao mạch tại giường **`BM02426`** cho các mốc giờ (mốc 06:00 tự động tính ngày hôm sau).
-     - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):** Kê đơn thuốc tiêm Insulin (Actrapid / Lantus...) đúng liều và hướng dẫn dùng.
+     - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
+       * ⚠️ **BẮT BUỘC chỉ định từ Kho Tủ Trực Khoa 57 (`MediStockId = 810` - `TT_KCTCHCS`)**, **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
+       * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
   3. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
 
