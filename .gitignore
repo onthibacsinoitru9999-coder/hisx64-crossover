@@ -1,4 +1,4 @@
-# ==========================================
+﻿# ==========================================
 # GITIGNORE CHO DỰ ÁN TÍCH HỢP HIS AI AGENT
 # ==========================================
 
@@ -24,9 +24,7 @@ tmp/
 
 # 3. CHỈ THEO DÕI CÁC THÀNH PHẦN TRI THỨC, SKILLS & CODE AI
 !.gitignore
-!AGENTS.md
-!HIS_AI_INTEGRATION_PLAYBOOK.md
-!HIS_INTEGRATION_AGENT_LOG.md
+!*.md
 !*.cs
 !*.bat
 !*.ps1

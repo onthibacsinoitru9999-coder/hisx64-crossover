@@ -1,56 +1,63 @@
-# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT
-> **Mục đích**: Tài liệu hóa 100% kinh nghiệm, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas) và công cụ sẵn có trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent mới ở bất kỳ máy nào chỉ cần đọc file này là có thể thực thi chính xác ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
+﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+> **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
+> **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
 ---
 
 ## 📑 MỤC LỤC
 1. [Kiến Trúc Hệ Thống & Cổng Kết Nối](#1-kiến-trúc-hệ-thống--cổng-kết-nối)
 2. [Bộ Thông Số Bác Sĩ & Khoa Phòng Mặc Định](#2-bộ-thông-số-bác-sĩ--khoa-phòng-mặc-định)
-3. [Cơ Chế Xác Thực & Bẫy Khóa File Log (Critical Gotcha)](#3-cơ-chế-xác-thực--bẫy-khóa-file-log-critical-gotcha)
-4. [Quy Trình Tra Cứu Bệnh Nhân & Buồng Giường](#4-quy-trình-tra-cứu-bệnh-nhân--buồng-giường)
-5. [Phân Hệ 1: Tờ Điều Trị (Treatment Tracking)](#5-phân-hệ-1-tờ-điều-trị-treatment-tracking)
-6. [Phân Hệ 2: Chỉ Định Suất Ăn Dinh Dưỡng Bệnh Lý](#6-phân-hệ-2-chỉ-định-suất-ăn-dinh-dưỡng-bệnh-lý)
-7. [Phân Hệ 3: Kê Đơn Thuốc Nội Trú & Ra Viện](#7-phân-hệ-3-kê-đơn-thuốc-nội-trú--ra-viện)
-8. [Phân Hệ 4: Ký Số Điện Tử & Mời Bác Sĩ Ký (EMR Sign)](#8-phân-hệ-4-ký-số-điện-tử--mời-bác-sĩ-ký-emr-sign)
-9. [Bảng Tổng Hợp Sai Lầm & Bài Học Xương Máu](#9-bảng-tổng-hợp-sai-lầm--bài-học-xương-máu)
-10. [Hướng Dẫn Biên Dịch & Chạy Công Cụ CLI Siêu Tốc](#10-hướng-dẫn-biên-dịch--chạy-công-cụ-cli-siêu-tốc)
+3. [Cơ Chế Xác Thực, Đăng Nhập & Kích Hoạt Phòng Làm Việc](#3-cơ-chế-xác-thực-đăng-nhập--kích-hoạt-phòng-làm-việc)
+4. [Quy Trình Tra Cứu Bệnh Nhân, Buồng Giường & Bilan Tiền Phẫu](#4-quy-trình-tra-cứu-bệnh-nhân-buồng-giường--bilan-tiền-phẫu)
+5. [Phân Hệ 1: Tờ Điều Trị & Chế Độ Chăm Sóc (Treatment Tracking & DHST)](#5-phân-hệ-1-tờ-điều-trị--chế-độ-chăm-sóc-treatment-tracking--dhst)
+6. [Phân Hệ 2: Chỉ Định Suất Ăn Dinh Dưỡng Bệnh Lý (Diet / Ration Orders)](#6-phân-hệ-2-chỉ-định-suất-ăn-dinh-dưỡng-bệnh-lý-diet--ration-orders)
+7. [Phân Hệ 3: Kê Đơn Thuốc Nội Trú & Ra Viện Chuẩn Lâm Sàng 100%](#7-phân-hệ-3-kê-đơn-thuốc-nội-trú--ra-viện-chuẩn-lâm-sàng-100)
+8. [Phân Hệ 4: Chỉ Định Cận Lâm Sàng & Đường Máu Mao Mạch Tại Giường (BM02426)](#8-phân-hệ-4-chỉ-định-cận-lâm-sàng--đường-máu-mao-mạch-tại-giường-bm02426)
+9. [Phân Hệ 5: Báo Cáo Giao Ban Ca Trực & Bilan Phẫu Thuật Hậu Phẫu](#9-phân-hệ-5-báo-cáo-giao-ban-ca-trực--bilan-phẫu-thuật-hậu-phẫu)
+10. [Phân Hệ 6: Ký Số Điện Tử & Mời Bác Sĩ Ký (EMR Sign)](#10-phân-hệ-6-ký-số-điện-tử--mời-bác-sĩ-ký-emr-sign)
+11. [Quy Chuẩn Lâm Sàng Bắt Buộc (Mã ICD-10 5 Ký Tự & Mô Tả CĐHA)](#11-quy-chuẩn-lâm-sàng-bắt-buộc-mã-icd-10-5-ký-tự--mô-tả-cđha)
+12. [Bảng Tổng Hợp 15+ Sai Lầm & Bài Học Xương Máu (Gotchas Matrix)](#12-bảng-tổng-hợp-15-sai-lầm--bài-học-xương-máu-gotchas-matrix)
+13. [Hướng Dẫn Biên Dịch & Chạy Công Cụ CLI Tức Thì](#13-hướng-dẫn-biên-dịch--chạy-công-cụ-cli-tức-thì)
+14. [Cơ Chế Đồng Bộ Tri Thức 1-Click Giữa Máy Bàn & Laptop](#14-cơ-chế-đồng-bộ-tri-thức-1-click-giữa-máy-bàn--laptop)
 
 ---
 
 ## 1. KIẾN TRÚC HỆ THỐNG & CỔNG KẾT NỐI
 
-Mọi giao tiếp đều đi qua mạng nội bộ bệnh viện (hoặc qua VPN/Tunnel):
+Mọi giao tiếp đều đi qua mạng nội bộ bệnh viện (hoặc qua VPN/Tunnel an toàn):
 
-| Dịch vụ | Địa chỉ IP & Cổng | Mục đích | Phương thức gọi |
+| Dịch vụ | Địa chỉ IP & Cổng | Mục đích | Phương thức giao tiếp |
 | :--- | :--- | :--- | :--- |
-| **MOS Backend** | `http://192.168.7.236:1608/` | Nghiệp vụ HIS chính (Tờ điều trị, Suất ăn, Thuốc, Dịch vụ) | REST API (JSON Body hoặc Base64 param) |
-| **ACS Auth** | `http://192.168.7.200:1401/` | Xác thực đăng nhập, cấp/làm mới Token | `api/Token/Login`, `api/Token/Renew` |
-| **SDA Data** | `http://192.168.7.200:1410/` | Danh mục hệ thống, cấu hình phân quyền | SDA Service APIs |
-| **EMR Service** | `http://192.168.7.239:1415/` | Bệnh án điện tử, tạo văn bản, ký số, mời ký | EMR Document APIs |
+| **MOS Backend** | `http://192.168.7.236:1608/` | Nghiệp vụ HIS chính (Tờ điều trị, Suất ăn, Thuốc, Dịch vụ, CLS) | REST API (JSON Body hoặc Base64 param) |
+| **ACS Auth** | `http://192.168.7.200:1401/` | Xác thực tài khoản bác sĩ, cấp và gia hạn TokenCode | `api/Token/Login`, `api/Token/Renew` |
+| **SDA Data** | `http://192.168.7.200:1410/` | Danh mục hệ thống, phân quyền, cấu hình giao diện | SDA Service APIs |
+| **EMR Service** | `http://192.168.7.239:1415/` | Bệnh án điện tử, tạo văn bản y khoa, ký số, mời ký | EMR Document APIs |
 
 ---
 
 ## 2. BỘ THÔNG SỐ BÁC SĨ & KHOA PHÒNG MẶC ĐỊNH
 
-Khi gửi request, sử dụng thông tin định danh của phiên làm việc bác sĩ:
+Khi gửi request hoặc xây dựng kịch bản y lệnh, sử dụng thông tin định danh của phiên làm việc bác sĩ:
 
-* **Bác sĩ thực hiện**: `034727` - **Ths.BS NGUYỄN HỮU SÂM**
+* **Bác sĩ điều trị chính**: `034727` - **Ths.BS NGUYỄN HỮU SÂM** (Pass mặc định hệ thống: `9981`)
+* **Bác sĩ phối hợp / Mời ký**: `ndh2` - **BS NGUYỄN ĐỨC HOÀNG**
+* **Tài khoản bác sĩ phụ trợ**: `vmc` - **BS VŨ MINH CƯỜNG** (Pass: `789789`)
 * **Khoa lâm sàng**: Khoa Chấn thương Chỉnh hình & Cột sống (`DEPARTMENT_ID = 57`, Mã Khoa: `9`)
-* **Các buồng bệnh phụ trách**: Phòng 712, 714, 716, 724, 725 (Room ID tương ứng, ví dụ P724 có `BED_ROOM_ID = 780`, `ROOM_ID = 5257`)
+* **Các buồng bệnh phụ trách**: Phòng 712, 714, 716, 724, 725 (Room ID tương ứng, ví dụ P724 có `BED_ROOM_ID = 780`, `ROOM_ID = 5257`; Phòng 734 có `ROOM_ID = 5248`)
 * **IP Client gửi request**: `100.93.206.93`
 
 ---
 
-## 3. CƠ CHẾ XÁC THỰC & BẪY KHÓA FILE LOG (CRITICAL GOTCHA)
+## 3. CƠ CHẾ XÁC THỰC, ĐĂNG NHẬP & KÍCH HOẠT PHÒNG LÀM VIỆC
 
-### 3.1. Cách lấy Live Token từ phiên HIS đang mở
-HIS Client ghi log chứa `TokenCode` vào file log cục bộ: `E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt`.
+### 3.1. Cách 1: Đọc Live Token từ HIS Client đang chạy (Kèm xử lý File Lock)
+HIS Client ghi log chứa `TokenCode` vào file log cục bộ: `E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt` (hoặc `Logs/HLSLogSystem.txt`).
 
-### ⚠️ Bẫy nghiêm trọng (File Lock Gotcha):
-Ứng dụng HIS trên máy người dùng liên tục ghi vào `LogSystem.txt`. Nếu dùng `File.ReadAllLines`, `File.ReadAllText` hoặc PowerShell `Get-Content` không đúng cách, Windows sẽ trả về lỗi:
+> ⚠️ **Bẫy nghiêm trọng (File Lock Gotcha):**
+> Ứng dụng HIS trên máy liên tục ghi vào file log. Nếu dùng `File.ReadAllLines`, `File.ReadAllText` hoặc PowerShell `Get-Content` không đúng cách, Windows sẽ báo lỗi:
 > `System.IO.IOException: The process cannot access the file because it is being used by another process.`
 
-### ✅ Cách xử lý chuẩn (Bắt buộc dùng `FileShare.ReadWrite`):
+✅ **Cách xử lý chuẩn xác 100% (Bắt buộc dùng `FileShare.ReadWrite`):**
 ```csharp
 string logPath = @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt";
 string token = "";
@@ -82,311 +89,146 @@ ClientIpAddress: 100.93.206.93
 Content-Type: application/json; charset=utf-8
 ```
 
-### 3.3. Gán phòng làm việc cho phiên (Bắt buộc để tránh lỗi `KhongCoThongTinPhongLamViec`)
-Khi tạo phiên đăng nhập mới qua mã độc lập (CLI / Automation), MOS yêu cầu Token phải được gán danh sách phòng làm việc (`WorkInfoSDO`) trên máy chủ trước khi gọi các API nghiệp vụ lâm sàng (Tạo tờ điều trị, kê đơn, chỉ định CLS):
+### 3.3. Cách 2: Đăng nhập tự động & [BẮT BUỘC] Kích hoạt WorkInfo phòng làm việc
+Khi chạy công cụ độc lập (CLI / Daemon), sau khi login lấy TokenCode, **bắt buộc phải kích hoạt danh sách phòng làm việc (`UpdateWorkInfo`)** trước khi thực hiện bất kỳ y lệnh lâm sàng nào để tránh lỗi `KhongCoThongTinPhongLamViec`:
+
 ```csharp
+// 1. Khởi tạo cấu hình hệ thống
+HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+
+// 2. Đăng nhập lấy Token
+ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+CommonParam param = new CommonParam();
+var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+ApiConsumers.SetConsunmer(token.TokenCode);
+
+// 3. [BẮT BUỘC] Kích hoạt thông tin phòng làm việc
 var workInfo = new WorkInfoSDO
 {
+    DepartmentId = 57,
+    BranchId = 1,
     Rooms = new List<RoomSDO>
     {
-        new RoomSDO { RoomId = 5248 }, // Phòng 734 (Phòng trực/khám CTCH)
-        new RoomSDO { RoomId = 5252 }, // Phòng 712 (Buồng bệnh)
-        new RoomSDO { RoomId = 5251 }  // Phòng 714 (Buồng bệnh)
+        new RoomSDO { RoomId = 5248 }, // Phòng 734 (Phòng giao ban/khám)
+        new RoomSDO { RoomId = 5252 }, // Phòng 712
+        new RoomSDO { RoomId = 5251 }, // Phòng 714
+        new RoomSDO { RoomId = 5257 }  // Phòng 724
     }
 };
+var myAdapter = new MyAdapter();
 var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
 HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
 HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkInfoSDO = workInfo;
 ```
-*(Nếu thiếu bước này, MOS sẽ trả lời: `{"Success":false,"Param":{"MessageCodes":["KhongCoThongTinPhongLamViec"]}}`)*
 
 ---
 
-## 4. QUY TRÌNH TRA CỨU BỆNH NHÂN & BUỒNG GIƯỜNG
+## 4. QUY TRÌNH TRA CỨU BỆNH NHÂN, BUỒNG GIƯỜNG & BILAN TIỀN PHẪU
 
-Mỗi bệnh nhân có 2 mã quan trọng:
-* **Mã bệnh nhân (Patient Code)**: Thường là 10 ký tự (VD: `0003969449`).
-* **Mã hồ sơ bệnh án (Treatment Code)**: Thường là 12 ký tự (VD: `000007060449`).
+Mỗi bệnh nhân có các định danh quan trọng:
+* **Mã bệnh nhân (Patient Code)**: 10 ký tự (VD: `0003969449`).
+* **Mã hồ sơ bệnh án (Treatment Code)**: 12 ký tự (VD: `000007060449`).
 * **Treatment ID (Khóa chính nội bộ)**: Số nguyên `Int64` (VD: `7060265`).
 
-### 4.1. Tìm hồ sơ đang điều trị (`api/HisTreatment/Get`)
-Gửi filter `MOS.Filter.HisTreatmentFilter`:
-* Thử tìm theo `PATIENT_CODE__EXACT`. Nếu không có, tìm theo `TREATMENT_CODE__EXACT`.
-* Lấy bản ghi cuối cùng có `IS_PAUSE == 0` (hoặc `IS_PAUSE == null`).
-* Trích xuất: `ID` (Treatment ID), `ICD_CODE`, `ICD_NAME`, `ICD_SUB_CODE`, `ICD_TEXT`, `LAST_DEPARTMENT_ID`.
-
-### 4.2. Lấy vị trí buồng / giường hiện tại (`api/HisTreatmentBedRoom/Get`)
-Gửi filter `MOS.Filter.HisTreatmentBedRoomFilter` với `TREATMENT_IDs = [treatmentId]`:
-* Lọc bản ghi có `REMOVE_TIME == null || REMOVE_TIME == 0`.
-* Lấy `BED_ROOM_ID` (ID của phòng giường).
-* Tra cứu `HisBedRoom` (`api/HisBedRoom/Get`) theo `BED_ROOM_ID` để lấy `ROOM_ID` thực tế gán vào `WorkingRoomId`.
-
----
-
-## 5. PHÂN HỆ 1: TỜ ĐIỀU TRỊ (TREATMENT TRACKING) & DẤU HIỆU SINH TỒN
-
-### 5.1. Kiến Trúc & Cặp Endpoint Backend MOS
-Tờ điều trị trong HIS/EMR là trái tim của hồ sơ bệnh án nội trú, bao gồm 2 thành phần dữ liệu song hành:
-1. **Tờ điều trị (Diễn biến & Y lệnh)**: `POST http://192.168.7.236:1608/api/HisTracking/Create`
-   - DTO yêu cầu: **`MOS.SDO.HisTrackingSDO`**
-2. **Dấu hiệu sinh tồn (DHST)**: `POST http://192.168.7.236:1608/api/HisDhst/Create`
-   - DTO yêu cầu: **`MOS.EFMODEL.DataModels.HIS_DHST`** hoặc đóng gói qua SDO
-
----
-
-### 5.2. Cấu Trúc Chi Tiết DTO `HIS_TRACKING` & Các Trường Bắt Buộc
-
-| Tên Thuộc Tính | Kiểu Dữ Liệu | Ý Nghĩa Lâm Sàng & Quy Tắc Điền |
-| :--- | :--- | :--- |
-| **`TREATMENT_ID`** | `long` | ID khóa chính của đợt điều trị (Lấy từ `HisTreatment.ID`). |
-| **`TRACKING_TIME`** | `long` | Thời gian tạo y lệnh theo định dạng số 14 chữ số **`yyyyMMddHHmmss`** (VD: `20260824080000` = 08:00:00 ngày 24/08/2026). |
-| **`DEPARTMENT_ID`** | `long` | Khoa lâm sàng quản lý (Khoa CTCH & Cột sống = **`57`**). |
-| **`ROOM_ID`** | `long` | ID phòng làm việc/buồng bệnh (Lấy từ `HisBedRoom.ROOM_ID` hoặc phòng trực **`5248`**). |
-| **`ICD_CODE`** | `string` | Mã ICD-10 bệnh chính (VD: `M47.00†`, `S62.30`, `M51.2`, `M87.85`). |
-| **`ICD_NAME`** | `string` | Tên chẩn đoán bệnh chính tương ứng với mã ICD. |
-| **`ICD_SUB_CODE`** | `string` | Mã ICD-10 bệnh kèm theo / biến chứng (VD: `E11.9; I10`). |
-| **`ICD_TEXT`** | `string` | Chẩn đoán chi tiết bằng văn bản tự do (VD: `Trượt L3 độ I / ĐTĐ type 2 - THA`). |
-| **`CONTENT`** | `string` | **Diễn biến bệnh lý**: Ghi nhận toàn trạng, tri giác (Glasgow), triệu chứng cơ năng, khám chuyên khoa, tình trạng vết mổ, dẫn lưu, mạch ngọn chi. |
-| **`MEDICAL_INSTRUCTION`**| `string` | **Y lệnh bác sĩ**: Tên thuốc, dịch truyền, thủ thuật, cận lâm sàng, chuẩn bị phẫu thuật, chuyển khoa, ra viện. *(⚠️ Tuyệt đối không nhầm thành `TREATMENT_INSTRUCTION`)* |
-| **`CARE_INSTRUCTION`** | `string` | **Chăm sóc điều dưỡng**: Phân cấp chăm sóc (`CSCI`, `CSCII`, `CSCIII`), chế độ ăn (`BT01`, `DD01`, `TM01`), theo dõi DHST, thay băng, đếm đường máu mao mạch. |
-
----
-
-### 5.3. Cấu Trúc DTO Dấu Hiệu Sinh Tồn (`HIS_DHST`)
-Để các chỉ số sinh tồn hiển thị tương ứng trên bảng theo dõi của tờ điều trị, `EXECUTE_TIME` của DHST **phải khớp hoặc đồng bộ mốc giờ** với `TRACKING_TIME`:
-
+### 4.1. Tìm hồ sơ đang điều trị (`api/HisTreatment/GetView`)
 ```csharp
-var dhst = new HIS_DHST();
-dhst.TREATMENT_ID = treatmentId;
-dhst.EXECUTE_TIME = trackingTime; // Cùng mốc yyyyMMddHHmmss
-dhst.PULSE = 80;                 // Mạch (lần/phút)
-dhst.TEMPERATURE = 36.8m;        // Nhiệt độ (°C)
-dhst.BLOOD_PRESSURE_MAX = 120;   // Huyết áp tâm thu (mmHg)
-dhst.BLOOD_PRESSURE_MIN = 80;    // Huyết áp tâm trương (mmHg)
-dhst.BREATH_RATE = 18;           // Nhịp thở (lần/phút)
-dhst.SPO2 = 0.98m;               // SpO2 (0.98 hoặc 98%)
-dhst.WEIGHT = 60.0m;             // Cân nặng (kg)
+var filter = new HisTreatmentViewFilter();
+filter.KEY_WORD = patientCode; // hoặc TREATMENT_CODE__EXACT
+var treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, filter, param);
+var currentTreatment = treatments.LastOrDefault(x => x.IS_PAUSE != 1);
 ```
 
----
-
-### 5.4. ⚠️ Bẫy Nghiêm Trọng Về Cấu Trúc & Quy Trình Tạo (Critical Gotchas)
-
-1. **Bẫy lớp bao bọc (SDO Wrapper)**:
-   - Gửi trực tiếp `HIS_TRACKING` dạng phẳng sẽ bị Backend từ chối (`Success: false`).
-   - Bắt buộc phải đóng gói trong `MOS.SDO.HisTrackingSDO`:
-     ```csharp
-     var sdo = new HisTrackingSDO();
-     sdo.Tracking = tracking;
-     sdo.WorkingRoomId = workingRoomId; // RoomId thực tế của buồng bệnh
-     ```
-2. **Bẫy liên kết Y lệnh thuốc & Cận lâm sàng (Instruction Linking)**:
-   - Sau khi tạo thành công `HisTracking`, lấy `tracking.ID` trả về để truyền vào `InPatientPresSDO.TrackingId` hoặc `AssignServiceSDO.TrackingInfos`.
-   - Nếu không truyền `TrackingId`, y lệnh thuốc / CLS sẽ bị tách rời, không hiển thị trong cột Y lệnh của Tờ điều trị trên EMR!
-3. **Bẫy định dạng số 14 chữ số**:
-   - `TRACKING_TIME` phải đủ 14 ký tự số (`yyyyMMddHHmmss`). Ví dụ: 8h sáng phải là `20260824080000` (không được ghi thiếu giây `202608240800`).
-
----
-
-### 5.5. 5 Mẫu Tờ Điều Trị Chuẩn Lâm Sàng Khoa CTCH & Cột Sống (Khoa 57)
-
-#### Mẫu 1: Tờ điều trị thông thường / Hàng ngày
-```text
-[CONTENT]:
-Bệnh nhân tỉnh táo, tiếp xúc tốt (Glasgow 15đ)
-Da niêm mạc hồng, không phù, không sốt
-Tim đều, phổi thông khí rõ không rale, bụng mềm
-Vết mổ / vị trí tổn thương: Đau ít (VAS 2-3đ), không sưng nóng đỏ
-Đầu chi hồng ấm, cảm giác và vận động ngọn chi bình thường
-Đại tiểu tiện tự chủ
-
-[MEDICAL_INSTRUCTION]:
-Thuốc dùng theo đơn đã kê
-Bổ sung dịch truyền dinh dưỡng nếu ăn kém
-
-[CARE_INSTRUCTION]:
-Chăm sóc cấp II (CSII)
-Chế độ ăn: BT01 (Ăn thường) / DD01 (ĐTĐ) / TM01 (Tim mạch)
-Theo dõi mạch, nhiệt độ, huyết áp 2 lần/ngày
-```
-
-#### Mẫu 2: Sơ kết 3 - 5 ngày điều trị / Lãnh đạo khoa đi buồng
-```text
-[CONTENT]:
-SƠ KẾT 3 - 5 NGÀY ĐIỀU TRỊ
-Bệnh nhân tỉnh, tiếp xúc tốt, thể trạng ổn định
-Huyết động ổn định, không sốt
-Vết mổ khô sạch, thấm ít dịch băng, đầu chi hồng ấm
-Triệu chứng đau thuyên giảm (VAS 3/10)
-Cơ lực 2 chân 5/5, không rối loạn cảm giác nông sâu
-
-Ý KIẾN LÃNH ĐẠO KHOA ĐI BUỒNG:
-- Thống nhất chẩn đoán và phác đồ điều trị hiện tại
-- Thay băng chăm sóc vết thương vô khuẩn hàng ngày
-- Tập phục hồi chức năng vận động theo hướng dẫn
-
-[MEDICAL_INSTRUCTION]:
-Duy trì phác đồ thuốc hiện tại
-Hoàn thiện bilan xét nghiệm kiểm tra nếu có chỉ định
-
-[CARE_INSTRUCTION]:
-Chăm sóc cấp II (CSII) - Chế độ ăn theo bệnh lý
-Hướng dẫn tập PHCN tại giường
-```
-
-#### Mẫu 3: Tờ điều trị tiền phẫu (Chuẩn bị trước mổ)
-```text
-[CONTENT]:
-KHÁM BỆNH NHÂN TRƯỚC MỔ:
-Bệnh nhân tỉnh táo, tiếp xúc tốt, tâm lý ổn định
-Thể trạng trung bình, không sốt
-Tim đều rõ, phổi thông khí tốt, không khó thở
-Đã hoàn thiện đầy đủ bilan xét nghiệm tiền phẫu, X-quang, MRI/CT, Siêu âm tim
-Đã giải thích rõ tình trạng bệnh, phương pháp phẫu thuật, nguy cơ và tai biến có thể xảy ra trong và sau mổ cho bệnh nhân và gia đình. Bệnh nhân và đại diện gia đình hiểu, đồng ý và đã ký cam kết phẫu thuật.
-
-[MEDICAL_INSTRUCTION]:
-Bột / nẹp rạch dọc kiểm tra
-Dặn nhịn ăn uống hoàn toàn từ 00h đêm trước mổ
-Kháng sinh dự phòng trước mổ 30 phút theo phác đồ
-Thêm dịch truyền trước mổ nếu có chỉ định
-Chuyển phòng mổ theo lịch
-
-[CARE_INSTRUCTION]:
-Chăm sóc cấp II (CSII)
-Vệ sinh vùng mổ, thay trang phục mổ
-Nhịn ăn uống tuyệt đối trước mổ
-```
-
-#### Mẫu 4: Tờ điều trị hậu phẫu (Sau mổ 24 giờ đầu)
-```text
-[CONTENT]:
-BỆNH NHÂN PHẪU THUẬT VỀ KHOA (Bàn giao từ phòng Hồi tỉnh/GMHS):
-Bệnh nhân tỉnh táo, tiếp xúc tốt, đã thoát mê / thoát tê hoàn toàn
-Da niêm mạc hồng, tự thở êm, SpO2 98-99%
-Huyết động ổn định: Mạch 80-85 l/p, HA 120/80 mmHg
-Vết mổ nề nhẹ, băng thấm ít dịch máu
-Dẫn lưu vết mổ ra ít dịch hồng (< 50ml), hoạt động tốt
-Đầu chi hồng ấm, mạch ngoại vi bắt rõ, không tê liệt ngọn chi
-Đau vết mổ mức độ vừa (VAS 3-4 điểm)
-
-[MEDICAL_INSTRUCTION]:
-Theo dõi sát toàn trạng và huyết động 24h sau mổ
-Thuốc giảm đau, kháng sinh, chống phù nề theo biên bản bàn giao gây mê
-Rút dẫn lưu sau 24 - 48h khi dịch ra < 30ml/24h
-
-[CARE_INSTRUCTION]:
-Chăm sóc cấp I / II (CSCI / CSII)
-Kê cao chi mổ / nằm ngửa có gối đỡ tư thế chuẩn
-Theo dõi mạch, huyết áp, nhiệt độ, SpO2 mỗi 3 - 6 giờ
-Theo dõi màu sắc đầu chi và lượng dịch dẫn lưu
-```
-
-#### Mẫu 5: Tổng kết ra viện (Discharge Summary Tracking)
-```text
-[CONTENT]:
-TỔNG KẾT BỆNH ÁN RA VIỆN:
-- Chẩn đoán ra viện: [Ghi rõ chẩn đoán bệnh chính + bệnh kèm theo/phụ]
-- Phương pháp điều trị / Phẫu thuật: [Ghi rõ tên phẫu thuật / thủ thuật đã thực hiện]
-- Quá trình điều trị: Diễn biến thuận lợi, không tai biến sau mổ, vết mổ khô sạch liền sẹo tốt.
-- Tình trạng hiện tại: Bệnh nhân tỉnh táo, hết sốt, huyết động ổn định, vết mổ khô sạch (đã cắt chỉ / liền sẹo), đỡ đau nhiều, đi lại và vận động phục hồi tốt, đại tiểu tiện tự chủ.
-- Đủ điều kiện xuất viện.
-
-[MEDICAL_INSTRUCTION]:
-Cho bệnh nhân ra viện
-Kê đơn thuốc điều trị ngoại trú
-Hẹn khám lại sau 01 tháng (hoặc 4 tuần) kèm phim chụp kiểm tra
-Dặn dò chế độ tập PHCN và dinh dưỡng tại nhà
-
-[CARE_INSTRUCTION]:
-Chăm sóc cấp II (CSII)
-Hướng dẫn bệnh nhân và gia đình làm thủ tục thanh toán ra viện
-```
-
----
-
-### 5.6. Mã Nguồn C# Chuẩn Tạo Tờ Điều Trị & DHST Hoàn Chỉnh
-
+### 4.2. Lấy vị trí buồng / giường hiện tại (`api/HisTreatmentBedRoom/GetLView`)
 ```csharp
-// 1. Khởi tạo và gán dữ liệu Tracking
-var tracking = new HIS_TRACKING
-{
-    TREATMENT_ID = treatmentId,
-    TRACKING_TIME = 20260824080000, // yyyyMMddHHmmss
-    DEPARTMENT_ID = 57,              // Khoa CTCH & Cột sống
-    ROOM_ID = workingRoomId,         // ID phòng bệnh thực tế
-    ICD_CODE = icdCode,              // VD: "S62.30"
-    ICD_NAME = icdName,
-    ICD_SUB_CODE = icdSubCode,
-    ICD_TEXT = icdText,
-    CONTENT = "Bệnh nhân tỉnh táo, tiếp xúc tốt. Da niêm mạc hồng, không sốt. Vết mổ khô sạch, đầu chi ấm.",
-    MEDICAL_INSTRUCTION = "Thuốc theo đơn. Kháng sinh + giảm đau. Thay băng chăm sóc vết mổ.",
-    CARE_INSTRUCTION = "Chăm sóc cấp II. Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày."
+var bedFilter = new HisTreatmentBedRoomLViewFilter();
+bedFilter.TREATMENT_IDs = new List<long> { currentTreatment.ID };
+bedFilter.IS_IN_ROOM = true;
+var bedRooms = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", ApiConsumers.MosConsumer, bedFilter, param);
+var currentBed = bedRooms.LastOrDefault(x => x.REMOVE_TIME == null || x.REMOVE_TIME == 0);
+long requestRoomId = currentBed != null ? (currentBed.BED_ROOM_ID ?? 5248) : 5248;
+```
+
+### 4.3. Trích xuất toàn bộ Bilan Xét nghiệm & CĐHA (`api/HisSereServTein/GetView`)
+```csharp
+var teinFilter = new HisSereServTeinViewFilter();
+teinFilter.TDL_TREATMENT_ID = currentTreatment.ID;
+var teinList = adapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", ApiConsumers.MosConsumer, teinFilter, param);
+
+Func<string, string> getTein = (match) => {
+    var item = teinList.LastOrDefault(x => !string.IsNullOrEmpty(x.VALUE) && 
+        ((x.TEST_INDEX_NAME != null && x.TEST_INDEX_NAME.ToUpper().Contains(match.ToUpper())) ||
+         (x.TEST_INDEX_CODE != null && x.TEST_INDEX_CODE.ToUpper() == match.ToUpper())));
+    return item != null ? item.VALUE + " " + item.TEST_INDEX_UNIT_NAME : "-";
 };
 
-// 2. Đóng gói vào SDO bắt buộc
-var trackingSDO = new HisTrackingSDO
-{
-    Tracking = tracking,
-    WorkingRoomId = workingRoomId
-};
-
-// 3. Gửi API tạo Tờ điều trị
-var consumer = new ApiConsumer("http://192.168.7.236:1608/", tokenCode, "HIS");
-var commonParam = new CommonParam();
-var trackingResult = consumer.Post<HisTrackingSDO>("api/HisTracking/Create", commonParam, trackingSDO, new object[0]);
-
-// 4. Tạo đồng thời Dấu hiệu sinh tồn (DHST)
-if (trackingResult != null && trackingResult.Tracking != null)
-{
-    var dhst = new HIS_DHST
-    {
-        TREATMENT_ID = treatmentId,
-        EXECUTE_TIME = tracking.TRACKING_TIME,
-        PULSE = 80,
-        TEMPERATURE = 36.8m,
-        BLOOD_PRESSURE_MAX = 120,
-        BLOOD_PRESSURE_MIN = 80,
-        BREATH_RATE = 18,
-        SPO2 = 0.98m
-    };
-    consumer.Post<HIS_DHST>("api/HisDhst/Create", commonParam, dhst, new object[0]);
-}
+string hgb = getTein("Hemoglobin");
+string wbc = getTein("Số lượng bạch cầu");
+string plt = getTein("Số lượng tiểu cầu");
+string inr = getTein("PT - INR");
+string glucose = getTein("Glucose [Máu]");
+string creatinin = getTein("Creatinin [máu]");
+string bloodGroup = getTein("ABO") + " Rh " + getTein("Rh(D)");
 ```
 
 ---
 
-### 5.7. Ứng Dụng Toàn Diện: `HisTrackingCreator.exe` (GUI & CLI Siêu Tốc)
-Được đóng gói tại thư mục gốc: `HisTrackingCreator.exe` (kèm file kích hoạt nhanh `Chay_Tao_ToDieuTri.bat`).
-* **Tính năng Giao diện WinForms (GUI)**:
-  - Tra cứu bệnh nhân tức thì theo Mã bệnh nhân / Mã điều trị (Treatment Code) / Treatment ID.
-  - Hiển thị Patient Card trực quan: Tên BN, Giới tính, Tuổi, Đối tượng (BHYT/Viện phí), Buồng - Giường, Chẩn đoán ICD bệnh chính & bệnh kèm theo.
-  - Hỗ trợ 1-Click nạp toàn bộ bệnh nhân nội trú Khoa CTCH & Cột sống (Khoa 57), lọc theo buồng bệnh, tìm kiếm nhanh.
-  - 6 Mẫu lâm sàng chuẩn (Thông thường, Sơ kết 3-5 ngày, Tiền phẫu, Hậu phẫu 24h, Tổng kết ra viện, Hội chẩn bệnh nặng).
-  - Chọn nhanh cấp chăm sóc (`CSCI`, `CSCII`, `CSCIII`), chế độ ăn (`BT01`, `DD01`, `TM01`...), tích chọn y lệnh điều dưỡng tự động tổng hợp text `CARE_INSTRUCTION`.
-  - Tích hợp nhập Dấu hiệu sinh tồn (DHST: Mạch, HA Max/Min, Nhiệt độ, Nhịp thở, SpO2, Cân nặng) đồng bộ thời gian.
-  - 1-Click Xuất Excel (CSV) và Copy báo cáo kết quả.
-* **Tốc độ thực thi**: ~0.20 – 0.35 giây / 1 tờ điều trị.
-* **Cú pháp dòng lệnh (CLI)**:
+## 5. PHÂN HỆ 1: TỜ ĐIỀU TRỊ & CHẾ ĐỘ CHĂM SÓC (TREATMENT TRACKING & DHST)
+
+### 5.1. Endpoint Backend MOS
+* **URL**: `http://192.168.7.236:1608/api/HisTracking/Create`
+* **Loại đối tượng yêu cầu**: `MOS.SDO.HisTrackingSDO`
+
+> ⚠️ **Bẫy DTO nghiêm trọng:**
+> 1. **Sai tên trường**: Trường y lệnh trong `HIS_TRACKING` tên là **`MEDICAL_INSTRUCTION`** (không phải `TREATMENT_INSTRUCTION`).
+> 2. **Sai lớp bao bọc**: Không gửi `HIS_TRACKING` dạng phẳng. Phải bọc vào `MOS.SDO.HisTrackingSDO`:
+>    - `Tracking`: Đối tượng `HIS_TRACKING`
+>    - `WorkingRoomId`: `Int64` (ID phòng làm việc)
+
+### 5.2. Cấu trúc C# chuẩn tạo Tờ điều trị & DHST:
+```csharp
+var tracking = new HIS_TRACKING();
+tracking.TREATMENT_ID = treatmentId;
+tracking.TRACKING_TIME = 20260825080000; // yyyyMMddHHmmss
+tracking.ICD_CODE = icdCode;             // VD: "M47.00†"
+tracking.ICD_NAME = icdName;
+tracking.ICD_SUB_CODE = icdSubCode;     // VD: "E11.9"
+tracking.ICD_TEXT = icdText;
+tracking.CONTENT = "Bệnh nhân tỉnh, tiếp xúc tốt, không sốt, vết mổ khô sạch đầu chi ấm.";
+tracking.MEDICAL_INSTRUCTION = "Chăm sóc cấp II. Chế độ ăn BT01. Thuốc theo đơn. Theo dõi DHST 2 lần/ngày.";
+tracking.DEPARTMENT_ID = 57;
+tracking.ROOM_ID = workingRoomId;
+
+var sdo = new HisTrackingSDO();
+sdo.Tracking = tracking;
+sdo.WorkingRoomId = workingRoomId;
+
+var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, param);
+```
+
+### 5.3. Công cụ sẵn có:
+* `HisTrackingCreator.exe` (Kèm file kích hoạt nhanh `Chay_Tao_ToDieuTri.bat`):
   ```powershell
-  # Tạo tờ điều trị thường ngày:
-  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "Bệnh nhân tỉnh táo, không sốt, vết mổ khô sạch đầu chi ấm." -med "Thuốc theo đơn đã kê" -care "Chăm sóc cấp II (CSII). Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày."
-  
-  # Tạo theo mẫu lâm sàng chuẩn (Mẫu 1..6):
+  # Tạo tờ điều trị đơn lẻ:
+  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "Bệnh nhân tỉnh táo, vết mổ khô" -care "Chăm sóc cấp II. Ăn BT01" -med "Thuốc theo đơn"
+
+  # Tạo theo mẫu lâm sàng chuẩn 1..6:
   .\HisTrackingCreator.exe -p "0003969449,0003298895" -template 1 -time "08:00" -date "2026-08-25"
-  
-  # Tạo kèm chỉ số sinh tồn (DHST) tùy chỉnh:
-  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "BN ổn định" -care "CSII, BT01" -pulse 78 -temp 36.6 -bpmax 120 -bpmin 80 -spo2 99
+  ```
+* `QuickTracking.exe`:
+  ```powershell
+  .\QuickTracking.exe -p 0003969449 -time 08:00 -content "bn tỉnh không sốt huyết động ổn"
   ```
 
 ---
 
-## 6. PHÂN HỆ 2: CHỈ ĐỊNH SUẤT ĂN DINH DƯỠNG BỆNH LÝ
+## 6. PHÂN HỆ 2: CHỈ ĐỊNH SUẤT ĂN DINH DƯỠNG BỆNH LÝ (DIET / RATION ORDERS)
 
 ### 6.1. Nguyên tắc cốt lõi: 1 Request = 1 Ngày
 * Backend MOS chỉ ghi nhận **đúng 1 mốc thời gian đầu tiên** trong mảng `InstructionTimes`.
 * Nếu kê cho $N$ ngày, **bắt buộc lặp $N$ lần gọi API**, mỗi lần truyền `InstructionTimes = [YYYYMMDD050000]`.
+* **Quy trình 3 bước**: Pre-check (`api/HisSereServRation/GetView`) -> Execute -> Post-verify đối soát 100%.
 
-### 6.2. Từ điển Suất ăn:
+### 6.2. Từ điển Suất ăn Dinh dưỡng Lâm sàng:
 * **Phòng thực hiện tiếp nhận**: `RoomId = 5809` (Trung tâm Dinh dưỡng Lâm sàng).
 * **Đối tượng**: `PatientTypeId = 42` (Viện phí) hoặc lấy từ hồ sơ.
 
@@ -403,7 +245,7 @@ if (trackingResult != null && trackingResult.Tracking != null)
 ```json
 {
   "TreatmentIds": [ 7060265 ],
-  "InstructionTimes": [ 20260824050000 ],
+  "InstructionTimes": [ 20260825050000 ],
   "RequestRoomId": 5257,
   "RequestLoginName": "034727",
   "RequestUserName": "NGUYỄN HỮU SÂM",
@@ -419,112 +261,190 @@ if (trackingResult != null && trackingResult.Tracking != null)
 
 ### 6.4. Công cụ sẵn có: `QuickRation.exe`
 ```powershell
-.\QuickRation.exe -p 0003969449 -combo BT01 -date 20260824,20260825
+.\QuickRation.exe -p 0003969449 -combo BT01 -date 20260825,20260826
+.\QuickRation.exe -room 712 -combo DD01 -date 20260825,20260826
 ```
 
 ---
 
-## 7. PHÂN HỆ 3: KÊ ĐƠN THUỐC NỘI TRÚ & RA VIỆN
+## 7. PHÂN HỆ 3: KÊ ĐƠN THUỐC NỘI TRÚ & RA VIỆN CHUẨN LÂM SÀNG 100%
 
-* **Kho thuốc viện mặc định**: `MediStockId = 4210` (hoặc `4209, 804, 4208`).
+### 7.1. Cấu hình Bản đồ Kho Dược & Loại xuất:
+* **Kho thuốc ống (tiêm, truyền, dịch, chống đông)**: `MediStockId = 4209` (Ceftriaxone, Zinacef, Unasyn, Medivernol, Voxin, Paracetamol Kabi, Gemapaxane, Heparine...)
+* **Kho thuốc viên (uống)**: `MediStockId = 4210` (Augmentin 1g, Tramadol/Para, Celebrex, Arcoxia, Lyrica, Tolperison, Nexium...)
+* **Kho Dịch truyền**: `MediStockId = 804` (Natri Clorid 0.9% 100ml, 250ml, 500ml...)
+* **Kho Hướng thần / Gây nghiện**: `MediStockId = 4208` (Seduxen 5mg...)
 * **Đối tượng**: `PatientTypeId = 1` (BHYT) hoặc `42` (Viện phí).
-* **Loại xuất**: `EXP_MEST_TYPE_ID = 15` (Đơn ra viện) / `14` (Đơn nội trú).
-* **Endpoint**: `POST api/HisExpMest/CreateOutPatientPres` hoặc `CreateInPatientPres`.
+* **Loại xuất**: `EXP_MEST_TYPE_ID = 14` (Đơn nội trú) / `15` (Đơn ra viện).
+* **Endpoint**: `POST api/HisServiceReq/InPatientPresCreate`
+
+### 7.2. ⚠️ TỪ ĐIỂN CÁCH DÙNG THUỐC CHUẨN LÂM SÀNG (BẮT BUỘC 100% KHÔNG ĐỂ BS SỬA TAY):
+
+| Mã thuốc | Tên biệt dược | Hoạt chất & Hàm lượng | Chia cữ (S/Tr/C/T) | Hướng dẫn sử dụng chuẩn lâm sàng (`TUTORIAL`) | Dung môi kèm theo |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `TH.MEDI007` | **Medivernol 1g** | Ceftriaxone 1g | `2` / `-` / `-` / `-` | Pha 02 lọ vào 100ml NaCl 0.9%, truyền TM 30-40 giọt/phút lúc 9h sáng. | NaCl 0.9% 100ml (1 chai) |
+| `TH.ROCE003` | **Rocephin 1g** | Ceftriaxon 1g | `2` / `-` / `-` / `-` | Pha 02 lọ Ceftriaxone với 100ml NaCl 0.9%, truyền TM 30 giọt/phút lúc 9h sáng. | NaCl 0.9% 100ml (1 chai) |
+| `TH.ZINA002` | **Zinacef 750mg** | Cefuroxim 750mg | `2` / `-` / `-` / `-` | Pha 02 lọ với 02 ống Nước cất 10ml, tiêm/truyền TM chậm lúc 9h sáng. | Nước cất tiêm 10ml (2 ống) |
+| `TH.UNAS005` | **Unasyn 1.5g** | Ampicilin + Sulbactam | `1` / `-` / `1` / `-` | Pha mỗi lọ với 100ml NaCl 0.9%, truyền TM 30 giọt/phút lúc 9h và 17h. | NaCl 0.9% 100ml (2 chai) |
+| `TH.VOXI003` | **Voxin 500mg** | Vancomycin 500mg | `1.5` / `-` / `-` / `1.5` | Pha mỗi lần 1.5 lọ (750mg) với 250ml NaCl 0.9%, truyền TM chậm >= 60 phút lúc 9h - 21h. | NaCl 0.9% 250ml (2 chai) |
+| `TH.PARA004` | **Paracetamol Kabi 1g** | Paracetamol 1g/100ml | `1` / `-` / `-` / `1` | Truyền TM 30-40 giọt/phút lúc 10h - 18h khi đau/sốt (cách nhau >= 4-6h). | Không |
+| `TH.AUGM008` | **Augmentin 1g** | Amoxicilin + Clavulanic | `1` / `-` / `-` / `1` | Uống 1 viên ngay đầu bữa ăn sáng (8h) và chiều (18h). | Không |
+| `TH.TRAM001` | **Tramadol/Para Normon** | Tramadol 37.5mg + Para 325mg | `1` / `-` / `-` / `1` | Uống 1 viên sau ăn sáng (9h) và chiều (18h) khi đau. | Không |
+| `TH.ARCO045` | **Arcoxia 60mg** | Etoricoxib 60mg | `1` / `-` / `-` / `-` | Uống 1 viên buổi sáng lúc 9h sau ăn no. | Không |
+| `TH.CELE003` | **Celebrex 200mg** | Celecoxib 200mg | `1` / `-` / `-` / `-` | Uống 1 viên buổi sáng lúc 8h-9h sau ăn no. | Không |
+| `TH.ACUP002` | **Acupan 20mg/2ml** | Nefopam HCl 20mg | `1` / `-` / `1` / `-` | Pha 1 ống vào 100ml NaCl 0.9% truyền TM 100ml/h lúc 10h-16h khi đau. | NaCl 0.9% 100ml |
+| `TH.LYRI003` | **Lyrica 75mg** | Pregabalin 75mg | `-` / `-` / `-` / `1` | Uống 1 viên buổi tối lúc 21h (giảm đau thần kinh). | Không |
+| `TH.NEUT001` | **Neutrifore 3B** | Vitamin B1 + B6 + B12 | `1` / `-` / `-` / `1` | Ngày uống 2 viên chia 2 lần, sáng: 1 viên, tối: 1 viên lúc 9h - 19h. | Không |
+| `TH.PHAR001` | **Pharmaclofen 10mg** | Baclofen 10mg | `1` / `-` / `-` / `1` | Ngày uống 2 viên chia 2 lần, sáng: 1 viên, tối: 1 viên sau ăn (giãn cơ). | Không |
+| `TH.TOLP001` | **Tolperison 150mg** | Tolperison HCl 150mg | `1` / `-` / `-` / `1` | Ngày uống 2 viên chia 2 lần, sáng: 1 viên, tối: 1 viên sau ăn. | Không |
+| `TH.NEXI011` | **Nexium Mups 20mg** | Esomeprazol 20mg | `1` / `-` / `-` / `-` | Uống 1 viên buổi sáng trước ăn 30 phút (8h). | Không |
+| `TH.GEMA009` | **Gemapaxane 4000IU** | Enoxaparin natri 4000IU | `-` / `-` / `-` / `1` | Tiêm dưới da thành bụng 1 bơm lúc 20h, theo dõi chảy máu (dự phòng VTE). | Không |
+| `TH.ACTR004` | **Actrapid 1000IU** | Insulin Human 100IU/ml | `4-6` / `4-6` / `4-6` / `-` | Tiêm dưới da trước các bữa ăn 30 phút theo phác đồ đường máu mao mạch. | Không |
+| `TH.LANT001` | **Lantus 100IU/ml** | Insulin Glargine | `-` / `-` / `-` / `10-14` | Tiêm dưới da buổi tối lúc 21h (Insulin nền kéo dài). | Không |
+| `TH.AMLO004` | **Amlor 5mg** | Amlodipin 5mg | `1` / `-` / `-` / `-` | Uống 1 viên buổi sáng lúc 8h (huyết áp). | Không |
+| `TH.SEDU004` | **Seduxen 5mg (!)** | Diazepam 5mg | `-` / `-` / `-` / `1` | Uống 1 viên buổi tối lúc 21h30 (khi khó ngủ, đánh giá tri giác trước dùng). | Không |
+| `TH.BRIO002` | **Briozcal (Calci+D3)**| Calci carbonat 500mg+D3 | `1` / `-` / `1` / `-` | Ngày uống 2 viên chia 2 lần, sáng: 1 viên, chiều: 1 viên lúc 9h-15h sau ăn. | Không |
+| `SPBM25651` | **Leanpro PreSur 12.5%**| Dung dịch Carbohydrate | `-` / `-` / `-` / `4` | Uống 4 chai tối 20h trước mổ, 2 chai sáng hôm sau trước mổ 2h (chuẩn ERAS). | Không |
+| `TH.POVI008` | **Povidone 10% 125ml** | Povidon Iodin 10% | `1` / `-` / `-` / `-` | Dùng ngoài, sát khuẩn vết mổ và thay băng rửa vết thương hàng ngày. | Không |
+
+*(Xem toàn bộ từ điển 130 loại thuốc tại `MEDICATION_CLINICAL_TUTORIALS.md`)*.
 
 ---
 
-## 8. PHÂN HỆ 4: KÝ SỐ ĐIỆN TỬ & MỜI BÁC SĨ KÝ (EMR SIGN)
+## 8. PHÂN HỆ 4: CHỈ ĐỊNH CẬN LÂM SÀNG & ĐƯỜNG MÁU MAO MẠCH TẠI GIƯỜNG (BM02426)
+
+### 8.1. Chỉ Định Đường Máu Mao Mạch Tại Giường (`HisGlucoseBedsideAssigner.exe`)
+* **Mã dịch vụ**: `BM02426` (Service ID: `6217`)
+* **Phòng thực hiện**: `931` (Phòng Tiểu Phẫu Nhà Q) / `531` (P289 Khoa CTCH)
+* **Khung giờ hỗ trợ**: `06:00`, `11:00`, `17:00`, `21:00`, hoặc giờ tùy chỉnh.
+* **Tự động liên kết Tờ điều trị**: Tự động dò tìm tờ điều trị trong ngày hoặc tạo tờ điều trị mới (`HIS_TRACKING`) khớp giờ chỉ định để đảm bảo y lệnh hợp lệ 100%.
+* **Kích hoạt 1-Click**: `Chay_ChiDinh_BM02426.bat` hoặc dòng lệnh:
+  ```powershell
+  .\HisGlucoseBedsideAssigner.exe -p "0003969449,0003298895" -time "06:00,11:00,17:00,21:00" -date "2026-08-25"
+  ```
+
+### 8.2. Theo Dõi & Đôn Đốc Tiến Độ Cận Lâm Sàng (`HisClsCtchTracker.exe`)
+* Theo dõi trực quan trạng thái cận lâm sàng: 🔴 **Chưa xử lý** (chưa có kết quả) / 🟡 **Đang xử lý** / 🟢 **Đã hoàn thành**.
+* Lọc nhanh theo Buồng bệnh, Phân loại (Xét nghiệm, CĐHA, Siêu âm, TDCN, GPB).
+* 1-Click xuất báo cáo Excel (CSV) và Copy bản tin giao ban dán Zalo/Viber.
+
+### 8.3. Bảng Quy Tắc Bilan Tiền Phẫu & Cảnh Báo An Toàn Bắt Buộc:
+1. ⚠️ **Bơm xi măng thân đốt sống (BXM / Kyphoplasty / Vertebroplasty):** BẮT BUỘC phải có kết quả **Đo mật độ xương (DEXA - T-score)** kèm MRI cột sống trước khi thông qua mổ.
+2. 🫀 **Chỉ định Siêu âm tim (Echocardiography) trước mổ:**
+   - **BN > 60 tuổi:** BẮT BUỘC có Siêu âm tim.
+   - **BN > 50 tuổi có tiền sử tim mạch / THA / ĐTĐ / NMCT cũ:** BẮT BUỘC có Siêu âm tim.
+3. 👁️ **Khám chuyên khoa Mắt (Soi đáy mắt):**
+   - Áp dụng cho bệnh nhân phẫu thuật có **tư thế nằm sấp** (Cột sống ngực, thắt lưng, giải ép, CĐCS, BXM) có **tiền sử Đái tháo đường**.
+   - Mục đích sàng lọc bệnh võng mạc đái tháo đường, dự phòng thiếu máu thị thần kinh.
+
+---
+
+## 9. PHÂN HỆ 5: BÁO CÁO GIAO BAN CA TRỰC & BILAN PHẪU THUẬT HẬU PHẪU
+
+Công cụ chuyên dụng `HospitalShiftReporter.exe` (Mã nguồn: `HospitalShiftReporter.cs`):
+1. **Bệnh nhân vào khoa ca trực**: Query `V_HIS_DEPARTMENT_TRAN` theo `DEPARTMENT_ID == 57` và `DEPARTMENT_IN_TIME` trong ca trực.
+2. **Bệnh nhân mổ về ca trực**: Query `V_HIS_SERVICE_REQ` có `SERVICE_REQ_TYPE_ID == 6` và `FINISH_TIME` trong ngày trực, kết hợp đối chiếu diễn biến hậu phẫu trên `V_HIS_TRACKING`.
+3. **Bệnh nhân dự kiến mổ**: Rà soát đầy đủ Bilan CTM, Đông máu, Sinh hóa, Nhóm máu, DEXA, Siêu âm tim, Khám mắt.
+4. **Bệnh nhân truyền máu**: Query `V_HIS_SERE_SERV` dịch vụ máu/hồng cầu, trích xuất HGB/HCT trước và sau truyền.
+
+---
+
+## 10. PHÂN HỆ 6: KÝ SỐ ĐIỆN TỬ & MỜI BÁC SĨ KÝ (EMR SIGN)
 
 * **Loại tài liệu**: `DOCUMENT_TYPE_ID = 7` (Tờ điều trị).
-* **Ký chính (NumOrder = 1)**: Bác sĩ điều trị `034727` (Ths.BS Nguyễn Hữu Sâm).
-* **Mời ký phối hợp (NumOrder = 2)**: Bác sĩ `ndh2` (BS Nguyễn Đức Hoàng).
+* **Ký chính (`NumOrder = 1`)**: Bác sĩ điều trị `034727` (Ths.BS Nguyễn Hữu Sâm).
+* **Mời ký phối hợp (`NumOrder = 2`)**: Bác sĩ `ndh2` (BS Nguyễn Đức Hoàng).
+* **Endpoint EMR**: `http://192.168.7.239:1415/`
 
 ---
 
-## 9. BẢNG TỔNG HỢP SAI LẦM & BÀI HỌC XƯƠNG MÁU
+## 11. QUY CHUẨN LÂM SÀNG BẮT BUỘC (MÃ ICD-10 5 KÝ TỰ & MÔ TẢ CĐHA)
 
-| STT | Hiện tượng / Lỗi gặp phải | Nguyên nhân gốc rễ | Giải pháp chuẩn xác |
+### 11.1. Quy Tắc Mã ICD-10 (Hệ 5 Ký Tự Mới - `IS_ACTIVE = 1`):
+Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự chi tiết theo Bộ Y tế. Các mã 3-4 ký tự cũ đã ngừng hoạt động (`IS_ACTIVE = 0`):
+* **Viêm gan virus B:** Dùng **`B18.19`** hoặc **`B18.10`** *(Cấm dùng `B18.1`)*.
+* **Viêm cơ mủ / Áp xe cơ đùi mông:** Dùng **`M60.05`** *(Cấm dùng `M60.0`)*.
+* **Thoái hóa / Thoát vị đĩa đệm:** Dùng `M47.00†`, `M47.8`, `M51.2`, `M51.3`.
+* **Xẹp lún thân đốt sống:** Dùng `M48.50`.
+* **Gãy xương chi:** Dùng `S62.11` (Gãy xương tháp/thang), `S42.00` (Gãy xương đòn).
+* **Quy tắc Code:** Khi query `api/HisIcd/Get`, luôn lọc `IS_ACTIVE == 1`.
+
+### 11.2. Quy Tắc Trích Xuất Chẩn Đoán Hình Ảnh (Đích Danh Tầng & Vị Trí):
+* **Cột sống:** Nêu rõ từng tầng đốt sống bị **xẹp cấp (có phù tủy xương)** và **xẹp cũ**:
+  - *Chuẩn:* `Xẹp cấp L2, L3, L5 (phù tủy xương)`, `Xẹp cũ T12`, `Trượt L4 ra trước độ I kèm hẹp ống sống`, `Rách vòng xơ đĩa đệm L4/5`.
+  - *Cấm kỵ:* `Xẹp lún phù tủy xương các đốt sống thắt lưng` (mơ hồ, nguy cơ can thiệp nhầm tầng).
+* **Xương khớp chi:** Ghi rõ từng xương, vị trí đoạn gãy (1/3 trên, giữa, dưới), độ di lệch, tình trạng đứt gân:
+  - *Chuẩn:* `Gãy di lệch xương tháp và xương thang cổ tay trái`, `Gãy 1/3 giữa xương đòn phải`, `Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`.
+
+---
+
+## 12. BẢNG TỔNG HỢP 15+ SAI LẦM & BÀI HỌC XƯƠNG MÁU (GOTCHAS MATRIX)
+
+| STT | Hiện tượng / Báo lỗi | Nguyên nhân gốc rễ | Giải pháp chuẩn xác 100% |
 | :---: | :--- | :--- | :--- |
-| **1** | `IOException: process cannot access file` khi đọc token | HIS client đang ghi `LogSystem.txt` với lock | Mở file bằng `FileStream` với `FileShare.ReadWrite` |
+| **1** | `IOException: process cannot access file` khi đọc log token | HIS client đang ghi `LogSystem.txt` với lock | Mở file bằng `FileStream` với `FileShare.ReadWrite` |
 | **2** | `api/HisTracking/Create` trả về `Success: false` | Gửi JSON phẳng hoặc gửi trực tiếp `HIS_TRACKING` | Bắt buộc đóng gói vào `MOS.SDO.HisTrackingSDO` kèm `WorkingRoomId` |
-| **3** | Không tìm thấy trường `TREATMENT_INSTRUCTION` | Tên trường trong database/EFModel thực tế là `MEDICAL_INSTRUCTION` | Dùng đúng property `MEDICAL_INSTRUCTION` |
+| **3** | Không tìm thấy trường `TREATMENT_INSTRUCTION` | Tên thuộc tính trong DTO là `MEDICAL_INSTRUCTION` | Sử dụng đúng trường `MEDICAL_INSTRUCTION` |
 | **4** | Suất ăn chỉ vào được 1 ngày dù truyền mảng nhiều ngày | Backend MOS chỉ xử lý `InstructionTimes[0]` | Dùng vòng lặp gọi API tách biệt cho từng ngày |
-| **5** | Tràn bộ nhớ / treo lệnh khi query buồng giường | Filter `HisTreatmentBedRoom` sai tên trường lọc | Luôn lọc bằng `TREATMENT_IDs = [treatmentId]` |
-| **6** | Lỗi định dạng giờ tờ điều trị | Truyền sai 14 số | Chuẩn hóa `yyyyMMddHHmmss` (VD: `20260823080000`) |
-| **7** | Phần mềm báo không tồn tại mã ICD (VD: `B18.1`, `M60.0`...) | Hệ thống HIS/MOS áp dụng **danh mục ICD-10 5 ký tự chuẩn Bộ Y tế** mới; các mã 3-4 ký tự cũ đã chuyển `IsActive = 0` | Bắt buộc tra cứu và sử dụng mã ICD 5 ký tự đang khả dụng (`IsActive = 1`): VD dùng `B18.19` (thay vì `B18.1`), `M60.05` (thay vì `M60.0`), `M47.00†`, `S62.11`... |
-| **8** | Rút ngắn/tóm tắt chung chung kết quả MRI, X-quang, CT (VD: ghi "xẹp lún các đốt sống", "gãy xương chi") | Tóm tắt sơ sài làm mất dữ liệu tầng đốt sống và vị trí giải phẫu cụ thể, gây nguy cơ chỉ định can thiệp nhầm vị trí (đặc biệt là phẫu thuật bơm xi măng sinh học BXM) | **Bắt buộc trích xuất đích danh, chính xác từng tầng/vị trí tổn thương:** VD ghi rõ `Xẹp cấp L2, L3, L5`, `Xẹp cũ T12`, `Trượt L4 ra trước độ I`, `Rách vòng xơ L4/5`, `Gãy xương tháp và xương thang cổ tay trái`... |
-| **9** | Chỉ định Xét nghiệm BM02426 (Đường máu mao mạch) bị lỗi `Success: false` | 1) Thiếu `SampleTypeCode = "BP0042"` trên `ServiceReqDetailSDO` (bắt buộc cho BM02426). 2) `PrimaryPatientTypeId` gán = 1 (với BHYT phải là `null`). 3) `TrackingInfoSDO.IntructionTime` không khớp với `TRACKING_TIME` của tờ điều trị. 4) Chưa kích hoạt `UpdateWorkInfo` cho phòng làm việc. | 1) Luôn gán `SampleTypeCode = "BP0042"`. 2) Gán `PrimaryPatientTypeId = (PatientTypeId == 1 ? null : PatientTypeId)`. 3) Đồng bộ `InstructionTime`, `InstructionTimes`, `UseTimes`, `TrackingInfos[0].IntructionTime` bằng chính `tracking.TRACKING_TIME`. 4) Đăng ký danh sách phòng qua `UpdateWorkInfo`. |
+| **5** | Đơn thuốc bị từ chối / thiếu thông tin | Thiếu hướng dẫn dùng (`Tutorial`) và chia cữ | Điền đầy đủ `Tutorial` chuẩn lâm sàng và chia cữ S/Tr/C/T theo từ điển |
+| **6** | Lỗi `KhongCoThongTinPhongLamViec` khi chạy CLI độc lập | Token chưa được gán phòng làm việc trên server | Gọi `api/Token/UpdateWorkInfo` (`WorkInfoSDO`) ngay sau khi login |
+| **7** | Tràn bộ nhớ / treo lệnh khi query buồng giường | Filter `HisTreatmentBedRoom` không gán ID điều trị | Luôn lọc bằng `TREATMENT_IDs = [treatmentId]` và `IS_IN_ROOM = true` |
+| **8** | Lỗi định dạng giờ tờ điều trị | Truyền sai 14 chữ số | Chuẩn hóa `yyyyMMddHHmmss` (VD: `20260825080000`) |
+| **9** | Chỉ định CLS bị x4 hoặc nhân đôi y lệnh | Client tự động retry khi gặp timeout mạng | Tuyệt đối không retry mù quáng; query lại `V_HIS_SERVICE_REQ` để kiểm tra |
+| **10**| Bị từ chối mã ICD khi lưu bệnh án | Dùng mã 3-4 ký tự đã deactive (`B18.1`, `M60.0`) | Luôn dùng mã 5 ký tự đang hoạt động (`B18.19`, `M60.05`) có `IS_ACTIVE == 1` |
+| **11**| Thiếu bilan quan trọng khi thông qua mổ xẹp đốt sống | Quên rà soát mật độ xương DEXA | Bắt buộc cảnh báo bổ sung DEXA (T-score) cho ca dự kiến BXM |
+| **12**| Quên chỉ định Siêu âm tim tiền phẫu | Bệnh nhân > 60 tuổi hoặc có tiền sử tim mạch | Tự động quét tuổi > 60 hoặc bệnh nền để cảnh báo Siêu âm tim |
+| **13**| Thiếu khám mắt trước mổ cột sống | Bệnh nhân ĐTĐ mổ tư thế nằm sấp | Cảnh báo yêu cầu Hội chẩn Mắt (soi đáy mắt) dự phòng thiếu máu thị thần kinh |
+| **14**| Không tìm thấy DLL khi biên dịch độc lập trên máy mới | Thiếu cơ chế nạp Assembly tự động | Gắn hook `AssemblyResolve` trỏ về thư mục gốc và `ReferencedAssemblies` |
+| **15**| Merge conflict Git khi đồng bộ giữa Laptop và Máy Bàn | Khác biệt lịch sử commit hoặc track file binary | Cấu hình `.gitignore` chuẩn, dùng `sync_push.bat` / `sync_pull.bat` |
 
 ---
 
-### 9.1. Quy Tắc Bắt Buộc Về Mã ICD-10 (Hệ 5 Ký Tự Mới):
-- **Bắt buộc dùng hệ mã ICD-10 chi tiết 5 ký tự (`IsActive = 1`)**:
-  - Viêm gan B mạn: Dùng **`B18.19`** (*Bệnh viêm gan virus B mạn tính không có viêm gan D [tác nhân delta], giai đoạn khác và/hoặc không xác định*) hoặc **`B18.10`**. Tuyệt đối không dùng `B18.1` (đã deactive).
-  - Áp xe cơ / Viêm cơ mủ vùng đùi mông: Dùng **`M60.05`** (*Viêm cơ do nhiễm trùng, vùng chậu và/hoặc đùi*). Không dùng `M60.0` (đã deactive).
-  - Thoái hóa cột sống: Dùng **`M47.00†`**, **`M47.8`**, **`M51.2`**, **`M51.3`**...
-  - Gãy xương cổ bàn tay / đòn: Dùng **`S62.11`**, **`S42.00`**, **`M84.04`**...
-- Khi xây dựng công cụ tra cứu hoặc tạo bệnh án tự động: Luôn filter với điều kiện `IS_ACTIVE == 1` trong bảng `HIS_ICD` (`api/HisIcd/Get`).
-
-### 9.2. Quy Tắc Trích Xuất Chẩn Đoán Hình Ảnh (Đích Danh Tầng & Vị Trí Tổn Thương):
-- **Cột sống:** Phải nêu rõ từng tầng đốt sống bị tổn thương cấp (có phù tủy xương) và tổn thương cũ:
-  - *Đúng chuẩn:* `Xẹp cấp L2, L3, L5 (phù tủy xương)`, `Xẹp cũ T12`, `Trượt L4 ra trước độ I kèm hẹp ống sống`, `Rách vòng xơ đĩa đệm L4/5`.
-  - *Sai/Cấm kỵ:* `Xẹp lún phù tủy xương các đốt sống thắt lưng` (chung chung, thiếu an toàn lâm sàng).
-- **Xương khớp chi:** Ghi rõ từng xương, vị trí đoạn gãy (1/3 trên, giữa, dưới), độ di lệch hoặc tên cụ thể từng gân đứt:
-  - *Đúng chuẩn:* `Gãy xương tháp và xương thang cổ tay trái di lệch`, `Gãy 1/3 giữa xương đòn phải`, `Đứt cũ gân gấp sâu ngón 3, 4, 5 bàn tay phải`.
-
----
-
-## 10. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI SIÊU TỐC
+## 13. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI TỨC THÌ
 
 Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọi Windows 10/11):
 
-### 10.4. Ứng Dụng Chỉ Định Đường Máu Mao Mạch Tại Giường BM02426 (`HisGlucoseBedsideAssigner.exe`):
-Ứng dụng chuyên dụng cho phép chỉ định hàng loạt cận lâm sàng **`BM02426`** (*Xét nghiệm đường máu mao mạch tại giường*) cho bệnh nhân nội trú với khả năng chọn linh hoạt nhiều khung giờ trong ngày:
-- **Tập tin chạy**: `HisGlucoseBedsideAssigner.exe` (kèm file config `HisGlucoseBedsideAssigner.exe.config`)
-- **Tập tin kích hoạt nhanh 1-Click**: `Chay_ChiDinh_BM02426.bat`
-- **Mã dịch vụ**: `BM02426` (Service ID: `6217`)
-- **Phòng thực hiện mặc định**: Room ID `931` (*Phòng Tiểu Phẫu Nhà Q - Khoa CTCH*) hoặc `531` (*P289*)
-- **Tính năng nổi bật**:
-  1. *Đa khung giờ*: Hỗ trợ chọn đồng thời `06:00`, `11:00`, `17:00`, `21:00`, `Hiện tại`, hoặc khung giờ tùy chỉnh `HH:mm`.
-  2. *Nhập liệu siêu tốc*: Nhập trực tiếp danh sách mã BN/mã BA (copy paste từ Excel/Word/Text) hoặc 1-click tải toàn bộ bệnh nhân nội trú Khoa 57.
-  3. *Tự động liên kết/tạo tờ điều trị*: Tự động dò tìm tờ điều trị trong ngày hoặc tạo tờ điều trị mới (`HIS_TRACKING`) khớp với giờ chỉ định để đảm bảo hệ số y lệnh hợp lệ 100%.
-  4. *Báo cáo & Xuất file*: Xuất báo cáo kết quả ra file CSV/Excel và copy nhanh kết quả vào Clipboard.
-  5. *Hỗ trợ CLI*: Chạy ngầm hoặc qua dòng lệnh với cú pháp:
-     ```powershell
-     .\HisGlucoseBedsideAssigner.exe -p "0003969449,0003298895" -time "06:00,11:00,17:00,21:00" -date "2026-08-25"
-     ```
+### 13.1. Đường dẫn trình biên dịch C#:
+`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
 
-### 10.5. Ứng Dụng Tạo Tờ Điều Trị & Chế Độ Chăm Sóc Bệnh Nhân (`HisTrackingCreator.exe`):
-Ứng dụng chuyên dụng tạo Tờ điều trị (`HIS_TRACKING`) và Dấu hiệu sinh tồn (`HIS_DHST`) cho bệnh nhân có mã bệnh nhân cụ thể, vào giờ cụ thể, nội dung cụ thể và chế độ chăm sóc cụ thể:
-- **Tập tin chạy**: `HisTrackingCreator.exe` (kèm file config `HisTrackingCreator.exe.config`)
-- **Tập tin kích hoạt nhanh 1-Click**: `Chay_Tao_ToDieuTri.bat`
-- **Vị trí file mã nguồn & binary**: `HisTrackingCreator.exe`, `HisTrackingCreator.cs` (Thư mục gốc & `.agents/skills/his-clinical-operations/scripts/`)
-- **Lệnh biên dịch siêu tốc (khi sang máy mới)**:
-  ```powershell
-  & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HisTrackingCreator.exe /lib:.,ReferencedAssemblies,HisAutoPrescribe_Portable /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisTrackingCreator.cs
-  ```
-- **Cú pháp CLI**:
-  ```powershell
-  # Tạo tờ điều trị đơn lẻ:
-  .\HisTrackingCreator.exe -p "0003969449" -time "08:00" -content "Bệnh nhân tỉnh táo, không sốt, vết mổ khô sạch." -care "Chăm sóc cấp II. Chế độ ăn BT01. Theo dõi DHST 2 lần/ngày." -med "Thuốc theo đơn."
-  
-  # Tạo theo mẫu lâm sàng chuẩn 1..6:
-  .\HisTrackingCreator.exe -p "0003969449,0003298895" -template 1 -time "08:00" -date "2026-08-25"
-  ```
+### 13.2. Lệnh biên dịch chuẩn cho mọi công cụ:
+```powershell
+# Biên dịch HisTrackingCreator:
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HisTrackingCreator.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisTrackingCreator.cs
 
-### 10.6. Ứng Dụng Tổng Hợp Báo Cáo Giao Ban Ca Trực & Bilan Phẫu Thuật (`HospitalShiftReporter.exe`):
-Ứng dụng chuyên dụng phục vụ công tác giao ban, tổng hợp ca trực, lọc bệnh nhân vào khoa, bệnh nhân sau mổ về khoa, rà soát bilan 12 bệnh nhân dự kiến mổ và tra cứu bệnh nhân truyền máu:
-- **Tập tin chạy**: `HospitalShiftReporter.exe` (kèm file config `HospitalShiftReporter.exe.config`)
-- **Vị trí file mã nguồn & binary**: `HospitalShiftReporter.exe`, `HospitalShiftReporter.cs` (Thư mục gốc & `.agents/skills/his-clinical-operations/scripts/`)
-- **Lệnh biên dịch siêu tốc (khi sang máy mới)**:
-  ```powershell
-  & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HospitalShiftReporter.exe /lib:.,ReferencedAssemblies,HisAutoPrescribe_Portable /r:System.dll,System.Core.dll,System.Data.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HospitalShiftReporter.cs
-  ```
-- **Quy tắc tra cứu**:
-  1. *Bệnh nhân vào khoa ca trực*: Query `V_HIS_DEPARTMENT_TRAN` theo `DEPARTMENT_ID == 57` và `DEPARTMENT_IN_TIME` trong khoảng thời gian trực.
-  2. *Bệnh nhân mổ về ca trực*: Query `V_HIS_SERVICE_REQ` có `SERVICE_REQ_TYPE_ID == 6` và `FINISH_TIME` hoặc `INTRUCTION_TIME` trong ngày trực, kết hợp đối chiếu diễn biến hậu phẫu trên `V_HIS_TRACKING`.
-  3. *Bệnh nhân dự kiến mổ*: Query hồ sơ bệnh án theo tên hoặc `TREATMENT_BED_ROOM` đang nằm, trích xuất toàn bộ CTM, Đông máu, Sinh hóa, Điện giải, Nhóm máu, Virus, CĐHA, MRI, CT.
-  4. *Bệnh nhân truyền máu*: Query `V_HIS_SERE_SERV` có tên dịch vụ chứa "máu", "Khối hồng cầu", "Huyết tương", trích xuất chỉ số HGB/HCT các thời điểm trước và sau truyền.
+# Biên dịch HisGlucoseBedsideAssigner:
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HisGlucoseBedsideAssigner.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisGlucoseBedsideAssigner.cs
 
+# Biên dịch HospitalShiftReporter:
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HospitalShiftReporter.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HospitalShiftReporter.cs
+```
 
+### 13.3. Cơ chế Nạp Assembly Động (Assembly Resolve Hook):
+```csharp
+AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
+{
+    string folderPath = AppDomain.CurrentDomain.BaseDirectory;
+    string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
+    string path1 = Path.Combine(folderPath, name);
+    if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+    string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+    if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+    return null;
+};
+```
 
+---
+
+## 14. CƠ CHẾ ĐỒNG BỘ TRI THỨC 1-CLICK GIỮA MÁY BÀN & LAPTOP
+
+Dự án đã được trang bị sẵn 2 kịch bản tự động hóa 1-click:
+
+* **Đẩy cập nhật lên Git (`sync_push.bat`)**:
+  - Tự động kiểm tra git, stage toàn bộ tài liệu Markdown, Skills, mã nguồn C#, Script BAT/PS1.
+  - Tự động loại trừ các file binary DLL/Cache/DB theo `.gitignore`.
+  - Thực hiện commit và push lên `origin main`.
+* **Kéo cập nhật về máy (`sync_pull.bat`)**:
+  - 1-click tự động kéo toàn bộ tri thức, kỹ năng, cẩm nang mới nhất từ máy kia về.
+
+---
+*Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
