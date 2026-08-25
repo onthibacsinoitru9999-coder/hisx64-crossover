@@ -1169,12 +1169,68 @@ class Program
             try
             {
                 HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
-                ClientTokenManager btm = new ClientTokenManager("HIS");
                 CommonParam bp = new CommonParam();
-                var btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
-                if (btok == null) { Console.WriteLine("❌ Đăng nhập thất bại!"); return; }
-                ApiConsumers.SetConsunmer(btok.TokenCode);
+                string bToken = "";
+
+                // 1. Dò Live Token từ LogSystem.txt
+                string[] logCandidates = new string[] {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt")
+                };
+                foreach (var lp in logCandidates)
+                {
+                    if (File.Exists(lp))
+                    {
+                        try
+                        {
+                            using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                            using (var sr = new StreamReader(fs))
+                            {
+                                string text = sr.ReadToEnd();
+                                var lns = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                                for (int k = lns.Length - 1; k >= 0; k--)
+                                {
+                                    if (lns[k].Contains("TokenCode|"))
+                                    {
+                                        int idx = lns[k].IndexOf("TokenCode|") + 10;
+                                        if (lns[k].Length >= idx + 64)
+                                        {
+                                            bToken = lns[k].Substring(idx, 64);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                        if (!string.IsNullOrEmpty(bToken)) break;
+                    }
+                }
+
+                // 2. Fallback: login qua ACS nếu không có live token
+                if (string.IsNullOrEmpty(bToken))
+                {
+                    ClientTokenManager btm = new ClientTokenManager("HIS");
+                    var btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
+                    if (btok != null) bToken = btok.TokenCode;
+                }
+
+                if (string.IsNullOrEmpty(bToken)) { Console.WriteLine("❌ Không lấy được Token!"); return; }
+                ApiConsumers.SetConsunmer(bToken);
                 MyAdapter bad = new MyAdapter();
+
+                // 3. Kích hoạt WorkInfo phòng làm việc Khoa 57
+                try
+                {
+                    long[] dept57Rooms = new long[] {
+                        931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
+                        5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
+                        5267, 6622, 6623
+                    };
+                    var workInfo = new WorkInfoSDO { Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList() };
+                    bad.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, bp);
+                }
+                catch { }
 
                 // Cache: tra cứu BN và thuốc chỉ 1 lần
                 var treatmentCache = new Dictionary<string, V_HIS_TREATMENT>();
@@ -1281,9 +1337,8 @@ class Program
                         }
                         var bMed = medicineCache[bMedKw];
 
-                        // Xác định kho thuốc: Insulin thường lấy từ kho tủ trực (810)
-                        // hoặc kho thuốc ống (4209) tùy tên thuốc
-                        long bStockId = 810; // Tủ trực Khoa 57 (mặc định cho Insulin)
+                        // Xác định kho thuốc: Thuốc tiêm/Insulin lấy từ Kho thuốc ống (4209 - KT_KD14)
+                        long bStockId = 4209; // Kho thuốc ống
 
                         // 4. Tạo đơn thuốc nội trú
                         InPatientPresSDO bPresSDO = new InPatientPresSDO
