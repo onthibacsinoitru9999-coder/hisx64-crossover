@@ -7,6 +7,7 @@ using System.Reflection;
 using Inventec.Core;
 using Inventec.Token.ClientSystem;
 using Inventec.Common.Adapter;
+using HIS.Desktop.LocalStorage.ConfigSystem;
 using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
@@ -29,62 +30,210 @@ public class ServiceTarget
 {
     public long ServiceId { get; set; }
     public long RoomId { get; set; }
-    public ServiceTarget(long sId, long rId) { ServiceId = sId; RoomId = rId; }
+    public string ServiceCode { get; set; }
+    public string ServiceName { get; set; }
+    public string Note { get; set; }
+    public long? ConditionId { get; set; }
+
+    public ServiceTarget(long sId, long rId, string code = "", string name = "", string note = "", long? condId = null)
+    {
+        ServiceId = sId;
+        RoomId = rId;
+        ServiceCode = code;
+        ServiceName = name;
+        Note = note;
+        ConditionId = condId;
+    }
 }
 
 public class HisClinicalCli
 {
-    private static BackendAdapter adapter;
-    private static MyAdapter myAdapter = new MyAdapter();
-    private static CommonParam param;
-    private static string currentToken = null;
+    public static BackendAdapter adapter;
+    public static MyAdapter myAdapter = new MyAdapter();
+    public static CommonParam param = new CommonParam();
+    public static string currentToken = null;
+    public static string currentDoctorLogin = "034727";
+    public static string currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
 
-    // Fast In-Memory Service Catalog (Zero-Lag Lookup)
     public static readonly Dictionary<string, ServiceTarget> PredefinedServices = new Dictionary<string, ServiceTarget>
     {
-        { "TROPONIN_THS", new ServiceTarget(63596, 410) },     // Định lượng Troponin Ths (Sau 28/5/2026) -> Phòng XN Sinh Hóa
-        { "TROPONIN_OLD", new ServiceTarget(5920, 410) },      // Định lượng Troponin Ths (Trước 28/5/2026) -> Phòng XN Sinh Hóa
-        { "KHI_MAU", new ServiceTarget(5886, 410) },           // Xét nghiệm Khí máu 11 thông số -> Phòng XN Sinh Hóa
-        { "CBC_LASER", new ServiceTarget(5745, 1772) },        // Tổng phân tích tế bào máu laser -> Phòng HHTB
-        { "COAGULATION", new ServiceTarget(2658, 1773) },      // Đông máu cơ bản -> Phòng Đông máu
-        { "URE", new ServiceTarget(2663, 410) },               // Sinh hóa Ure -> Phòng Sinh Hóa
-        { "CREATININ", new ServiceTarget(2664, 410) },         // Sinh hóa Creatinin -> Phòng Sinh Hóa
-        { "GOT", new ServiceTarget(2665, 410) },               // AST/GOT -> Phòng Sinh Hóa
-        { "GPT", new ServiceTarget(2666, 410) },               // ALT/GPT -> Phòng Sinh Hóa
-        { "ELECTROLYTES", new ServiceTarget(2668, 410) },      // Điện giải đồ -> Phòng Sinh Hóa
-        { "URINE_10", new ServiceTarget(2673, 410) },          // Tổng phân tích nước tiểu -> Phòng Sinh Hóa
-        { "ECG", new ServiceTarget(10074, 1771) },             // Điện tim đồ -> Phòng TDCN
-        { "XRAY_CHEST", new ServiceTarget(58112, 17552) },     // X-quang ngực thẳng số hóa -> Phòng XQ Nội trú
-        { "XRAY_BONE", new ServiceTarget(5576, 1780) },        // X-quang xương khớp -> Phòng XQ
-        { "CT_BRAIN", new ServiceTarget(5580, 1785) }          // CT Sọ não -> Phòng CT
+        { "TROPONIN_THS", new ServiceTarget(63596, 410, "BM260527.26", "Định lượng Troponin Ths (Sau 28/5/2026)") },
+        { "TROPONIN_OLD", new ServiceTarget(5920, 410, "BM02298", "Định lượng Troponin Ths (Trước 28/5/2026)") },
+        { "KHI_MAU", new ServiceTarget(5886, 410, "BM02047", "Xét nghiệm Khí máu 11 thông số") },
+        { "CBC_LASER", new ServiceTarget(5745, 1772, "BM00110", "Tổng phân tích tế bào máu laser") },
+        { "COAGULATION", new ServiceTarget(2658, 1773, "BM00024", "Đông máu cơ bản") },
+        { "FIBRINOGEN", new ServiceTarget(5716, 626, "BM00542", "Định lượng Fibrinogen (Clauss tự động)") },
+        { "PT_TQ", new ServiceTarget(5713, 626, "BM00531", "Thời gian prothrombin (PT/TQ tự động)") },
+        { "APTT_TCK", new ServiceTarget(63622, 626, "BM260527.52", "Thời gian APTT/TCK tự động") },
+        { "BLOOD_GROUP_GEL", new ServiceTarget(5783, 1464, "BM01700", "Định nhóm máu hệ ABO, Rh(D) (Gelcard tự động)") },
+        { "URE", new ServiceTarget(5923, 410, "BM02304", "Định lượng Urê [Máu]") },
+        { "CREATININ", new ServiceTarget(5934, 410, "BM01361", "Định lượng Creatinin (máu)") },
+        { "GOT", new ServiceTarget(5834, 410, "BM01352", "Đo hoạt độ AST (GOT)") },
+        { "GPT", new ServiceTarget(5833, 410, "BM01347", "Đo hoạt độ ALT (GPT)") },
+        { "ELECTROLYTES", new ServiceTarget(5853, 410, "BM00132", "Điện giải đồ (Na, K, Cl)") },
+        { "HBA1C", new ServiceTarget(5870, 410, "BM01429", "Định lượng HbA1c", "", 4723) },
+        { "URINE_10", new ServiceTarget(5950, 566, "BM02998", "Tổng phân tích nước tiểu (tự động)") },
+        { "HBSAG", new ServiceTarget(6135, 871, "BM00859", "HBsAg miễn dịch tự động") },
+        { "HCV_AB", new ServiceTarget(6147, 871, "BM00837", "HCV Ab miễn dịch tự động") },
+        { "HIV_AB", new ServiceTarget(6020, 871, "BM00871", "HIV Ag/Ab miễn dịch tự động") },
+        { "ECG", new ServiceTarget(920, 931, "BM04258", "Điện tim thường (ECG)") },
+        { "ECHO_HEART", new ServiceTarget(5569, 1715, "BM00201", "Siêu âm Doppler tim, van tim", "điều dưỡng đưa bằng cáng - cs ii") },
+        { "DEXA_2POS", new ServiceTarget(161, 6462, "BM08085", "Đo mật độ xương DEXA [2 vị trí]", "điều dưỡng đưa bằng cáng - cs ii") },
+        { "XRAY_CHEST", new ServiceTarget(58112, 17552, "BM21074", "X-quang ngực thẳng số hóa") },
+        { "GLUCOSE_BEDSIDE", new ServiceTarget(6217, 5248, "BM02426", "Xét nghiệm đường máu mao mạch tại giường (một lần)") }
     };
 
-    public static void InitSession()
+    public static void InitSession(bool forceRefresh = false)
     {
-        if (!string.IsNullOrEmpty(currentToken)) return;
+        if (!forceRefresh && !string.IsNullOrEmpty(currentToken)) return;
 
-        ClientTokenManager tokenManager = new ClientTokenManager("HIS");
         param = new CommonParam();
-        var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-        Console.WriteLine(string.Format("CWD: {0} | Token: {1}", Directory.GetCurrentDirectory(), (token != null ? token.TokenCode : "NULL")));
-        if (token != null)
-        {
-            currentToken = token.TokenCode;
-            ApiConsumers.SetConsunmer(currentToken);
-            adapter = new BackendAdapter(param);
+        string tokenCode = null;
 
-            // Bind token session to working rooms on MOS backend
+        string[] candidateLogs = new string[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt"),
+            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
+            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
+        };
+
+        foreach (var logFile in candidateLogs)
+        {
+            if (File.Exists(logFile))
+            {
+                try
+                {
+                    using (var fs = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var sr = new StreamReader(fs))
+                    {
+                        string text = sr.ReadToEnd();
+                        var lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+                        for (int i = lines.Length - 1; i >= 0; i--)
+                        {
+                            if (lines[i].Contains("TokenCode|"))
+                            {
+                                int idx = lines[i].IndexOf("TokenCode|") + 10;
+                                if (lines[i].Length >= idx + 64)
+                                {
+                                    tokenCode = lines[i].Substring(idx, 64);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+                if (!string.IsNullOrEmpty(tokenCode)) break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            try
+            {
+                Load.Init();
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                if (token != null)
+                {
+                    tokenCode = token.TokenCode;
+                    currentDoctorLogin = "034727";
+                    currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
+                }
+                else
+                {
+                    token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+                    if (token != null)
+                    {
+                        tokenCode = token.TokenCode;
+                        currentDoctorLogin = "vmc";
+                        currentDoctorName = "BS Vũ Minh Cường";
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            throw new Exception("Không thể lấy Token xác thực HIS từ cả Live Log và ACS Login!");
+        }
+
+        currentToken = tokenCode;
+        ApiConsumers.SetConsunmer(currentToken);
+        adapter = new BackendAdapter(param);
+
+        try
+        {
             var workInfo = new WorkInfoSDO
             {
                 Rooms = new List<RoomSDO>
                 {
-                    new RoomSDO { RoomId = 5248 }, // Phòng 734 (Phòng trực/khám CTCH)
-                    new RoomSDO { RoomId = 5252 }, // Phòng 712 (Buồng bệnh)
-                    new RoomSDO { RoomId = 5251 }  // Phòng 714 (Buồng bệnh)
+                    new RoomSDO { RoomId = 5248 },
+                    new RoomSDO { RoomId = 5252 },
+                    new RoomSDO { RoomId = 5251 },
+                    new RoomSDO { RoomId = 5257 }
                 }
             };
             var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
         }
+        catch { }
+    }
+
+    public static void LookupPatient(string keyword)
+    {
+        InitSession();
+        HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+        tf.KEY_WORD = keyword;
+        var treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+
+        if (treatments == null || treatments.Count == 0)
+        {
+            Console.WriteLine(string.Format("❌ Không tìm thấy bệnh nhân nào khớp với từ khóa: {0}", keyword));
+            return;
+        }
+
+        var tr = treatments.LastOrDefault(x => x.IS_PAUSE != 1) ?? treatments.Last();
+
+        HisTreatmentBedRoomLViewFilter bedFilter = new HisTreatmentBedRoomLViewFilter();
+        bedFilter.TREATMENT_IDs = new List<long> { tr.ID };
+        bedFilter.IS_IN_ROOM = true;
+        var bedRooms = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", ApiConsumers.MosConsumer, bedFilter, param);
+        var curBed = bedRooms != null ? bedRooms.LastOrDefault(x => x.REMOVE_TIME == null || x.REMOVE_TIME == 0) : null;
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🏥 THÔNG TIN BỆNH NHÂN: {0} ({1} tuổi - {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_DOB.ToString().Substring(0, 4), tr.TDL_PATIENT_GENDER_NAME));
+        Console.WriteLine(string.Format("Mã BN: {0} | Mã ĐT: {1} | ID Đợt điều trị: {2}", tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, tr.ID));
+        Console.WriteLine(string.Format("Khoa: {0} | Buồng/Giường: {1} - {2}", tr.END_DEPARTMENT_NAME ?? "Khoa 57", curBed != null ? curBed.BED_ROOM_NAME : "Chưa xếp buồng", curBed != null ? curBed.BED_NAME : "-"));
+        Console.WriteLine(string.Format("Chẩn đoán ICD: [{0}] {1} (Chi tiết: {2})", tr.ICD_CODE, tr.ICD_NAME, tr.ICD_TEXT ?? tr.ICD_SUB_CODE));
+        Console.WriteLine(string.Format("BHYT: {0} | Trạng thái: {1}", tr.TDL_HEIN_CARD_NUMBER ?? "Không BHYT", tr.IS_PAUSE == 1 ? "ĐÃ RA VIỆN" : "ĐANG NẰM KHOA"));
+
+        try
+        {
+            HisSereServTeinViewFilter teinFilter = new HisSereServTeinViewFilter();
+            teinFilter.TDL_TREATMENT_ID = tr.ID;
+            var teinList = myAdapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", ApiConsumers.MosConsumer, teinFilter, param);
+
+            if (teinList != null && teinList.Count > 0)
+            {
+                Func<string, string> getTein = (match) => {
+                    var item = teinList.LastOrDefault(x => !string.IsNullOrEmpty(x.VALUE) && 
+                        ((x.TEST_INDEX_NAME != null && x.TEST_INDEX_NAME.ToUpper().Contains(match.ToUpper())) ||
+                         (x.TEST_INDEX_CODE != null && x.TEST_INDEX_CODE.ToUpper() == match.ToUpper())));
+                    return item != null ? item.VALUE + " " + item.TEST_INDEX_UNIT_NAME : "-";
+                };
+
+                Console.WriteLine("-------------------------------------------------------------------------------");
+                Console.WriteLine(string.Format("📊 BILAN XÉT NGHIỆM MỚI NHẤT:"));
+                Console.WriteLine(string.Format("  • Huyết học: Hb: {0} | WBC: {1} | PLT: {2}", getTein("Hemoglobin"), getTein("Bạch cầu"), getTein("Tiểu cầu")));
+                Console.WriteLine(string.Format("  • Đông máu: PT-INR: {0} | Fibrinogen: {1} | APTT: {2}", getTein("INR"), getTein("Fibrinogen"), getTein("APTT")));
+                Console.WriteLine(string.Format("  • Sinh hóa: Glucose: {0} | Ure: {1} | Creatinin: {2} | AST: {3} | ALT: {4}", getTein("Glucose"), getTein("Urê"), getTein("Creatinin"), getTein("AST"), getTein("ALT")));
+                Console.WriteLine(string.Format("  • Nhóm máu: {0}", getTein("ABO")));
+            }
+        }
+        catch { }
+        Console.WriteLine("===============================================================================");
     }
 
     public static long CreateTracking(long treatmentId, string content, long? pulse = null, decimal? temp = null, long? bpMax = null, long? bpMin = null)
@@ -121,8 +270,8 @@ public class HisClinicalCli
             {
                 TREATMENT_ID = treatmentId,
                 EXECUTE_TIME = now,
-                EXECUTE_LOGINNAME = "vmc",
-                EXECUTE_USERNAME = "Vũ Minh Cường",
+                EXECUTE_LOGINNAME = currentDoctorLogin,
+                EXECUTE_USERNAME = currentDoctorName,
                 PULSE = pulse,
                 TEMPERATURE = temp,
                 BLOOD_PRESSURE_MAX = bpMax,
@@ -147,6 +296,20 @@ public class HisClinicalCli
         if (trackings == null || trackings.Count == 0) throw new Exception("Không tìm thấy tờ điều trị!");
         var tr = trackings[0];
 
+        if (tutorial.ToUpper().Contains("INSULIN") || tutorial.ToUpper().Contains("ACTRAPID") || tutorial.ToUpper().Contains("LANTUS") || tutorial.ToUpper().Contains("MIXTARD"))
+        {
+            if (stockId != 810)
+            {
+                Console.WriteLine("⚠️ CẢNH BÁO AN TOÀN: Đã tự động chuyển kho thuốc Insulin về TỦ TRỰC KHOA 57 (MediStockId = 810).");
+                stockId = 810;
+            }
+            if (amount > 0.5m)
+            {
+                Console.WriteLine(string.Format("⚠️ CẢNH BÁO AN TOÀN: Liều Insulin là {0} UI. Đang quy đổi UI -> Lọ ({0} / 1000 = {1:F4} lọ).", amount, amount / 1000.0m));
+                amount = amount / 1000.0m;
+            }
+        }
+
         InPatientPresSDO sdo = new InPatientPresSDO
         {
             TreatmentId = treatmentId,
@@ -158,8 +321,8 @@ public class HisClinicalCli
                 new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = tr.TRACKING_TIME }
             },
             RequestRoomId = 5248,
-            RequestLoginName = "vmc",
-            RequestUserName = "Vũ Minh Cường",
+            RequestLoginName = currentDoctorLogin,
+            RequestUserName = currentDoctorName,
             IcdCode = tr.ICD_CODE,
             IcdName = tr.ICD_NAME,
             IcdSubCode = tr.ICD_SUB_CODE,
@@ -206,8 +369,8 @@ public class HisClinicalCli
         {
             TreatmentId = treatmentId,
             RequestRoomId = 5248,
-            RequestLoginName = "vmc",
-            RequestUserName = "Vũ Minh Cường",
+            RequestLoginName = currentDoctorLogin,
+            RequestUserName = currentDoctorName,
             InstructionTime = tr.TRACKING_TIME,
             InstructionTimes = new List<long> { tr.TRACKING_TIME },
             UseTimes = new List<long> { tr.TRACKING_TIME },
@@ -220,7 +383,7 @@ public class HisClinicalCli
             IcdName = tr.ICD_NAME,
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = tr.ICD_TEXT,
-            SessionCode = null, // Mandatory NULL for new assignment
+            SessionCode = null,
             ServiceReqDetails = new List<ServiceReqDetailSDO>
             {
                 new ServiceReqDetailSDO
@@ -252,371 +415,194 @@ public class HisClinicalCli
         {
             string err = "Chỉ định CLS thất bại!";
             if (param.Messages != null && param.Messages.Count > 0) err += " " + string.Join("; ", param.Messages);
-            if (param.BugCodes != null && param.BugCodes.Count > 0) err += " [" + string.Join(", ", param.BugCodes) + "]";
             throw new Exception(err);
         }
     }
 
-    public class CementBilanItem
-    {
-        public string Name { get; set; }
-        public string Code { get; set; }
-        public long ServiceId { get; set; }
-        public long RoomId { get; set; }
-        public string Note { get; set; }
-        public long? ConditionId { get; set; }
-
-        public CementBilanItem(string name, string code, long svcId, long roomId, string note = "", long? condId = null)
-        {
-            Name = name;
-            Code = code;
-            ServiceId = svcId;
-            RoomId = roomId;
-            Note = note;
-            ConditionId = condId;
-        }
-    }
-
-    public static readonly List<CementBilanItem> StandardCementBilan = new List<CementBilanItem>
-    {
-        // 1. Huyết học tế bào
-        new CementBilanItem("Tổng phân tích tế bào máu laser", "BM00110", 5745, 1772),
-        
-        // 2. Đông máu (3 xét nghiệm thành phần độc lập tại Phòng 626)
-        new CementBilanItem("Định lượng Fibrinogen (Clauss tự động)", "BM00542", 5716, 626),
-        new CementBilanItem("Thời gian prothrombin (PT/TQ tự động)", "BM00531", 5713, 626),
-        new CementBilanItem("Thời gian APTT/TCK tự động [28/5/2026]", "BM260527.52", 63622, 626),
-        
-        // 3. Định nhóm máu (Gelcard tự động tại Phòng 1464)
-        new CementBilanItem("Định nhóm máu hệ ABO, Rh(D) (Gelcard tự động)", "BM01700", 5783, 1464),
-        
-        // 4. Sinh hóa máu (Phòng 410)
-        new CementBilanItem("Định lượng Urê [Máu]", "BM02304", 5923, 410),
-        new CementBilanItem("Định lượng Creatinin (máu)", "BM01361", 5934, 410),
-        new CementBilanItem("Đo hoạt độ AST (GOT)", "BM01352", 5834, 410),
-        new CementBilanItem("Đo hoạt độ ALT (GPT)", "BM01347", 5833, 410),
-        new CementBilanItem("Điện giải đồ (Na, K, Cl)", "BM00132", 5853, 410),
-        new CementBilanItem("Định lượng HbA1c", "BM01429", 5870, 410, "", 4723), // Kèm Condition 4723
-        
-        // 5. Nước tiểu (Phòng 566)
-        new CementBilanItem("Tổng phân tích nước tiểu (tự động)", "BM02998", 5950, 566),
-        
-        // 6. Vi sinh / Miễn dịch (Phòng 871)
-        new CementBilanItem("HBsAg miễn dịch tự động", "BM00859", 6135, 871),
-        new CementBilanItem("HCV Ab miễn dịch tự động", "BM00837", 6147, 871),
-        new CementBilanItem("HIV Ag/Ab miễn dịch tự động", "BM00871", 6020, 871),
-        
-        // 7. Thăm dò chức năng & Chẩn đoán hình ảnh
-        new CementBilanItem("Điện tim thường (ECG)", "BM04258", 920, 931), // Tiểu phẫu Khoa 57
-        new CementBilanItem("Siêu âm Doppler tim, van tim", "BM00201", 5569, 1715, "điều dưỡng đưa bằng cáng - cs ii"), // Phòng 1715
-        new CementBilanItem("Đo mật độ xương DEXA [2 vị trí]", "BM08085", 161, 6462, "điều dưỡng đưa bằng cáng - cs ii") // P202 Nhà K2
-    };
-
-    public static void AssignBilanCement(long treatmentId, long trackingId, int patientTypeId = 1)
+    public static void AssignSurgicalBilan(long treatmentId, long trackingId, string packType, int patientTypeId = 1)
     {
         InitSession();
+        packType = packType.ToLower();
 
-        if (trackingId <= 0) trackingId = 9730387;
+        List<ServiceTarget> targetList = new List<ServiceTarget>();
+        string title = "";
 
-        HisTrackingViewFilter tf = new HisTrackingViewFilter();
-        tf.ID = trackingId;
-        var trackings = myAdapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, tf, param);
-        
-        long trackingTime = 0;
-        string icdCode = "M80.0", icdName = "Lún xẹp đốt sống do loãng xương", icdSubCode = "", icdText = "";
-
-        if (trackings != null && trackings.Count > 0)
+        if (packType == "cement" || packType == "bxm")
         {
-            var tr = trackings[0];
-            trackingTime = tr.TRACKING_TIME;
-            icdCode = tr.ICD_CODE;
-            icdName = tr.ICD_NAME;
-            icdSubCode = tr.ICD_SUB_CODE;
-            icdText = tr.ICD_TEXT;
+            title = "BILAN MỔ BƠM XI MĂNG CỘT SỐNG (VERTEBROPLASTY)";
+            targetList.Add(PredefinedServices["CBC_LASER"]);
+            targetList.Add(PredefinedServices["FIBRINOGEN"]);
+            targetList.Add(PredefinedServices["PT_TQ"]);
+            targetList.Add(PredefinedServices["APTT_TCK"]);
+            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["URE"]);
+            targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GOT"]);
+            targetList.Add(PredefinedServices["GPT"]);
+            targetList.Add(PredefinedServices["ELECTROLYTES"]);
+            targetList.Add(PredefinedServices["HBA1C"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
+            targetList.Add(PredefinedServices["HBSAG"]);
+            targetList.Add(PredefinedServices["HCV_AB"]);
+            targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["ECHO_HEART"]);
+            targetList.Add(PredefinedServices["DEXA_2POS"]);
+        }
+        else if (packType == "spine" || packType == "nepvit")
+        {
+            title = "BILAN MỔ CỐ ĐỊNH CỘT SỐNG (NẸP VÍT QUA CUỐNG / TLIF)";
+            targetList.Add(PredefinedServices["CBC_LASER"]);
+            targetList.Add(PredefinedServices["COAGULATION"]);
+            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["URE"]);
+            targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GOT"]);
+            targetList.Add(PredefinedServices["GPT"]);
+            targetList.Add(PredefinedServices["ELECTROLYTES"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
+            targetList.Add(PredefinedServices["HBSAG"]);
+            targetList.Add(PredefinedServices["HCV_AB"]);
+            targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["XRAY_CHEST"]);
+            targetList.Add(PredefinedServices["ECHO_HEART"]);
+        }
+        else if (packType == "hip" || packType == "knee" || packType == "thaykhop")
+        {
+            title = "BILAN MỔ THAY KHỚP HÁNG / KHỚP GỐI NHÂN TẠO";
+            targetList.Add(PredefinedServices["CBC_LASER"]);
+            targetList.Add(PredefinedServices["COAGULATION"]);
+            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["URE"]);
+            targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GOT"]);
+            targetList.Add(PredefinedServices["GPT"]);
+            targetList.Add(PredefinedServices["ELECTROLYTES"]);
+            targetList.Add(PredefinedServices["HBSAG"]);
+            targetList.Add(PredefinedServices["HCV_AB"]);
+            targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["XRAY_CHEST"]);
+        }
+        else if (packType == "hand" || packType == "viphau")
+        {
+            title = "BILAN MỔ VI PHẪU / NỐI GÂN MẠCH BÀN TAY";
+            targetList.Add(PredefinedServices["CBC_LASER"]);
+            targetList.Add(PredefinedServices["COAGULATION"]);
+            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["URE"]);
+            targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["HBSAG"]);
+            targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["ECG"]);
         }
         else
         {
-            trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+            Console.WriteLine(string.Format("❌ Gói Bilan '{0}' không hợp lệ! Hỗ trợ: cement (BXM), spine (Cột sống), hip (Thay khớp), hand (Vi phẫu).", packType));
+            return;
         }
 
-        Console.WriteLine(string.Format("=== THỰC THI CHỈ ĐỊNH BILAN MỔ BƠM XI MĂNG CHUẨN LÂM SÀNG BẠCH MAI ==="));
-        Console.WriteLine(string.Format("Treatment ID: {0} | Tờ điều trị ID: {1} lúc {2}", treatmentId, trackingId, trackingTime));
+        Console.WriteLine(string.Format("=== THỰC THI CHỈ ĐỊNH {0} ===", title));
+        Console.WriteLine(string.Format("Treatment ID: {0} | Tờ điều trị ID: {1}", treatmentId, trackingId));
 
         int successCount = 0;
         int index = 1;
-        foreach (var item in StandardCementBilan)
+        foreach (var item in targetList)
         {
             try
             {
-                var reqDetail = new ServiceReqDetailSDO
-                {
-                    ServiceId = item.ServiceId,
-                    Amount = 1.0m,
-                    PatientTypeId = patientTypeId,
-                    PrimaryPatientTypeId = (patientTypeId == 1 ? (long?)null : patientTypeId),
-                    RoomId = item.RoomId,
-                    InstructionNote = item.Note ?? "",
-                    MultipleExecute = 1,
-                    IsNotUseBhyt = false,
-                    IsNoHeinDifference = false,
-                    IsGuaranteed = false,
-                    EkipInfos = new List<EkipSDO>()
-                };
-
-                if (item.ConditionId.HasValue)
-                {
-                    reqDetail.ServiceConditionId = item.ConditionId.Value;
-                }
-
-                AssignServiceSDO sdo = new AssignServiceSDO
-                {
-                    TreatmentId = treatmentId,
-                    RequestRoomId = 5248,
-                    RequestLoginName = "vmc",
-                    RequestUserName = "Vũ Minh Cường",
-                    InstructionTime = trackingTime,
-                    InstructionTimes = new List<long> { trackingTime },
-                    UseTimes = new List<long> { trackingTime },
-                    TrackingId = trackingId,
-                    TrackingInfos = new List<TrackingInfoSDO>
-                    {
-                        new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime }
-                    },
-                    IcdCode = icdCode,
-                    IcdName = icdName,
-                    IcdSubCode = icdSubCode,
-                    IcdText = icdText,
-                    SessionCode = null,
-                    ServiceReqDetails = new List<ServiceReqDetailSDO> { reqDetail }
-                };
-
-                CommonParam pOrd = new CommonParam();
-                var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, sdo, pOrd);
-                if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
-                {
-                    successCount++;
-                    Console.WriteLine(string.Format("  ✔ [{0:D2}/18] {1} ({2}) -> Y lệnh: {3} (Room ID: {4})",
-                        index, item.Name, item.Code, res.ServiceReqs[0].SERVICE_REQ_CODE, item.RoomId));
-                }
-                else
-                {
-                    string err = (pOrd.Messages != null && pOrd.Messages.Count > 0) ? string.Join("; ", pOrd.Messages) : "Lỗi hệ thống MOS";
-                    Console.WriteLine(string.Format("  ❌ [{0:D2}/18] {1} ({2}): {3}", index, item.Name, item.Code, err));
-                }
+                AssignClsService(treatmentId, trackingId, item.ServiceId, item.RoomId, item.Note, patientTypeId);
+                successCount++;
+                Console.WriteLine(string.Format("  ✔ [{0:D2}/{1:D2}] {2} ({3})", index, targetList.Count, item.ServiceName, item.ServiceCode));
             }
             catch (Exception ex)
             {
-                Console.WriteLine(string.Format("  ❌ [{0:D2}/18] {1}: {2}", index, item.Name, ex.Message));
+                Console.WriteLine(string.Format("  ❌ [{0:D2}/{1:D2}] {2}: {3}", index, targetList.Count, item.ServiceName, ex.Message));
             }
             index++;
         }
 
         Console.WriteLine("===============================================================================");
-        Console.WriteLine(string.Format("KẾT QUẢ CHỈ ĐỊNH BILAN: ✔ Thành công: {0}/{1}", successCount, StandardCementBilan.Count));
+        Console.WriteLine(string.Format("KẾT QUẢ CHỈ ĐỊNH GÓI: ✔ Thành công: {0}/{1}", successCount, targetList.Count));
         Console.WriteLine("===============================================================================");
     }
 
-    public static void AssignRemaining3(long treatmentId, long trackingId, int patientTypeId = 1)
+    public static void ScanWardRooms()
     {
         InitSession();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("🏥 QUÉT DANH SÁCH BỆNH NHÂN CÁC BUỒNG TRỌNG ĐIỂM KHOA 57");
+        Console.WriteLine("Phòng: 712, 714, 716, 724, 725");
+        Console.WriteLine("===============================================================================");
 
-        if (trackingId <= 0) trackingId = 9730387;
+        HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
+        tbrf.IS_IN_ROOM = true;
+        tbrf.TREATMENT_IS_ACTIVE = true;
+        var allBeds = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, tbrf, param);
 
-        HisTrackingViewFilter tf = new HisTrackingViewFilter();
-        tf.ID = trackingId;
-        var trackings = myAdapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, tf, param);
-        
-        long trackingTime = 0;
-        string icdCode = "M80.0", icdName = "Lún xẹp đốt sống do loãng xương", icdSubCode = "", icdText = "";
-
-        if (trackings != null && trackings.Count > 0)
+        if (allBeds == null || allBeds.Count == 0)
         {
-            var tr = trackings[0];
-            trackingTime = tr.TRACKING_TIME;
-            icdCode = tr.ICD_CODE;
-            icdName = tr.ICD_NAME;
-            icdSubCode = tr.ICD_SUB_CODE;
-            icdText = tr.ICD_TEXT;
-            Console.WriteLine(string.Format("Tìm thấy tờ điều trị ID: {0} lúc {1}", trackingId, trackingTime));
-        }
-        else
-        {
-            trackingTime = 20260826083653; // Default tracking time from today
-            Console.WriteLine(string.Format("Sử dụng tờ điều trị ID mặc định: {0} lúc {1}", trackingId, trackingTime));
+            Console.WriteLine("Không tìm thấy bệnh nhân nào đang nằm buồng!");
+            return;
         }
 
-        Console.WriteLine("=== THỬ NGHIỆM CHỈ ĐỊNH ĐÍCH DANH NHÓM MÁU VÀ HBA1C ===");
+        var dept57Beds = allBeds.Where(x => x.DEPARTMENT_ID == 57 && (
+            (x.BED_ROOM_NAME != null && (x.BED_ROOM_NAME.Contains("712") || x.BED_ROOM_NAME.Contains("714") || x.BED_ROOM_NAME.Contains("716") || x.BED_ROOM_NAME.Contains("724") || x.BED_ROOM_NAME.Contains("725"))) ||
+            (x.BED_NAME != null && (x.BED_NAME.Contains("712") || x.BED_NAME.Contains("714") || x.BED_NAME.Contains("716") || x.BED_NAME.Contains("724") || x.BED_NAME.Contains("725")))
+        )).OrderBy(x => x.BED_ROOM_NAME).ThenBy(x => x.BED_NAME).ToList();
 
-        var bgCandidates = new[]
+        Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân tại các buồng phụ trách:\n", dept57Beds.Count));
+        int stt = 1;
+        foreach (var b in dept57Beds)
         {
-            new { Id = 73898L, Code = "NB260620.5848", Name = "Định nhóm máu hệ ABO, Rh(D) (Gelcard tự động)" },
-            new { Id = 73907L, Code = "NB260620.5857", Name = "Định nhóm máu hệ ABO (ống nghiệm)" },
-            new { Id = 73890L, Code = "NB260620.5840", Name = "Định nhóm máu hệ Rh(D) (ống nghiệm)" },
-            new { Id = 5783L, Code = "BM01700", Name = "Định nhóm máu hệ ABO, Rh(D) (Gelcard)" },
-            new { Id = 5675L, Code = "BM01886", Name = "Định nhóm máu hệ ABO (ống nghiệm)" },
-            new { Id = 5785L, Code = "BM01286", Name = "Định nhóm máu hệ Rh(D) (ống nghiệm)" },
-            new { Id = 5757L, Code = "BM00122", Name = "Định nhóm máu hệ ABO, Rh(D)" },
-            new { Id = 24562L, Code = "BM21671", Name = "Định nhóm máu hệ ABO bằng giấy" }
-        };
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            tf.ID = b.TREATMENT_ID;
+            var tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+            var tr = tList != null && tList.Count > 0 ? tList[0] : null;
 
-        var hbCandidates = new[]
-        {
-            new { Id = 73996L, Code = "NB260620.5946", Name = "Định lượng HbA1c [Máu]" },
-            new { Id = 5870L, Code = "BM01429", Name = "Định lượng HbA1c" },
-            new { Id = 2683L, Code = "BM00049", Name = "Định lượng HbA1c [Máu]" }
-        };
+            string patName = tr != null ? tr.TDL_PATIENT_NAME : "N/A";
+            string patCode = tr != null ? tr.TDL_PATIENT_CODE : "N/A";
+            string icd = tr != null ? string.Format("[{0}] {1}", tr.ICD_CODE, tr.ICD_NAME) : "-";
 
-        long[] allRooms = new long[] { 1772, 1773, 1771, 2993, 410, 566, 1852, 17773 };
-        int[] ptTypes = new int[] { 1, 2 };
-
-        bool bgDone = false;
-        foreach (var bg in bgCandidates)
-        {
-            if (bgDone) break;
-            foreach (var pt in ptTypes)
-            {
-                if (bgDone) break;
-                foreach (var rId in allRooms)
-                {
-                    if (bgDone) break;
-                    AssignServiceSDO sdo = new AssignServiceSDO
-                    {
-                        TreatmentId = treatmentId,
-                        RequestRoomId = 5248,
-                        RequestLoginName = "vmc",
-                        RequestUserName = "Vũ Minh Cường",
-                        InstructionTime = trackingTime,
-                        InstructionTimes = new List<long> { trackingTime },
-                        UseTimes = new List<long> { trackingTime },
-                        TrackingId = trackingId,
-                        TrackingInfos = new List<TrackingInfoSDO>
-                        {
-                            new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime }
-                        },
-                        IcdCode = icdCode,
-                        IcdName = icdName,
-                        IcdSubCode = icdSubCode,
-                        IcdText = icdText,
-                        SessionCode = null,
-                        ServiceReqDetails = new List<ServiceReqDetailSDO>
-                        {
-                            new ServiceReqDetailSDO
-                            {
-                                ServiceId = bg.Id,
-                                Amount = 1.0m,
-                                PatientTypeId = pt,
-                                PrimaryPatientTypeId = (pt == 1 ? (long?)null : pt),
-                                RoomId = rId,
-                                InstructionNote = "",
-                                MultipleExecute = 1,
-                                IsNotUseBhyt = (pt == 2),
-                                IsNoHeinDifference = false,
-                                IsGuaranteed = false,
-                                EkipInfos = new List<EkipSDO>()
-                            }
-                        }
-                    };
-
-                    CommonParam pOrd = new CommonParam();
-                    var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, sdo, pOrd);
-                    if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
-                    {
-                        bgDone = true;
-                        Console.WriteLine(string.Format("  ✔ [THÀNH CÔNG] {0} (SVC ID: {1}, Room ID: {2}, PT: {3}) -> Y lệnh: {4}",
-                            bg.Name, bg.Id, rId, pt, res.ServiceReqs[0].SERVICE_REQ_CODE));
-                    }
-                    else
-                    {
-                        var fields = pOrd.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-                        string info = string.Join(", ", fields.Select(p => p.Name + "=" + (p.GetValue(pOrd, null) != null ? p.GetValue(pOrd, null).ToString() : "null")));
-                        Console.WriteLine(string.Format("  ❌ NULL RES {0} ({1}) tại Room {2}, PT {3}: {4}", bg.Name, bg.Code, rId, pt, info));
-                        break; // Print one failure and break
-                    }
-                }
-            }
+            Console.WriteLine(string.Format("{0:D2}. [{1} - {2}] BN: {3} (Mã: {4}) | TrID: {5}", stt++, b.BED_ROOM_NAME, b.BED_NAME, patName, patCode, b.TREATMENT_ID));
+            Console.WriteLine(string.Format("    Chẩn đoán: {0}", icd));
         }
-
-        bool hbDone = false;
-        foreach (var hb in hbCandidates)
-        {
-            if (hbDone) break;
-            foreach (var pt in ptTypes)
-            {
-                if (hbDone) break;
-                foreach (var rId in allRooms)
-                {
-                    if (hbDone) break;
-                    AssignServiceSDO sdo = new AssignServiceSDO
-                    {
-                        TreatmentId = treatmentId,
-                        RequestRoomId = 5248,
-                        RequestLoginName = "vmc",
-                        RequestUserName = "Vũ Minh Cường",
-                        InstructionTime = trackingTime,
-                        InstructionTimes = new List<long> { trackingTime },
-                        UseTimes = new List<long> { trackingTime },
-                        TrackingId = trackingId,
-                        TrackingInfos = new List<TrackingInfoSDO>
-                        {
-                            new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime }
-                        },
-                        IcdCode = icdCode,
-                        IcdName = icdName,
-                        IcdSubCode = icdSubCode,
-                        IcdText = icdText,
-                        SessionCode = null,
-                        ServiceReqDetails = new List<ServiceReqDetailSDO>
-                        {
-                            new ServiceReqDetailSDO
-                            {
-                                ServiceId = hb.Id,
-                                Amount = 1.0m,
-                                PatientTypeId = pt,
-                                PrimaryPatientTypeId = (pt == 1 ? (long?)null : pt),
-                                RoomId = rId,
-                                InstructionNote = "",
-                                MultipleExecute = 1,
-                                IsNotUseBhyt = (pt == 2),
-                                IsNoHeinDifference = false,
-                                IsGuaranteed = false,
-                                EkipInfos = new List<EkipSDO>()
-                            }
-                        }
-                    };
-
-                    CommonParam pOrd = new CommonParam();
-                    var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, sdo, pOrd);
-                    if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
-                    {
-                        hbDone = true;
-                        Console.WriteLine(string.Format("  ✔ [THÀNH CÔNG] {0} (SVC ID: {1}, Room ID: {2}, PT: {3}) -> Y lệnh: {4}",
-                            hb.Name, hb.Id, rId, pt, res.ServiceReqs[0].SERVICE_REQ_CODE));
-                    }
-                }
-            }
-        }
+        Console.WriteLine("===============================================================================");
     }
-
-
 
     public static void RunCli(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         if (args.Length == 0)
         {
-            Console.WriteLine("HisClinicalCli: Sẵn sàng thực thi y lệnh lâm sàng nhanh.");
-            Console.WriteLine("Commands:");
-            Console.WriteLine("  create-tracking <treatmentId> <content> [pulse] [temp] [bpMax] [bpMin]");
-            Console.WriteLine("  assign-cls <treatmentId> <trackingId> <serviceId> <roomId> [note] [patientTypeId]");
-            Console.WriteLine("  assign-bilan-cement <treatmentId> <trackingId> [patientTypeId]");
-            Console.WriteLine("  assign-remaining3 <treatmentId> <trackingId> [patientTypeId]");
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine("🏥 UNIFIED HIS CLINICAL AUTOMATION CLI - KHOA CTCH & CỘT SỐNG (KHOA 57)");
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine("Cú pháp lệnh:");
+            Console.WriteLine("  lookup <patientCode|treatmentCode|name>   : Tra cứu thông tin, buồng giường & Bilan");
+            Console.WriteLine("  wardround                                 : Quét danh sách BN buồng 712, 714, 716, 724, 725");
+            Console.WriteLine("  create-tracking <trId> <content> [dhst..] : Tạo tờ điều trị và DHST");
+            Console.WriteLine("  prescribe <trId> <tkId> <medId> <stId> <amount> <tutorial> : Kê đơn thuốc an toàn");
+            Console.WriteLine("  assign-cls <trId> <tkId> <svcId> <roomId> [note] [ptId]    : Chỉ định CLS đơn lẻ");
+            Console.WriteLine("  assign-bilan <trId> <tkId> <cement|spine|hip|hand>         : Chỉ định gói Bilan 1-Click");
+            Console.WriteLine("===============================================================================");
             return;
         }
 
         string cmd = args[0].ToLower();
         try
         {
-            if (cmd == "create-tracking")
+            if (cmd == "lookup")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu từ khóa tra cứu!");
+                LookupPatient(args[1]);
+            }
+            else if (cmd == "wardround")
+            {
+                ScanWardRooms();
+            }
+            else if (cmd == "create-tracking")
             {
                 long treatmentId = long.Parse(args[1]);
                 string content = args[2];
@@ -625,6 +611,17 @@ public class HisClinicalCli
                 long? bpMax = args.Length > 5 && !string.IsNullOrEmpty(args[5]) ? (long?)long.Parse(args[5]) : null;
                 long? bpMin = args.Length > 6 && !string.IsNullOrEmpty(args[6]) ? (long?)long.Parse(args[6]) : null;
                 CreateTracking(treatmentId, content, pulse, temp, bpMax, bpMin);
+            }
+            else if (cmd == "prescribe")
+            {
+                long treatmentId = long.Parse(args[1]);
+                long trackingId = long.Parse(args[2]);
+                long medId = long.Parse(args[3]);
+                long stockId = long.Parse(args[4]);
+                decimal amount = decimal.Parse(args[5]);
+                string tutorial = args.Length > 6 ? args[6] : "";
+                int ptId = args.Length > 7 ? int.Parse(args[7]) : 1;
+                PrescribeMedication(treatmentId, trackingId, medId, stockId, amount, tutorial, ptId);
             }
             else if (cmd == "assign-cls")
             {
@@ -636,19 +633,13 @@ public class HisClinicalCli
                 int ptId = args.Length > 6 ? int.Parse(args[6]) : 1;
                 AssignClsService(treatmentId, trackingId, serviceId, roomId, note, ptId);
             }
-            else if (cmd == "assign-bilan-cement")
+            else if (cmd == "assign-bilan" || cmd == "assign-bilan-cement")
             {
                 long treatmentId = long.Parse(args[1]);
                 long trackingId = long.Parse(args[2]);
-                int ptId = args.Length > 3 ? int.Parse(args[3]) : 1;
-                AssignBilanCement(treatmentId, trackingId, ptId);
-            }
-            else if (cmd == "assign-remaining3")
-            {
-                long treatmentId = long.Parse(args[1]);
-                long trackingId = long.Parse(args[2]);
-                int ptId = args.Length > 3 ? int.Parse(args[3]) : 1;
-                AssignRemaining3(treatmentId, trackingId, ptId);
+                string packType = (cmd == "assign-bilan-cement" || args.Length < 4) ? "cement" : args[3];
+                int ptId = args.Length > 4 ? int.Parse(args[4]) : 1;
+                AssignSurgicalBilan(treatmentId, trackingId, packType, ptId);
             }
             else
             {
@@ -657,14 +648,13 @@ public class HisClinicalCli
         }
         catch (Exception ex)
         {
-            Console.WriteLine("LỖI THỰC THI: " + ex.Message);
+            Console.WriteLine("❌ LỖI THỰC THI: " + ex.Message);
         }
     }
 }
 
 class Program
 {
-
     static void Main(string[] args)
     {
         AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
@@ -710,6 +700,3 @@ class Program
         HisClinicalCli.RunCli(args);
     }
 }
-
-
-

@@ -1,4 +1,4 @@
-﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
 > **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
 > **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
@@ -567,47 +567,61 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **29**| Kê vật tư tiêu hao thay băng bị tính sai viện phí hoặc nhầm kho | Kê từ Kho Dược (4209/4210) hoặc quên bật cờ hao phí | **BẮT BUỘC kê từ Tủ trực Khoa 57 (`MediStockId = 810`)**, đặt `IsCabinet = true`, `IsExpend = true`, `MedicineUseFormId = 25` (*Dùng ngoài*) và `Tutorial = "thay băng"`. Các mục chuẩn: **Povidone 10% 125ml (`TH.POVI008` - ID 17385)** và **Muối rửa NaCl 0.9% 500ml (`TH.NATR047` - ID 27127)**. |
 | **30**| Kê đơn Insulin (Actrapid/Lantus/Mixtard) từ Tủ Trực 810 bị từ chối lượng tồn kho | Truyền `Amount` là số nguyên UI (VD: `8.0`) khiến MOS hiểu là 8 lọ (8000 IU) | **Tỷ lệ quy đổi bắt buộc: `Amount = UI / 1000.0m`** (VD `8 UI` = `0.0080 lọ`, `9 UI` = `0.0090 lọ`). `MedicineTypeId = 27727` (`TH.ACTR004`), `MediStockId = 810`, `MedicineUseFormId = 15` (*Tiêm*), các cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD `"08"`), `IsExpend = false`. |
 | **31**| Agent rơi vào vòng lặp thử-sai (trial-and-error loop) quá lâu khi API backend từ chối | Tự ý viết script test liên tiếp khi API trả `Success: false` âm thầm làm BS phải chờ đợi | **Quy tắc giới hạn 2 lần (Max 2 Attempts)**: Nếu sau 2 lần gọi API mà backend từ chối không rõ mã lỗi, Agent PHẢI DỪNG NGAY LẬP TỨC. Báo cáo minh bạch các tác vụ ĐÃ XONG (Tờ điều trị, Chỉ định CLS) và bàn giao lại để BS thao tác nhanh trên UI, tuyệt đối không để ảnh hưởng tiến độ khám chữa bệnh. |
-  | **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án `d:\his\his-x64-28-11fix GDYK\his-x64\`. |
-  | **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án `d:\his\his-x64-28-11fix GDYK\his-x64\`. |
+| **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án hoặc dùng Hook `AssemblyResolve` đa tầng. |
+| **33**| Lỗi biên dịch CS0117: `WorkInfoSDO` không có thuộc tính `DepartmentId`/`BranchId` | `WorkInfoSDO` trong `MOS.SDO.dll` chỉ chứa danh sách `Rooms` (`List<RoomSDO>`) | Khởi tạo đúng: `new WorkInfoSDO { Rooms = new List<RoomSDO> { new RoomSDO { RoomId = 5248 }, ... } }`. |
+| **34**| Mô hình AI OpenRouter trả lỗi `402 Payment Required` (hết credit) | Gọi mô hình thương mại vượt quá số dư tài khoản | Sử dụng ID định tuyến miễn phí **`openrouter/free`** hoặc các mô hình có hậu tố `:free` (`google/gemma-4-31b-it:free`, `minimax/minimax-m3:free`). |
 
 ---
 
-## 14. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI TỨC THÌ
+## 14. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI HỢP NHẤT (UNIFIED CLINICAL SUITE)
 
-Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọi Windows 10/11):
+Hệ thống đã được hợp nhất vào **`HisClinicalCli.exe`** duy nhất với đầy đủ các lệnh nghiệp vụ lâm sàng:
 
-### 14.1. Đường dẫn trình biên dịch C#:
-`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
+### 14.1. Cú pháp các lệnh chuẩn:
+```powershell
+# 1. Tra cứu thông tin bệnh nhân, buồng giường & Bilan xét nghiệm:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup 0003969449
 
-> 💡 **Lưu ý về thông báo C# 5:** Khi chạy `csc.exe`, hệ thống sẽ hiện thông báo bản quyền `...for C# 5... This compiler is provided as part of the Microsoft (R) .NET Framework...`. Đây là thông báo mặc định của Windows .NET Framework 4.8 (không phải lỗi). Thêm `/nologo` vào lệnh biên dịch để ẩn thông báo này.
+# 2. Quét danh sách bệnh nhân các buồng phụ trách (Phòng 712, 714, 716, 724, 725):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe wardround
+
+# 3. Tạo tờ điều trị & Dấu hiệu sinh tồn (DHST):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe create-tracking <treatmentId> "Bệnh nhân tỉnh, vết mổ khô" [mạch] [nhiệt_độ] [huyết_áp_tối_đa] [huyết_áp_tối_thiểu]
+
+# 4. Kê đơn thuốc an toàn (Tự động chuyển Tủ trực 810 cho Insulin & tự động quy đổi UI -> Lọ):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe prescribe <treatmentId> <trackingId> <medicineTypeId> <stockId> <amount> <tutorial>
+
+# 5. Chỉ định Cận lâm sàng đơn lẻ:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-cls <treatmentId> <trackingId> <serviceId> <roomId> [ghi_chú] [đối_tượng]
+
+# 6. Chỉ định Gói Bilan Phẫu Thuật 1-Click:
+#    - Bơm xi măng cột sống (18 mục): cement (hoặc bxm)
+#    - Cố định cột sống / Nẹp vít (15 mục): spine (hoặc nepvit)
+#    - Thay khớp háng / gối (13 mục): hip (hoặc thaykhop)
+#    - Vi phẫu bàn tay (8 mục): hand (hoặc viphau)
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-bilan <treatmentId> <trackingId> cement
+```
 
 ### 14.2. Lệnh biên dịch chuẩn cho mọi công cụ:
 ```powershell
-# Biên dịch HisTrackingCreator:
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:exe /out:HisTrackingCreator.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisTrackingCreator.cs
-
-# Biên dịch HisDebateCreator (Hội chẩn chuyên khoa):
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:exe /out:HisDebateCreator.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisDebateCreator.cs
-
-# Biên dịch HisGlucoseBedsideAssigner:
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HisGlucoseBedsideAssigner.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisGlucoseBedsideAssigner.cs
-
-# Biên dịch HospitalShiftReporter:
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HospitalShiftReporter.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HospitalShiftReporter.cs
-```
-
-### 14.3. Cơ chế Nạp Assembly Động (Assembly Resolve Hook):
-```csharp
-AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
-{
-    string folderPath = AppDomain.CurrentDomain.BaseDirectory;
-    string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
-    string path1 = Path.Combine(folderPath, name);
-    if (File.Exists(path1)) return Assembly.LoadFrom(path1);
-    string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
-    if (File.Exists(path2)) return Assembly.LoadFrom(path2);
-    return null;
-};
+# Biên dịch HisClinicalCli (Hợp nhất):
+$root = (Get-Location).Path
+$rsp = "$root\refs.rsp"
+$lines = @(
+    "/reference:System.dll",
+    "/reference:System.Core.dll",
+    "/reference:System.Windows.Forms.dll",
+    "/reference:System.Drawing.dll",
+    "/reference:System.Data.dll",
+    "/reference:System.Xml.dll",
+    "/reference:System.Net.Http.dll"
+)
+$refDlls = Get-ChildItem -Path "$root\ReferencedAssemblies", "$root" -Filter "*.dll" | Where-Object { $_.Name -match "Inventec|HIS|MOS|Newtonsoft" }
+$lines += ($refDlls | ForEach-Object { "/reference:`"$($_.FullName)`"" })
+Set-Content -Path $rsp -Value $lines -Encoding UTF8
+$src = "$root\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.cs"
+$out = "$root\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe"
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /platform:x64 /out:"$out" "@$rsp" "$src"
 ```
 
 ---
@@ -625,6 +639,7 @@ Dự án đã được trang bị sẵn 2 kịch bản tự động hóa 1-click
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
 
 
 
