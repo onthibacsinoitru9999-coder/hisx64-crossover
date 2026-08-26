@@ -323,6 +323,24 @@ var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsu
 
 *(Xem toàn bộ từ điển 130 loại thuốc tại `MEDICATION_CLINICAL_TUTORIALS.md`)*.
 
+### 7.4. QUY CHUẨN KÊ VẬT TƯ & DUNG DỊCH TIÊU HAO THAY BĂNG (DRESSING CONSUMABLES PROTOCOL):
+Khi kê y lệnh thay băng rửa vết thương, chăm sóc vết mổ hàng ngày cho bệnh nhân:
+
+* **Kho cấp y lệnh**: BẮT BUỘC kê từ **Tủ trực Khoa 57 (`MediStockId = 810` - `TT_KCTCHCS`)** *(Tuyệt đối không kê từ Kho Dược 4209/4210)*.
+* **Bộ thông số DTO bắt buộc (`InPatientPresCreateSDO` / `OutPatientPresCreateList`)**:
+  - `IsCabinet = true` (Đơn tủ trực).
+  - `IsExpend = true` (**BẮT BUỘC** bật cờ Hao phí tiêu hao để không tính trùng hoặc xuất nhầm viện phí).
+  - `MedicineUseFormId = 25` (Đường dùng: *Dùng ngoài*, `HtuText = "Dùng ngoài"`).
+  - `Tutorial = "thay băng"` (Hướng dẫn thực hiện).
+  - `PrescriptionTypeId = 1` (Đơn nội trú).
+* **Danh mục dung dịch & vật tư thay băng thường quy**:
+  1. 🧴 **Povidone 10% 125ml** (Dung dịch sát khuẩn Betadine):
+     - Mã thuốc: **`TH.POVI008`** (ID: `17385`) | Đơn vị: `Chai` | Số lượng: `1` | Hướng dẫn: `"thay băng"`.
+  2. 💧 **Muối rửa Natri clorid 0.9% 500ml** (Nước muối rửa vô khuẩn):
+     - Mã thuốc: **`TH.NATR047`** (ID: `27127`) | Đơn vị: `Chai` | Số lượng: `1` | Hướng dẫn: `"thay băng"`.
+  3. 🩹 **Vật tư tiêu hao kèm theo** (Gạc củ ấu, gạc miếng vô khuẩn, băng cuộn, băng dính):
+     - Kê từ danh mục `Materials` thuộc Tủ trực `810` với cờ `IsExpend = true`, `Tutorial = "thay băng"`.
+
 ---
 
 ## 8. PHÂN HỆ 4: CHỈ ĐỊNH CẬN LÂM SÀNG & ĐƯỜNG MÁU MAO MẠCH TẠI GIƯỜNG (BM02426)
@@ -544,6 +562,7 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **26**| Đo mật độ xương DEXA chọn sai mã dịch vụ | Chọn mã 1 vị trí `BM08084` (ID 160) | Chỉ định đúng mã **`BM08085`** (ID `161` - DEXA 2 vị trí) gửi về **Phòng 6462 (P202 Nhà K2)** kèm ghi chú `"điều dưỡng đưa bằng cáng - cs ii"`. |
 | **27**| Mã dịch vụ Ure và Điện giải đồ bị lệch danh mục | Chọn các mã tạm hoặc mã ngoài danh mục thường quy | Urê máu chọn **`BM02304`** (ID `5923`), Điện giải đồ Na/K/Cl chọn **`BM00132`** (ID `5853`), gửi về **Phòng 410**. |
 | **28**| Tạo Hội chẩn chuyên khoa bị thiếu Tờ điều trị hoặc sai DTO | Gọi `api/HisDebate/Create` phẳng hoặc thiếu `HIS_DEBATE_USER` | **BẮT BUỘC gọi `api/HisDebate/CreateAutoTracking`** với DTO `HIS_DEBATE` chứa `CONTENT_TYPE = 1`, `DEBATE_TIME` (`yyyyMMddHHmmss`), và mảng `HIS_DEBATE_USER` gắn cờ `IS_PRESIDENT = 1` (Chủ tọa), `IS_SECRETARY = 1` (Thư ký). Biểu mẫu trích biên bản là `Mps000019` (EMR Type 17). |
+| **29**| Kê vật tư tiêu hao thay băng bị tính sai viện phí hoặc nhầm kho | Kê từ Kho Dược (4209/4210) hoặc quên bật cờ hao phí | **BẮT BUỘC kê từ Tủ trực Khoa 57 (`MediStockId = 810`)**, đặt `IsCabinet = true`, `IsExpend = true`, `MedicineUseFormId = 25` (*Dùng ngoài*) và `Tutorial = "thay băng"`. Các mục chuẩn: **Povidone 10% 125ml (`TH.POVI008` - ID 17385)** và **Muối rửa NaCl 0.9% 500ml (`TH.NATR047` - ID 27127)**. |
 
 ---
 
