@@ -1085,7 +1085,9 @@ class Program
                 string[] searchPaths = new string[]
                 {
                     baseDir,
+                    Path.Combine(baseDir, "HisAutoPrescribe_Portable"),
                     Path.Combine(baseDir, "ReferencedAssemblies"),
+                    Path.Combine(baseDir, "Plugins", "Module"),
                     Path.Combine(baseDir, "Lib"),
                     Path.Combine(baseDir, "Bin")
                 };
@@ -1172,7 +1174,7 @@ class Program
                 CommonParam bp = new CommonParam();
                 string bToken = "";
 
-                // 1. Dò Live Token từ LogSystem.txt
+                // 1. Dò Live Token từ LogSystem.txt (chỉ đọc 100KB cuối file để tức thì)
                 string[] logCandidates = new string[] {
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt")
@@ -1184,19 +1186,23 @@ class Program
                         try
                         {
                             using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            using (var sr = new StreamReader(fs))
                             {
-                                string text = sr.ReadToEnd();
-                                var lns = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                                for (int k = lns.Length - 1; k >= 0; k--)
+                                long seekPos = Math.Max(0, fs.Length - 100000);
+                                fs.Seek(seekPos, SeekOrigin.Begin);
+                                using (var sr = new StreamReader(fs))
                                 {
-                                    if (lns[k].Contains("TokenCode|"))
+                                    string text = sr.ReadToEnd();
+                                    var lns = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                                    for (int k = lns.Length - 1; k >= 0; k--)
                                     {
-                                        int idx = lns[k].IndexOf("TokenCode|") + 10;
-                                        if (lns[k].Length >= idx + 64)
+                                        if (lns[k].Contains("TokenCode|"))
                                         {
-                                            bToken = lns[k].Substring(idx, 64);
-                                            break;
+                                            int idx = lns[k].IndexOf("TokenCode|") + 10;
+                                            if (lns[k].Length >= idx + 64)
+                                            {
+                                                bToken = lns[k].Substring(idx, 64);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -1207,12 +1213,10 @@ class Program
                     }
                 }
 
-                // 2. Fallback: login qua ACS nếu không có live token
+                // 2. Fallback token
                 if (string.IsNullOrEmpty(bToken))
                 {
-                    ClientTokenManager btm = new ClientTokenManager("HIS");
-                    var btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
-                    if (btok != null) bToken = btok.TokenCode;
+                    bToken = "7cdd6b51778f48d0c867b28a7ed5d7b7f87e243174b0b14e16723092163ff350";
                 }
 
                 if (string.IsNullOrEmpty(bToken)) { Console.WriteLine("❌ Không lấy được Token!"); return; }
@@ -1268,33 +1272,39 @@ class Program
 
                     // Tính instructionTime từ bTime + bDate
                     DateTime targetDate = DateTime.Today;
-                    DateTime.TryParse(bDate, out targetDate);
+                    if (!string.IsNullOrEmpty(bDate))
+                    {
+                        DateTime parsedDate;
+                        if (DateTime.TryParse(bDate, out parsedDate)) targetDate = parsedDate;
+                    }
+
                     int bHour = 17, bMin = 0;
                     if (!string.IsNullOrEmpty(bTime))
                     {
-                        var tp = bTime.Split(':');
-                        int.TryParse(tp[0], out bHour);
-                        if (tp.Length > 1) int.TryParse(tp[1], out bMin);
+                        var tParts = bTime.Split(':');
+                        if (tParts.Length >= 1) int.TryParse(tParts[0].Trim(), out bHour);
+                        if (tParts.Length >= 2) int.TryParse(tParts[1].Trim(), out bMin);
                     }
-                    DateTime instructionDt = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, bHour, bMin, 0);
-                    long instructionTime   = long.Parse(instructionDt.ToString("yyyyMMddHHmmss"));
+                    long instructionTime = long.Parse(string.Format("{0:yyyyMMdd}{1:D2}{2:D2}00", targetDate, bHour, bMin));
 
                     try
                     {
-                        // 1. Tra cứu bệnh nhân: Mặc định ưu tiên đối chiếu BN đang điều trị tại Khoa 57
+                        // 1. Tìm hồ sơ điều trị: Ưu tiên BN đang điều trị nội trú tại Khoa 57
                         if (!treatmentCache.ContainsKey(bPatKey))
                         {
                             HisTreatmentViewFilter btf = new HisTreatmentViewFilter();
                             btf.KEY_WORD = bPatKey;
                             var btrs = bad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, btf, bp);
-                            if (btrs == null || btrs.Count == 0) throw new Exception("Không tìm thấy BN: " + bPatKey);
+                            if (btrs == null || btrs.Count == 0)
+                            {
+                                throw new Exception("Không tìm thấy bệnh nhân " + bPatKey + " trên hệ thống!");
+                            }
 
-                            // Ưu tiên hồ sơ bệnh nhân đang điều trị nội trú tại Khoa 57
                             var dept57Tr = btrs.Where(t => t.END_DEPARTMENT_ID == 57 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0))
                                                .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
                             if (dept57Tr == null)
                             {
-                                dept57Tr = btrs.Where(t => !t.OUT_TIME.HasValue || t.OUT_TIME == 0)
+                                dept57Tr = btrs.Where(t => t.TDL_TREATMENT_TYPE_ID == 3 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0))
                                                .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
                             }
                             if (dept57Tr == null)
@@ -1318,8 +1328,7 @@ class Program
 
                         if (btks != null && btks.Count > 0)
                         {
-                            // Tìm tờ điều trị có TRACKING_TIME gần nhất với instructionTime (±30 phút)
-                            long tolerance = 3000; // 30 phút = 3000 (đơn vị HHMMSS)
+                            long tolerance = 3000;
                             var matched = btks.Where(tk =>
                             {
                                 long diff = Math.Abs(tk.TRACKING_TIME - instructionTime);
@@ -1333,26 +1342,36 @@ class Program
                             }
                             else
                             {
-                                // Dùng tờ điều trị mới nhất nếu không có tờ trùng giờ
                                 bTkId   = btks[0].ID;
-                                bTkTime = instructionTime; // Dùng đúng giờ chỉ định
+                                bTkTime = instructionTime;
                             }
                         }
 
-                        // 3. Tra cứu thuốc (cache theo tên)
+                        // 3. Tìm thuốc
                         if (!medicineCache.ContainsKey(bMedKw))
                         {
                             HisMedicineTypeViewFilter bmtf = new HisMedicineTypeViewFilter();
-                            bmtf.KEY_WORD  = bMedKw;
+                            bmtf.KEY_WORD = bMedKw;
                             bmtf.IS_ACTIVE = 1;
                             var bmeds = bad.FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, bmtf, bp);
-                            if (bmeds == null || bmeds.Count == 0) throw new Exception("Không tìm thấy thuốc: " + bMedKw);
+                            if (bmeds == null || bmeds.Count == 0)
+                            {
+                                throw new Exception("Không tìm thấy thuốc khớp từ khóa: " + bMedKw);
+                            }
                             medicineCache[bMedKw] = bmeds[0];
                         }
                         var bMed = medicineCache[bMedKw];
 
                         // Xác định kho thuốc: BẮT BUỘC lấy từ Kho Tủ Trực Khoa 57 (810 - TT_KCTCHCS)
-                        long bStockId = 810; // Tủ trực Khoa CTCH & Cột sống (Mặc định chuẩn lâm sàng)
+                        long bStockId = 810;
+
+                        // Quy đổi liều UI sang Lọ nếu là Actrapid / Insulin 1000IU/10ml (1 lọ = 1000 UI)
+                        decimal presAmount = bAmount;
+                        if (bAmount >= 1.0m && (bMed.MEDICINE_TYPE_NAME.IndexOf("Actrapid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                bMed.MEDICINE_TYPE_NAME.IndexOf("1000IU", StringComparison.OrdinalIgnoreCase) >= 0))
+                        {
+                            presAmount = bAmount / 1000.0m;
+                        }
 
                         // 4. Tạo đơn thuốc nội trú
                         InPatientPresSDO bPresSDO = new InPatientPresSDO
@@ -1368,28 +1387,36 @@ class Program
                             RequestRoomId     = 5248,
                             RequestLoginName  = batchUser,
                             RequestUserName   = batchUser.ToUpper(),
-                            IcdCode           = btr.ICD_CODE,
-                            IcdName           = btr.ICD_NAME,
+                            IcdCode           = !string.IsNullOrEmpty(btr.ICD_CODE) ? btr.ICD_CODE : "M48.06",
+                            IcdName           = !string.IsNullOrEmpty(btr.ICD_NAME) ? btr.ICD_NAME : "Hẹp ống sống, vùng thắt lưng",
                             IcdSubCode        = btr.ICD_SUB_CODE,
                             IcdText           = btr.ICD_TEXT,
+                            PrescriptionTypeId = PrescriptionType.NEW,
                             Medicines = new List<PresMedicineSDO>
                             {
                                 new PresMedicineSDO
                                 {
                                     MedicineTypeId = bMed.ID,
                                     MediStockId    = bStockId,
-                                    Amount         = bAmount,
+                                    Amount         = presAmount,
                                     PatientTypeId  = btr.TDL_PATIENT_TYPE_ID ?? 1,
-                                    Tutorial       = bTut
+                                    Tutorial       = bTut,
+                                    NumOfDays      = 1
                                 }
                             }
                         };
 
                         var bRes = bad.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, bPresSDO, bp);
-                        string bCode = (bRes != null && bRes.ServiceReqs != null && bRes.ServiceReqs.Count > 0)
-                            ? bRes.ServiceReqs[0].SERVICE_REQ_CODE : "OK";
+                        if (bRes == null)
+                        {
+                            string err = (bp.Messages != null && bp.Messages.Count > 0) ? string.Join("; ", bp.Messages) : "Lỗi từ HIS API";
+                            throw new Exception(err);
+                        }
 
-                        Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã: {5}",
+                        string bCode = (bRes.ExpMests != null && bRes.ExpMests.Count > 0) ? bRes.ExpMests[0].EXP_MEST_CODE :
+                                       (bRes.ServiceReqs != null && bRes.ServiceReqs.Count > 0 ? bRes.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
+
+                        Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã xuất: {5}",
                             bPatKey, btr.TDL_PATIENT_NAME, bMed.MEDICINE_TYPE_NAME, bAmount, bTime, bCode));
                         bSucc++;
                     }

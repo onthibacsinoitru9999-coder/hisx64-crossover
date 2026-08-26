@@ -50,6 +50,10 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
      - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):** Chỉ định xét nghiệm đường máu mao mạch tại giường **`BM02426`** cho các mốc giờ (mốc 06:00 tự động tính ngày hôm sau).
      - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
        * ⚠️ **BẮT BUỘC chỉ định từ Kho Tủ Trực Khoa 57 (`MediStockId = 810` - `TT_KCTCHCS`)**, **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
+       * **Quy chuẩn tỷ lệ quy đổi:** `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), `MedicineUseFormId = 15` (*Tiêm*), cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD: `"08"`), `IsExpend = false`.
        * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
-  3. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
+  3. **Quy tắc Kiểm soát thời gian xử lý (Max 2 Attempts - Tuyệt đối không loop lâu):**
+     * Trong mọi tác vụ lâm sàng (đặc biệt khi bác sĩ đang trực tiếp xử lý bệnh nhân), nếu API backend từ chối hoặc trả `Success: false` quá 2 lần, Agent **PHẢI DỪNG VÒNG LẶP NGAY LẬP TỨC**.
+     * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
+  4. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
 
