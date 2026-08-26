@@ -98,8 +98,26 @@ Skill này cung cấp quy trình và mã nguồn chuẩn hóa để **Tạo đơ
 * **Nguyên tắc**: Nếu hồ sơ bệnh nhân chưa có mã chẩn đoán dạ dày, **tuyệt đối không tự ý kê PPI** mà phải **đề xuất Bác sĩ bổ sung mã chẩn đoán phụ** trước khi kê đơn để chống xuất toán BHYT 100%.
 
 ### 4.3. Quy tắc Lĩnh dược sau 14h & Chiến lược chia đơn Tủ trực cho BN mới vào viện:
-* **Quy luật vận hành Kho Dược**: Thuốc kê từ Kho Dược (`4209`, `4210`, `804`...) sau **14h00 chiều** thì phải đến **10h00 sáng hôm sau** Kho Dược mới duyệt và trả thuốc về khoa.
-* **Chiến lược chia đơn cho BN mới vào viện buổi chiều**:
-  1. **Phần thuốc KHÔNG CÓ trong tủ trực**: Kê bình thường từ Kho Dược (để lĩnh lúc 10h sáng mai).
-  2. **Phần thuốc CÓ trong Tủ trực Khoa 57 (`MediStockId = 810`)** (các thuốc cấp bách cữ sáng như kháng sinh, giảm đau truyền, Solu-Medrol, dịch truyền, hạ áp): **Đề xuất để sáng hôm sau Bác sĩ vào khoa kê trực tiếp từ Tủ trực để Điều dưỡng lấy dùng ngay buổi sáng**, không để bệnh nhân bị gián đoạn/chậm trễ y lệnh.
+* **Bối cảnh vận hành Dược viện**: Kho Dược chốt sổ lĩnh thuốc ngày lúc **14h00 chiều**. Bệnh nhân vào viện sau 14h00 nếu kê toàn bộ đơn từ Kho Dược (4209/4210/804) thì đến **10h00 sáng hôm sau Dược mới duyệt và trả thuốc về khoa**.
+* **Giải pháp chia đơn chuẩn lâm sàng (Hybrid Dispatch Protocol)**:
+  - Thuốc **không có trong tủ trực** (Kháng sinh viên Augmentin, thuốc đặc trị...): Kê từ Kho Dược (4209/4210) để Dược duyệt và giao về khoa vào sáng hôm sau.
+  - Thuốc **có sẵn trong Tủ trực Khoa 57 (Kho 810)** (như Kháng sinh tiêm Ceftriaxone, Paracetamol truyền, Nexium tiêm...): **Đề xuất sáng mai Bác sĩ vào viện sẽ kê từ Tủ trực 57 (810)** để điều dưỡng lấy thuốc tiêm/truyền ngay cữ sáng lúc 8h30-9h00 cho người bệnh mà không phải đợi Dược trả.
 
+### 4.4. Quy Chuẩn Kê Vật Tư & Dung Dịch Tiêu Hao Thay Băng (Dressing Consumables Protocol):
+Quy trình chuẩn hóa 2 bước y lệnh thay băng hàng ngày cho bệnh nhân:
+
+1. **Bước 1 - Tờ điều trị (`HIS_TRACKING`)**:
+   - Gán y lệnh vào `TrackingId` của ngày tương ứng.
+   - Nhận xét ngắn gọn diễn biến vết mổ/vết thương: *"Vết mổ khô sạch, thay băng rửa vết thương hàng ngày."*
+   - Y lệnh: *"Chăm sóc cấp II. Thay băng rửa vết thương hàng ngày. Thuốc theo đơn."*
+2. **Bước 2 - Kê đơn thuốc Tủ trực CTCH (`MediStockId = 810`)**:
+   - **1 lọ Povidone 10% 125ml** (`TH.POVI008` - ID `17385`): Số lượng `1`, đường dùng *Dùng ngoài* (`25`), cách dùng `"thay băng"`, **BẮT BUỘC bật cờ Hao phí (`IsExpend = true`)**.
+   - **1 chai Muối rửa Natri clorid 0.9% 500ml** (`TH.NATR047` - ID `27127`): Số lượng `1`, đường dùng *Dùng ngoài* (`25`), cách dùng `"thay băng"`, **BẮT BUỘC bật cờ Hao phí (`IsExpend = true`)**.
+3. **Bước 3 - Lưu và Ký Tờ điều trị**:
+   - Lưu đơn thuốc gắn vào Tờ điều trị ngày điều trị.
+   - Ký điện tử / ký số EMR Tờ điều trị (EMR Document Type 7).
+
+#### Công cụ thực thi 1-Click (`HisDressingOrder.exe`):
+```powershell
+.\.agents\skills\his-clinical-operations\scripts\HisDressingOrder.exe -t <mã_bệnh_án> [-c "nhận xét vết thương"]
+```
