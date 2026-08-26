@@ -1,0 +1,299 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using Inventec.Core;
+using Inventec.Common.Adapter;
+using Inventec.Common.WebApiClient;
+using MOS.Filter;
+using MOS.SDO;
+using MOS.EFMODEL.DataModels;
+
+public class MyAdapter : AdapterBase
+{
+    public List<T> FetchList<T>(string uri, ApiConsumer consumer, object filter, CommonParam param)
+    {
+        return Get<List<T>>(uri, consumer, filter, param);
+    }
+
+    public T PostData<T>(string uri, ApiConsumer consumer, object data, CommonParam param)
+    {
+        return Post<T>(uri, consumer, data, param);
+    }
+}
+
+public class HisRationAssigner
+{
+    public static MyAdapter adapter = new MyAdapter();
+
+    public static string ReadLiveToken()
+    {
+        string[] candidates = new string[] {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt"),
+            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
+            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
+        };
+
+        foreach (var logPath in candidates)
+        {
+            if (File.Exists(logPath))
+            {
+                try
+                {
+                    using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var sr = new StreamReader(fs, Encoding.UTF8))
+                    {
+                        string text = sr.ReadToEnd();
+                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                        for (int i = lines.Length - 1; i >= 0; i--)
+                        {
+                            if (lines[i].Contains("TokenCode|"))
+                            {
+                                int idx = lines[i].IndexOf("TokenCode|") + 10;
+                                if (lines[i].Length >= idx + 64)
+                                {
+                                    return lines[i].Substring(idx, 64);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+        return null;
+    }
+
+    public static List<RationServiceSDO> BuildRationServices(string comboType, long patientTypeId)
+    {
+        var list = new List<RationServiceSDO>();
+        long ptId = patientTypeId > 0 ? patientTypeId : 42;
+
+        if (comboType == "DD01") // Đái tháo đường
+        {
+            list.Add(new RationServiceSDO { ServiceId = 30180, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            list.Add(new RationServiceSDO { ServiceId = 30181, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            list.Add(new RationServiceSDO { ServiceId = 30133, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+        }
+        else if (comboType == "TM01") // Tim mạch / Tăng huyết áp
+        {
+            list.Add(new RationServiceSDO { ServiceId = 30117, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            list.Add(new RationServiceSDO { ServiceId = 30093, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            list.Add(new RationServiceSDO { ServiceId = 30094, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+        }
+        else // BT01 (Bình thường / Ngoại khoa)
+        {
+            list.Add(new RationServiceSDO { ServiceId = 30073, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            list.Add(new RationServiceSDO { ServiceId = 30153, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            list.Add(new RationServiceSDO { ServiceId = 30154, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+        }
+        return list;
+    }
+
+    public static string DetectCombo(V_HIS_TREATMENT tr)
+    {
+        if (tr == null) return "BT01";
+        string diag = ((tr.ICD_NAME ?? "") + " " + (tr.ICD_TEXT ?? "")).ToLower();
+        if (diag.Contains("tháo đường") || diag.Contains("đtđ") || diag.Contains("diabetes"))
+            return "DD01";
+        if (diag.Contains("tăng huyết áp") || diag.Contains("tim mạch") || diag.Contains("suy tim") || diag.Contains("rung nhĩ"))
+            return "TM01";
+        return "BT01";
+    }
+
+    public static bool AssignRationForDay(ApiConsumer consumer, V_HIS_TREATMENT tr, long trackingId, DateTime date, string comboType)
+    {
+        long instructionTime = long.Parse(date.ToString("yyyyMMdd") + "050000");
+
+        var sdo = new HisRationServiceReqSDO
+        {
+            TreatmentIds = new List<long> { tr.ID },
+            InstructionTimes = new List<long> { instructionTime },
+            RequestRoomId = 5248, // Phòng 734
+            RequestLoginName = "034727",
+            RequestUserName = "Ths.BS NGUYỄN HỮU SÂM",
+            IcdCode = tr.ICD_CODE,
+            IcdName = tr.ICD_NAME,
+            IcdSubCode = tr.ICD_SUB_CODE,
+            IcdText = tr.ICD_TEXT,
+            HalfInFirstDay = false,
+            IsForAutoCreateRation = false,
+            IsForHomie = false,
+            TrackingId = trackingId > 0 ? (long?)trackingId : null,
+            RationServices = BuildRationServices(comboType, tr.TDL_PATIENT_TYPE_ID ?? 42)
+        };
+
+        CommonParam callParam = new CommonParam();
+        try
+        {
+            var result = adapter.PostData<object>("api/HisServiceReq/RationCreate", consumer, sdo, callParam);
+            if (!callParam.HasException)
+            {
+                return true;
+            }
+            else
+            {
+                if (callParam.Messages != null)
+                {
+                    foreach (var msg in callParam.Messages) Console.WriteLine("    ❌ " + msg);
+                }
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(string.Format("    ❌ Lỗi gọi API: {0}", ex.Message));
+            return false;
+        }
+    }
+
+    public static void ProcessRooms(string roomListStr = "712,714")
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+        string token = ReadLiveToken();
+        if (string.IsNullOrEmpty(token))
+        {
+            Console.WriteLine("❌ Không tìm thấy TokenCode!");
+            return;
+        }
+
+        ApiConsumer mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        CommonParam p = new CommonParam();
+
+        // Kích hoạt WorkInfo phòng 5248
+        try
+        {
+            var workInfo = new WorkInfoSDO
+            {
+                Rooms = new List<RoomSDO> { new RoomSDO { RoomId = 5248 } }
+            };
+            adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, p);
+        }
+        catch { }
+
+        HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
+        var bList = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, p);
+
+        var filters = roomListStr.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+        var targetRooms = bList.Where(r => r.BED_ROOM_NAME != null && filters.Any(f => r.BED_ROOM_NAME.Contains(f))).ToList();
+
+        DateTime today = DateTime.Today;
+        DateTime tomorrow = today.AddDays(1);
+        long todayStart = long.Parse(today.ToString("yyyyMMdd") + "000000");
+        long tomorrowStart = long.Parse(tomorrow.ToString("yyyyMMdd") + "000000");
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("🍚 KIỂM TRA & BỔ SUNG SUẤT ĂN DINH DƯỠNG CHO NGƯỜI BỆNH (PHÒNG " + roomListStr + ")");
+        Console.WriteLine(string.Format("Thời gian: {0} | Bác sĩ chỉ định: Ths.BS Nguyễn Hữu Sâm (034727)", DateTime.Now.ToString("dd/MM/yyyy HH:mm")));
+        Console.WriteLine(string.Format("Hôm nay: {0} | Ngày mai: {1}", today.ToString("dd/MM/yyyy"), tomorrow.ToString("dd/MM/yyyy")));
+        Console.WriteLine("===============================================================================\n");
+
+        int totalAssigned = 0;
+
+        foreach (var room in targetRooms.OrderBy(x => x.BED_ROOM_NAME))
+        {
+            HisTreatmentBedRoomLViewFilter tbrf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_ID = room.ID, IS_IN_ROOM = true };
+            var inP = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, tbrf, p);
+            if (inP == null || inP.Count == 0) continue;
+
+            Console.WriteLine(string.Format("🏥 Buồng: {0} ({1} bệnh nhân)", room.BED_ROOM_NAME, inP.Count));
+
+            foreach (var patient in inP.OrderBy(x => x.BED_NAME))
+            {
+                long tId = patient.TREATMENT_ID;
+                HisTreatmentViewFilter tf = new HisTreatmentViewFilter { ID = tId };
+                var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, p);
+                var tr = trList != null && trList.Count > 0 ? trList[0] : null;
+                if (tr == null) continue;
+
+                // Tờ điều trị mới nhất
+                HisTrackingFilter trkFilter = new HisTrackingFilter { TREATMENT_ID = tId };
+                var trkList = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, trkFilter, p);
+                long latestTrackingId = trkList != null && trkList.Count > 0 ? trkList.OrderByDescending(x => x.TRACKING_TIME).First().ID : 0;
+
+                // Kiểm tra suất ăn hiện có
+                HisSereServRationViewFilter rf = new HisSereServRationViewFilter { TREATMENT_ID = tId };
+                var rList = adapter.FetchList<V_HIS_SERE_SERV_RATION>("api/HisSereServRation/GetView", mosConsumer, rf, p);
+
+                var todayRations = rList != null ? rList.Where(x => x.INTRUCTION_TIME >= todayStart && x.INTRUCTION_TIME < tomorrowStart).ToList() : new List<V_HIS_SERE_SERV_RATION>();
+                var tmrRations = rList != null ? rList.Where(x => x.INTRUCTION_TIME >= tomorrowStart).ToList() : new List<V_HIS_SERE_SERV_RATION>();
+
+                string combo = DetectCombo(tr);
+
+                Console.WriteLine(string.Format("\n👉 [{0}] {1} (Mã: {2} | TrID: {3})", patient.BED_NAME, patient.TDL_PATIENT_NAME, patient.TDL_PATIENT_CODE, tId));
+                Console.WriteLine(string.Format("   Chẩn đoán: [{0}] {1} -> Chế độ phù hợp: {2}", tr.ICD_CODE, tr.ICD_NAME, combo));
+
+                // 1. Chỉ định cho Hôm nay (nếu chưa có)
+                if (todayRations.Count == 0)
+                {
+                    Console.WriteLine("   ⚡ Đang chỉ định suất ăn hôm nay (" + today.ToString("dd/MM") + ")...");
+                    bool ok = AssignRationForDay(mosConsumer, tr, latestTrackingId, today, combo);
+                    if (ok)
+                    {
+                        Console.WriteLine("   ✔ Chỉ định THÀNH CÔNG suất ăn " + combo + " (3 bữa Sáng - Trưa - Chiều) ngày " + today.ToString("dd/MM/yyyy"));
+                        totalAssigned++;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("   ✔ Hôm nay (" + today.ToString("dd/MM") + ") ĐÃ CÓ " + todayRations.Count + " bữa ăn.");
+                }
+
+                // 2. Chỉ định cho Ngày mai (nếu chưa có)
+                if (tmrRations.Count == 0)
+                {
+                    Console.WriteLine("   ⚡ Đang chỉ định suất ăn ngày mai (" + tomorrow.ToString("dd/MM") + ")...");
+                    bool ok = AssignRationForDay(mosConsumer, tr, latestTrackingId, tomorrow, combo);
+                    if (ok)
+                    {
+                        Console.WriteLine("   ✔ Chỉ định THÀNH CÔNG suất ăn " + combo + " (3 bữa Sáng - Trưa - Chiều) ngày " + tomorrow.ToString("dd/MM/yyyy"));
+                        totalAssigned++;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("   ✔ Ngày mai (" + tomorrow.ToString("dd/MM") + ") ĐÃ CÓ " + tmrRations.Count + " bữa ăn.");
+                }
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🎉 HOÀN TẤT! Đã bổ sung thành công {0} đợt suất ăn cho các bệnh nhân còn thiếu.", totalAssigned));
+        Console.WriteLine("===============================================================================");
+    }
+
+    public static void Run(string[] args)
+    {
+        string rooms = "712,714";
+        if (args.Length > 0 && !args[0].StartsWith("-"))
+        {
+            rooms = args[0];
+        }
+        ProcessRooms(rooms);
+    }
+}
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
+        {
+            string folderPath = AppDomain.CurrentDomain.BaseDirectory;
+            string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
+            
+            string path1 = Path.Combine(folderPath, name);
+            if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+            
+            string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+            if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+            return null;
+        };
+
+        HisRationAssigner.Run(args);
+    }
+}
