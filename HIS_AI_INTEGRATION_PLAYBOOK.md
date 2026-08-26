@@ -20,7 +20,9 @@
 13. [Bảng Tổng Hợp 28+ Sai Lầm & Bài Học Xương Máu (Gotchas Matrix)](#13-bảng-tổng-hợp-28-sai-lầm--bài-học-xương-máu-gotchas-matrix)
 14. [Hướng Dẫn Biên Dịch & Chạy Công Cụ CLI Tức Thì](#14-hướng-dẫn-biên-dịch--chạy-công-cụ-cli-tức-thì)
 15. [Cơ Chế Đồng Bộ Tri Thức 1-Click Giữa Máy Bàn & Laptop](#15-cơ-chế-đồng-bộ-tri-thức-1-click-giữa-máy-bàn--laptop)
-16. [Quy Chuẩn Tích Hợp OpenRouter & Mô Hình Miễn Phí stealth/ox-alpha](#16-quy-chuẩn-tích-hợp-openrouter--mô-hình-miễn-phí-stealthox-alpha)
+16. [Quy Chuẩn Tích Hợp OpenRouter & Ma Trận Mô Hình Miễn Phí](#16-quy-chuẩn-tích-hợp-openrouter--ma-trận-mô-hình-miễn-phí-đa-tầng-smart-multi-tier-ai-routing)
+17. [Cẩm Nang Chống Vòng Lặp & Kỹ Thuật Chẩn Đoán Lỗi Tức Thì (Anti-Loop Manual)](#17-cẩm-nang-chống-vòng-lặp--kỹ-thuật-chẩn-đoán-lỗi-tức-thì-anti-loop-manual)
+
 
 ---
 
@@ -697,7 +699,66 @@ data = extract_json_structured(
 ```
 
 ---
+
+## 17. CẨM NANG CHỐNG VÒNG LẶP & KỸ THUẬT CHẨN ĐOÁN LỖI TỨC THÌ (ANTI-LOOP MANUAL)
+
+### 17.1. Hiện Tượng Vòng Lặp (Agent Stuck Loop) & Nguyên Nhân Gốc Rễ
+Khi Agent gặp một lỗi kỹ thuật (API từ chối, lỗi biên dịch C#, thiếu token, hoặc sai DTO), nếu không có cơ chế chặn, Agent dễ rơi vào **Vòng lặp Thử - Sai Mù Quáng (Blind Trial-and-Error Loop)**: liên tục sửa đổi 1 vài dòng code và chạy lại mà không tìm hiểu nguyên nhân gốc rễ, gây lãng phí thời gian và làm chậm trễ công việc của Bác sĩ.
+
+### 17.2. Bộ Quy Tắc 3 Bước Triệt Tiêu Vòng Lặp (The 3-Step Anti-Loop Protocol)
+
+```mermaid
+flowchart TD
+    A["❌ Gặp Lỗi Lần 1"] --> B["🛑 DỪNG LẠI: Không sửa code ngay"]
+    B --> C["🔍 Chạy Thang Chẩn Đoán 4 Tầng (Auth -> WorkInfo -> Patient -> DTO)"]
+    C --> D["⚡ Thử Khắc Phục Lần 2 (Duy nhất 1 lần)"]
+    D -->|Thành công| E["✅ Hoàn tất Tác vụ"]
+    D -->|Vẫn thất bại| F["🚨 CẮT CẦU DAO (HARD STOP)"]
+    F --> G["📋 Báo Cáo 3 Phần: Đã xong + Lỗi thật + Hướng xử lý 1-click trên UI"]
+```
+
+#### 1. Nguyên Tắc Cắt Cầu Dao Cứng (Max 2 Attempts):
+- **Tối đa 2 lần thử**: Không bao giờ được phép thử đến lần thứ 3 cho cùng 1 lỗi.
+- **Nếu thất bại lần 2**: Bắt buộc dừng lại ngay lập tức và bàn giao minh bạch cho Bác sĩ.
+
+#### 2. Thang Chẩn Đoán 4 Tầng (Pre-Flight Diagnostic Ladder):
+Khi gặp lỗi lần đầu, Agent PHẢI kiểm tra theo thứ tự ưu tiên:
+1. **Tầng 1 - Xác thực (Auth)**:
+   - TokenCode có bị rỗng hoặc hết hạn không?
+   - Đọc file log có bị vướng lỗi `FileLock` không? (Bắt buộc dùng `FileShare.ReadWrite`).
+2. **Tầng 2 - Phòng làm việc (WorkInfo)**:
+   - Đã gọi `api/Token/UpdateWorkInfo` kích hoạt phòng `5248` (Phòng 734) chưa? Nếu chưa kích hoạt phòng, MOS Backend sẽ từ chối 100% y lệnh!
+3. **Tầng 3 - Trạng thái Bệnh nhân (Patient Status)**:
+   - Bệnh nhân có đang nằm tại Khoa 57 (`DEPARTMENT_ID = 57`) không?
+   - Bệnh nhân có bị khóa hồ sơ/đã ra viện (`IS_PAUSE = 1`) không?
+4. **Tầng 4 - Cấu trúc DTO & Danh mục**:
+   - Tra cứu DLL thật hoặc Playbook, **tuyệt đối không tự đoán tên trường DTO**.
+
+#### 3. Bảng Tra Cứu 6 Tình Huống Kẹt Vòng Lặp Thường Gặp & Cách Hóa Giải Tức Thì:
+| Hiện Tượng Kẹt Lỗi | Nguyên Nhân Thật Sự (Root Cause) | Giải Pháp Hóa Giải Ngay (Zero-Loop Fix) |
+| :--- | :--- | :--- |
+| **API trả `Success: false` liên tục khi tạo tờ điều trị / y lệnh** | Chưa gọi `UpdateWorkInfo` kích hoạt phòng `5248`. | Gọi ngay `POST api/Token/UpdateWorkInfo` với `RoomId = 5248` trước khi gửi y lệnh. |
+| **`IOException: The process cannot access the file LogSystem.txt`** | Ứng dụng HIS Client đang mở ghi log đồng thời. | Dùng `new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)`. |
+| **Báo không tìm thấy bệnh nhân khi kê đơn / tạo tờ điều trị** | BN đã chuyển khoa hoặc thuộc khoa khác (không phải Khoa 57). | Chạy `HisClinicalCli.exe lookup <mã_bn>` để xem `LAST_DEPARTMENT_ID`. |
+| **Kê đơn thuốc tiêm Insulin bị báo hết tồn kho** | Truyền `Amount` số nguyên UI (VD: `8.0`) thay vì quy đổi sang Lọ. | Quy đổi: `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), chọn kho tủ trực 57 (`810`). |
+| **Lỗi biên dịch `error CS0246` / `FileNotFoundException`** | Thiếu file DLL trong `ReferencedAssemblies` hoặc chạy file .exe sai thư mục. | Chạy từ thư mục gốc dự án hoặc dùng hook `AssemblyResolve` đa tầng. |
+| **OpenRouter trả lỗi 429 hoặc 402** | Hết credit hoặc rate-limit mô hình. | Dùng `openrouter_client.py` tự động chuyển tầng sang `minimax/minimax-m3:free` hoặc `google/gemma-4-31b-it:free`. |
+
+---
+
+### 17.3. Công Cụ Chẩn Đoán Tức Thì 1-Click: `HisDiagnosticDoctor.bat`
+Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần chạy:
+```powershell
+# Chẩn đoán toàn diện kết nối 4 máy chủ, live token và AI OpenRouter:
+.\HisDiagnosticDoctor.bat health
+
+# Chẩn đoán trạng thái hồ sơ bệnh nhân cụ thể:
+.\HisDiagnosticDoctor.bat patient 0003969449
+```
+
+---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
 
 
 

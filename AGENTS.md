@@ -73,5 +73,26 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   - **Cửa sổ ngữ cảnh siêu lớn**: Lên đến **1,048,576 tokens (1M tokens)** xử lý toàn bộ bệnh án và dữ liệu lịch sử điều trị mà không lo tràn bộ nhớ.
   - **Tự động chuyển tầng (Transparent Failover)**: Nếu mô hình Tầng 1 bận hoặc rate limit, hệ thống tự động nhảy sang Tầng 2/3/4 với cùng cấu trúc đầu ra.
 
+## 7. QUY TẮC CẮT CẦU DAO & CHỐNG VÒNG LẶP (ANTI-LOOP & CIRCUIT-BREAKER PROTOCOL)
+Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ định CLS, tạo tờ điều trị, gọi API, sửa code, biên dịch) BẮT BUỘC phải tuân thủ nghiêm ngặt nguyên tắc **CẮT CẦU DAO TỰ ĐỘNG**:
+
+* **Nguyên tắc "Tối đa 2 lần thử" (Strict 2-Attempt Circuit Breaker)**:
+  - Nếu một lệnh hoặc API thất bại **lần 1**: Agent được phép phân tích nguyên nhân kỹ thuật và thử khắc phục **1 lần duy nhất** (Lần 2).
+  - Nếu **lần 2 vẫn thất bại**: **BẮT BUỘC CẮT CẦU DAO NGAY LẬP TỨC (HARD STOP)**. TUYỆT ĐỐI CẤM tiếp tục sửa mã thử-sai mù quáng hoặc lặp lại lệnh lỗi lần thứ 3.
+
+* **Quy trình Chẩn đoán 4 Tầng (Pre-Flight Diagnostic Ladder) - TUYỆT ĐỐI KHÔNG ĐOÁN MÒ**:
+  Trước khi sửa code hoặc chạy lại, Agent phải kiểm tra tuần tự 4 tầng sau (hoặc chạy [`HisDiagnosticDoctor.bat health`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisDiagnosticDoctor.bat)):
+  1. **Tầng 1 - Xác thực (Auth)**: TokenCode còn hạn không? Đọc từ `LogSystem.txt` bằng `FileShare.ReadWrite`.
+  2. **Tầng 2 - Phòng làm việc (WorkInfo)**: Tài khoản đã kích hoạt `WorkInfo` phòng làm việc (`RoomId = 5248` - P734) chưa?
+  3. **Tầng 3 - Hồ sơ Bệnh nhân (Patient Status)**: Bệnh nhân có thuộc Khoa 57 (`DEPARTMENT_ID = 57`) không? Hồ sơ có bị tạm khóa/đã ra viện (`IS_PAUSE = 1`) không?
+  4. **Tầng 4 - Cấu trúc DTO & Danh mục**: Tra cứu DLL thật (`InspectApiConsumer.cs` / `refs.rsp`) hoặc `HIS_AI_INTEGRATION_PLAYBOOK.md`, TUYỆT ĐỐI KHÔNG tự bịa tên thuộc tính.
+
+* **Quy trình Bàn giao Thoát Lặp (Loop Exit & Handoff Protocol)**:
+  Khi cắt cầu dao ở lần 2, Agent PHẢI xuất ngay Bảng Bàn Giao Minh Bạch gồm 3 phần:
+  1. **Những phần việc ĐÃ TẠO THÀNH CÔNG** (VD: Đã tạo xong Tờ điều trị ID: 12345, Chỉ định CLS thành công).
+  2. **Nguyên nhân kỹ thuật chính xác** (Trích xuất mã lỗi HTTP, Exception message thật).
+  3. **Hướng dẫn Bác sĩ xử lý 1-Click trên UI HIS** (để Bác sĩ không bị gián đoạn công việc khám chữa bệnh).
+
+
 
 
