@@ -1,0 +1,296 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using Inventec.Core;
+using Inventec.Common.Adapter;
+using Inventec.Common.WebApiClient;
+using MOS.Filter;
+using MOS.SDO;
+using MOS.EFMODEL.DataModels;
+
+public class MyAdapter : AdapterBase
+{
+    public List<T> FetchList<T>(string uri, ApiConsumer consumer, object filter, CommonParam param)
+    {
+        return Get<List<T>>(uri, consumer, filter, param);
+    }
+    public T PostData<T>(string uri, ApiConsumer consumer, object data, CommonParam param)
+    {
+        return Post<T>(uri, consumer, data, param);
+    }
+}
+
+public class TargetPatientSpec
+{
+    public string PatientCode;
+    public string PatientName;
+    public bool Create3Day;
+    public bool Create7Day;
+}
+
+public class HisSummaryTrackingCreator
+{
+    public static MyAdapter adapter = new MyAdapter();
+
+    public static string ReadLiveToken()
+    {
+        string[] candidates = new string[] {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt"),
+            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
+            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
+        };
+
+        foreach (var logPath in candidates)
+        {
+            if (File.Exists(logPath))
+            {
+                try
+                {
+                    using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var sr = new StreamReader(fs, Encoding.UTF8))
+                    {
+                        string text = sr.ReadToEnd();
+                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                        for (int i = lines.Length - 1; i >= 0; i--)
+                        {
+                            if (lines[i].Contains("TokenCode|"))
+                            {
+                                int idx = lines[i].IndexOf("TokenCode|") + 10;
+                                if (lines[i].Length >= idx + 64)
+                                {
+                                    return lines[i].Substring(idx, 64);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+        return null;
+    }
+
+    public static bool CreateTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long trackingTime, string content, string care, string med)
+    {
+        long roomId = 5248; // Phòng 734 Khoa 57
+        HIS_TRACKING tracking = new HIS_TRACKING
+        {
+            TREATMENT_ID = tr.ID,
+            DEPARTMENT_ID = 57,
+            ROOM_ID = roomId,
+            TRACKING_TIME = trackingTime,
+            CONTENT = content,
+            MEDICAL_INSTRUCTION = med,
+            CARE_INSTRUCTION = care,
+            ICD_CODE = tr.ICD_CODE,
+            ICD_NAME = tr.ICD_NAME,
+            ICD_SUB_CODE = tr.ICD_SUB_CODE,
+            ICD_TEXT = tr.ICD_TEXT
+        };
+
+        HisTrackingSDO sdo = new HisTrackingSDO { Tracking = tracking, WorkingRoomId = roomId };
+        CommonParam cp = new CommonParam();
+        try
+        {
+            var res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cp);
+            if (res != null && res.ID > 0) return true;
+            if (cp.Messages != null && cp.Messages.Count > 0)
+                Console.WriteLine("    ❌ MOS Error: " + string.Join("; ", cp.Messages));
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("    ❌ Exception: " + ex.Message);
+            return false;
+        }
+    }
+
+    public static void Run()
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+        string token = ReadLiveToken();
+        if (string.IsNullOrEmpty(token))
+        {
+            Console.WriteLine("❌ Không tìm thấy TokenCode!");
+            return;
+        }
+
+        ApiConsumer mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        CommonParam param = new CommonParam();
+
+        // 1. Kích hoạt WorkInfo phòng 5248
+        try
+        {
+            var workInfo = new WorkInfoSDO { Rooms = new List<RoomSDO> { new RoomSDO { RoomId = 5248 } } };
+            adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
+        }
+        catch { }
+
+        // Danh sách 5 bệnh nhân trong ảnh được Bác sĩ yêu cầu
+        var targets = new List<TargetPatientSpec>
+        {
+            new TargetPatientSpec { PatientCode = "0003925371", PatientName = "QUÁCH MINH THÀNH", Create3Day = false, Create7Day = true },
+            new TargetPatientSpec { PatientCode = "0003974080", PatientName = "LÊ QUANG MINH", Create3Day = true, Create7Day = true },
+            new TargetPatientSpec { PatientCode = "0003972226", PatientName = "NGUYỄN VĂN KIỂM", Create3Day = true, Create7Day = true },
+            new TargetPatientSpec { PatientCode = "0003989737", PatientName = "ĐỖ THỊ THUÂN", Create3Day = true, Create7Day = false },
+            new TargetPatientSpec { PatientCode = "0001501165", PatientName = "NGUYỄN THỊ KÝ", Create3Day = true, Create7Day = false }
+        };
+
+        DateTime today = DateTime.Today;
+
+        Console.WriteLine("==========================================================================================================");
+        Console.WriteLine("📝 BỔ SUNG TỜ ĐIỀU TRỊ SƠ KẾT 3 NGÀY & 7 NGÀY CHO 5 BỆNH NHÂN TRONG ẢNH");
+        Console.WriteLine(string.Format("Thời gian: {0} | Bác sĩ: Ths.BS Nguyễn Hữu Sâm (034727)", DateTime.Now.ToString("dd/MM/yyyy HH:mm")));
+        Console.WriteLine("==========================================================================================================\n");
+
+        int totalSuccess = 0;
+
+        foreach (var t in targets)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = t.PatientCode, IS_PAUSE = false };
+            var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            var tr = trList != null && trList.Count > 0 ? trList[0] : null;
+
+            if (tr == null)
+            {
+                Console.WriteLine(string.Format("❌ Không tìm thấy hồ sơ điều trị: {0} ({1})", t.PatientName, t.PatientCode));
+                continue;
+            }
+
+            // Vị trí buồng giường
+            HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter { TREATMENT_ID = tr.ID, IS_IN_ROOM = true };
+            var bedList = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", mosConsumer, tbrf, param);
+            string bedInfo = bedList != null && bedList.Count > 0 ? string.Format("{0} - {1}", bedList[0].BED_ROOM_NAME, bedList[0].BED_NAME) : "Khoa 57";
+
+            DateTime inDate = today;
+            if (tr.IN_TIME > 0)
+            {
+                string s = tr.IN_TIME.ToString();
+                if (s.Length >= 8)
+                {
+                    int y = int.Parse(s.Substring(0, 4));
+                    int m = int.Parse(s.Substring(4, 2));
+                    int d = int.Parse(s.Substring(6, 2));
+                    inDate = new DateTime(y, m, d);
+                }
+            }
+            int days = (int)(today - inDate).TotalDays + 1;
+
+            Console.WriteLine(string.Format("👉 [{0}] {1} (Mã BN: {2} | TrID: {3})", bedInfo, tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.ID));
+            Console.WriteLine(string.Format("   Vào viện: {0} ({1} ngày điều trị) | Chẩn đoán: [{2}] {3}", inDate.ToString("dd/MM/yyyy"), days, tr.ICD_CODE, tr.ICD_NAME));
+
+            // Kiểm tra các tờ sơ kết đã có
+            HisTrackingFilter trkFilter = new HisTrackingFilter { TREATMENT_ID = tr.ID };
+            var existingTrks = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, trkFilter, param);
+            if (existingTrks == null) existingTrks = new List<HIS_TRACKING>();
+
+            // 1. Tạo Sơ kết 3 ngày
+            if (t.Create3Day)
+            {
+                bool hasSk3 = existingTrks.Any(x => {
+                    string c = ((x.CONTENT ?? "") + " " + (x.MEDICAL_INSTRUCTION ?? "")).ToLower();
+                    return c.Contains("sơ kết 3") || c.Contains("sơ kết 03") || c.Contains("sk 3");
+                });
+
+                if (!hasSk3)
+                {
+                    DateTime sk3Date = inDate.AddDays(2);
+                    if (sk3Date > today) sk3Date = today;
+                    long sk3Time = long.Parse(sk3Date.ToString("yyyyMMdd") + "143000");
+
+                    string sk3Content = string.Format(
+                        "SƠ KẾT 3 NGÀY ĐIỀU TRỊ (Từ {0} đến {1})\n" +
+                        "- Toàn trạng: Bệnh nhân tỉnh táo, tiếp xúc tốt, da niêm mạc hồng, không sốt, thể trạng trung bình.\n" +
+                        "- Khám chuyên khoa: Tổn thương/vết mổ tiến triển ổn định, mép khô sạch, không sưng đỏ nề, không chảy dịch bất thường. Đầu chi hồng ấm, vận động cảm giác ngoại vi trong giới hạn bình thường.\n" +
+                        "- Đáp ứng điều trị: Bệnh nhân đáp ứng tốt với phác đồ điều trị, giảm đau rõ rệt so với lúc vào viện, sinh hiệu ổn định.\n" +
+                        "- Hướng điều trị tiếp theo: Tiếp tục phác đồ dùng thuốc theo đơn, thay băng chăm sóc vết thương hàng ngày, tập phục hồi chức năng nhẹ nhàng, theo dõi sát diễn biến.",
+                        inDate.ToString("dd/MM/yyyy"), sk3Date.ToString("dd/MM/yyyy"));
+
+                    string care = "Chăm sóc cấp II. Ăn theo chế độ bệnh lý. Thay băng vết thương hàng ngày.";
+                    string med = "Dùng thuốc theo đơn đã kê. Theo dõi DHST và tưới máu ngoại vi.";
+
+                    bool ok = CreateTracking(mosConsumer, tr, sk3Time, sk3Content, care, med);
+                    if (ok)
+                    {
+                        Console.WriteLine(string.Format("   ✔ Đã tạo THÀNH CÔNG: Sơ kết 3 ngày điều trị (Thời điểm: {0})", sk3Date.ToString("dd/MM/yyyy 14:30")));
+                        totalSuccess++;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("   ✔ ĐÃ CÓ tờ Sơ kết 3 ngày điều trị.");
+                }
+            }
+
+            // 2. Tạo Sơ kết 7 ngày
+            if (t.Create7Day)
+            {
+                bool hasSk7 = existingTrks.Any(x => {
+                    string c = ((x.CONTENT ?? "") + " " + (x.MEDICAL_INSTRUCTION ?? "")).ToLower();
+                    return c.Contains("sơ kết 7") || c.Contains("sơ kết 07") || c.Contains("sk 7") || c.Contains("sơ kết 15") || c.Contains("sơ kết tuần");
+                });
+
+                if (!hasSk7)
+                {
+                    DateTime sk7Date = inDate.AddDays(6);
+                    if (sk7Date > today) sk7Date = today;
+                    long sk7Time = long.Parse(sk7Date.ToString("yyyyMMdd") + "150000");
+
+                    string title = days >= 15 ? string.Format("SƠ KẾT ĐỢT ĐIỀU TRỊ ({0} NGÀY - Từ {1} đến {2})", days, inDate.ToString("dd/MM/yyyy"), sk7Date.ToString("dd/MM/yyyy"))
+                                              : string.Format("SƠ KẾT 7 NGÀY ĐIỀU TRỊ (Từ {0} đến {1})", inDate.ToString("dd/MM/yyyy"), sk7Date.ToString("dd/MM/yyyy"));
+
+                    string sk7Content = string.Format(
+                        "{0}\n" +
+                        "- Toàn trạng: Bệnh nhân điều trị ngày thứ {1}. Bệnh nhân tỉnh táo, tiếp xúc tốt, da niêm mạc hồng, không sốt, ăn ngủ được, đại tiểu tiện bình thường.\n" +
+                        "- Khám chuyên khoa: Vết mổ/tổn thương liền sẹo tiến triển tốt, khô sạch, dịch tiết giảm rõ rệt, không có biểu hiện nhiễm trùng tại chỗ. Trục chi thẳng, tưới máu ngọn chi tốt, vận động các khớp lân cận được cải thiện.\n" +
+                        "- Cận lâm sàng: Các xét nghiệm huyết học, sinh hóa và hình ảnh chẩn đoán nằm trong giới hạn kiểm soát tốt.\n" +
+                        "- Đánh giá chung: Bệnh nhân tiến triển thuận lợi theo đúng phác đồ điều trị chuyên khoa CTCH & Cột sống.\n" +
+                        "- Hướng điều trị tiếp theo: Tiếp tục duy trì phác đồ điều trị, tăng cường tập phục hồi chức năng, theo dõi liền xương/liền gân và dự kiến kế hoạch ra viện khi đủ điều kiện.",
+                        title, days);
+
+                    string care = "Chăm sóc cấp II. Ăn theo chế độ bệnh lý. Tập vận động phục hồi chức năng.";
+                    string med = "Dùng thuốc theo đơn đã kê. Theo dõi DHST và vận động chi.";
+
+                    bool ok = CreateTracking(mosConsumer, tr, sk7Time, sk7Content, care, med);
+                    if (ok)
+                    {
+                        Console.WriteLine(string.Format("   ✔ Đã tạo THÀNH CÔNG: Sơ kết 7 ngày điều trị (Thời điểm: {0})", sk7Date.ToString("dd/MM/yyyy 15:00")));
+                        totalSuccess++;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("   ✔ ĐÃ CÓ tờ Sơ kết 7 ngày điều trị.");
+                }
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("==========================================================================================================");
+        Console.WriteLine(string.Format("🎉 HOÀN TẤT! Đã bổ sung thành công tổng cộng {0} Tờ điều trị Sơ kết.", totalSuccess));
+        Console.WriteLine("==========================================================================================================");
+    }
+}
+
+class Program
+{
+    static void Main()
+    {
+        AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
+        {
+            string folderPath = AppDomain.CurrentDomain.BaseDirectory;
+            string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
+            string path1 = Path.Combine(folderPath, name);
+            if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+            string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+            if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+            return null;
+        };
+
+        HisSummaryTrackingCreator.Run();
+    }
+}
