@@ -22,6 +22,8 @@
 15. [Cơ Chế Đồng Bộ Tri Thức 1-Click Giữa Máy Bàn & Laptop](#15-cơ-chế-đồng-bộ-tri-thức-1-click-giữa-máy-bàn--laptop)
 16. [Quy Chuẩn Tích Hợp OpenRouter & Ma Trận Mô Hình Miễn Phí](#16-quy-chuẩn-tích-hợp-openrouter--ma-trận-mô-hình-miễn-phí-đa-tầng-smart-multi-tier-ai-routing)
 17. [Cẩm Nang Chống Vòng Lặp & Kỹ Thuật Chẩn Đoán Lỗi Tức Thì (Anti-Loop Manual)](#17-cẩm-nang-chống-vòng-lặp--kỹ-thuật-chẩn-đoán-lỗi-tức-thì-anti-loop-manual)
+18. [Quy Chuẩn Báo Cáo Buồng Bệnh & Đồng Bộ Tự Động Lên Cloud Drive](#18-quy-chuẩn-báo-cáo-buồng-bệnh--đồng-bộ-tự-động-lên-cloud-drive)
+
 
 
 ---
@@ -757,7 +759,48 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
 ```
 
 ---
+
+## 18. QUY CHUẨN BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ TỰ ĐỘNG LÊN CLOUD DRIVE
+
+### 18.1. Cấu Trúc Dữ Liệu Báo Cáo Buồng Chuẩn Lâm Sàng Khoa 57
+Mỗi dòng báo cáo buồng bệnh phải chứa đầy đủ 8 trường thông tin thiết yếu:
+1. **Vị trí**: Buồng bệnh - Giường (VD: `Phòng 724 - Giường số 49`).
+2. **Hành chính**: Mã BN (`TDL_PATIENT_CODE`), Mã ĐT (`TREATMENT_ID` / `TREATMENT_CODE`), Họ tên, Tuổi, Giới tính, Ngày vào viện.
+3. **Chẩn đoán & Tổn thương**: Trích xuất đích danh tầng xẹp đốt sống / loại gãy xương / bệnh nền (THA, ĐTĐ, Dạ dày, Suy thận...).
+4. **Dấu hiệu sinh tồn (DHST)**: Mạch, Huyết áp, Nhiệt độ, SpO2.
+5. **Tờ điều trị hôm nay**: Trạng thái (Đã tạo / Chưa tạo), Giờ tạo, Tóm tắt diễn biến ca trực.
+6. **Đơn thuốc & Y lệnh hôm nay**: Trạng thái (Đã kê / Chưa kê), số lượng thuốc, Kháng sinh dồn sáng, Suất ăn dinh dưỡng (`BT01`, `DD01`...).
+7. **Cảnh báo Tự Động (Clinical Flags)**:
+   - 🔴 *Chưa có Tờ điều trị hôm nay* (Cần tạo ngay).
+   - 🔴 *Chưa kê đơn thuốc hôm nay* (Cần kê đơn).
+   - 🟠 *BN Đái tháo đường* (Cần theo dõi ĐH mao mạch & tiêm Insulin).
+   - 🟢 *Đã hoàn tất y lệnh ngày*.
+
+### 18.2. Công Cụ Thực Thi 1-Click: `HisWardReport.bat`
+```powershell
+# 1. Quét mặc định các buồng trọng điểm (712, 714, 716, 724, 725, 712A):
+.\HisWardReport.bat
+
+# 2. Quét toàn bộ 22 buồng bệnh Khoa 57:
+.\HisWardReport.bat --all
+
+# 3. Quét buồng cụ thể:
+.\HisWardReport.bat --room 724,716
+
+# 4. Tự động mở giao diện HTML trong trình duyệt:
+.\HisWardReport.bat --open
+```
+
+### 18.3. Cơ Chế Tự Động Lưu & Đồng Bộ 2 Nơi (Dual Sync Protocol)
+Khi chạy lệnh, hệ thống đồng thời tạo ra 2 định dạng file (`.html` tương tác & `.md` gọn nhẹ) và tự động ghi vào 2 vị trí:
+1. **Thư mục Dự án**: `Reports\WardReports\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` & `.md`.
+2. **Thư mục Drive / OneDrive**: `C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` & `.md`.
+
+*Giao diện HTML tích hợp sẵn thanh tìm kiếm tức thì theo tên BN / buồng phòng, bộ đếm thống kê ca trực và nút In / Xuất PDF khổ A4 tiêu chuẩn.*
+
+---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
 
 
 

@@ -229,5 +229,27 @@ Khi xử lý trích xuất y lệnh từ hình ảnh bảng điều dưỡng, t�
   * **Module Python**: [`openrouter_client.py`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/openrouter_client.py) (`generate_with_fallback`, `extract_json_structured`).
   * **OCR Đường Huyết & Insulin**: [`parse_glucose_image.py`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/parse_glucose_image.py) & [`HisDiabetesOrchestrator.ps1`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisDiabetesOrchestrator.ps1).
 
+---
+
+## 10. Báo Cáo Buồng Bệnh Tự Động & Đồng Bộ Cloud Drive (`HisWardReport.bat`)
+
+Khi cần tổng hợp danh sách bệnh nhân đang nằm buồng, kiểm tra tiến độ làm y lệnh ngày, phát hiện BN sót tờ điều trị/chưa kê đơn thuốc:
+- **Tập tin chạy**: `HisWardReport.bat` (gọi `.agents\skills\his-clinical-operations\scripts\HisWardReportCreator.exe`).
+- **Cú pháp lệnh**:
+  ```powershell
+  # Quét các buồng trọng điểm (712, 714, 716, 724, 725, 712A):
+  .\HisWardReport.bat
+
+  # Quét toàn bộ 22 buồng bệnh Khoa 57:
+  .\HisWardReport.bat --all
+
+  # Quét và tự động mở giao diện HTML trong trình duyệt:
+  .\HisWardReport.bat --open
+  ```
+- **Tự động đồng bộ 2 nơi**:
+  1. Thư mục Drive: `C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57\`
+  2. Thư mục Dự án: `Reports\WardReports\`
+
+
 
 

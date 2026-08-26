@@ -93,6 +93,22 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   2. **Nguyên nhân kỹ thuật chính xác** (Trích xuất mã lỗi HTTP, Exception message thật).
   3. **Hướng dẫn Bác sĩ xử lý 1-Click trên UI HIS** (để Bác sĩ không bị gián đoạn công việc khám chữa bệnh).
 
+## 8. QUY TẮC BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ CLOUD DRIVE (WARD REPORT PROTOCOL)
+* **Kích hoạt tự động**: Khi Bác sĩ nhắn tin hoặc yêu cầu "báo cáo buồng", "tình hình buồng bệnh", "đi buồng":
+  1. **Thực thi 1-Click**: Agent chạy ngay công cụ [`HisWardReport.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisWardReport.bat) (mặc định quét các buồng trọng điểm `712, 714, 716, 724, 725, 712A` hoặc thêm `--all` để quét toàn bộ Khoa 57).
+  2. **Trích xuất đa chiều**:
+     - Buồng - Giường, Mã BN, Mã ĐT, Họ tên, Tuổi, Giới tính.
+     - Chẩn đoán chi tiết & mã ICD-10 (Đích danh tầng xẹp đốt sống, loại gãy xương, bệnh nền).
+     - DHST mới nhất (Mạch, Huyết áp, Nhiệt độ, SpO2).
+     - Tình trạng Tờ điều trị hôm nay (Giờ tạo, tóm tắt diễn biến).
+     - Tình trạng Kê đơn thuốc, Kháng sinh, Suất ăn dinh dưỡng hôm nay.
+     - Cảnh báo tự động: 🔴 Chưa tạo tờ ĐT, 🔴 Chưa kê đơn, 🟠 BN Đái tháo đường cần theo dõi ĐH/Insulin.
+  3. **Tự động lưu & Đồng bộ 2 địa điểm**:
+     - **Thư mục Drive**: `C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` và `.md`.
+     - **Thư mục Dự án**: `Reports\WardReports\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` và `.md`.
+  4. **Phản hồi Bác sĩ**: In bảng tổng quan Markdown trực tiếp trong chat kèm link mở file HTML trực quan (hỗ trợ tìm kiếm, lọc buồng và in PDF khổ A4).
+
+
 
 
 
