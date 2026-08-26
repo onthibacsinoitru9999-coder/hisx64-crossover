@@ -15,10 +15,11 @@
 8. [Phân Hệ 4: Chỉ Định Cận Lâm Sàng & Đường Máu Mao Mạch Tại Giường (BM02426)](#8-phân-hệ-4-chỉ-định-cận-lâm-sàng--đường-máu-mao-mạch-tại-giường-bm02426)
 9. [Phân Hệ 5: Báo Cáo Giao Ban Ca Trực & Bilan Phẫu Thuật Hậu Phẫu](#9-phân-hệ-5-báo-cáo-giao-ban-ca-trực--bilan-phẫu-thuật-hậu-phẫu)
 10. [Phân Hệ 6: Ký Số Điện Tử & Mời Bác Sĩ Ký (EMR Sign)](#10-phân-hệ-6-ký-số-điện-tử--mời-bác-sĩ-ký-emr-sign)
-11. [Quy Chuẩn Lâm Sàng Bắt Buộc (Mã ICD-10 5 Ký Tự & Mô Tả CĐHA)](#11-quy-chuẩn-lâm-sàng-bắt-buộc-mã-icd-10-5-ký-tự--mô-tả-cđha)
-12. [Bảng Tổng Hợp 15+ Sai Lầm & Bài Học Xương Máu (Gotchas Matrix)](#12-bảng-tổng-hợp-15-sai-lầm--bài-học-xương-máu-gotchas-matrix)
-13. [Hướng Dẫn Biên Dịch & Chạy Công Cụ CLI Tức Thì](#13-hướng-dẫn-biên-dịch--chạy-công-cụ-cli-tức-thì)
-14. [Cơ Chế Đồng Bộ Tri Thức 1-Click Giữa Máy Bàn & Laptop](#14-cơ-chế-đồng-bộ-tri-thức-1-click-giữa-máy-bàn--laptop)
+11. [Phân Hệ 7: Chỉ Định & Biên Bản Hội Chẩn Chuyên Khoa (Debate Diagnostic & Consultation)](#11-phân-hệ-7-chỉ-định--biên-bản-hội-chẩn-chuyên-khoa-debate-diagnostic--consultation)
+12. [Quy Chuẩn Lâm Sàng Bắt Buộc (Mã ICD-10 5 Ký Tự & Mô Tả CĐHA)](#12-quy-chuẩn-lâm-sàng-bắt-buộc-mã-icd-10-5-ký-tự--mô-tả-cđha)
+13. [Bảng Tổng Hợp 28+ Sai Lầm & Bài Học Xương Máu (Gotchas Matrix)](#13-bảng-tổng-hợp-28-sai-lầm--bài-học-xương-máu-gotchas-matrix)
+14. [Hướng Dẫn Biên Dịch & Chạy Công Cụ CLI Tức Thì](#14-hướng-dẫn-biên-dịch--chạy-công-cụ-cli-tức-thì)
+15. [Cơ Chế Đồng Bộ Tri Thức 1-Click Giữa Máy Bàn & Laptop](#15-cơ-chế-đồng-bộ-tri-thức-1-click-giữa-máy-bàn--laptop)
 
 ---
 
@@ -423,7 +424,75 @@ Công cụ chuyên dụng `HospitalShiftReporter.exe` (Mã nguồn: `HospitalShi
 
 ---
 
-## 11. QUY CHUẨN LÂM SÀNG BẮT BUỘC (MÃ ICD-10 5 KÝ TỰ & MÔ TẢ CĐHA)
+## 11. PHÂN HỆ 7: CHỈ ĐỊNH & BIÊN BẢN HỘI CHẨN CHUYÊN KHOA (DEBATE DIAGNOSTIC & CONSULTATION)
+
+### 11.1. Kiến Trúc Phân Hệ & Module Giao Diện:
+* **Module HIS Client**: `HIS.Desktop.Plugins.DebateDiagnostic` (Form: `FormDebateDiagnostic`).
+* **Mục đích lâm sàng**: Tạo yêu cầu mời hội chẩn liên chuyên khoa (Tạo hình thẩm mỹ, Tim mạch, Nội tiết, Hô hấp, Huyết học...) hoặc hội chẩn toàn viện, thông qua chẩn đoán bệnh án, đồng thời tự động cập nhật diễn biến vào Tờ điều trị và sinh biểu mẫu trích biên bản hội chẩn.
+* **Cơ chế lưu trữ Backend MOS**:
+  - Thực thể chính: `MOS.EFMODEL.DataModels.HIS_DEBATE`
+  - Danh sách bác sĩ tham gia: `MOS.EFMODEL.DataModels.HIS_DEBATE_USER` (`IS_PRESIDENT = 1` - Chủ tọa, `IS_SECRETARY = 1` - Thư ký).
+  - Bác sĩ được mời: `MOS.EFMODEL.DataModels.HIS_DEBATE_INVITE_USER`.
+
+### 11.2. Danh Sách Endpoint MOS & Phương Thức Gọi:
+| Phương thức | Endpoint URI | Mục đích & Nghiệp vụ |
+| :--- | :--- | :--- |
+| `POST` | `api/HisDebate/CreateAutoTracking` | **Tạo mới hội chẩn** đồng thời tự động sinh/liên kết Tờ điều trị (`HIS_TRACKING`) |
+| `POST` | `api/HisDebate/UpdateWithTracking` | **Cập nhật nội dung hội chẩn** và đồng bộ nội dung diễn biến tờ điều trị |
+| `GET` | `api/HisDebate/GetView` | Tra cứu danh sách & chi tiết biên bản hội chẩn theo `TREATMENT_ID` / `TREATMENT_CODE` |
+| `GET` | `api/HisDebateInviteUser/Get` | Tra cứu danh sách bác sĩ được mời tham gia hội chẩn |
+
+### 11.3. Cấu Trúc DTO Chuẩn Khi Tạo Hội Chẩn (`HIS_DEBATE`):
+```json
+{
+  "ID": 0,
+  "TREATMENT_ID": 7070733,
+  "ICD_CODE": "S91.0",
+  "ICD_NAME": "Vết thương phức tạp mu bàn chân (P)",
+  "DEPARTMENT_ID": 57,
+  "DEBATE_TIME": 20260826101400,
+  "REQUEST_LOGINNAME": "034727",
+  "REQUEST_USERNAME": "NGUYỄN HỮU SÂM",
+  "TREATMENT_TRACKING": "Bn nam chẩn đoán Vết thương phức tạp mu bàn chân (P). hiện tại vết lóc da có diện da hoại tử đen vạt ngược kích thước 4cm, xin ý kiến CK tạo hình xét nhận bệnh nhân điều trị / phối hợp",
+  "TREATMENT_FROM_TIME": 20260819230800,
+  "TREATMENT_TO_TIME": null,
+  "TREATMENT_METHOD": "",
+  "LOCATION": "Khoa Chấn thương Chỉnh hình và Cột sống",
+  "REQUEST_CONTENT": "ck tạo hình thẩm mỹ",
+  "DISCUSSION": "xin ý kiến CK tạo hình xét nhận bệnh nhân điều trị / phối hợp",
+  "CONTENT_TYPE": 1,
+  "HIS_DEBATE_USER": [
+    {
+      "ID": 0,
+      "LOGINNAME": "hdc",
+      "USERNAME": "HÀ ĐỨC CƯỜNG",
+      "IS_PRESIDENT": 1,
+      "IS_SECRETARY": null
+    },
+    {
+      "ID": 0,
+      "LOGINNAME": "034727",
+      "USERNAME": "NGUYỄN HỮU SÂM",
+      "IS_PRESIDENT": null,
+      "IS_SECRETARY": 1
+    }
+  ]
+}
+```
+
+### 11.4. Biểu Mẫu In & Định Danh EMR:
+* **Mã mẫu in**: `Mps000019` - `HC_TrichBienBanHoiChan___CT_001.xlsx` (**Trích biên bản hội chẩn**).
+* **Mã loại văn bản EMR (`EMR_DOCUMENT_TYPE_CODE`)**: `17` (Phục vụ ký số & lưu hồ sơ bệnh án điện tử).
+
+### 11.5. Công Cụ CLI Tự Động Hóa 1-Click:
+```powershell
+# Tạo chỉ định hội chẩn chuyên khoa:
+.\.agents\skills\his-clinical-operations\scripts\HisDebateCreator.exe --treatment 000007070917 --specialist "ck tạo hình thẩm mỹ" --summary "Vết lóc da hoại tử đen vạt ngược 4cm, xin ý kiến CK tạo hình phối hợp"
+```
+
+---
+
+## 12. QUY CHUẨN LÂM SÀNG BẮT BUỘC (MÃ ICD-10 5 KÝ TỰ & MÔ TẢ CĐHA)
 
 ### 11.1. Quy Tắc Mã ICD-10 (Hệ 5 Ký Tự Mới - `IS_ACTIVE = 1`):
 Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự chi tiết theo Bộ Y tế. Các mã 3-4 ký tự cũ đã ngừng hoạt động (`IS_ACTIVE = 0`):
@@ -474,22 +543,26 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **25**| Siêu âm tim nội trú chỉ định sai phòng | Gửi nhầm về phòng 16987 (P112 Viện Tim Mạch) | Chỉ định **`BM00201`** (ID `5569` - Siêu âm Doppler tim, van tim) gửi đích danh về **Phòng 1715 (Siêu âm tim nội trú)** kèm ghi chú `"điều dưỡng đưa bằng cáng - cs ii"`. |
 | **26**| Đo mật độ xương DEXA chọn sai mã dịch vụ | Chọn mã 1 vị trí `BM08084` (ID 160) | Chỉ định đúng mã **`BM08085`** (ID `161` - DEXA 2 vị trí) gửi về **Phòng 6462 (P202 Nhà K2)** kèm ghi chú `"điều dưỡng đưa bằng cáng - cs ii"`. |
 | **27**| Mã dịch vụ Ure và Điện giải đồ bị lệch danh mục | Chọn các mã tạm hoặc mã ngoài danh mục thường quy | Urê máu chọn **`BM02304`** (ID `5923`), Điện giải đồ Na/K/Cl chọn **`BM00132`** (ID `5853`), gửi về **Phòng 410**. |
+| **28**| Tạo Hội chẩn chuyên khoa bị thiếu Tờ điều trị hoặc sai DTO | Gọi `api/HisDebate/Create` phẳng hoặc thiếu `HIS_DEBATE_USER` | **BẮT BUỘC gọi `api/HisDebate/CreateAutoTracking`** với DTO `HIS_DEBATE` chứa `CONTENT_TYPE = 1`, `DEBATE_TIME` (`yyyyMMddHHmmss`), và mảng `HIS_DEBATE_USER` gắn cờ `IS_PRESIDENT = 1` (Chủ tọa), `IS_SECRETARY = 1` (Thư ký). Biểu mẫu trích biên bản là `Mps000019` (EMR Type 17). |
 
 ---
 
-## 13. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI TỨC THÌ
+## 14. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI TỨC THÌ
 
 Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọi Windows 10/11):
 
-### 13.1. Đường dẫn trình biên dịch C#:
+### 14.1. Đường dẫn trình biên dịch C#:
 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
 
 > 💡 **Lưu ý về thông báo C# 5:** Khi chạy `csc.exe`, hệ thống sẽ hiện thông báo bản quyền `...for C# 5... This compiler is provided as part of the Microsoft (R) .NET Framework...`. Đây là thông báo mặc định của Windows .NET Framework 4.8 (không phải lỗi). Thêm `/nologo` vào lệnh biên dịch để ẩn thông báo này.
 
-### 13.2. Lệnh biên dịch chuẩn cho mọi công cụ:
+### 14.2. Lệnh biên dịch chuẩn cho mọi công cụ:
 ```powershell
 # Biên dịch HisTrackingCreator:
 & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:exe /out:HisTrackingCreator.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisTrackingCreator.cs
+
+# Biên dịch HisDebateCreator (Hội chẩn chuyên khoa):
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:exe /out:HisDebateCreator.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisDebateCreator.cs
 
 # Biên dịch HisGlucoseBedsideAssigner:
 & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HisGlucoseBedsideAssigner.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,System.Drawing.dll,System.Windows.Forms.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HisGlucoseBedsideAssigner.cs
@@ -498,7 +571,7 @@ Khi di chuyển sang máy mới có .NET Framework (mặc định có trên mọ
 & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:exe /out:HospitalShiftReporter.exe /lib:.,ReferencedAssemblies /r:System.dll,System.Core.dll,System.Data.dll,Inventec.Core.dll,Inventec.Token.ClientSystem.dll,Inventec.Token.Core.dll,Inventec.Common.Adapter.dll,Inventec.Common.WebApiClient.dll,HIS.Desktop.LocalStorage.ConfigSystem.dll,HIS.Desktop.LocalStorage.LocalData.dll,HIS.Desktop.ApiConsumer.dll,MOS.Filter.dll,MOS.SDO.dll,MOS.EFMODEL.dll HospitalShiftReporter.cs
 ```
 
-### 13.3. Cơ chế Nạp Assembly Động (Assembly Resolve Hook):
+### 14.3. Cơ chế Nạp Assembly Động (Assembly Resolve Hook):
 ```csharp
 AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
 {
@@ -514,7 +587,7 @@ AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
 
 ---
 
-## 14. CƠ CHẾ ĐỒNG BỘ TRI THỨC 1-CLICK GIỮA MÁY BÀN & LAPTOP
+## 15. CƠ CHẾ ĐỒNG BỘ TRI THỨC 1-CLICK GIỮA MÁY BÀN & LAPTOP
 
 Dự án đã được trang bị sẵn 2 kịch bản tự động hóa 1-click:
 
