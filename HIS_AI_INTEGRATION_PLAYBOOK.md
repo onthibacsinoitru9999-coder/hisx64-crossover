@@ -640,83 +640,65 @@ Dự án đã được trang bị sẵn 2 kịch bản tự động hóa 1-click
 
 ---
 
-## 16. QUY CHUẨN TÍCH HỢP OPENROUTER & MÔ HÌNH MIỄN PHÍ `stealth/ox-alpha`
+## 16. QUY CHUẨN TÍCH HỢP OPENROUTER & MA TRẬN MÔ HÌNH MIỄN PHÍ ĐA TẦNG (SMART MULTI-TIER AI ROUTING)
 
-### 16.1. Tổng quan & Thông số Kỹ thuật
-Khi hệ thống hoặc Agent cần thực hiện các tác vụ suy luận thông minh, đọc hiểu văn bản dài, xử lý OCR ảnh phiếu điều dưỡng / báo cáo y tế / tóm tắt hồ sơ bệnh án bằng mô hình ngôn ngữ lớn (LLM) qua API bên ngoài, **BẮT BUỘC ƯU TIÊN SỬ DỤNG MÔ HÌNH `stealth/ox-alpha`** trên OpenRouter:
+### 16.1. Tổng quan & Ma trận Phân tầng Mô hình (Multi-Tier Architecture)
+Hệ thống tích hợp OpenRouter được thiết kế theo cấu trúc **Dự phòng Đa tầng 100% Free Tier ($0 Input / $0 Output)**. Khi có yêu cầu xử lý AI (OCR ảnh, tóm tắt bệnh án, đối soát đơn thuốc, lập luận hội chẩn), hệ thống sẽ tự động gọi mô hình Tầng 1 và fallback mượt mà sang các tầng kế tiếp nếu xảy ra sự cố nghẽn mạng hoặc rate-limit:
 
-* **Model Identifier**: **`stealth/ox-alpha`**
-* **Base URL**: `https://openrouter.ai/api/v1`
-* **Chat Completions Endpoint**: `https://openrouter.ai/api/v1/chat/completions`
-* **Chi phí**: **Free Tier ($0/1M prompt tokens, $0/1M completion tokens)**.
-* **Cửa sổ ngữ cảnh (Context Window)**: **1,048,576 tokens (1M tokens)** — đáp ứng hoàn hảo cho các hồ sơ bệnh án đồ sộ, nhiều trang kết quả xét nghiệm, lịch sử điều trị kéo dài hàng tháng.
-* **Độ dài đầu ra tối đa (Max Completion)**: **131,072 tokens**.
-* **Hỗ trợ Đa phương thức (Multimodal)**: `text + image + video -> text` (gửi ảnh qua URL base64 `data:image/jpeg;base64,...`).
-* **Tính năng chuyên sâu**:
-  - **Reasoning (CoT)**: Tự động tư duy, lập luận lâm sàng nhiều bước trước khi xuất kết quả.
-  - **Structured Outputs**: Xuất định dạng JSON nghiêm ngặt (`response_format: {"type": "json_object"}`).
-  - **Tool Calling**: Hỗ trợ gọi function/tools định dạng OpenAI standard.
+| Tầng | Mã Mô Hình (Model ID) | Cửa Sổ Ngữ Cảnh (Context) | Điểm Mạnh & Chuyên Biệt Lâm Sàng | Khả Năng Đa Phương Thức |
+| :---: | :--- | :---: | :--- | :---: |
+| **Tier 1** | **`stealth/ox-alpha`** | **1,048,576 tokens (1M)** | **Vua Đa phương thức & Suy luận sâu**: OCR báo cáo điều dưỡng, đọc phim CĐHA, lập luận chuỗi suy nghĩ CoT, xuất JSON nghiêm ngặt. | `text + image + video -> text` |
+| **Tier 2** | **`minimax/minimax-m3:free`** | **1,048,576 tokens (1M)** | **Dự phòng Đa phương thức 1M Context**: Khả năng đọc ảnh/video độ phân giải cao, tóm tắt bệnh án dày. | `text + image + video -> text` |
+| **Tier 3** | **`google/gemma-4-31b-it:free`** | **262,144 tokens (256K)** | **Mô hình Google Đậm đặc**: Xử lý ngữ nghĩa tiếng Việt y khoa mượt mà, phản xạ nhanh, hỗ trợ Vision. | `text + image + video -> text` |
+| **Tier 4** | **`nvidia/nemotron-3-ultra-550b-a55b:free`** | **1,000,000 tokens (1M)** | **Siêu mô hình 550B MoE NVIDIA**: Chuyên biệt lập luận đa tầng, phân tích ca bệnh khó, hội chẩn đa chuyên khoa. | `text -> text` |
+| **Tier 5** | **`cohere/north-mini-code:free`** | **256,000 tokens (256K)** | **Chuyên sâu Lập trình & Logic Cú pháp**: Sinh mã C#/Python, trích xuất cấu trúc dữ liệu JSON, phân tích DTO. | `text -> text` |
+| **Tier 6** | **`z-ai/glm-5.2:free`** | **256,000 tokens (256K)** | **Mô hình Suy luận Lớn Z.ai**: Xử lý logic lâm sàng dài hơi, lập luận nguyên nhân - hậu quả bệnh lý. | `text -> text` |
+| **Tier 7** | **`openrouter/free`** | **200,000 tokens (200K)** | **Bộ định tuyến Ngẫu nhiên Miễn phí**: Tự động luân chuyển giữa các cụm node free sẵn có trên toàn cầu. | `text + image -> text` |
 
-### 16.2. Cấu hình & Headers Chuẩn khi Gọi API
-```http
-POST https://openrouter.ai/api/v1/chat/completions HTTP/1.1
-Authorization: Bearer <OPENROUTER_API_KEY>
-Content-Type: application/json; charset=utf-8
-HTTP-Referer: https://github.com/onthibacsinoitru9999-coder/hisx64-crossover
-X-Title: HIS AI Integration Suite
+---
+
+### 16.2. Công Cụ Dòng Lệnh Đa Năng `HisAiCli.bat` & Module `openrouter_client.py`
+Dự án cung cấp sẵn công cụ gọi AI 1-click tích hợp sẵn cơ chế Auto-Fallback:
+
+```powershell
+# 1. Hỏi đáp & Tra cứu Lâm sàng (Sử dụng nhóm Reasoning Models):
+.\HisAiCli.bat ask "Phác đồ điều trị xẹp đốt sống L2 kèm loãng xương nặng ở BN 75 tuổi"
+
+# 2. OCR ảnh phiếu theo dõi đường huyết hoặc phim X-quang/MRI:
+.\HisAiCli.bat ocr "C:\path\to\bao_cao_dh.jpg" --task glucose --output "glucose_data.json"
+.\HisAiCli.bat ocr "C:\path\to\mri_cot_song.png" --task xquang
+
+# 3. Trích xuất JSON từ văn bản y lệnh thô:
+.\HisAiCli.bat json "Bệnh nhân Nguyễn Văn A, tiêm Actrapid 8 đơn vị cữ 17h, đường máu 11.2"
+
+# 4. Kiểm tra danh mục các mô hình Free Tier khả dụng:
+.\HisAiCli.bat models
 ```
 
-### 16.3. Mã nguồn Mẫu Tích hợp Python Chuẩn (Tự Động Nạp Key & Gọi `stealth/ox-alpha`):
+---
+
+### 16.3. Mã Nguồn Mẫu Gọi Module Điều Phối Python trong Ứng Dụng Khác:
 ```python
-import urllib.request
-import json
-import os
+from openrouter_client import generate_with_fallback, extract_json_structured, FREE_VISION_MODELS
 
-def call_ox_alpha(prompt: str, system_prompt: str = "", json_mode: bool = False) -> str:
-    """Gọi OpenRouter stealth/ox-alpha miễn phí 100% không tốn chi phí"""
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not api_key:
-        import winreg
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
-                api_key, _ = winreg.QueryValueEx(key, "OPENROUTER_API_KEY")
-        except Exception:
-            pass
+# 1. Gọi sinh văn bản với tự động chuyển tầng dự phòng:
+messages = [
+    {"role": "system", "content": "Bạn là chuyên gia chấn thương chỉnh hình Bạch Mai."},
+    {"role": "user", "content": "Tóm tắt các chỉ định phẫu thuật gãy xương tháp cổ tay."}
+]
+content, used_model = generate_with_fallback(messages)
+print(f"Mô hình xử lý: {used_model}\nKết quả: {content}")
 
-    if not api_key:
-        raise ValueError("Chưa thiết lập biến môi trường OPENROUTER_API_KEY!")
-
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": "stealth/ox-alpha",
-        "messages": messages,
-        "max_tokens": 8192
-    }
-    if json_mode:
-        payload["response_format"] = {"type": "json_object"}
-
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json; charset=utf-8",
-            "HTTP-Referer": "https://github.com/onthibacsinoitru9999-coder/hisx64-crossover",
-            "X-Title": "HIS AI Integration Suite"
-        }
-    )
-
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"]
+# 2. Trích xuất JSON từ ảnh báo cáo lâm sàng:
+data = extract_json_structured(
+    prompt="Trích xuất danh sách bệnh nhân và liều tiêm insulin...",
+    image_path="report.jpg"
+)
 ```
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
 
 
 

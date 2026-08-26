@@ -213,15 +213,21 @@ Công cụ chuyên dụng cho phép chỉ định hàng loạt cận lâm sàng 
 
 ---
 
-## 9. Tích Hợp AI Trích Xuất Dữ Liệu & OCR với OpenRouter Free Tier (`stealth/ox-alpha`)
+## 9. Tích Hợp AI Trích Xuất Dữ Liệu & Ma Trận Mô Hình OpenRouter Free Tier (Multi-Tier Smart Fallback)
 
-Khi xử lý trích xuất y lệnh từ hình ảnh bảng điều dưỡng, tóm tắt bệnh án hoặc chuyển đổi dữ liệu lâm sàng sang cấu trúc JSON:
-- **Ưu tiên hàng đầu**: **`stealth/ox-alpha`** trên OpenRouter (`https://openrouter.ai/api/v1`).
-- **Lợi ích**:
-  * **Free Tier 100%** ($0 input / $0 output).
-  * **1,048,576 tokens Context** (1 triệu tokens) — đọc hiểu toàn bộ hồ sơ dài mà không lo tràn bộ nhớ.
-  * Hỗ trợ đa phương thức (Vision/Multimodal) cho ảnh phiếu theo dõi, xét nghiệm scan.
-  * Hỗ trợ chế độ Reasoning và xuất chuẩn JSON (`response_format: {"type": "json_object"}`).
-- **Công cụ điều phối tự động**: `parse_glucose_image.py` và `HisDiabetesOrchestrator.ps1` tự động nạp `OPENROUTER_API_KEY` từ môi trường và gọi `stealth/ox-alpha`.
+Khi xử lý trích xuất y lệnh từ hình ảnh bảng điều dưỡng, tóm tắt bệnh án, đối soát đơn thuốc hoặc chuyển đổi dữ liệu lâm sàng sang cấu trúc JSON:
+- **Ma trận 7 Tầng Tự Động Chuyển Tầng (100% Free Tier - $0 Input / $0 Output)**:
+  * **Tier 1 (Vua Đa phương thức & Suy luận 1M Context)**: `stealth/ox-alpha` (Ưu tiên số 1)
+  * **Tier 2 (Dự phòng Đa phương thức 1M Context)**: `minimax/minimax-m3:free`
+  * **Tier 3 (Dự phòng Đa phương thức 256K Context Google)**: `google/gemma-4-31b-it:free`
+  * **Tier 4 (Siêu mô hình Suy luận 550B MoE 1M Context)**: `nvidia/nemotron-3-ultra-550b-a55b:free`
+  * **Tier 5 (Chuyên sâu Lập trình & Logic 256K Context)**: `cohere/north-mini-code:free` & `poolside/laguna-s-2.1:free`
+  * **Tier 6 (Mô hình Ngôn ngữ Lớn 256K Context)**: `z-ai/glm-5.2:free`
+  * **Tier 7 (Bộ định tuyến Tự động)**: `openrouter/free`
+- **Công cụ điều phối tự động**:
+  * **CLI nhanh**: [`HisAiCli.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisAiCli.bat) (`ask`, `ocr`, `json`, `models`).
+  * **Module Python**: [`openrouter_client.py`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/openrouter_client.py) (`generate_with_fallback`, `extract_json_structured`).
+  * **OCR Đường Huyết & Insulin**: [`parse_glucose_image.py`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/parse_glucose_image.py) & [`HisDiabetesOrchestrator.ps1`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisDiabetesOrchestrator.ps1).
+
 
 

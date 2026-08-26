@@ -79,3 +79,15 @@ Công cụ được đóng gói sẵn tại:
 * **Mã khoa yêu cầu**: `DEPARTMENT_ID = 57` (Khoa CTCH & Cột sống).
 * **Biểu mẫu In**: `Mps000019` - `HC_TrichBienBanHoiChan___CT_001.xlsx` (**Trích biên bản hội chẩn**).
 * **Mã loại tài liệu EMR**: `EMR_DOCUMENT_TYPE_CODE = 17` (Trích biên bản hội chẩn EMR).
+
+---
+
+## 5. TÍCH HỢP TRỢ LÝ AI SOẠN THẢO TÓM TẮT HỘI CHẨN (OPENROUTER FREE MULTI-TIER)
+
+Khi cần soạn thảo nhanh tóm tắt bệnh án và câu hỏi hội chẩn chuyên khoa từ hồ sơ thô của bệnh nhân:
+- Sử dụng công cụ CLI:
+  ```powershell
+  .\HisAiCli.bat ask "Soạn tóm tắt bệnh án mời hội chẩn Tim mạch cho BN 72 tuổi gãy liên mấu chuyển kèm suy tim phân suất tống máu giảm EF 40%"
+  ```
+- Hoặc gọi module `openrouter_client.py` với nhóm mô hình suy luận sâu: **`stealth/ox-alpha`** (Ưu tiên số 1) hoặc **`nvidia/nemotron-3-ultra-550b-a55b:free`** (550B MoE).
+

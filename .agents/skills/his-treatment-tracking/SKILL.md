@@ -1,4 +1,4 @@
-﻿---
+---
 name: his-treatment-tracking
 description: >-
   Tự động tạo Tờ điều trị (Treatment Tracking), ghi nhận diễn biến bệnh, y lệnh,
@@ -45,3 +45,12 @@ Công cụ `HisTrackingCreator.exe` và `QuickTracking.exe` đặt trực tiếp
 - **Tạo EMR Document**: `DOCUMENT_TYPE_ID = 7` (Tờ điều trị).
 - **Ký chính (`NumOrder = 1`)**: Bác sĩ điều trị `034727` (Ths.BS Nguyễn Hữu Sâm).
 - **Mời ký phối hợp (`NumOrder = 2`)**: Bác sĩ `ndh2` (BS Nguyễn Đức Hoàng).
+
+---
+
+## 5. Tự Động Hóa Soạn Thảo Diễn Biến Điều Trị bằng AI OpenRouter Multi-Tier
+
+Khi nhận bàn giao ca trực hoặc kết quả thăm khám thô của điều dưỡng/bác sĩ phụ:
+- Sử dụng CLI: `.\HisAiCli.bat ask "Chuẩn hóa diễn biến bệnh cho BN hậu phẫu nẹp vít cột sống ngày 2..."`
+- Hệ thống tự động dùng **`stealth/ox-alpha`** (Ưu tiên số 1) hoặc **`minimax/minimax-m3:free`** để chuẩn hóa diễn biến bệnh và y lệnh lâm sàng trước khi chuyển tiếp vào `HisTrackingCreator.exe`.
+

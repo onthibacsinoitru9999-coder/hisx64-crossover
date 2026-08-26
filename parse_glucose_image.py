@@ -156,57 +156,40 @@ def load_image_base64(image_path: str) -> tuple[str, str]:
     return data, mime_type
 
 
-def call_openrouter_vision(image_path: str, api_key: str, model: str = "stealth/ox-alpha") -> dict:
-    """Gọi OpenRouter API (Ưu tiên mô hình Free Tier stealth/ox-alpha) để phân tích ảnh"""
-    import urllib.request
+def call_openrouter_vision(image_path: str, api_key: str, model: str = "stealth/ox-alpha") -> tuple[dict, str]:
+    """Gọi OpenRouter API (Tự động chuyển tầng dự phòng nếu mô hình chính gặp sự cố)"""
+    from openrouter_client import generate_with_fallback, load_file_base64, FREE_VISION_MODELS
 
-    image_data, mime_type = load_image_base64(image_path)
+    image_data, mime_type = load_file_base64(image_path)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": OCR_PROMPT},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{image_data}"}
+                }
+            ]
+        }
+    ]
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json; charset=utf-8",
-        "HTTP-Referer": "https://github.com/onthibacsinoitru9999-coder/hisx64-crossover",
-        "X-Title": "HIS AI Integration Suite"
-    }
+    candidates = [model] + [m for m in FREE_VISION_MODELS if m != model]
+    raw_text, used_model = generate_with_fallback(
+        messages=messages,
+        model_candidates=candidates,
+        api_key=api_key,
+        json_mode=True,
+        verbose=True
+    )
 
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": OCR_PROMPT},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{image_data}"
-                        }
-                    }
-                ]
-            }
-        ],
-        "response_format": {"type": "json_object"},
-        "max_tokens": 16384
-    }
+    # Làm sạch markdown json nếu có
+    clean_text = re.sub(r"^```(?:json)?\s*", "", raw_text.strip(), flags=re.IGNORECASE)
+    clean_text = re.sub(r"\s*```$", "", clean_text.strip())
+    clean_text = clean_text.strip()
 
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
-    with urllib.request.urlopen(req, timeout=90) as resp:
-        res_json = json.loads(resp.read().decode("utf-8"))
+    return json.loads(clean_text), used_model
 
-    choices = res_json.get("choices", [])
-    if not choices:
-        raise ValueError(f"OpenRouter không trả về choices hợp lệ: {res_json}")
-
-    message = choices[0].get("message", {})
-    raw_text = message.get("content", "") or ""
-
-    # Làm sạch markdown code block nếu có
-    raw_text = re.sub(r"^```json\s*", "", raw_text.strip(), flags=re.IGNORECASE)
-    raw_text = re.sub(r"\s*```$", "", raw_text.strip())
-    raw_text = raw_text.strip()
-
-    return json.loads(raw_text)
 
 
 def call_gemini_vision(image_path: str, api_key: str) -> dict:
@@ -370,18 +353,20 @@ VÍ DỤ SỬ DỤNG:
         if not openrouter_key:
             print("❌ Lỗi: Chưa cung cấp OpenRouter API Key!")
             sys.exit(1)
-        print(f"   🤖 Gọi OpenRouter API (Mô hình: {args.model} - Free Tier 1M Context)...")
+        print(f"   🤖 Gọi OpenRouter API Multi-Tier (Ưu tiên: {args.model} - Free Tier 1M Context)...")
         try:
-            data = call_openrouter_vision(args.image, openrouter_key, model=args.model)
+            data, used_model = call_openrouter_vision(args.image, openrouter_key, model=args.model)
+            print(f"   ✅ Nhận diện thành công qua mô hình: [{used_model}]")
         except Exception as ex:
             last_err = ex
-            print(f"   ⚠️  OpenRouter gặp sự cố: {ex}")
+            print(f"   ⚠️  Toàn bộ cụm OpenRouter gặp sự cố: {ex}")
             if gemini_key and args.provider == "auto":
                 print("   🔄 Chuyển sang fallback Gemini Vision API...")
                 try:
                     data = call_gemini_vision(args.image, gemini_key)
                 except Exception as g_ex:
                     last_err = g_ex
+
 
     # 2. Hoặc gọi Gemini
     elif provider == "gemini":

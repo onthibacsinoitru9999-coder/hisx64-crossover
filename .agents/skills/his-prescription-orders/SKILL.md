@@ -121,3 +121,9 @@ Quy trình chuẩn hóa 2 bước y lệnh thay băng hàng ngày cho bệnh nh�
 ```powershell
 .\.agents\skills\his-clinical-operations\scripts\HisDressingOrder.exe -t <mã_bệnh_án> [-c "nhận xét vết thương"]
 ```
+
+### 4.5. Hỗ trợ Đối soát Đơn thuốc Tự động bằng AI OpenRouter Multi-Tier (`openrouter_client.py`):
+Khi cần trích xuất danh sách thuốc từ văn bản đơn thuốc ngoại viện, kiểm tra tương tác thuốc, hoặc quy đổi liều lượng (như Insulin UI -> Lọ, chia liều dồn sáng):
+- Sử dụng CLI: `.\HisAiCli.bat json "Trích xuất danh mục thuốc và cách dùng..."`
+- Hệ thống tự động sử dụng **`stealth/ox-alpha`** (Ưu tiên số 1) hoặc **`cohere/north-mini-code:free`** để xuất JSON chuẩn DTO `InPatientPresSDO`.
+

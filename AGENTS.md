@@ -57,16 +57,21 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
      * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
   4. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
 
-## 6. QUY TẮC MÔ HÌNH MIỄN PHÍ OPENROUTER: ƯU TIÊN SỬ DỤNG `stealth/ox-alpha` KHI CẦN GỌI API / LLM
-* **Mô hình cốt lõi**: **`stealth/ox-alpha`** trên OpenRouter (`https://openrouter.ai/api/v1`).
-* **Đặc tính kỹ thuật vượt trội**:
-  - **Chi phí**: **Free Tier ($0 Input / $0 Output)** — hoàn toàn miễn phí 100%.
-  - **Cửa sổ ngữ cảnh (Context Window)**: **1,048,576 tokens (1M tokens)** — xử lý trọn vẹn toàn bộ bệnh án dày đặc, tóm tắt diễn biến nhiều ngày hoặc toàn bộ mã nguồn hệ thống.
-  - **Độ dài đầu ra tối đa (Max Completion)**: **131,072 tokens**.
-  - **Đa phương thức (Multimodal)**: `text + image + video -> text` — phân tích xuất sắc hình ảnh báo cáo điều dưỡng, phiếu xét nghiệm scan, phim X-quang/CT/MRI.
-  - **Năng lực chuyên sâu**: Lập luận chuỗi suy nghĩ (Reasoning / CoT), Sinh dữ liệu có cấu trúc JSON (`response_format: {"type": "json_object"}`), Gọi công cụ (`tools`, `tool_choice`).
-* **Nguyên tắc ưu tiên thực thi**:
-  - Trong mọi ngữ cảnh cần gọi API LLM bên ngoài (OCR bảng đường huyết, trích xuất dữ liệu lâm sàng có cấu trúc JSON, phân tích bệnh án phức tạp, tự động hóa y lệnh qua Python/PowerShell/C#), Agent **BẮT BUỘC ƯU TIÊN SỬ DỤNG `stealth/ox-alpha`** qua OpenRouter.
-  - Tự động nạp khóa xác thực từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).
+## 6. QUY TẮC MA TRẬN MÔ HÌNH OPENROUTER: ĐIỀU PHỐI ĐA TẦNG MIỄN PHÍ 100% (MULTI-TIER SMART FALLBACK)
+* **Khóa xác thực**: Tự động nạp từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).
+* **Bộ điều phối chuẩn hóa**: Sử dụng [`openrouter_client.py`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/openrouter_client.py) hoặc lệnh CLI [`HisAiCli.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisAiCli.bat) để tự động chuyển tầng dự phòng khi gặp sự cố rate-limit/timeout mà không làm gián đoạn công việc của Bác sĩ.
+
+### 🌟 Ma trận Phân công Mô hình theo Nghiệp vụ Lâm sàng:
+| Phân nhóm Nghiệp vụ | Tầng 1 (Ưu tiên số 1) | Tầng 2 (Dự phòng 1) | Tầng 3 (Dự phòng 2) | Tầng 4 (Dự phòng 3) |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Đa phương thức & OCR (Ảnh ĐH, Phim X-quang/CT/MRI, Phiếu KQ)** | **`stealth/ox-alpha`** *(1M tokens, Reasoning, JSON)* | **`minimax/minimax-m3:free`** *(1M tokens, Multimodal)* | **`google/gemma-4-31b-it:free`** *(256K tokens, Multimodal)* | **`openrouter/free`** *(Auto Router)* |
+| **2. Lập luận Bệnh án & Hội chẩn Chuyên khoa Phức tạp** | **`stealth/ox-alpha`** *(1M tokens, CoT)* | **`nvidia/nemotron-3-ultra-550b-a55b:free`** *(1M tokens, 550B MoE)* | **`z-ai/glm-5.2:free`** *(256K tokens, Deep Reasoning)* | **`minimax/minimax-m3:free`** |
+| **3. Lập trình Script, Trích xuất JSON & Tool Calling** | **`stealth/ox-alpha`** *(1M tokens, Strict JSON)* | **`cohere/north-mini-code:free`** *(256K tokens, Code Expert)* | **`poolside/laguna-s-2.1:free`** *(262K tokens, Logic & Code)* | **`openrouter/free`** |
+
+* **Đặc tính kỹ thuật cốt lõi**:
+  - **100% Free Tier ($0 Input / $0 Output)**.
+  - **Cửa sổ ngữ cảnh siêu lớn**: Lên đến **1,048,576 tokens (1M tokens)** xử lý toàn bộ bệnh án và dữ liệu lịch sử điều trị mà không lo tràn bộ nhớ.
+  - **Tự động chuyển tầng (Transparent Failover)**: Nếu mô hình Tầng 1 bận hoặc rate limit, hệ thống tự động nhảy sang Tầng 2/3/4 với cùng cấu trúc đầu ra.
+
 
 
