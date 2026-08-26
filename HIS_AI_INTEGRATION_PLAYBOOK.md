@@ -1,4 +1,4 @@
-# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
 > **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
 > **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
@@ -369,14 +369,16 @@ Khi kê y lệnh thay băng rửa vết thương, chăm sóc vết mổ hàng ng
    - Áp dụng cho bệnh nhân phẫu thuật có **tư thế nằm sấp** (Cột sống ngực, thắt lưng, giải ép, CĐCS, BXM) có **tiền sử Đái tháo đường**.
    - Mục đích sàng lọc bệnh võng mạc đái tháo đường, dự phòng thiếu máu thị thần kinh.
 
-### 8.4. Luồng Tự Động Hóa 1-Click: Bí Danh "Thợ Cho Đường Huyết" (HisDiabetesOrchestrator)
-* **Bí danh đặc quyền**: `"thợ cho đường huyết"` (Hoặc `"tho cho duong huyet"`).
-* **Mục tiêu**: Bác sĩ chỉ cần gửi ảnh báo cáo đường huyết của điều dưỡng (hoặc bảng text) kèm lời gọi bí danh, Agent Antigravity tự động trích xuất và thực thi 100% cả 3 tác vụ y lệnh cho toàn bộ bệnh nhân mà **không cần hỏi lại hay bắt bác sĩ chỉnh sửa gì thêm**:
-  1. **Bước 1 (Tờ điều trị)**: Gọi `HisTrackingCreator.exe` ghi nhận kết quả ĐMMM lúc 17h, 21h, 6h và ghi y lệnh tiêm insulin.
-  2. **Bước 2 (Chỉ định CLS BM02426)**: Gọi `HisGlucoseBedsideAssigner.exe` chỉ định xét nghiệm đường máu mao mạch tại giường theo từng mốc giờ (mốc 06:00 tự động tính sang ngày hôm sau).
-  3. **Bước 3 (Kê đơn Insulin)**: Gọi `HisAutoPrescribe.exe --batch` (hoặc CLI) kê đơn thuốc tiêm Insulin từ **Tủ trực Khoa 57 (`MediStockId = 810`)**.
-* **Hai Quy Tắc Cốt Lõi Bắt Buộc Ghi Nhớ**:
-  - 🔍 **Quy tắc 1 (Đối chiếu Bệnh nhân)**: Mặc định lọc, đối chiếu bệnh nhân đang nằm điều trị nội trú tại **Khoa Chấn thương Chỉnh hình & Cột sống (`DEPARTMENT_ID = 57`)**. Nếu không tìm thấy bệnh nhân tại Khoa 57, báo lại ngay cho Bác sĩ.
+### 8.4. Luồng Tự Động Hóa "Thợ Cho Đường Huyết" - Quy Trình Phối Hợp Mới (Cập nhật)
+* **Bí danh đặc quyền**: "thợ cho đường huyết" (Hoặc "tho cho duong huyet").
+* **Quy trình 4 Bước Tối Ưu (Chống Sai Sót & Tăng Tốc Độ)**:
+  1. **Tiếp nhận**: Bác sĩ gửi ảnh/tin nhắn tên rút gọn + số phòng.
+  2. **Tra cứu & Xác nhận**: Agent KHÔNG TỰ BIÊN DỊCH CODE. Agent BẮT BUỘC dùng các tool C# có sẵn (như Find6Patients.exe, QuickQueryPatients.exe hoặc grep log) để tìm **Tên đầy đủ và Mã BN (Patient Code)** đang nằm tại Khoa 57. Sau đó in ra bảng đối chiếu để Bác sĩ xác nhận.
+  3. **Chốt liều**: Bác sĩ gửi y lệnh liều Insulin cho danh sách đã xác nhận.
+  4. **Thực thi**: Agent thực thi 3 tác vụ (Tờ điều trị, Chỉ định CLS BM02426, Kê đơn Insulin) thông qua các tool CLI: HisTrackingCreator.exe, HisGlucoseBedsideAssigner.exe, và HisAutoPrescribe.exe.
+* **Hai Quy Tắc Kỹ Thuật Bắt Buộc Ghi Nhớ**:
+  - 🔍 **Quy tắc 1 (Vị trí thực thi Tool - Gotcha Nghiêm trọng)**: TUYỆT ĐỐI KHÔNG gọi các tool CLI (.exe) từ thư mục con .agents/skills/.... **BẮT BUỘC phải gọi tool trực tiếp tại thư mục gốc d:\his\his-x64-28-11fix GDYK\his-x64\** để hệ thống nhận diện đủ các file DLL cốt lõi (như MOS.EFMODEL.dll).
+  - ⚙️ **Quy tắc 2 (Cơ chế thực thi)**: Không tự tạo script .cs mới. Tận dụng tool có sẵn, chạy tuần tự bằng PowerShell loop để dễ bắt log, không dùng background task ngầm khó kiểm soát.
 
 ### 8.5. Từ Điển Mã Dịch Vụ & Phòng Thực Hiện Chuẩn Khoa CTCH & Cột Sống (Khoa 57) - Ground Truth Lâm Sàng:
 | STT | Phân Loại / Phòng Thực Hiện | Tên Kỹ Thuật Chuẩn | Mã DV (`SERVICE_CODE`) | Service ID | Đối Tượng |
@@ -565,6 +567,8 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **29**| Kê vật tư tiêu hao thay băng bị tính sai viện phí hoặc nhầm kho | Kê từ Kho Dược (4209/4210) hoặc quên bật cờ hao phí | **BẮT BUỘC kê từ Tủ trực Khoa 57 (`MediStockId = 810`)**, đặt `IsCabinet = true`, `IsExpend = true`, `MedicineUseFormId = 25` (*Dùng ngoài*) và `Tutorial = "thay băng"`. Các mục chuẩn: **Povidone 10% 125ml (`TH.POVI008` - ID 17385)** và **Muối rửa NaCl 0.9% 500ml (`TH.NATR047` - ID 27127)**. |
 | **30**| Kê đơn Insulin (Actrapid/Lantus/Mixtard) từ Tủ Trực 810 bị từ chối lượng tồn kho | Truyền `Amount` là số nguyên UI (VD: `8.0`) khiến MOS hiểu là 8 lọ (8000 IU) | **Tỷ lệ quy đổi bắt buộc: `Amount = UI / 1000.0m`** (VD `8 UI` = `0.0080 lọ`, `9 UI` = `0.0090 lọ`). `MedicineTypeId = 27727` (`TH.ACTR004`), `MediStockId = 810`, `MedicineUseFormId = 15` (*Tiêm*), các cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD `"08"`), `IsExpend = false`. |
 | **31**| Agent rơi vào vòng lặp thử-sai (trial-and-error loop) quá lâu khi API backend từ chối | Tự ý viết script test liên tiếp khi API trả `Success: false` âm thầm làm BS phải chờ đợi | **Quy tắc giới hạn 2 lần (Max 2 Attempts)**: Nếu sau 2 lần gọi API mà backend từ chối không rõ mã lỗi, Agent PHẢI DỪNG NGAY LẬP TỨC. Báo cáo minh bạch các tác vụ ĐÃ XONG (Tờ điều trị, Chỉ định CLS) và bàn giao lại để BS thao tác nhanh trên UI, tuyệt đối không để ảnh hưởng tiến độ khám chữa bệnh. |
+  | **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án `d:\his\his-x64-28-11fix GDYK\his-x64\`. |
+  | **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án `d:\his\his-x64-28-11fix GDYK\his-x64\`. |
 
 ---
 
@@ -621,3 +625,6 @@ Dự án đã được trang bị sẵn 2 kịch bản tự động hóa 1-click
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
+
+
