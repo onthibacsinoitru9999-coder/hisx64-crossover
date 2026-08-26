@@ -389,17 +389,18 @@ var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsu
 | | | Đo mật độ xương DEXA [1 vị trí] *(P202 - Nhà K2 - Room 6462)* | `BM08084` | `160` | BHYT (`1`) |
 | | | Siêu âm Doppler tim, van tim *(P112 T1 Nhà K2 - Room 16987)* | `BM00201` | `5569` | BHYT (`1`) |
 
-- 💉 **Quy tắc 2 (Kho Thuốc Insulin)**: Đơn thuốc Insulin theo dõi đường huyết **BẮT BUỘC chỉ định từ Kho Tủ Trực Khoa 57 (`MediStockId = 810` - `TT_KCTCHCS`)**, **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
-* **Quy chuẩn ký hiệu viết tắt Insulin của Điều dưỡng**:
-  - **`R`** (VD: **`6R`**, **`8R`**, **`4R`**): là **Actrapid** (Insulin Regular tác dụng nhanh). Ví dụ `6R` = `6 đơn vị Actrapid`.
-  - **`L`** (VD: **`10L`**, **`12L`**, **`14L`**): là **Lantus** (Insulin Glargine nền kéo dài). Ví dụ `10L` = `10 đơn vị Lantus`.
-  - **`M`** (VD: **`8M`**, **`10M`**, **`12M`**): là **Mixtard** (Insulin hỗn hợp / Mix). Ví dụ `8M` = `8 đơn vị Mixtard`.
-* **Bộ công cụ cốt lõi**:
-  - Script điều phối: [`HisDiabetesOrchestrator.ps1`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HisDiabetesOrchestrator.ps1)
-  - Parser thị giác: [`parse_glucose_image.py`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/parse_glucose_image.py)
-  - Công cụ kê đơn hàng loạt: [`HisAutoPrescribe.exe --batch`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HisAutoPrescribe.exe)
-  - Công cụ chỉ định ĐMMM: [`HisGlucoseBedsideAssigner.exe`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/.agents/skills/his-clinical-operations/scripts/HisGlucoseBedsideAssigner.exe)
-  - Công cụ tạo tờ điều trị: [`HisTrackingCreator.exe`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/.agents/skills/his-clinical-operations/scripts/HisTrackingCreator.exe)
+### 8.6. Quy Tắc Bắt Buộc: Gom Nhóm Y Lệnh Xét Nghiệm Tránh Nhân Bản Ống Máu (Specimen & Tube Bundling Rule):
+* ⚠️ **Nguyên nhân cốt lõi**: Mỗi một `SERVICE_REQ` khi được tạo sẽ sinh ra **một mã barcode / tem phiếu xét nghiệm riêng biệt** trên hệ thống LIS. Điều dưỡng buồng bệnh sẽ dựa vào số lượng barcode để dán tem và lấy số ống nghiệm / bệnh phẩm tương ứng.
+* 🚨 **Cảnh báo lỗi nghiêm trọng**: Nếu lặp vòng lặp tạo lẻ từng xét nghiệm sinh hóa, huyết học hoặc vi sinh thành nhiều `SERVICE_REQ` riêng biệt $\rightarrow$ Hệ thống in ra $N$ tem barcode khác nhau $\rightarrow$ **Bệnh nhân sẽ bị lấy $N$ ống máu/mẫu bệnh phẩm riêng biệt**, gây đau đớn, lãng phí ống nghiệm và quá tải phòng xét nghiệm.
+* 🎯 **Quy tắc Gom Y Lệnh Chuẩn Lâm Sàng (1 Request = 1 Ống / 1 Bệnh Phẩm / 1 Phòng Tiếp Nhận)**:
+  1. 🟣 **Ống EDTA (Nắp tím) - Phòng 1772 (Huyết học Tế bào)**: Gom CTM (`5745`) + Máu lắng (`5686`) vào chung **1 `SERVICE_REQ`** $\rightarrow$ Lấy 1 ống máu EDTA.
+  2. 🔵 **Ống Citrate (Nắp xanh lam) - Phòng 626 (Đông máu)**: Gom PT/TQ (`5713`) + APTT/TCK (`63622`) + Fibrinogen (`5716`) vào chung **1 `SERVICE_REQ`** $\rightarrow$ Lấy 1 ống máu Citrate.
+  3. 🔴 **Ống Serum/Heparin (Nắp đỏ/vàng) - Phòng 410 (Sinh hóa)**: Gom toàn bộ Ure (`5923`) + Creatinin (`5934`) + AST (`5834`) + ALT (`5833`) + Glucose (`5864`) + Điện giải đồ (`5853`) + CRP (`5995`) vào chung **1 `SERVICE_REQ`** $\rightarrow$ Lấy 1 ống máu Sinh hóa.
+  4. 🟡 **Ống Miễn Dịch (Nắp vàng/đỏ) - Phòng 871 (Virus Miễn dịch)**: Gom HIV (`6020`) + HBsAg (`6135`) + HCV (`34801`) vào chung **1 `SERVICE_REQ`** $\rightarrow$ Lấy 1 ống máu Miễn dịch.
+  5. 🧪 **Lọ Nước Tiểu - Phòng 566 (Nước tiểu)**: Tổng phân tích nước tiểu 10 thông số (`5950`) $\rightarrow$ 1 `SERVICE_REQ` lấy 1 lọ nước tiểu.
+  6. 🧫 **Bộ Bệnh Phẩm Vi Sinh / Cấy Máu / Dịch Mủ - Phòng 4374 (Vi khuẩn - Vi nấm)**: BẮT BUỘC gom Cấy vi khuẩn định danh (`6054`) + Đính kèm KSD (`38374`) vào chung **1 `SERVICE_REQ`** $\rightarrow$ Để chung 1 mã bệnh phẩm và không phát sinh chi phí thừa.
+  7. 🫁 **Bộ Ống Chuyên Dụng QuantiFERON - Phòng 9645 (Chuyển BV Phổi TW)**: `36522` $\rightarrow$ 1 `SERVICE_REQ` riêng (Đối tượng Yêu Cầu `43`).
+  8. 🖥️ **Chẩn Đoán Hình Ảnh CLVT - Phòng 17549 (Tiếp đón CLVT Nội trú)**: Gom các kỹ thuật CLVT chỉ định cùng đợt (CLVT Phổi `58181` + CLVT CSTL `58191`) vào chung **1 `SERVICE_REQ`**.
 
 ---
 
@@ -466,6 +467,7 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **18**| Kê thuốc nhóm PPI (Nexium, Pantoloc...) bị xuất toán BHYT | Hồ sơ bệnh án thiếu chẩn đoán phụ bệnh lý dạ dày (`K29`, `K25`, `K21`...) | Nếu chưa có chẩn đoán dạ dày, **chưa được tự ý kê PPI** mà phải **đề xuất Bác sĩ bổ sung chẩn đoán phụ** trước khi kê đơn |
 | **19**| Bệnh nhân mới vào viện buổi chiều bị chậm thuốc sáng hôm sau | Thuốc kê từ Kho Dược (4209/4210/804) sau 14h chiều thì 10h sáng mai mới duyệt trả | **Chia đơn làm 2 phần**: Phần không có tủ trực kê từ Kho Dược; Phần có trong Tủ trực 57 (810) **đề xuất sáng mai BS vào kê tủ trực dùng ngay cữ sáng** |
 | **20**| Tự đoán / Suy diễn sai họ tên Bác sĩ / PTV từ mã login viết tắt | Login trên HIS là mã viết tắt (VD `tmd2` = Trịnh Minh Đức), Agent tự đoán chữ cái dẫn đến bịa tên bác sĩ | **Tuyệt đối KHÔNG tự đoán tên từ mã viết tắt**. Bắt buộc đọc từ trường chữ ký/chức danh, EMR Signature, `ACS_USER` hoặc đối chiếu bảng danh mục Bác sĩ. Ghi nhớ: `tmd2` / `tmd` = **BS TRỊNH MINH ĐỨC**. |
+| **21**| Bệnh nhân bị chọc nhiều mũi / lấy thừa nhiều ống máu khi chỉ định xét nghiệm | Chỉ định tách rời các xét nghiệm cùng nhóm mẫu/phòng thành nhiều `SERVICE_REQ` riêng biệt khiến LIS sinh nhiều barcode | **BẮT BUỘC gom nhóm các xét nghiệm cùng phòng/loại mẫu vào chung 1 `SERVICE_REQ`** (1 phiếu = 1 mã ống máu EDTA/Citrate/Serum/Nước tiểu/Vi sinh). Cấy vi khuẩn và Kháng sinh đồ `BMDK01` phải chung 1 phiếu. |
 
 ---
 
