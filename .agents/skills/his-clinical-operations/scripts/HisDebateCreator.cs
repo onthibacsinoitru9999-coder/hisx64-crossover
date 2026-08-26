@@ -79,14 +79,16 @@ public class HisDebateCreator
         Console.OutputEncoding = Encoding.UTF8;
 
         Console.WriteLine("==========================================================================");
-        Console.WriteLine("   🏥 HIS DEBATE CREATOR - CÔNG CỤ TẠO CHỈ ĐỊNH HỘI CHẨN CHUYÊN KHOA   ");
+        Console.WriteLine("   🏥 HIS DEBATE CREATOR - CHỈ ĐỊNH & BIÊN BẢN HỘI CHẨN CHUYÊN KHOA     ");
         Console.WriteLine("==========================================================================");
 
         string treatmentCode = "";
         string specialist = "ck tạo hình thẩm mỹ";
         string summary = "";
+        string discussion = "";
         string icdCode = "";
         string icdName = "";
+        string location = "Khoa Chấn thương Chỉnh hình và Cột sống";
         string presidentLogin = "hdc";
         string presidentName = "HÀ ĐỨC CƯỜNG";
         string secretaryLogin = "034727";
@@ -95,31 +97,52 @@ public class HisDebateCreator
 
         for (int i = 0; i < args.Length; i++)
         {
-            if ((args[i] == "-t" || args[i] == "--treatment-code" || args[i] == "--treatment") && i + 1 < args.Length)
+            string k = args[i].ToLower();
+            if ((k == "-t" || k == "--treatment-code" || k == "--treatment" || k == "-p") && i + 1 < args.Length)
                 treatmentCode = args[++i];
-            else if ((args[i] == "-s" || args[i] == "--specialist") && i + 1 < args.Length)
+            else if ((k == "-s" || k == "--specialist" || k == "--ck") && i + 1 < args.Length)
                 specialist = args[++i];
-            else if ((args[i] == "-m" || args[i] == "--summary" || args[i] == "--reason") && i + 1 < args.Length)
+            else if ((k == "-m" || k == "--summary" || k == "--reason") && i + 1 < args.Length)
                 summary = args[++i];
-            else if (args[i] == "--icd" && i + 1 < args.Length)
+            else if ((k == "-d" || k == "--discussion" || k == "--conclusion") && i + 1 < args.Length)
+                discussion = args[++i];
+            else if ((k == "-l" || k == "--location") && i + 1 < args.Length)
+                location = args[++i];
+            else if (k == "--icd" && i + 1 < args.Length)
                 icdCode = args[++i];
-            else if (args[i] == "--icd-name" && i + 1 < args.Length)
+            else if (k == "--icd-name" && i + 1 < args.Length)
                 icdName = args[++i];
-            else if (args[i] == "--president" && i + 1 < args.Length)
+            else if (k == "--president" && i + 1 < args.Length)
+            {
                 presidentLogin = args[++i];
-            else if (args[i] == "--secretary" && i + 1 < args.Length)
+                if (presidentLogin.ToLower() == "hdc") presidentName = "HÀ ĐỨC CƯỜNG";
+                else if (presidentLogin.ToLower() == "034727") presidentName = "NGUYỄN HỮU SÂM";
+                else if (presidentLogin.ToLower() == "vmc") presidentName = "VŨ MINH CƯỜNG";
+                else if (presidentLogin.ToLower() == "tmd" || presidentLogin.ToLower() == "tmd2") presidentName = "TRỊNH MINH ĐỨC";
+            }
+            else if (k == "--secretary" && i + 1 < args.Length)
+            {
                 secretaryLogin = args[++i];
+                if (secretaryLogin.ToLower() == "034727") secretaryName = "NGUYỄN HỮU SÂM";
+                else if (secretaryLogin.ToLower() == "vmc") secretaryName = "VŨ MINH CƯỜNG";
+                else if (secretaryLogin.ToLower() == "hdc") secretaryName = "HÀ ĐỨC CƯỜNG";
+                else if (secretaryLogin.ToLower() == "ndh2") secretaryName = "NGUYỄN ĐỨC HOÀNG";
+            }
         }
 
         if (string.IsNullOrEmpty(treatmentCode))
         {
-            Console.WriteLine("Sử dụng:");
-            Console.WriteLine("  HisDebateCreator.exe --treatment 000007070917 --specialist \"ck tạo hình thẩm mỹ\" --summary \"...\"");
-            Console.WriteLine("  Các tham số tùy chọn:");
-            Console.WriteLine("    --icd <mã_icd>          Mã ICD chẩn đoán (VD: S91.0)");
-            Console.WriteLine("    --icd-name <tên_icd>    Tên chẩn đoán ICD");
-            Console.WriteLine("    --president <loginname> Mã bác sĩ chủ tọa (Mặc định: hdc - HÀ ĐỨC CƯỜNG)");
-            Console.WriteLine("    --secretary <loginname> Mã bác sĩ thư ký (Mặc định: 034727 - NGUYỄN HỮU SÂM)");
+            Console.WriteLine("HƯỚNG DẪN SỬ DỤNG:");
+            Console.WriteLine("  HisDebateCreator.exe -t <mã_bệnh_án> -s <chuyên_khoa> -m <tóm_tắt_bệnh_án> [-l <địa_điểm>]");
+            Console.WriteLine("\nVÍ DỤ THỰC TẾ:");
+            Console.WriteLine("  1. Hội chẩn Tạo hình thẩm mỹ (vết thương lóc da):");
+            Console.WriteLine("     HisDebateCreator.exe -t 000007070917 -s \"ck tạo hình thẩm mỹ\" -m \"Bn nam Vết thương phức tạp mu bàn chân (P). Hiện tại có diện hoại tử vạt ngược 4cm, xin ý kiến CK tạo hình phối hợp điều trị.\"");
+            Console.WriteLine("\n  2. Hội chẩn Tim mạch (tăng huyết áp / rối loạn nhịp):");
+            Console.WriteLine("     HisDebateCreator.exe -t 000007070917 -s \"Viện Tim Mạch\" -m \"Bệnh nhân tiền sử THA, rung nhĩ, xin ý kiến tối ưu hóa huyết động trước phẫu thuật.\"");
+            Console.WriteLine("\n  3. Tùy chọn bác sĩ ký:");
+            Console.WriteLine("     --president hdc    (Chủ tọa: BS Hà Đức Cường - mặc định)");
+            Console.WriteLine("     --secretary 034727 (Thư ký: Ths.BS Nguyễn Hữu Sâm - mặc định) hoặc --secretary vmc (BS Vũ Minh Cường)");
+            Console.WriteLine("     --location \"Phòng 716 Khoa 57\" (Địa điểm hội chẩn)");
             return;
         }
 
@@ -133,7 +156,7 @@ public class HisDebateCreator
         string tokenCode = GetLiveToken();
         if (string.IsNullOrEmpty(tokenCode))
         {
-            Console.WriteLine("[INFO] Không tìm thấy Live Token, thực hiện đăng nhập tự động...");
+            Console.WriteLine("[INFO] Đang đăng nhập tự động lấy Token...");
             ClientTokenManager tokenManager = new ClientTokenManager("HIS");
             var token = tokenManager.Login(commonParam, "034727", "9981", "2.390.0");
             if (token != null && !string.IsNullOrEmpty(token.TokenCode))
@@ -149,7 +172,7 @@ public class HisDebateCreator
         }
         else
         {
-            Console.WriteLine("[SUCCESS] Sử dụng Live Token từ Client: " + tokenCode.Substring(0, 8) + "...");
+            Console.WriteLine("[SUCCESS] Sử dụng Live Token: " + tokenCode.Substring(0, 8) + "...");
         }
 
         ApiConsumers.SetConsunmer(tokenCode);
@@ -170,7 +193,7 @@ public class HisDebateCreator
         catch { }
 
         // 2. Tra cứu đợt điều trị
-        Console.WriteLine("[INFO] Đang tra cứu đợt điều trị cho mã: " + treatmentCode);
+        Console.WriteLine("[INFO] Đang tra cứu hồ sơ điều trị: " + treatmentCode);
         var treatmentFilter = new HisTreatmentViewFilter
         {
             TREATMENT_CODE__EXACT = treatmentCode.PadLeft(12, '0')
@@ -191,9 +214,15 @@ public class HisDebateCreator
 
         if (string.IsNullOrEmpty(icdCode)) icdCode = tm.ICD_CODE ?? "S91.0";
         if (string.IsNullOrEmpty(icdName)) icdName = tm.ICD_NAME ?? "Vết thương bàn chân";
+        
         if (string.IsNullOrEmpty(summary))
         {
             summary = string.Format("Bệnh nhân {0} chẩn đoán {1}. Hiện tại có tổn thương cần xin ý kiến {2} xét nhận điều trị / phối hợp.", tm.TDL_PATIENT_NAME, icdName, specialist);
+        }
+
+        if (string.IsNullOrEmpty(discussion))
+        {
+            discussion = summary;
         }
 
         // 3. Chuẩn bị DTO HIS_DEBATE
@@ -211,10 +240,10 @@ public class HisDebateCreator
             TREATMENT_TRACKING = summary,
             TREATMENT_FROM_TIME = tm.IN_TIME,
             TREATMENT_METHOD = "",
-            LOCATION = "Khoa Chấn thương Chỉnh hình và Cột sống",
+            LOCATION = location,
             REQUEST_CONTENT = specialist,
-            DISCUSSION = summary,
-            CONTENT_TYPE = 1, // Hội chẩn chuyên khoa
+            DISCUSSION = discussion,
+            CONTENT_TYPE = 1, // 1: Hội chẩn chuyên khoa
             HIS_DEBATE_USER = new List<HIS_DEBATE_USER>
             {
                 new HIS_DEBATE_USER
@@ -234,7 +263,7 @@ public class HisDebateCreator
             }
         };
 
-        // 4. Gửi y lệnh tạo Hội chẩn
+        // 4. Gửi y lệnh tạo Hội chẩn và sinh Tờ điều trị tự động
         Console.WriteLine("[INFO] Đang gửi yêu cầu Hội chẩn Chuyên khoa (api/HisDebate/CreateAutoTracking)...");
         var result = adapter.PostData<HIS_DEBATE>("api/HisDebate/CreateAutoTracking", ApiConsumers.MosConsumer, debate, commonParam);
 
@@ -242,14 +271,17 @@ public class HisDebateCreator
         {
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("==========================================================================");
-            Console.WriteLine(string.Format("✅ TẠO HỘI CHẨN CHUYÊN KHOA THÀNH CÔNG! (DEBATE_ID: {0})", result.ID));
-            Console.WriteLine(string.Format("   - Thời gian   : {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
-            Console.WriteLine(string.Format("   - Bệnh nhân   : {0} ({1})", tm.TDL_PATIENT_NAME, tm.TREATMENT_CODE));
-            Console.WriteLine(string.Format("   - Chuyên khoa : {0}", specialist));
-            Console.WriteLine(string.Format("   - Chủ tọa     : {0} ({1})", presidentName, presidentLogin));
-            Console.WriteLine(string.Format("   - Thư ký      : {0} ({1})", secretaryName, secretaryLogin));
-            Console.WriteLine(string.Format("   - Nội dung    : {0}", summary));
-            Console.WriteLine("   - Biểu mẫu in : Mps000019 (Trích biên bản hội chẩn) - EMR Type 17");
+            Console.WriteLine(string.Format("✅ BƯỚC 1: TẠO PHIẾU YÊU CẦU HỘI CHẨN THÀNH CÔNG! (DEBATE_ID: {0})", result.ID));
+            Console.WriteLine(string.Format("✅ BƯỚC 2: TỰ ĐỘNG SINH BIÊN BẢN & TỜ ĐIỀU TRỊ ĐỒNG BỘ THÀNH CÔNG!"));
+            Console.WriteLine(string.Format("   - Thời gian    : {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+            Console.WriteLine(string.Format("   - Bệnh nhân    : {0} ({1})", tm.TDL_PATIENT_NAME, tm.TREATMENT_CODE));
+            Console.WriteLine(string.Format("   - Chuyên khoa  : {0}", specialist));
+            Console.WriteLine(string.Format("   - Địa điểm     : {0}", location));
+            Console.WriteLine(string.Format("   - Chủ tọa (Ký) : {0} ({1})", presidentName, presidentLogin));
+            Console.WriteLine(string.Format("   - Thư ký (Ký)  : {0} ({1})", secretaryName, secretaryLogin));
+            Console.WriteLine(string.Format("   - Tóm tắt BA   : {0}", summary));
+            Console.WriteLine(string.Format("   - Đề xuất CK   : {0}", discussion));
+            Console.WriteLine("   - Biểu mẫu in  : Mps000019 (Trích biên bản hội chẩn) - EMR Type 17");
             Console.WriteLine("==========================================================================");
             Console.ResetColor();
         }
