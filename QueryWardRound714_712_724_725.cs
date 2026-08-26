@@ -57,15 +57,61 @@ namespace WardRoundQuery
             try
             {
                 Load.Init();
-                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
                 CommonParam param = new CommonParam();
-                var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-                if (token == null)
+                string tokenCode = "";
+
+                try
+                {
+                    string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"Logs\LogSystem.txt");
+                    if (File.Exists(logPath))
+                    {
+                        using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        using (var sr = new StreamReader(fs))
+                        {
+                            string text = sr.ReadToEnd();
+                            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                            for (int i = lines.Length - 1; i >= 0; i--)
+                            {
+                                if (lines[i].Contains("TokenCode|"))
+                                {
+                                    int tIdx = lines[i].IndexOf("TokenCode|") + 10;
+                                    if (lines[i].Length >= tIdx + 64)
+                                    {
+                                        tokenCode = lines[i].Substring(tIdx, 64);
+                                        Log("Found live token from LogSystem.txt: " + tokenCode.Substring(0, 8) + "...");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log("Could not read live token: " + ex.Message);
+                }
+
+                if (string.IsNullOrEmpty(tokenCode))
+                {
+                    ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                    var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                    if (token == null)
+                    {
+                        token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+                    }
+                    if (token != null)
+                    {
+                        tokenCode = token.TokenCode;
+                        Log("Logged in successfully with token: " + tokenCode.Substring(0, 8) + "...");
+                    }
+                }
+
+                if (string.IsNullOrEmpty(tokenCode))
                 {
                     Log("LOGIN FAILED!");
                     return;
                 }
-                ApiConsumers.SetConsunmer(token.TokenCode);
+                var mosConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.236:1608/", tokenCode, "MOS");
                 MyAdapter adapter = new MyAdapter();
 
                 Log("==========================================================================");
@@ -75,7 +121,7 @@ namespace WardRoundQuery
                 // 1. Lấy tất cả buồng bệnh trong Khoa 57
                 HisBedRoomViewFilter bf = new HisBedRoomViewFilter();
                 bf.DEPARTMENT_ID = 57;
-                var bList = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", ApiConsumers.MosConsumer, bf, param);
+                var bList = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
                 
                 string[] targetRoomKeywords = new string[] { "714", "712", "724", "725" };
                 List<V_HIS_BED_ROOM> matchedRooms = new List<V_HIS_BED_ROOM>();
@@ -101,7 +147,7 @@ namespace WardRoundQuery
                     HisTreatmentBedRoomLViewFilter tbrf = new HisTreatmentBedRoomLViewFilter();
                     tbrf.BED_ROOM_ID = rm.ID;
                     tbrf.IS_IN_ROOM = true;
-                    var pts = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", ApiConsumers.MosConsumer, tbrf, param);
+                    var pts = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, tbrf, param);
                     if (pts != null && pts.Count > 0)
                     {
                         targetPatients.AddRange(pts);
@@ -122,7 +168,7 @@ namespace WardRoundQuery
                     // Treatment
                     HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
                     tf.ID = treatmentId;
-                    var tList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+                    var tList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
                     var t = tList != null ? tList.FirstOrDefault() : null;
 
                     if (t != null)
@@ -140,7 +186,7 @@ namespace WardRoundQuery
                     // Department Transfers
                     HisDepartmentTranViewFilter dtf = new HisDepartmentTranViewFilter();
                     dtf.TREATMENT_ID = treatmentId;
-                    var dts = adapter.FetchList<V_HIS_DEPARTMENT_TRAN>("api/HisDepartmentTran/GetView", ApiConsumers.MosConsumer, dtf, param);
+                    var dts = adapter.FetchList<V_HIS_DEPARTMENT_TRAN>("api/HisDepartmentTran/GetView", mosConsumer, dtf, param);
                     if (dts != null && dts.Count > 0)
                     {
                         Log("\n--- LỊCH SỬ CHUYỂN KHOA / VÀO KHOA ---");
@@ -154,7 +200,7 @@ namespace WardRoundQuery
                     // DHST
                     HisDhstViewFilter dhstFilter = new HisDhstViewFilter();
                     dhstFilter.TREATMENT_ID = treatmentId;
-                    var dhsts = adapter.FetchList<V_HIS_DHST>("api/HisDhst/GetView", ApiConsumers.MosConsumer, dhstFilter, param);
+                    var dhsts = adapter.FetchList<V_HIS_DHST>("api/HisDhst/GetView", mosConsumer, dhstFilter, param);
                     if (dhsts != null && dhsts.Count > 0)
                     {
                         Log("\n--- DẤU HIỆU SINH TỒN (GẦN NHẤT ĐẾN CŨ NHẤT) ---");
@@ -168,7 +214,7 @@ namespace WardRoundQuery
                     // Trackings (Tất cả tờ điều trị)
                     HisTrackingViewFilter trkFilter = new HisTrackingViewFilter();
                     trkFilter.TREATMENT_ID = treatmentId;
-                    var trks = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, trkFilter, param);
+                    var trks = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", mosConsumer, trkFilter, param);
                     if (trks != null && trks.Count > 0)
                     {
                         Log("\n--- LỊCH SỬ TỜ ĐIỀU TRỊ & DIỄN BIẾN LÂM SÀNG ---");
@@ -188,7 +234,7 @@ namespace WardRoundQuery
                     // SereServ (Tất cả dịch vụ: CĐHA, TDCN, Phẫu thuật, Thủ thuật, Xét nghiệm)
                     HisSereServViewFilter ssFilter = new HisSereServViewFilter();
                     ssFilter.TREATMENT_ID = treatmentId;
-                    var sss = adapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", ApiConsumers.MosConsumer, ssFilter, param);
+                    var sss = adapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssFilter, param);
                     if (sss != null && sss.Count > 0)
                     {
                         Log("\n--- TỔNG HỢP CẬN LÂM SÀNG, HÌNH ẢNH & CAN THIỆP PHẪU THUẬT ---");
@@ -203,7 +249,7 @@ namespace WardRoundQuery
                     // Tein (Chi tiết các chỉ số xét nghiệm)
                     HisSereServTeinViewFilter teinFilter = new HisSereServTeinViewFilter();
                     teinFilter.TDL_TREATMENT_ID = treatmentId;
-                    var teins = adapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", ApiConsumers.MosConsumer, teinFilter, param);
+                    var teins = adapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", mosConsumer, teinFilter, param);
                     if (teins != null && teins.Count > 0)
                     {
                         Log("\n--- KẾT QUẢ XÉT NGHIỆM CHI TIẾT ---");
@@ -222,7 +268,7 @@ namespace WardRoundQuery
                     // ServiceReq (Các yêu cầu y lệnh, đơn thuốc, chỉ định)
                     HisServiceReqViewFilter srf = new HisServiceReqViewFilter();
                     srf.TREATMENT_ID = treatmentId;
-                    var srs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", ApiConsumers.MosConsumer, srf, param);
+                    var srs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
                     if (srs != null && srs.Count > 0)
                     {
                         Log("\n--- CÁC PHIẾU Y LỆNH & ĐƠN THUỐC ĐÃ KÊ (SERVICE_REQ) ---");
@@ -236,7 +282,7 @@ namespace WardRoundQuery
                     // Thuốc đã xuất / đã kê (ExpMestMedicine)
                     HisExpMestMedicineViewFilter emf = new HisExpMestMedicineViewFilter();
                     emf.TDL_TREATMENT_ID = treatmentId;
-                    var ems = adapter.FetchList<V_HIS_EXP_MEST_MEDICINE>("api/HisExpMestMedicine/GetView", ApiConsumers.MosConsumer, emf, param);
+                    var ems = adapter.FetchList<V_HIS_EXP_MEST_MEDICINE>("api/HisExpMestMedicine/GetView", mosConsumer, emf, param);
                     if (ems != null && ems.Count > 0)
                     {
                         Log("\n--- CHI TIẾT THUỐC ĐÃ KÊ / XUẤT DƯỢC ---");

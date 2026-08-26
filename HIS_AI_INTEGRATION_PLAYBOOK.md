@@ -20,6 +20,7 @@
 13. [Bảng Tổng Hợp 28+ Sai Lầm & Bài Học Xương Máu (Gotchas Matrix)](#13-bảng-tổng-hợp-28-sai-lầm--bài-học-xương-máu-gotchas-matrix)
 14. [Hướng Dẫn Biên Dịch & Chạy Công Cụ CLI Tức Thì](#14-hướng-dẫn-biên-dịch--chạy-công-cụ-cli-tức-thì)
 15. [Cơ Chế Đồng Bộ Tri Thức 1-Click Giữa Máy Bàn & Laptop](#15-cơ-chế-đồng-bộ-tri-thức-1-click-giữa-máy-bàn--laptop)
+16. [Quy Chuẩn Tích Hợp OpenRouter & Mô Hình Miễn Phí stealth/ox-alpha](#16-quy-chuẩn-tích-hợp-openrouter--mô-hình-miễn-phí-stealthox-alpha)
 
 ---
 
@@ -569,7 +570,7 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **31**| Agent rơi vào vòng lặp thử-sai (trial-and-error loop) quá lâu khi API backend từ chối | Tự ý viết script test liên tiếp khi API trả `Success: false` âm thầm làm BS phải chờ đợi | **Quy tắc giới hạn 2 lần (Max 2 Attempts)**: Nếu sau 2 lần gọi API mà backend từ chối không rõ mã lỗi, Agent PHẢI DỪNG NGAY LẬP TỨC. Báo cáo minh bạch các tác vụ ĐÃ XONG (Tờ điều trị, Chỉ định CLS) và bàn giao lại để BS thao tác nhanh trên UI, tuyệt đối không để ảnh hưởng tiến độ khám chữa bệnh. |
 | **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án hoặc dùng Hook `AssemblyResolve` đa tầng. |
 | **33**| Lỗi biên dịch CS0117: `WorkInfoSDO` không có thuộc tính `DepartmentId`/`BranchId` | `WorkInfoSDO` trong `MOS.SDO.dll` chỉ chứa danh sách `Rooms` (`List<RoomSDO>`) | Khởi tạo đúng: `new WorkInfoSDO { Rooms = new List<RoomSDO> { new RoomSDO { RoomId = 5248 }, ... } }`. |
-| **34**| Mô hình AI OpenRouter trả lỗi `402 Payment Required` (hết credit) | Gọi mô hình thương mại vượt quá số dư tài khoản | Sử dụng ID định tuyến miễn phí **`openrouter/free`** hoặc các mô hình có hậu tố `:free` (`google/gemma-4-31b-it:free`, `minimax/minimax-m3:free`). |
+| **34**| Mô hình AI OpenRouter trả lỗi `402 Payment Required` (hết credit) hoặc cần gọi API AI bên ngoài | Gọi mô hình thương mại vượt quá số dư tài khoản hoặc chưa thiết lập mô hình mặc định | **BẮT BUỘC ƯU TIÊN** sử dụng **`stealth/ox-alpha`** (Mô hình Free Tier $0, Context khủng 1M tokens, Max completion 131k, hỗ trợ đầy đủ Reasoning, Vision OCR và JSON Structured Output) hoặc các mô hình `:free` (`openrouter/free`, `google/gemma-4-31b-it:free`, `minimax/minimax-m3:free`). |
 
 ---
 
@@ -636,6 +637,83 @@ Dự án đã được trang bị sẵn 2 kịch bản tự động hóa 1-click
   - Thực hiện commit và push lên `origin main`.
 * **Kéo cập nhật về máy (`sync_pull.bat`)**:
   - 1-click tự động kéo toàn bộ tri thức, kỹ năng, cẩm nang mới nhất từ máy kia về.
+
+---
+
+## 16. QUY CHUẨN TÍCH HỢP OPENROUTER & MÔ HÌNH MIỄN PHÍ `stealth/ox-alpha`
+
+### 16.1. Tổng quan & Thông số Kỹ thuật
+Khi hệ thống hoặc Agent cần thực hiện các tác vụ suy luận thông minh, đọc hiểu văn bản dài, xử lý OCR ảnh phiếu điều dưỡng / báo cáo y tế / tóm tắt hồ sơ bệnh án bằng mô hình ngôn ngữ lớn (LLM) qua API bên ngoài, **BẮT BUỘC ƯU TIÊN SỬ DỤNG MÔ HÌNH `stealth/ox-alpha`** trên OpenRouter:
+
+* **Model Identifier**: **`stealth/ox-alpha`**
+* **Base URL**: `https://openrouter.ai/api/v1`
+* **Chat Completions Endpoint**: `https://openrouter.ai/api/v1/chat/completions`
+* **Chi phí**: **Free Tier ($0/1M prompt tokens, $0/1M completion tokens)**.
+* **Cửa sổ ngữ cảnh (Context Window)**: **1,048,576 tokens (1M tokens)** — đáp ứng hoàn hảo cho các hồ sơ bệnh án đồ sộ, nhiều trang kết quả xét nghiệm, lịch sử điều trị kéo dài hàng tháng.
+* **Độ dài đầu ra tối đa (Max Completion)**: **131,072 tokens**.
+* **Hỗ trợ Đa phương thức (Multimodal)**: `text + image + video -> text` (gửi ảnh qua URL base64 `data:image/jpeg;base64,...`).
+* **Tính năng chuyên sâu**:
+  - **Reasoning (CoT)**: Tự động tư duy, lập luận lâm sàng nhiều bước trước khi xuất kết quả.
+  - **Structured Outputs**: Xuất định dạng JSON nghiêm ngặt (`response_format: {"type": "json_object"}`).
+  - **Tool Calling**: Hỗ trợ gọi function/tools định dạng OpenAI standard.
+
+### 16.2. Cấu hình & Headers Chuẩn khi Gọi API
+```http
+POST https://openrouter.ai/api/v1/chat/completions HTTP/1.1
+Authorization: Bearer <OPENROUTER_API_KEY>
+Content-Type: application/json; charset=utf-8
+HTTP-Referer: https://github.com/onthibacsinoitru9999-coder/hisx64-crossover
+X-Title: HIS AI Integration Suite
+```
+
+### 16.3. Mã nguồn Mẫu Tích hợp Python Chuẩn (Tự Động Nạp Key & Gọi `stealth/ox-alpha`):
+```python
+import urllib.request
+import json
+import os
+
+def call_ox_alpha(prompt: str, system_prompt: str = "", json_mode: bool = False) -> str:
+    """Gọi OpenRouter stealth/ox-alpha miễn phí 100% không tốn chi phí"""
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                api_key, _ = winreg.QueryValueEx(key, "OPENROUTER_API_KEY")
+        except Exception:
+            pass
+
+    if not api_key:
+        raise ValueError("Chưa thiết lập biến môi trường OPENROUTER_API_KEY!")
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": "stealth/ox-alpha",
+        "messages": messages,
+        "max_tokens": 8192
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json; charset=utf-8",
+            "HTTP-Referer": "https://github.com/onthibacsinoitru9999-coder/hisx64-crossover",
+            "X-Title": "HIS AI Integration Suite"
+        }
+    )
+
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"]
+```
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*

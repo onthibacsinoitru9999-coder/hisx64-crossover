@@ -57,3 +57,16 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
      * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
   4. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
 
+## 6. QUY TẮC MÔ HÌNH MIỄN PHÍ OPENROUTER: ƯU TIÊN SỬ DỤNG `stealth/ox-alpha` KHI CẦN GỌI API / LLM
+* **Mô hình cốt lõi**: **`stealth/ox-alpha`** trên OpenRouter (`https://openrouter.ai/api/v1`).
+* **Đặc tính kỹ thuật vượt trội**:
+  - **Chi phí**: **Free Tier ($0 Input / $0 Output)** — hoàn toàn miễn phí 100%.
+  - **Cửa sổ ngữ cảnh (Context Window)**: **1,048,576 tokens (1M tokens)** — xử lý trọn vẹn toàn bộ bệnh án dày đặc, tóm tắt diễn biến nhiều ngày hoặc toàn bộ mã nguồn hệ thống.
+  - **Độ dài đầu ra tối đa (Max Completion)**: **131,072 tokens**.
+  - **Đa phương thức (Multimodal)**: `text + image + video -> text` — phân tích xuất sắc hình ảnh báo cáo điều dưỡng, phiếu xét nghiệm scan, phim X-quang/CT/MRI.
+  - **Năng lực chuyên sâu**: Lập luận chuỗi suy nghĩ (Reasoning / CoT), Sinh dữ liệu có cấu trúc JSON (`response_format: {"type": "json_object"}`), Gọi công cụ (`tools`, `tool_choice`).
+* **Nguyên tắc ưu tiên thực thi**:
+  - Trong mọi ngữ cảnh cần gọi API LLM bên ngoài (OCR bảng đường huyết, trích xuất dữ liệu lâm sàng có cấu trúc JSON, phân tích bệnh án phức tạp, tự động hóa y lệnh qua Python/PowerShell/C#), Agent **BẮT BUỘC ƯU TIÊN SỬ DỤNG `stealth/ox-alpha`** qua OpenRouter.
+  - Tự động nạp khóa xác thực từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).
+
+

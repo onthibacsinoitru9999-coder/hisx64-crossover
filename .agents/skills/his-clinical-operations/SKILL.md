@@ -211,3 +211,17 @@ Công cụ chuyên dụng cho phép chỉ định hàng loạt cận lâm sàng 
     .\HisGlucoseBedsideAssigner.exe -p "0003969449,0003298895" -time "06:00,11:00,17:00,21:00"
     ```
 
+---
+
+## 9. Tích Hợp AI Trích Xuất Dữ Liệu & OCR với OpenRouter Free Tier (`stealth/ox-alpha`)
+
+Khi xử lý trích xuất y lệnh từ hình ảnh bảng điều dưỡng, tóm tắt bệnh án hoặc chuyển đổi dữ liệu lâm sàng sang cấu trúc JSON:
+- **Ưu tiên hàng đầu**: **`stealth/ox-alpha`** trên OpenRouter (`https://openrouter.ai/api/v1`).
+- **Lợi ích**:
+  * **Free Tier 100%** ($0 input / $0 output).
+  * **1,048,576 tokens Context** (1 triệu tokens) — đọc hiểu toàn bộ hồ sơ dài mà không lo tràn bộ nhớ.
+  * Hỗ trợ đa phương thức (Vision/Multimodal) cho ảnh phiếu theo dõi, xét nghiệm scan.
+  * Hỗ trợ chế độ Reasoning và xuất chuẩn JSON (`response_format: {"type": "json_object"}`).
+- **Công cụ điều phối tự động**: `parse_glucose_image.py` và `HisDiabetesOrchestrator.ps1` tự động nạp `OPENROUTER_API_KEY` từ môi trường và gọi `stealth/ox-alpha`.
+
+

@@ -18,6 +18,12 @@
 .PARAMETER Date
     Ngày báo cáo (yyyy-MM-dd), mặc định là hôm nay
     
+.PARAMETER OpenRouterApiKey
+    OpenRouter API Key để phân tích ảnh qua mô hình miễn phí stealth/ox-alpha (hoặc set biến OPENROUTER_API_KEY)
+
+.PARAMETER OpenRouterModel
+    Tên mô hình OpenRouter (mặc định: stealth/ox-alpha - Free Tier 1M context)
+
 .PARAMETER GeminiApiKey
     Gemini API Key để phân tích ảnh (hoặc set biến môi trường GEMINI_API_KEY)
 
@@ -40,16 +46,18 @@
     .\HisDiabetesOrchestrator.ps1 -ImagePath "C:\Users\dr\Desktop\bao_cao_dh_17h.jpg"
     
 .EXAMPLE
-    .\HisDiabetesOrchestrator.ps1 -JsonPath "glucose_data.json" -DryRun
+    .\HisDiabetesOrchestrator.ps1 -ImagePath "report.png" -OpenRouterModel "stealth/ox-alpha"
     
 .EXAMPLE
-    .\HisDiabetesOrchestrator.ps1 -ImagePath "report.png" -SkipConfirm -SkipTracking
+    .\HisDiabetesOrchestrator.ps1 -JsonPath "glucose_data.json" -DryRun
 #>
 
 param(
     [string]$ImagePath = "",
     [string]$JsonPath = "",
     [string]$Date = (Get-Date -Format "yyyy-MM-dd"),
+    [string]$OpenRouterApiKey = $env:OPENROUTER_API_KEY,
+    [string]$OpenRouterModel = "stealth/ox-alpha",
     [string]$GeminiApiKey = $env:GEMINI_API_KEY,
     [switch]$DryRun,
     [switch]$SkipConfirm,
@@ -57,6 +65,7 @@ param(
     [switch]$SkipBedside,
     [switch]$SkipInsulin
 )
+
 
 # ==============================================================================
 # THIẾT LẬP ĐƯỜNG DẪN
@@ -207,16 +216,35 @@ if ($JsonPath -and (Test-Path $JsonPath)) {
 elseif ($ImagePath -and (Test-Path $ImagePath)) {
     Write-Step "OCR" "Phân tích ảnh: $ImagePath"
     
+    if (-not $OpenRouterApiKey) {
+        $OpenRouterApiKey = [Environment]::GetEnvironmentVariable("OPENROUTER_API_KEY", "User")
+    }
     if (-not $GeminiApiKey) {
-        Write-Fail "Thiếu Gemini API Key! Dùng -GeminiApiKey hoặc set GEMINI_API_KEY"
+        $GeminiApiKey = [Environment]::GetEnvironmentVariable("GEMINI_API_KEY", "User")
+    }
+    
+    if (-not $OpenRouterApiKey -and -not $GeminiApiKey) {
+        Write-Fail "Thiếu API Key! Vui lòng set OPENROUTER_API_KEY (ưu tiên stealth/ox-alpha Free Tier) hoặc GEMINI_API_KEY."
         exit 1
     }
     
     $previewFlag = if (-not $SkipConfirm) { "--preview" } else { "" }
-    $pyArgs = "`"$ImagePath`" --output `"$TempJsonPath`" --date $Date --api-key $GeminiApiKey $previewFlag"
+    $openrouterFlag = if ($OpenRouterApiKey) { "--openrouter-key `"$OpenRouterApiKey`" --model `"$OpenRouterModel`"" } else { "" }
+    $geminiFlag = if ($GeminiApiKey) { "--api-key `"$GeminiApiKey`"" } else { "" }
+    $pyArgs = "`"$ImagePath`" --output `"$TempJsonPath`" --date $Date $openrouterFlag $geminiFlag $previewFlag"
     
-    $pyProcess = Start-Process -FilePath "python" -ArgumentList "$ParseScript $pyArgs" `
-        -Wait -NoNewWindow -PassThru
+    # Kiểm tra python hoặc uv
+    $hasPython = (Get-Command python -ErrorAction SilentlyContinue)
+    $hasUv = (Get-Command uv -ErrorAction SilentlyContinue)
+    
+    if ($hasPython) {
+        $pyProcess = Start-Process -FilePath "python" -ArgumentList "`"$ParseScript`" $pyArgs" -Wait -NoNewWindow -PassThru
+    } elseif ($hasUv) {
+        $pyProcess = Start-Process -FilePath "uv" -ArgumentList "run python `"$ParseScript`" $pyArgs" -Wait -NoNewWindow -PassThru
+    } else {
+        Write-Fail "Không tìm thấy python hoặc uv trên hệ thống!"
+        exit 1
+    }
     
     if ($pyProcess.ExitCode -ne 0) {
         Write-Fail "Phân tích ảnh thất bại! Kiểm tra lại ảnh và API key."

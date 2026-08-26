@@ -4,16 +4,17 @@
 parse_glucose_image.py
 ======================
 Nhận ảnh báo cáo đường huyết điều dưỡng → Trích xuất dữ liệu có cấu trúc JSON
-Sử dụng Gemini Vision API (google-generativeai hoặc google-genai)
+Ưu tiên sử dụng OpenRouter Free Tier (stealth/ox-alpha) hoặc Gemini Vision API.
 
 Cú pháp:
     python parse_glucose_image.py <đường_dẫn_ảnh> [--output glucose_data.json]
     python parse_glucose_image.py report.jpg --output glucose_data.json
     python parse_glucose_image.py report.jpg --preview  # Xem bảng xác nhận trước
+    python parse_glucose_image.py report.jpg --provider openrouter --model stealth/ox-alpha
 
-Yêu cầu:
-    pip install google-generativeai pillow
-    Biến môi trường: GEMINI_API_KEY hoặc đặt trực tiếp GEMINI_API_KEY bên dưới
+Cấu hình API Keys:
+    - OpenRouter: Biến môi trường OPENROUTER_API_KEY (hoặc tham số --openrouter-key)
+    - Gemini: Biến môi trường GEMINI_API_KEY (hoặc tham số --api-key)
 """
 
 import sys
@@ -25,14 +26,18 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Đảm bảo stdout hiển thị tiếng Việt UTF-8 chuẩn trên console Windows
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # ==============================================================================
-# CẤU HÌNH
+# PROMPT TRÍCH XUẤT Y LỆNH & ĐƯỜNG HUYẾT
 # ==============================================================================
 
-# Thử dùng GEMINI_API_KEY từ environment, fallback về key mặc định nếu có
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-# Prompt OCR dành cho ảnh báo cáo đường huyết điều dưỡng
 OCR_PROMPT = """
 Bạn là trợ lý y tế chuyên trích xuất dữ liệu bảng từ ảnh báo cáo theo dõi đường huyết của điều dưỡng bệnh viện.
 
@@ -102,6 +107,31 @@ Lưu ý: Nếu ảnh chỉ có 1 thời điểm (VD chỉ 17h), chỉ trả về
 # HÀM TIỆN ÍCH
 # ==============================================================================
 
+def get_api_keys() -> tuple[str, str]:
+    """Tìm API Key từ biến môi trường hoặc Windows Registry"""
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+
+    if sys.platform == "win32" and (not openrouter_key or not gemini_key):
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                if not openrouter_key:
+                    try:
+                        openrouter_key, _ = winreg.QueryValueEx(key, "OPENROUTER_API_KEY")
+                    except FileNotFoundError:
+                        pass
+                if not gemini_key:
+                    try:
+                        gemini_key, _ = winreg.QueryValueEx(key, "GEMINI_API_KEY")
+                    except FileNotFoundError:
+                        pass
+        except Exception:
+            pass
+
+    return openrouter_key.strip(), gemini_key.strip()
+
+
 def load_image_base64(image_path: str) -> tuple[str, str]:
     """Đọc ảnh và trả về (base64_data, mime_type)"""
     path = Path(image_path)
@@ -124,6 +154,59 @@ def load_image_base64(image_path: str) -> tuple[str, str]:
         data = base64.b64encode(f.read()).decode("utf-8")
 
     return data, mime_type
+
+
+def call_openrouter_vision(image_path: str, api_key: str, model: str = "stealth/ox-alpha") -> dict:
+    """Gọi OpenRouter API (Ưu tiên mô hình Free Tier stealth/ox-alpha) để phân tích ảnh"""
+    import urllib.request
+
+    image_data, mime_type = load_image_base64(image_path)
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json; charset=utf-8",
+        "HTTP-Referer": "https://github.com/onthibacsinoitru9999-coder/hisx64-crossover",
+        "X-Title": "HIS AI Integration Suite"
+    }
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": OCR_PROMPT},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{image_data}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "response_format": {"type": "json_object"},
+        "max_tokens": 16384
+    }
+
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        res_json = json.loads(resp.read().decode("utf-8"))
+
+    choices = res_json.get("choices", [])
+    if not choices:
+        raise ValueError(f"OpenRouter không trả về choices hợp lệ: {res_json}")
+
+    message = choices[0].get("message", {})
+    raw_text = message.get("content", "") or ""
+
+    # Làm sạch markdown code block nếu có
+    raw_text = re.sub(r"^```json\s*", "", raw_text.strip(), flags=re.IGNORECASE)
+    raw_text = re.sub(r"\s*```$", "", raw_text.strip())
+    raw_text = raw_text.strip()
+
+    return json.loads(raw_text)
 
 
 def call_gemini_vision(image_path: str, api_key: str) -> dict:
@@ -153,7 +236,7 @@ def call_gemini_vision(image_path: str, api_key: str) -> dict:
         return json.loads(raw_text)
 
     except ImportError:
-        raise ImportError("Thiếu thư viện: pip install google-generativeai")
+        raise ImportError("Thiếu thư viện google-generativeai: pip install google-generativeai")
     except json.JSONDecodeError as e:
         raise ValueError(f"Gemini trả về không phải JSON hợp lệ: {e}\nRaw: {raw_text[:500]}")
 
@@ -239,6 +322,7 @@ VÍ DỤ SỬ DỤNG:
   python parse_glucose_image.py report.jpg
   python parse_glucose_image.py report.jpg --output glucose_data.json
   python parse_glucose_image.py report.jpg --preview
+  python parse_glucose_image.py report.jpg --provider openrouter --model stealth/ox-alpha
   python parse_glucose_image.py report.jpg --date 2026-08-25 --output glucose_data.json
 """
     )
@@ -249,25 +333,72 @@ VÍ DỤ SỬ DỤNG:
                         help="Ngày báo cáo (YYYY-MM-DD), mặc định là hôm nay")
     parser.add_argument("--preview", "-p", action="store_true",
                         help="Hiển thị bảng xác nhận và hỏi trước khi lưu")
+    parser.add_argument("--provider", choices=["auto", "openrouter", "gemini"], default="auto",
+                        help="Nhà cung cấp AI (auto = ưu tiên openrouter stealth/ox-alpha, fallback gemini)")
+    parser.add_argument("--model", "-m", default="stealth/ox-alpha",
+                        help="Tên mô hình OpenRouter (mặc định: stealth/ox-alpha - Free Tier 1M context)")
+    parser.add_argument("--openrouter-key", default="",
+                        help="OpenRouter API Key (hoặc set biến OPENROUTER_API_KEY)")
     parser.add_argument("--api-key", "-k", default="",
                         help="Gemini API Key (hoặc set biến GEMINI_API_KEY)")
     args = parser.parse_args()
 
-    # Ưu tiên API key từ tham số, sau đó từ env
-    api_key = args.api_key or GEMINI_API_KEY
-    if not api_key:
-        print("❌ Lỗi: Cần Gemini API Key!")
-        print("   Cách 1: python parse_glucose_image.py report.jpg --api-key YOUR_KEY")
-        print("   Cách 2: set GEMINI_API_KEY=YOUR_KEY")
-        sys.exit(1)
+    env_openrouter, env_gemini = get_api_keys()
+    openrouter_key = args.openrouter_key or env_openrouter
+    gemini_key = args.api_key or env_gemini
 
     print(f"\n🔍 Đang phân tích ảnh: {args.image}")
-    print("   (Gọi Gemini Vision API... có thể mất 5-15 giây)")
+
+    data = None
+    last_err = None
+
+    # Xác định provider ưu tiên
+    provider = args.provider
+    if provider == "auto":
+        if openrouter_key:
+            provider = "openrouter"
+        elif gemini_key:
+            provider = "gemini"
+        else:
+            print("❌ Lỗi: Cần OPENROUTER_API_KEY hoặc GEMINI_API_KEY!")
+            print("   Ưu tiên OpenRouter Free Tier (stealth/ox-alpha): set OPENROUTER_API_KEY=sk-or-...")
+            print("   Hoặc Gemini: set GEMINI_API_KEY=AIzaSy...")
+            sys.exit(1)
+
+    # 1. Thử gọi OpenRouter stealth/ox-alpha trước
+    if provider == "openrouter" or (args.provider == "auto" and openrouter_key):
+        if not openrouter_key:
+            print("❌ Lỗi: Chưa cung cấp OpenRouter API Key!")
+            sys.exit(1)
+        print(f"   🤖 Gọi OpenRouter API (Mô hình: {args.model} - Free Tier 1M Context)...")
+        try:
+            data = call_openrouter_vision(args.image, openrouter_key, model=args.model)
+        except Exception as ex:
+            last_err = ex
+            print(f"   ⚠️  OpenRouter gặp sự cố: {ex}")
+            if gemini_key and args.provider == "auto":
+                print("   🔄 Chuyển sang fallback Gemini Vision API...")
+                try:
+                    data = call_gemini_vision(args.image, gemini_key)
+                except Exception as g_ex:
+                    last_err = g_ex
+
+    # 2. Hoặc gọi Gemini
+    elif provider == "gemini":
+        if not gemini_key:
+            print("❌ Lỗi: Chưa cung cấp Gemini API Key!")
+            sys.exit(1)
+        print("   🤖 Gọi Gemini Vision API...")
+        try:
+            data = call_gemini_vision(args.image, gemini_key)
+        except Exception as ex:
+            last_err = ex
+
+    if not data:
+        print(f"❌ Không thể phân tích ảnh: {last_err}")
+        sys.exit(1)
 
     try:
-        # Gọi Gemini Vision
-        data = call_gemini_vision(args.image, api_key)
-
         # Chỉnh ngày tự động
         report_date = args.date or data.get("report_date", datetime.today().strftime("%Y-%m-%d"))
         data = fix_dates(data, report_date)
@@ -286,14 +417,8 @@ VÍ DỤ SỬ DỤNG:
         save_output(data, args.output)
         print(f"✅ Hoàn tất! Dữ liệu sẵn sàng để HisDiabetesOrchestrator.ps1 xử lý.")
 
-    except FileNotFoundError as e:
-        print(f"❌ {e}")
-        sys.exit(1)
-    except ValueError as e:
-        print(f"❌ Lỗi parse JSON từ Gemini: {e}")
-        sys.exit(1)
     except Exception as e:
-        print(f"❌ Lỗi không xác định: {e}")
+        print(f"❌ Lỗi xử lý dữ liệu: {e}")
         sys.exit(1)
 
 
