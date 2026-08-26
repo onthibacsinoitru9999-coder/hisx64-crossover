@@ -442,10 +442,26 @@ Công cụ chuyên dụng `HospitalShiftReporter.exe` (Mã nguồn: `HospitalShi
 
 ## 10. PHÂN HỆ 6: KÝ SỐ ĐIỆN TỬ & MỜI BÁC SĨ KÝ (EMR SIGN)
 
-* **Loại tài liệu**: `DOCUMENT_TYPE_ID = 7` (Tờ điều trị).
-* **Ký chính (`NumOrder = 1`)**: Bác sĩ điều trị `034727` (Ths.BS Nguyễn Hữu Sâm).
-* **Mời ký phối hợp (`NumOrder = 2`)**: Bác sĩ `ndh2` (BS Nguyễn Đức Hoàng).
-* **Endpoint EMR**: `http://192.168.7.239:1415/`
+### 10.1. Kiến Trúc Phân Hệ Ký Số Bệnh Án Điện Tử (EMR Sign Architecture)
+Hệ thống Ký số EMR Inventec hoạt động trên 2 tầng độc lập:
+1. **Tầng 1 - Dữ liệu nghiệp vụ MOS (`:1608`)**:
+   - `HIS_TRACKING`: Lưu trữ toàn bộ nội dung diễn biến, y lệnh, chăm sóc, sinh hiệu của tờ điều trị.
+   - Endpoint: `POST api/HisTracking/Create` (Đã tự động hóa 100% qua CLI/API).
+2. **Tầng 2 - Văn bản pháp lý & Ký số EMR (`:1415`)**:
+   - `EMR_DOCUMENT`: Đại diện cho bản in PDF của tờ điều trị đã render theo biểu mẫu Bộ Y tế.
+   - `DOCUMENT_TYPE_ID = 7`: Loại văn bản "Tờ điều trị".
+   - `EMR_SIGN`: Quản lý danh sách người ký, thứ tự ký (`NumOrder = 1`: BS điều trị `034727`, `NumOrder = 2`: BS phối hợp/Lãnh đạo khoa), thời gian ký (`SIGN_TIME`).
+
+### 10.2. Các Phương Thức Ký Số Hỗ Trợ:
+* **Phương thức 1: Ký số Cloud HSM / Ký điện tử Server-side (`api/EmrSign/SignPdfHsm`)**:
+  - Dành cho hệ thống đã cấu hình chứng thư số HSM tập trung tại máy chủ EMR CA.
+  - Endpoint: `POST api/EmrSign/SignPdfHsm` (DTO: `EMR.SDO.EmrSignHsmSDO`).
+* **Phương thức 2: Ký số USB Token CA / Hardware PKI (`api/EmrSign/SignPdfUsb`)**:
+  - Yêu cầu cắm USB Token phần cứng (EasySign, VinHSM, VNPT CA, Viettel CA) tại máy trạm.
+  - Ứng dụng nền `Inventec.SignAdapter.exe` / `SignPadManager.exe` sẽ kết nối USB Token để mã hóa hash SHA-256 của file PDF và gửi lên EMR.
+* **Phương thức 3: Ký 1-Click trên Giao diện HIS Desktop (Khuyến nghị thực tế)**:
+  - Mở danh sách Tờ điều trị trên giao diện HIS Desktop (`HIS.Desktop.Plugins.HisTrackingList` hoặc `TrackingCreate`).
+  - Chọn các ngày cần in/ký ➡️ Bấm **"Lưu & Ký"** hoặc **"Ký số hàng loạt"**.
 
 ---
 
