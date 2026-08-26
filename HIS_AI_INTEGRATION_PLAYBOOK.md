@@ -226,6 +226,12 @@ var result = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsu
   .\QuickTracking.exe -p 0003969449 -time 08:00 -content "bn tỉnh không sốt huyết động ổn"
   ```
 
+### 5.4. Quy trình Xóa Tờ Điều Trị (Delete Tracking):
+- **Endpoint**: `POST api/HisTracking/Delete`
+- **Consumer**: `ApiConsumers.MosConsumer`
+- **Payload**: `Int64` (chính là `trackingId`, truyền trực tiếp dạng số nguyên: `adapter.Post<bool>("api/HisTracking/Delete", ApiConsumers.MosConsumer, trackingId, param)`).
+- **Phân quyền**: Đăng nhập bằng tài khoản Bác sĩ tạo tờ điều trị (hoặc Bác sĩ được ủy quyền trong khoa) kèm cập nhật `UpdateWorkInfo`.
+
 ---
 
 ## 6. PHÂN HỆ 2: CHỈ ĐỊNH SUẤT ĂN DINH DƯỠNG BỆNH LÝ (DIET / RATION ORDERS)
