@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 > nul
 echo ===============================================================================
 echo   Bien dich lai HisAutoPrescribe.exe (Them Batch Mode)
@@ -17,20 +18,14 @@ if not exist "%CSC%" (
 
 echo Dang bien dich...
 
-:: Thu thap reference DLLs
-set REFS=/reference:System.dll /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Data.dll /reference:System.Xml.dll /reference:System.Net.Http.dll
+echo /reference:System.dll /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Data.dll /reference:System.Xml.dll /reference:System.Net.Http.dll > "%SCRIPTS_DIR%\refs.rsp"
 
-:: Them DLLs tu ReferencedAssemblies
-for %%f in ("%SCRIPTS_DIR%\ReferencedAssemblies\*.dll") do (
-    set REFS=!REFS! /reference:"%%f"
+set ROOT_DIR=D:\his\his-x64-28-11fix GDYK\his-x64
+for %%f in ("%ROOT_DIR%\ReferencedAssemblies\Inventec.*.dll" "%ROOT_DIR%\ReferencedAssemblies\HIS.*.dll" "%ROOT_DIR%\ReferencedAssemblies\MOS.*.dll") do (
+    echo /reference:"%%f" >> "%SCRIPTS_DIR%\refs.rsp"
 )
 
-:: Fallback: lay tu chinh thu muc scripts
-for %%f in ("%SCRIPTS_DIR%\Inventec.*.dll" "%SCRIPTS_DIR%\HIS.*.dll" "%SCRIPTS_DIR%\MOS.*.dll") do (
-    set REFS=!REFS! /reference:"%%f"
-)
-
-"%CSC%" /target:winexe /platform:x64 /out:%OUT% %REFS% %SRC%
+"%CSC%" /target:winexe /platform:x64 /out:%OUT% @"%SCRIPTS_DIR%\refs.rsp" %SRC%
 
 if %errorlevel% equ 0 (
     echo.
