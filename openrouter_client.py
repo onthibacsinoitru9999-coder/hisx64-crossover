@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 openrouter_client.py
@@ -33,13 +33,12 @@ if sys.platform == "win32":
         pass
 
 # ==============================================================================
-# DANH MỤC CÁC MÔ HÌNH FREE TIER TRÊN OPENROUTER
+# DANH MỤC CÁC MÔ HÌNH FREE TIER TRÊN OPENROUTER (CẬP NHẬT 2026)
 # ==============================================================================
 
 # Mô hình ưu tiên cho tác vụ Đa phương thức (Vision/OCR/Image/PDF)
 FREE_VISION_MODELS = [
-    "stealth/ox-alpha",                 # 1M context, $0, Reasoning + Vision + JSON
-    "minimax/minimax-m3:free",          # 1M context, $0, Multimodal
+    "minimax/minimax-m3:free",          # 1M context, $0, Multimodal + Strict JSON + Tiếng Việt chuẩn
     "google/gemma-4-31b-it:free",       # 256K context, $0, Google Multimodal
     "google/gemma-4-26b-a4b-it:free",   # 256K context, $0, Fast Multimodal
     "openrouter/free"                   # Auto fallback router
@@ -47,20 +46,17 @@ FREE_VISION_MODELS = [
 
 # Mô hình ưu tiên cho tác vụ Lập luận Bệnh án & Tóm tắt Văn bản Dài (Reasoning/Text)
 FREE_REASONING_MODELS = [
-    "stealth/ox-alpha",                         # 1M context, Reasoning CoT
-    "nvidia/nemotron-3-ultra-550b-a55b:free",   # 1M context, 550B MoE Ultra Reasoning
-    "minimax/minimax-m3:free",                  # 1M context
-    "z-ai/glm-5.2:free",                        # 256K context, Deep Reasoning
-    "google/gemma-4-31b-it:free",               # 256K context
+    "minimax/minimax-m3:free",                  # 1M context, $0, Deep CoT + Medical Reasoning
+    "nvidia/nemotron-3.5-lightning:free",       # 1M context, $0, Fast Reasoning
+    "z-ai/glm-5.2:free",                        # 256K context, $0, Deep Reasoning
     "openrouter/free"                           # Auto router
 ]
 
 # Mô hình ưu tiên cho Lập trình / Viết Script / JSON Cấu trúc (Code/Structured)
 FREE_CODE_MODELS = [
-    "stealth/ox-alpha",                 # 1M context, Structured output
-    "cohere/north-mini-code:free",      # 256K context, Code specialized
-    "poolside/laguna-s-2.1:free",       # 262K context, Logic & Code
-    "google/gemma-4-31b-it:free",       # 256K context, JSON mode
+    "minimax/minimax-m3:free",          # 1M context, $0, Strict JSON output
+    "poolside/laguna-s-2.1:free",       # 262K context, $0, Code & Logic
+    "z-ai/glm-5.2:free",                # 256K context, $0, Structured data
     "openrouter/free"
 ]
 
@@ -240,13 +236,59 @@ def extract_json_structured(
     return json.loads(clean_text)
 
 
+def batch_parallel_generate(
+    items: List[Dict[str, Any]],
+    max_workers: int = 5,
+    system_prompt: str = "Bạn là trợ lý AI y khoa chuyên khoa Chấn thương Chỉnh hình & Cột sống.",
+    model_candidates: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Xử lý song song đồng thời nhiều bệnh nhân/yêu cầu (Concurrent Multi-Threading).
+    Mỗi item trong items: {"id": str/int, "prompt": str, "image_path": Optional[str]}
+    Trả về danh sách kết quả kèm thời gian xử lý.
+    """
+    import concurrent.futures
+    import time
+
+    results = []
+    candidates = model_candidates or FREE_REASONING_MODELS
+
+    def _process_one(item: Dict[str, Any]) -> Dict[str, Any]:
+        item_id = item.get("id", "N/A")
+        prompt = item.get("prompt", "")
+        img = item.get("image_path", None)
+        t_start = time.time()
+        try:
+            if img:
+                res = extract_json_structured(prompt, image_path=img, system_prompt=system_prompt, model_candidates=FREE_VISION_MODELS)
+                return {"id": item_id, "success": True, "data": res, "duration": round(time.time() - t_start, 2)}
+            else:
+                msgs = []
+                if system_prompt:
+                    msgs.append({"role": "system", "content": system_prompt})
+                msgs.append({"role": "user", "content": prompt})
+                txt, used_m = generate_with_fallback(msgs, model_candidates=candidates, verbose=False)
+                return {"id": item_id, "success": True, "text": txt, "model": used_m, "duration": round(time.time() - t_start, 2)}
+        except Exception as ex:
+            return {"id": item_id, "success": False, "error": str(ex), "duration": round(time.time() - t_start, 2)}
+
+    print(f"🚀 Bắt đầu xử lý song song {len(items)} tác vụ với {max_workers} worker threads...", flush=True)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_process_one, it) for it in items]
+        for f in concurrent.futures.as_completed(futures):
+            results.append(f.result())
+
+    return results
+
+
 if __name__ == "__main__":
-    print("=== KIỂM TRA BỘ ĐIỀU PHỐI OPENROUTER MULTI-TIER ===")
+    print("=== KIỂM TRA BỘ ĐIỀU PHỐI OPENROUTER MULTI-TIER & PARALLEL PIPELINE ===")
     k = get_openrouter_api_key()
     print(f"Khóa xác thực: {'Đã tìm thấy (' + k[:8] + '...)' if k else 'CHƯA CÓ'}")
 
     if k:
         print("\n1. Test câu hỏi ngắn:")
         msg = [{"role": "user", "content": "Xin chào! Trả lời 1 câu ngắn gọn."}]
-        content, model = generate_with_fallback(msg, ["stealth/ox-alpha", "minimax/minimax-m3:free"])
+        content, model = generate_with_fallback(msg, ["minimax/minimax-m3:free", "openrouter/free"])
         print(f"\nPhản hồi từ {model}:\n{content}\n")
+
