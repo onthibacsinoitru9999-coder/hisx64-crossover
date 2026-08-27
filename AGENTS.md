@@ -11,10 +11,23 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   ```
 * **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HIS_AI_INTEGRATION_PLAYBOOK.md) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
 
-## 2. QUY TẮC THỰC THI (CLI-FIRST & KHÔNG VIẾT MÃ THÔ)
-* **Tuyệt đối không tự viết mã cào log hay gửi HTTP thô** nếu tác vụ đó đã được đóng gói trong các công cụ có sẵn:
-  - [`HisClinicalCli.exe`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/.agents/skills/his-clinical-operations/scripts/HisClinicalCli.exe): Tra cứu bệnh nhân, tạo tờ điều trị, chỉ định CLS, ký số EMR.
-  - [`HisAutoPrescribe.exe`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/.agents/skills/his-clinical-operations/scripts/HisAutoPrescribe.exe): Kê đơn thuốc viên, ống, dinh dưỡng, tủ trực.
+## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC PHẦN MỀM CON (SINGLE RESPONSIBILITY CLI MATRIX)
+Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục đích chuyên biệt. **TUYỆT ĐỐI KHÔNG GỌI NHẦM CÔNG CỤ (Đặc biệt: Khi tra cứu thông tin CẤM gọi `HisAutoPrescribe.exe`)**:
+
+| Mục Đích / Yêu Cầu Của Bác Sĩ | Công Cụ DUY NHẤT Được Phép Gọi | Lệnh Mẫu Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
+| :--- | :--- | :--- | :--- |
+| 🔍 **Tra cứu thông tin BN, buồng, tiền sử, dịch vụ, đơn cũ** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
+| 💊 **Kê đơn thuốc, tiêm Insulin, tủ trực, dinh dưỡng** | **`HisAutoPrescribe.exe`** | `.\HisAutoPrescribe.exe single ...` hoặc `--batch` | ❌ Không dùng tra cứu |
+| 📝 **Tạo tờ điều trị hàng ngày (Ghi diễn biến + y lệnh)** | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` (Tích hợp OpenRouter AI) | ❌ Không dùng kê đơn |
+| 📋 **Đối soát & kiểm tra thiếu Sơ kết 3 ngày / 7 ngày** | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |
+| 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
+| 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | **`HisGlucoseBedsideAssigner.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
+| 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01, DD01, TM01`)** | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
+| 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17 / Mps000019)** | **`HisDebateCreator.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
+| 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
+| 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
+
+* **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
 
 ## 3. QUY TẮC ĐÓNG GÓI & ĐẨY TRI THỨC (CONTINUOUS LEARNING PUSH)
