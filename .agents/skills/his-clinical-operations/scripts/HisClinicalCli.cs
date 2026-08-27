@@ -7,6 +7,7 @@ using System.Reflection;
 using Inventec.Core;
 using Inventec.Token.ClientSystem;
 using Inventec.Common.Adapter;
+using Inventec.Common.WebApiClient;
 using HIS.Desktop.LocalStorage.ConfigSystem;
 using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
@@ -51,6 +52,8 @@ public class HisClinicalCli
     public static BackendAdapter adapter;
     public static MyAdapter myAdapter = new MyAdapter();
     public static CommonParam param = new CommonParam();
+    public static ApiConsumer mosConsumer;
+    public static ApiConsumer sdaConsumer;
     public static string currentToken = null;
     public static string currentDoctorLogin = "034727";
     public static string currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
@@ -161,7 +164,8 @@ public class HisClinicalCli
         }
 
         currentToken = tokenCode;
-        ApiConsumers.SetConsunmer(currentToken);
+        mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", currentToken, "HIS");
+        sdaConsumer = new ApiConsumer("http://192.168.7.200:1410/", currentToken, "HIS");
         adapter = new BackendAdapter(param);
 
         try
@@ -176,7 +180,7 @@ public class HisClinicalCli
                     new RoomSDO { RoomId = 5257 }
                 }
             };
-            var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
+            var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
         }
         catch { }
     }
@@ -184,9 +188,64 @@ public class HisClinicalCli
     public static void LookupPatient(string keyword)
     {
         InitSession();
-        HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-        tf.KEY_WORD = keyword;
-        var treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+        List<V_HIS_TREATMENT> treatments = null;
+
+        // 1. Try exact match by Patient Code or Treatment Code
+        if (!string.IsNullOrEmpty(keyword))
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+            tfCode.PATIENT_CODE__EXACT = keyword.Trim();
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+
+            if (treatments == null || treatments.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter();
+                tfCode.TREATMENT_CODE__EXACT = keyword.Trim();
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+
+            if (treatments == null || treatments.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter();
+                tfCode.KEY_WORD = keyword.Trim();
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+        }
+
+        // 2. Check if keyword is a Bed Room search (e.g. 712, 714, 716...)
+        if (treatments == null || treatments.Count == 0)
+        {
+            HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
+            var deptBedRooms = myAdapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
+            var matchedRooms = deptBedRooms != null ? deptBedRooms.Where(x => x.BED_ROOM_NAME.Contains(keyword) || x.BED_ROOM_CODE.Contains(keyword)).ToList() : null;
+
+            if (matchedRooms != null && matchedRooms.Count > 0)
+            {
+                Console.WriteLine("===============================================================================");
+                Console.WriteLine(string.Format("🏨 DANH SÁCH BỆNH NHÂN THEO BUỒNG: {0}", keyword));
+                Console.WriteLine("===============================================================================");
+                foreach (var rm in matchedRooms)
+                {
+                    HisTreatmentBedRoomLViewFilter tbf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_ID = rm.ID, IS_IN_ROOM = true };
+                    var pts = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, tbf, param);
+                    if (pts != null && pts.Count > 0)
+                    {
+                        Console.WriteLine(string.Format("\n📍 {0} ({1} bệnh nhân):", rm.BED_ROOM_NAME, pts.Count));
+                        foreach (var p in pts.OrderBy(x => x.BED_NAME))
+                        {
+                            Console.WriteLine(string.Format("  👉 [{0}] {1} (Mã BN: {2} | Mã ĐT: {3})", 
+                                p.BED_NAME ?? "Giường -", p.TDL_PATIENT_NAME, p.TDL_PATIENT_CODE, p.TREATMENT_CODE));
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine(string.Format("\n📍 {0}: Không có bệnh nhân nằm ghép.", rm.BED_ROOM_NAME));
+                    }
+                }
+                Console.WriteLine("===============================================================================");
+                return;
+            }
+        }
 
         if (treatments == null || treatments.Count == 0)
         {
@@ -199,7 +258,7 @@ public class HisClinicalCli
         HisTreatmentBedRoomLViewFilter bedFilter = new HisTreatmentBedRoomLViewFilter();
         bedFilter.TREATMENT_IDs = new List<long> { tr.ID };
         bedFilter.IS_IN_ROOM = true;
-        var bedRooms = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", ApiConsumers.MosConsumer, bedFilter, param);
+        var bedRooms = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, bedFilter, param);
         var curBed = bedRooms != null ? bedRooms.LastOrDefault(x => x.REMOVE_TIME == null || x.REMOVE_TIME == 0) : null;
 
         Console.WriteLine("===============================================================================");
@@ -213,7 +272,7 @@ public class HisClinicalCli
         {
             HisSereServTeinViewFilter teinFilter = new HisSereServTeinViewFilter();
             teinFilter.TDL_TREATMENT_ID = tr.ID;
-            var teinList = myAdapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", ApiConsumers.MosConsumer, teinFilter, param);
+            var teinList = myAdapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", mosConsumer, teinFilter, param);
 
             if (teinList != null && teinList.Count > 0)
             {
@@ -243,7 +302,7 @@ public class HisClinicalCli
 
         HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
         tf.ID = treatmentId;
-        var treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+        var treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
         if (treatments == null || treatments.Count == 0) throw new Exception("Không tìm thấy đợt điều trị!");
         var tr = treatments[0];
 
@@ -279,7 +338,7 @@ public class HisClinicalCli
             };
         }
 
-        var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, param);
+        var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, param);
         if (created == null) throw new Exception("Tạo tờ điều trị thất bại!");
 
         Console.WriteLine(string.Format("✔ Đã tạo Tờ điều trị ID: {0} lúc {1}", created.ID, created.TRACKING_TIME));
@@ -292,7 +351,7 @@ public class HisClinicalCli
 
         HisTrackingFilter tf = new HisTrackingFilter();
         tf.ID = trackingId;
-        var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", ApiConsumers.MosConsumer, tf, param);
+        var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, tf, param);
         if (trackings == null || trackings.Count == 0) throw new Exception("Không tìm thấy tờ điều trị!");
         var tr = trackings[0];
 
@@ -340,7 +399,7 @@ public class HisClinicalCli
             }
         };
 
-        var res = myAdapter.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, sdo, param);
+        var res = myAdapter.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", mosConsumer, sdo, param);
         if (res != null && res.ExpMests != null && res.ExpMests.Count > 0)
         {
             Console.WriteLine(string.Format("✔ Kê đơn thành công! Mã xuất thuốc EXP_MEST: {0}", res.ExpMests[0].EXP_MEST_CODE));
@@ -361,7 +420,7 @@ public class HisClinicalCli
 
         HisTrackingFilter tf = new HisTrackingFilter();
         tf.ID = trackingId;
-        var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", ApiConsumers.MosConsumer, tf, param);
+        var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, tf, param);
         if (trackings == null || trackings.Count == 0) throw new Exception("Không tìm thấy tờ điều trị!");
         var tr = trackings[0];
 
@@ -403,7 +462,7 @@ public class HisClinicalCli
             }
         };
 
-        var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, sdo, param);
+        var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", mosConsumer, sdo, param);
         if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
         {
             foreach (var sr in res.ServiceReqs)
@@ -539,7 +598,7 @@ public class HisClinicalCli
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
         tbrf.IS_IN_ROOM = true;
         tbrf.TREATMENT_IS_ACTIVE = true;
-        var allBeds = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, tbrf, param);
+        var allBeds = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", mosConsumer, tbrf, param);
 
         if (allBeds == null || allBeds.Count == 0)
         {
@@ -558,7 +617,7 @@ public class HisClinicalCli
         {
             HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
             tf.ID = b.TREATMENT_ID;
-            var tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+            var tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
             var tr = tList != null && tList.Count > 0 ? tList[0] : null;
 
             string patName = tr != null ? tr.TDL_PATIENT_NAME : "N/A";
