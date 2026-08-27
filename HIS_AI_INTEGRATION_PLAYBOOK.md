@@ -590,13 +590,24 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **31**| Agent rơi vào vòng lặp thử-sai (trial-and-error loop) quá lâu khi API backend từ chối | Tự ý viết script test liên tiếp khi API trả `Success: false` âm thầm làm BS phải chờ đợi | **Quy tắc giới hạn 2 lần (Max 2 Attempts)**: Nếu sau 2 lần gọi API mà backend từ chối không rõ mã lỗi, Agent PHẢI DỪNG NGAY LẬP TỨC. Báo cáo minh bạch các tác vụ ĐÃ XONG (Tờ điều trị, Chỉ định CLS) và bàn giao lại để BS thao tác nhanh trên UI, tuyệt đối không để ảnh hưởng tiến độ khám chữa bệnh. |
 | **32**| Lỗi FileNotFoundException (MOS.EFMODEL) khi chạy các Tool CLI (.exe) | Do gọi file .exe từ thư mục con (ví dụ .agents\skills\...) khiến hệ thống không tìm thấy các file DLL lõi ở thư mục gốc | **Tuyệt đối** phải chạy tất cả tool (.exe) trực tiếp từ thư mục gốc dự án hoặc dùng Hook `AssemblyResolve` đa tầng. |
 | **33**| Lỗi biên dịch CS0117: `WorkInfoSDO` không có thuộc tính `DepartmentId`/`BranchId` | `WorkInfoSDO` trong `MOS.SDO.dll` chỉ chứa danh sách `Rooms` (`List<RoomSDO>`) | Khởi tạo đúng: `new WorkInfoSDO { Rooms = new List<RoomSDO> { new RoomSDO { RoomId = 5248 }, ... } }`. |
-| **34**| Mô hình AI OpenRouter trả lỗi `402 Payment Required` (hết credit) hoặc cần gọi API AI bên ngoài | Gọi mô hình thương mại vượt quá số dư tài khoản hoặc chưa thiết lập mô hình mặc định | **BẮT BUỘC ƯU TIÊN** sử dụng **`stealth/ox-alpha`** (Mô hình Free Tier $0, Context khủng 1M tokens, Max completion 131k, hỗ trợ đầy đủ Reasoning, Vision OCR và JSON Structured Output) hoặc các mô hình `:free` (`openrouter/free`, `google/gemma-4-31b-it:free`, `minimax/minimax-m3:free`). |
+| **34**| Mô hình AI OpenRouter trả lỗi `402 Payment Required` (hết credit) hoặc cần gọi API AI bên ngoài | Gọi mô hình thương mại vượt quá số dư tài khoản hoặc chưa thiết lập mô hình mặc định | **BẮT BUỘC ƯU TIÊN** sử dụng **`minimax/minimax-m3:free`** (1M tokens, 100% Free) hoặc **`openrouter/free`** auto router. |
+| **35**| Tra cứu ý kiến/kết quả Biên bản Hội chẩn từ các Chuyên khoa khách (Hô hấp, Nhiệt đới, Tim mạch...) bị thiếu | Chỉ tìm trong `HIS_DEBATE.CONCLUSION` (vốn chỉ chứa kết luận chung), bỏ sót ý kiến bác sĩ chuyên khoa khách | **BẮT BUỘC tra cứu qua 2 tầng**: Tầng 1 (`HIS_DEBATE` - Chủ tọa/Thư ký); Tầng 2 (`HIS_SERVICE_REQ` + `HIS_SERE_SERV_EXT` liên khoa). Dùng ngay lệnh: **`.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate <MãBN|MãĐT>`** để trích xuất đầy đủ bác sĩ hội chẩn, SĐT, khuyến cáo kháng sinh, xét nghiệm vi sinh và chỉ định theo dõi. |
 
 ---
 
 ## 14. HƯỚNG DẪN BIÊN DỊCH & CHẠY CÔNG CỤ CLI HỢP NHẤT (UNIFIED CLINICAL SUITE)
 
 Hệ thống đã được hợp nhất vào **`HisClinicalCli.exe`** duy nhất với đầy đủ các lệnh nghiệp vụ lâm sàng:
+
+| Lệnh CLI | Chức Năng Lâm Sàng | Ví Dụ Gọi Lệnh |
+| :--- | :--- | :--- |
+| **`lookup <mã>`** | Tra cứu BN, buồng giường & Bilan CLS | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup 0003989737` |
+| **`debate <mã>`** | Tra cứu Biên bản hội chẩn & ý kiến các chuyên khoa khách | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate 0003989737` |
+| **`wardround`** | Quét danh sách BN buồng trọng điểm (712, 714, 716, 724, 725) | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe wardround` |
+| **`create-tracking`** | Tạo tờ điều trị ngày kèm DHST | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe create-tracking 7108039 "BN tỉnh..." 80 36.5 120 80` |
+| **`prescribe`** | Kê đơn thuốc an toàn | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe prescribe 7108039 9745346 27727 810 0.008 "tiêm SC"` |
+| **`assign-cls`** | Chỉ định CLS đơn lẻ | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-cls 7108039 9745346 5853 410 "Điện giải đồ"` |
+| **`assign-bilan`** | Chỉ định gói Bilan phẫu thuật 1-Click | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-bilan 7108039 9745346 cement` |
 
 ### 14.1. Cú pháp các lệnh chuẩn:
 ```powershell

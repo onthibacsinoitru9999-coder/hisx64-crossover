@@ -256,6 +256,20 @@ public class HisWardReportCreator
                 {
                     rec.ActionBadges.Add("🟠 BN Đái tháo đường (Theo dõi ĐH & Insulin)");
                 }
+
+                // Kiểm tra Hội chẩn chuyên khoa / Biên bản hội chẩn
+                HisDebateFilter debFilter = new HisDebateFilter { TREATMENT_ID = tId };
+                var debList = adapter.FetchList<HIS_DEBATE>("api/HisDebate/Get", mosConsumer, debFilter, param);
+                if (debList != null && debList.Count > 0)
+                {
+                    var consultSrs = srs != null ? srs.Where(x => x.SERVICE_REQ_TYPE_ID == 1 || (x.EXECUTE_DEPARTMENT_NAME != null && (x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("hô hấp") || x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("truyền nhiễm") || x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("nhiệt đới")))).ToList() : new List<V_HIS_SERVICE_REQ>();
+                    int compCount = consultSrs.Count(x => x.SERVICE_REQ_STT_ID == 3);
+                    int waitCount = consultSrs.Count(x => x.SERVICE_REQ_STT_ID != 3);
+                    if (compCount > 0) rec.ActionBadges.Add(string.Format("🔵 Đã có KQ Hội chẩn ({0} CK)", compCount));
+                    if (waitCount > 0) rec.ActionBadges.Add(string.Format("🟡 Chờ ý kiến Hội chẩn ({0} CK)", waitCount));
+                    if (consultSrs.Count == 0) rec.ActionBadges.Add("🔵 Có Biên bản Hội chẩn");
+                }
+
                 if (rec.HasTrackingToday && rec.HasPrescriptionToday)
                 {
                     rec.ActionBadges.Add("🟢 Đã hoàn tất y lệnh ngày");

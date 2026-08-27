@@ -17,6 +17,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | Mục Đích / Yêu Cầu Của Bác Sĩ | Công Cụ DUY NHẤT Được Phép Gọi | Lệnh Mẫu Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
 | :--- | :--- | :--- | :--- |
 | 🔍 **Tra cứu thông tin BN, buồng, tiền sử, dịch vụ, đơn cũ** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
+| 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa khách** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
 | 💊 **Kê đơn thuốc, tiêm Insulin, tủ trực, dinh dưỡng** | **`HisAutoPrescribe.exe`** | `.\HisAutoPrescribe.exe single ...` hoặc `--batch` | ❌ Không dùng tra cứu |
 | 📝 **Tạo tờ điều trị hàng ngày (Ghi diễn biến + y lệnh)** | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` (Tích hợp OpenRouter AI) | ❌ Không dùng kê đơn |
 | 📋 **Đối soát & kiểm tra thiếu Sơ kết 3 ngày / 7 ngày** | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |

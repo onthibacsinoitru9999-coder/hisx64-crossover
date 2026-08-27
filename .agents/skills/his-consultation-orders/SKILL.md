@@ -89,5 +89,23 @@ Khi cần soạn thảo nhanh tóm tắt bệnh án và câu hỏi hội chẩn 
   ```powershell
   .\HisAiCli.bat ask "Soạn tóm tắt bệnh án mời hội chẩn Tim mạch cho BN 72 tuổi gãy liên mấu chuyển kèm suy tim phân suất tống máu giảm EF 40%"
   ```
-- Hoặc gọi module `openrouter_client.py` với nhóm mô hình suy luận sâu: **`stealth/ox-alpha`** (Ưu tiên số 1) hoặc **`nvidia/nemotron-3-ultra-550b-a55b:free`** (550B MoE).
+- Hoặc gọi module `openrouter_client.py` với nhóm mô hình suy luận sâu: **`minimax/minimax-m3:free`** (1M tokens, 100% Free) hoặc **`openrouter/free`**.
+
+---
+
+## 6. TRA CỨU & ĐỌC Ý KIẾN BIÊN BẢN HỘI CHẨN TỪ CÁC CHUYÊN KHOA KHÁCH (READING CONSULTATION MINUTES)
+
+Để kiểm tra xem các đơn vị khách (Hô hấp, Bệnh Nhiệt đới, Tim mạch, Hồi sức...) đã sang khám và cho ý kiến hay chưa:
+
+### 1. Lệnh thực thi 1-Click:
+```powershell
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate <MãBN|MãĐT>
+```
+
+### 2. Nguyên lý kiến trúc 2 tầng:
+* **Tầng 1 - `HIS_DEBATE`**: Lấy thông tin phiên hội chẩn nội khoa (Chủ tọa, Thư ký, chẩn đoán, tóm tắt diễn biến).
+* **Tầng 2 - `HIS_SERVICE_REQ` + `HIS_SERE_SERV_EXT`**: Trích xuất kết luận của từng chuyên khoa khách:
+  - Trạng thái xử lý (`🟢 ĐÃ CÓ KẾT QUẢ` hoặc `🟡 ĐANG CHỜ XỬ LÝ`).
+  - Bác sĩ chuyên khoa khám, chức danh và số điện thoại liên hệ (VD: `BS Hiếu B - 0344300246`).
+  - Toàn văn ý kiến điều trị, đề xuất kháng sinh, chỉ định cận lâm sàng bổ sung (AFB, cấy đờm, KMĐM...) và lời dặn chăm sóc.
 

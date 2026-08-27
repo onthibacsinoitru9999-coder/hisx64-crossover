@@ -587,6 +587,154 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void LookupConsultationDebate(string key)
+    {
+        InitSession();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("👥 TRA CỨU BIÊN BẢN HỘI CHẨN & Ý KIẾN CHUYÊN KHOA CHO: " + key);
+        Console.WriteLine("===============================================================================");
+
+        V_HIS_TREATMENT targetTreatment = null;
+        long trId = 0;
+        if (long.TryParse(key, out trId) && trId > 1000000 && trId < 99999999)
+        {
+            var tf = new HisTreatmentViewFilter { ID = trId };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (list != null && list.Count > 0) targetTreatment = list[0];
+        }
+
+        if (targetTreatment == null)
+        {
+            var tf = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = key.PadLeft(10, '0') };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (list != null && list.Count > 0) targetTreatment = list[0];
+        }
+
+        if (targetTreatment == null)
+        {
+            var tf = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = key.PadLeft(12, '0') };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (list != null && list.Count > 0) targetTreatment = list[0];
+        }
+
+        if (targetTreatment == null)
+        {
+            Console.WriteLine("❌ Không tìm thấy hồ sơ điều trị cho từ khóa: " + key);
+            return;
+        }
+
+        Console.WriteLine(string.Format("BỆNH NHÂN: {0} ({1} tuổi - {2})", targetTreatment.TDL_PATIENT_NAME, DateTime.Now.Year - int.Parse(targetTreatment.TDL_PATIENT_DOB.ToString().Substring(0, 4)), targetTreatment.TDL_PATIENT_GENDER_NAME));
+        Console.WriteLine(string.Format("Mã BN: {0} | Mã ĐT: {1} | ID Đợt ĐT: {2}", targetTreatment.TDL_PATIENT_CODE, targetTreatment.TREATMENT_CODE, targetTreatment.ID));
+        Console.WriteLine(string.Format("Chẩn đoán: [{0}] {1} (Chi tiết: {2})", targetTreatment.ICD_CODE, targetTreatment.ICD_NAME, targetTreatment.ICD_TEXT));
+        Console.WriteLine("-------------------------------------------------------------------------------");
+
+        // 1. Kiểm tra HIS_DEBATE
+        var df = new HisDebateFilter { TREATMENT_ID = targetTreatment.ID };
+        var debates = myAdapter.FetchList<HIS_DEBATE>("api/HisDebate/Get", mosConsumer, df, param);
+
+        if (debates != null && debates.Count > 0)
+        {
+            Console.WriteLine(string.Format("📋 TÌM THẤY {0} BIÊN BẢN HỘI CHẨN CHÍNH (HIS_DEBATE):", debates.Count));
+            foreach (var d in debates)
+            {
+                Console.WriteLine("\n-------------------------------------------------------------------------------");
+                Console.WriteLine(string.Format("🔹 HỘI CHẨN ID: {0} | Thời gian: {1}", d.ID, d.DEBATE_TIME));
+                Console.WriteLine("  • Chẩn đoán: [" + d.ICD_CODE + "] " + d.ICD_NAME + " (" + d.ICD_TEXT + ")");
+                Console.WriteLine("  • Địa điểm: " + d.LOCATION);
+                if (!string.IsNullOrEmpty(d.TREATMENT_TRACKING)) Console.WriteLine("  • Tóm tắt quá trình ĐT / Khám: " + d.TREATMENT_TRACKING);
+                if (!string.IsNullOrEmpty(d.DISCUSSION)) Console.WriteLine("  • Nội dung thảo luận / Xin ý kiến: " + d.DISCUSSION);
+                if (!string.IsNullOrEmpty(d.CONCLUSION)) Console.WriteLine("  • Kết luận / Hướng xử trí: " + d.CONCLUSION);
+
+                var duf = new HisDebateUserFilter { DEBATE_ID = d.ID };
+                var dUsers = myAdapter.FetchList<HIS_DEBATE_USER>("api/HisDebateUser/Get", mosConsumer, duf, param);
+                if (dUsers != null && dUsers.Count > 0)
+                {
+                    Console.WriteLine("  • Thành viên tham gia:");
+                    foreach (var u in dUsers)
+                    {
+                        string role = u.IS_PRESIDENT == 1 ? "[Chủ tọa]" : (u.IS_SECRETARY == 1 ? "[Thư ký]" : "[Thành viên]");
+                        Console.WriteLine(string.Format("    - {0} {1} ({2})", role, u.USERNAME, u.LOGINNAME));
+                    }
+                }
+            }
+        }
+        else
+        {
+            Console.WriteLine("ℹ️ Chưa có biên bản ghi nhận trong bảng HIS_DEBATE.");
+        }
+
+        // 2. Kiểm tra tất cả phiếu yêu cầu mời chuyên khoa liên khoa (HIS_SERVICE_REQ + HIS_SERE_SERV_EXT)
+        var srf = new HisServiceReqViewFilter { TREATMENT_ID = targetTreatment.ID };
+        var reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
+
+        if (reqs != null)
+        {
+            var consultReqs = reqs.Where(x => 
+                x.SERVICE_REQ_TYPE_ID == 1 ||
+                (x.EXECUTE_DEPARTMENT_NAME != null && (
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("hô hấp") ||
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("nhiệt đới") ||
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("truyền nhiễm") ||
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("tim mạch") ||
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("hồi sức") ||
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("thần kinh") ||
+                    x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("nội tiết")
+                ))
+            ).OrderByDescending(x => x.INTRUCTION_TIME).ToList();
+
+            if (consultReqs.Count > 0)
+            {
+                Console.WriteLine("\n===============================================================================");
+                Console.WriteLine(string.Format("🩺 Ý KIẾN TRẢ LỜI CỦA CÁC CHUYÊN KHOA KHÁCH ({0} PHIẾU CHỈ ĐỊNH):", consultReqs.Count));
+                Console.WriteLine("===============================================================================");
+
+                foreach (var cr in consultReqs)
+                {
+                    string statusBadge = cr.SERVICE_REQ_STT_ID == 3 ? "🟢 ĐÃ CÓ KẾT QUẢ / HOÀN THÀNH" : "🟡 ĐANG CHỜ XỬ LÝ / CHƯA CÓ KẾT QUẢ";
+                    Console.WriteLine("\n-------------------------------------------------------------------------------");
+                    Console.WriteLine(string.Format("🏢 ĐƠN VỊ: {0} ({1})", cr.EXECUTE_DEPARTMENT_NAME, cr.EXECUTE_ROOM_NAME));
+                    Console.WriteLine(string.Format("• Phiếu #{0} [{1}] - Gửi lúc: {2}", cr.SERVICE_REQ_CODE, cr.SERVICE_REQ_TYPE_NAME, cr.INTRUCTION_TIME));
+                    Console.WriteLine(string.Format("• Bác sĩ chỉ định: {0} ({1}) -> Khoa: {2}", cr.REQUEST_USERNAME, cr.REQUEST_LOGINNAME, cr.REQUEST_DEPARTMENT_NAME));
+                    Console.WriteLine(string.Format("• Trạng thái: {0}", statusBadge));
+                    if (cr.FINISH_TIME.HasValue) Console.WriteLine(string.Format("• Thời gian hoàn thành: {0}", cr.FINISH_TIME.Value));
+                    Console.WriteLine(string.Format("• Bác sĩ hội chẩn/trả lời: {0} ({1})", cr.EXECUTE_USERNAME ?? "(Chưa tiếp nhận)", cr.EXECUTE_LOGINNAME ?? "-"));
+
+                    // Lấy chi tiết ý kiến từ HIS_SERE_SERV_EXT
+                    var ssf = new HisSereServFilter { SERVICE_REQ_ID = cr.ID };
+                    var sss = myAdapter.FetchList<HIS_SERE_SERV>("api/HisSereServ/Get", mosConsumer, ssf, param);
+                    if (sss != null)
+                    {
+                        foreach (var ss in sss)
+                        {
+                            var ssef = new HisSereServExtFilter { SERE_SERV_ID = ss.ID };
+                            var sses = myAdapter.FetchList<HIS_SERE_SERV_EXT>("api/HisSereServExt/Get", mosConsumer, ssef, param);
+                            if (sses != null && sses.Count > 0)
+                            {
+                                foreach (var se in sses)
+                                {
+                                    if (!string.IsNullOrEmpty(se.DESCRIPTION))
+                                    {
+                                        Console.WriteLine("\n📝 NỘI DUNG Ý KIẾN HỘI CHẨN:");
+                                        Console.WriteLine(se.DESCRIPTION);
+                                    }
+                                    if (!string.IsNullOrEmpty(se.CONCLUDE) && se.CONCLUDE != ".")
+                                    {
+                                        Console.WriteLine("📌 KẾT LUẬN: " + se.CONCLUDE);
+                                    }
+                                    if (!string.IsNullOrEmpty(se.INSTRUCTION_NOTE))
+                                    {
+                                        Console.WriteLine("💡 LỜI DẶN: " + se.INSTRUCTION_NOTE);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Console.WriteLine("===============================================================================");
+    }
+
     public static void ScanWardRooms()
     {
         InitSession();
@@ -645,6 +793,7 @@ public class HisClinicalCli
             Console.WriteLine("  prescribe <trId> <tkId> <medId> <stId> <amount> <tutorial> : Kê đơn thuốc an toàn");
             Console.WriteLine("  assign-cls <trId> <tkId> <svcId> <roomId> [note] [ptId]    : Chỉ định CLS đơn lẻ");
             Console.WriteLine("  assign-bilan <trId> <tkId> <cement|spine|hip|hand>         : Chỉ định gói Bilan 1-Click");
+            Console.WriteLine("  debate <patientCode|treatmentCode>                         : Tra cứu biên bản hội chẩn & ý kiến các chuyên khoa");
             Console.WriteLine("===============================================================================");
             return;
         }
@@ -656,6 +805,11 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu từ khóa tra cứu!");
                 LookupPatient(args[1]);
+            }
+            else if (cmd == "debate" || cmd == "hoichan")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc mã đợt điều trị!");
+                LookupConsultationDebate(args[1]);
             }
             else if (cmd == "wardround")
             {
