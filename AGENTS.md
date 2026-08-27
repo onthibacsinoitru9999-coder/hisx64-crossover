@@ -64,9 +64,9 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 ### 🌟 Ma trận Phân công Mô hình theo Nghiệp vụ Lâm sàng:
 | Phân nhóm Nghiệp vụ | Tầng 1 (Ưu tiên số 1) | Tầng 2 (Dự phòng 1) | Tầng 3 (Dự phòng 2) | Tầng 4 (Dự phòng 3) |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Đa phương thức & OCR (Ảnh ĐH, Phim X-quang/CT/MRI, Phiếu KQ)** | **`stealth/ox-alpha`** *(1M tokens, Reasoning, JSON)* | **`minimax/minimax-m3:free`** *(1M tokens, Multimodal)* | **`google/gemma-4-31b-it:free`** *(256K tokens, Multimodal)* | **`openrouter/free`** *(Auto Router)* |
-| **2. Lập luận Bệnh án & Hội chẩn Chuyên khoa Phức tạp** | **`stealth/ox-alpha`** *(1M tokens, CoT)* | **`nvidia/nemotron-3-ultra-550b-a55b:free`** *(1M tokens, 550B MoE)* | **`z-ai/glm-5.2:free`** *(256K tokens, Deep Reasoning)* | **`minimax/minimax-m3:free`** |
-| **3. Lập trình Script, Trích xuất JSON & Tool Calling** | **`stealth/ox-alpha`** *(1M tokens, Strict JSON)* | **`cohere/north-mini-code:free`** *(256K tokens, Code Expert)* | **`poolside/laguna-s-2.1:free`** *(262K tokens, Logic & Code)* | **`openrouter/free`** |
+| **1. Đa phương thức & OCR (Ảnh ĐH, Phim X-quang/CT/MRI, Phiếu KQ)** | **`minimax/minimax-m3:free`** *(1M tokens, Reasoning, JSON)* | **`google/gemma-4-31b-it:free`** *(256K tokens, Multimodal)* | **`z-ai/glm-5.2:free`** *(256K tokens)* | **`openrouter/free`** *(Auto Router)* |
+| **2. Lập luận Bệnh án & Hội chẩn Chuyên khoa Phức tạp** | **`minimax/minimax-m3:free`** *(1M tokens, Deep CoT)* | **`nvidia/nemotron-3.5-lightning:free`** *(1M tokens)* | **`z-ai/glm-5.2:free`** *(256K tokens, Deep Reasoning)* | **`openrouter/free`** |
+| **3. Lập trình Script, Trích xuất JSON & Tool Calling** | **`minimax/minimax-m3:free`** *(1M tokens, Strict JSON)* | **`poolside/laguna-s-2.1:free`** *(262K tokens, Code)* | **`z-ai/glm-5.2:free`** *(256K tokens, Structured)* | **`openrouter/free`** |
 
 * **Đặc tính kỹ thuật cốt lõi**:
   - **100% Free Tier ($0 Input / $0 Output)**.
