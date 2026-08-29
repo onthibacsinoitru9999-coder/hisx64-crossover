@@ -772,6 +772,7 @@ Khi gặp lỗi lần đầu, Agent PHẢI kiểm tra theo thứ tự ưu tiên:
 | **Kê đơn thuốc tiêm Insulin bị báo hết tồn kho** | Truyền `Amount` số nguyên UI (VD: `8.0`) thay vì quy đổi sang Lọ. | Quy đổi: `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), chọn kho tủ trực 57 (`810`). |
 | **Lỗi biên dịch `error CS0246` / `FileNotFoundException`** | Thiếu file DLL trong `ReferencedAssemblies` hoặc chạy file .exe sai thư mục. | Chạy từ thư mục gốc dự án hoặc dùng hook `AssemblyResolve` đa tầng. |
 | **OpenRouter trả lỗi 429 hoặc 402** | Hết credit hoặc rate-limit mô hình. | Dùng `openrouter_client.py` tự động chuyển tầng sang `minimax/minimax-m3:free` hoặc `google/gemma-4-31b-it:free`. |
+| **Kê tủ trực báo `CacKhoLaTuTrucKhongChoPhepKe`** | Tủ trực ở một số khoa/cơ sở (VD: CSNB Tủ 3E `5142`) cấu hình chặn kê đơn trực tiếp qua API `InPatientPresCreate`. | **Quy tắc bắt buộc**: Báo cáo ngay cho Bác sĩ nguyên nhân kỹ thuật, tuyệt đối không tự ý chuyển sang Kho Dược mà không thông báo và xin ý kiến Bác sĩ. |
 
 ---
 
