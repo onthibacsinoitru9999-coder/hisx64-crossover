@@ -23,8 +23,7 @@
 16. [Quy Chuẩn Tích Hợp OpenRouter & Ma Trận Mô Hình Miễn Phí](#16-quy-chuẩn-tích-hợp-openrouter--ma-trận-mô-hình-miễn-phí-đa-tầng-smart-multi-tier-ai-routing)
 17. [Cẩm Nang Chống Vòng Lặp & Kỹ Thuật Chẩn Đoán Lỗi Tức Thì (Anti-Loop Manual)](#17-cẩm-nang-chống-vòng-lặp--kỹ-thuật-chẩn-đoán-lỗi-tức-thì-anti-loop-manual)
 18. [Quy Chuẩn Báo Cáo Buồng Bệnh & Đồng Bộ Tự Động Lên Cloud Drive](#18-quy-chuẩn-báo-cáo-buồng-bệnh--đồng-bộ-tự-động-lên-cloud-drive)
-
-
+19. [Cơ Sở 2 (Bệnh Viện Bạch Mai Cơ Sở Ninh Bình) - Bản Đồ Cấu Hình & Quy Tắc Lâm Sàng](#19-cơ-sở-2-bệnh-viện-bạch-mai-cơ-sở-ninh-bình---bản-đồ-cấu-hình--quy-tắc-lâm-sàng)
 
 ---
 
@@ -827,7 +826,55 @@ Khi chạy lệnh, hệ thống đồng thời tạo ra 2 định dạng file (`
 *Giao diện HTML tích hợp sẵn thanh tìm kiếm tức thì theo tên BN / buồng phòng, bộ đếm thống kê ca trực và nút In / Xuất PDF khổ A4 tiêu chuẩn.*
 
 ---
+
+## 19. CƠ SỞ 2 (BỆNH VIỆN BẠCH MAI CƠ SỞ NINH BÌNH) - BẢN ĐỒ CẤU HÌNH & QUY TẮC LÂM SÀNG
+
+### 19.1. Thông Số Định Danh Cơ Sở & Khoa Lâm Sàng
+* **Cơ sở (Branch)**:
+  - `BRANCH_ID = 81`
+  - `BRANCH_CODE = "05"`
+  - `BRANCH_NAME = "BỆNH VIỆN BẠCH MAI CƠ SỞ NINH BÌNH"`
+* **Khoa Lâm Sàng Trọng Điểm**:
+  - `DEPARTMENT_ID = 915`
+  - `DEPARTMENT_CODE = "CSNBKP05"`
+  - `DEPARTMENT_NAME = "Khoa Ngoại tổng hợp (CSNB)"`
+
+### 19.2. Bản Đồ Phân Khu Buồng Bệnh & Giường (Bed & Room Mapping)
+Khoa Ngoại tổng hợp Cơ sở Ninh Bình (`DEPARTMENT_ID = 915`) được chia làm 2 dãy buồng chính:
+* **Dãy Khu 3D**:
+  - Từ buồng `BB 3D - 13` (`BedRoomId = 3269`, `RoomId = 17387`, Code: `NBKP05.B05`) đến `BB 3D - 38` (`BedRoomId = 3292`, `RoomId = 17410`, Code: `NBKP05.B28`).
+  - Bao gồm các buồng VIP: `BB 3D - 25 VIP` (`BedRoomId = 3279`), `BB 3D - 26 VIP` (`BedRoomId = 3280`).
+* **Dãy Khu 3E**:
+  - Từ buồng `BB 3E - 15` (`BedRoomId = 3113`, `RoomId = 15271`, Code: `NBKP05.B01`) đến `BB 3E - 40` (`BedRoomId = 3116`, `RoomId = 15274`, Code: `NBKP05.B04`).
+  - Bao gồm các buồng VIP: `BB 3E - 27 VIP` (`BedRoomId = 3301`), `BB 3E - 28 VIP` (`BedRoomId = 3302`).
+
+### 19.3. Danh Mục Tủ Trực & Kho Thuốc Tại Cơ Sở Ninh Bình (MediStock Matrix)
+| Loại Kho / Tủ | Mã Kho (`MEDI_STOCK_CODE`) | `MediStockId` | Khoa / Khu Vực Phụ Trách | Mục Đích Sử Dụng |
+| :--- | :--- | :---: | :---: | :--- |
+| 💊 **Tủ Trực Thuốc Khu 3D** | `TTT_NBKP05.01` | **`5141`** | Khoa Ngoại TH (915) | Cấp phát thuốc trực, tiêm, cấp cứu khu 3D |
+| 💊 **Tủ Trực Thuốc Khu 3E** | `TTT_NBKP05.02` | **`5142`** | Khoa Ngoại TH (915) | Cấp phát thuốc trực, tiêm, cấp cứu khu 3E |
+| 🚑 **Xe Cấp Cứu / Chống Sốc 3D** | `TTT_NBKP05.04` | **`8347`** | Khu 3D Ngoại TH | Thuốc cấp cứu phản vệ, sốc |
+| 🚑 **Xe Cấp Cứu / Chống Sốc 3E** | `TTT_NBKP05.05` | **`8348`** | Khu 3E Ngoại TH | Thuốc cấp cứu phản vệ, sốc |
+| 🔪 **Tủ Thuốc Phòng Tiểu Phẫu** | `TTT_NBKP05.03` | **`7722`** | Phòng tiểu phẫu Ngoại | Thuốc tê, sát trùng, chỉ khâu |
+| 🏬 **KHO THUỐC CHÍNH (CSNB)** | `KTD_NBKP22.01` | **`4854`** | Khoa Dược CSNB (951) | Kê đơn thuốc nội trú hàng ngày / ra viện |
+| 💧 **Kho Dịch Truyền (CSNB)** | `KTD_NBKP22.06` | **`4859`** | Khoa Dược CSNB (951) | NaCl, Ringer, Glucose... |
+| 💊 **Kho Thuốc Viên (CSNB)** | `KTD_NBKP22.05` | **`4858`** | Khoa Dược CSNB (951) | Thuốc uống |
+| 💉 **Kho Thuốc Ống (CSNB)** | `KTD_NBKP22.04` | **`4857`** | Khoa Dược CSNB (951) | Thuốc tiêm / truyền |
+| 🔒 **Kho Thuốc Hướng Thần** | `KTD_NBKP22.03` | **`4856`** | Khoa Dược CSNB (951) | Thuốc hướng tâm thần |
+| ⛔ **Kho Thuốc Gây Nghiện** | `KTD_NBKP22.02` | **`4855`** | Khoa Dược CSNB (951) | Morphine, Fentanyl... |
+
+### 19.4. Hồ Sơ Bệnh Nhân Khảo Sát Tiêu Biểu (Real Verification)
+* **Bệnh nhân**: **MAI VĂN KINH**
+  - **Mã Bệnh Nhân**: `0004000211`
+  - **Mã Đợt Điều Trị (`TREATMENT_CODE`)**: `000007133452` (ID: `7133268`)
+  - **Năm sinh**: `1956` (70 tuổi, Nam) - Địa chỉ: Xã Xuân Trường, Ninh Bình.
+  - **Thời gian vào viện**: `29/08/2026 14:48`
+  - **Vị trí điều trị**: Buồng `BB 3D - 13` (Mã buồng: `NBKP05.B05`, RoomId: `17387`, BedRoomId: `3269`) - Giường: `Cáng số 3 (Ngoại 2)`.
+  - **Chẩn đoán**: `[K56.7] Tắc ruột non`.
+
+---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
 
 
 
