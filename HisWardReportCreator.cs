@@ -380,21 +380,28 @@ public class HisWardReportCreator
 
         string mdContent = GenerateMarkdown(records, dateTitle);
         string htmlContent = GenerateHtml(records, dateTitle);
+        string csvContent = GenerateCsv(records, dateTitle);
 
         string mdPath1 = Path.Combine(reportFolder1, string.Format("BaoCao_BuongBenh_{0}.md", timeStamp));
         string htmlPath1 = Path.Combine(reportFolder1, string.Format("BaoCao_BuongBenh_{0}.html", timeStamp));
+        string csvPath1 = Path.Combine(reportFolder1, string.Format("BaoCao_BuongBenh_{0}.csv", timeStamp));
+        string csvLatest = Path.Combine(reportFolder1, "BaoCao_BuongBenh_MoiNhat.csv");
+
+        var utf8Bom = new UTF8Encoding(true);
         File.WriteAllText(mdPath1, mdContent, Encoding.UTF8);
         File.WriteAllText(htmlPath1, htmlContent, Encoding.UTF8);
+        File.WriteAllText(csvPath1, csvContent, utf8Bom);
+        File.WriteAllText(csvLatest, csvContent, utf8Bom);
 
-        Console.WriteLine("📁 Đã lưu Báo cáo Buồng bệnh cục bộ: " + htmlPath1);
+        Console.WriteLine("📁 Đã lưu Báo cáo Buồng bệnh Sheet (CSV) cục bộ: " + csvPath1);
 
-        // Đồng bộ trực tiếp lên Google Drive (onthibacsinoitru9999@gmail.com) qua rclone
+        // Đồng bộ trực tiếp lên Google Drive (onthibacsinoitru9999@gmail.com) dưới dạng Google Sheet
         try
         {
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "rclone",
-                Arguments = "copy \"" + reportFolder1 + "\" \"gdrive:BaoCaoBuongBenh_Khoa57\" --quiet",
+                Arguments = "copy \"" + csvPath1 + "\" \"gdrive:BaoCaoBuongBenh_Khoa57\" --drive-import-formats csv --drive-allow-import-name-change --quiet",
                 CreateNoWindow = true,
                 UseShellExecute = false
             };
@@ -402,8 +409,22 @@ public class HisWardReportCreator
             if (proc != null)
             {
                 proc.WaitForExit(15000);
-                Console.WriteLine("☁️ Đã đồng bộ thành công lên Google Drive (onthibacsinoitru9999@gmail.com): gdrive:BaoCaoBuongBenh_Khoa57");
             }
+
+            var psiLatest = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "rclone",
+                Arguments = "copy \"" + csvLatest + "\" \"gdrive:BaoCaoBuongBenh_Khoa57\" --drive-import-formats csv --drive-allow-import-name-change --quiet",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            };
+            var procLatest = System.Diagnostics.Process.Start(psiLatest);
+            if (procLatest != null)
+            {
+                procLatest.WaitForExit(15000);
+            }
+
+            Console.WriteLine("📊 Đã đồng bộ thành công lên Google Sheet (onthibacsinoitru9999@gmail.com): gdrive:BaoCaoBuongBenh_Khoa57");
         }
         catch (Exception gEx)
         {
@@ -416,6 +437,61 @@ public class HisWardReportCreator
         {
             try { System.Diagnostics.Process.Start(htmlPath1); } catch { }
         }
+    }
+
+    public static string EscapeCsv(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        s = s.Replace("\"", "\"\"");
+        if (s.Contains(",") || s.Contains("\"") || s.Contains("\n") || s.Contains("\r"))
+        {
+            return "\"" + s + "\"";
+        }
+        return s;
+    }
+
+    public static string GenerateCsv(List<PatientWardRecord> records, string dateTitle)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine("STT,Buồng bệnh,Giường,Mã BN,Mã ĐT,Họ và tên,Tuổi,Giới tính,Mã ICD-10,Chẩn đoán chi tiết & Tầng tổn thương,Mạch (ck/p),Huyết áp (mmHg),Nhiệt độ (C),SpO2 (%),Tờ điều trị hôm nay,Đơn thuốc hôm nay,Suất ăn dinh dưỡng,Hội chẩn chuyên khoa,Cảnh báo lâm sàng");
+
+        int idx = 1;
+        foreach (var r in records)
+        {
+            string diag = string.Format("[{0}] {1} {2}", r.IcdCode, r.IcdName, !string.IsNullOrEmpty(r.IcdText) ? "(" + r.IcdText + ")" : "").Trim();
+            string trk = r.HasTrackingToday ? string.Format("Đã tạo lúc {0} ({1})", r.TodayTrackingTime, r.TodayTrackingContent) : "Chưa tạo tờ ĐT hôm nay";
+            string meds = r.HasPrescriptionToday ? string.Join(" | ", r.TodayMeds) : "Chưa kê đơn thuốc hôm nay";
+            string consult = string.Join(" | ", r.ActionBadges.Where(b => b.Contains("Hội chẩn")));
+            string badges = string.Join(" | ", r.ActionBadges);
+
+            var line = new List<string>
+            {
+                idx.ToString(),
+                EscapeCsv(r.RoomName),
+                EscapeCsv(r.BedName),
+                EscapeCsv("'" + r.PatientCode),
+                EscapeCsv("'" + r.TreatmentId),
+                EscapeCsv(r.PatientName),
+                EscapeCsv(r.AgeStr),
+                EscapeCsv(r.GenderName),
+                EscapeCsv(r.IcdCode),
+                EscapeCsv(diag),
+                EscapeCsv(r.Pulse ?? "-"),
+                EscapeCsv(r.BloodPressure ?? "-"),
+                EscapeCsv(r.Temperature ?? "-"),
+                EscapeCsv(r.SpO2 ?? "-"),
+                EscapeCsv(trk),
+                EscapeCsv(meds),
+                EscapeCsv(r.TodayRation ?? ""),
+                EscapeCsv(consult),
+                EscapeCsv(badges)
+            };
+
+            sb.AppendLine(string.Join(",", line));
+            idx++;
+        }
+
+        return sb.ToString();
     }
 
     public static string GenerateMarkdown(List<PatientWardRecord> records, string dateTitle)
