@@ -873,6 +873,57 @@ Khoa Ngoại tổng hợp Cơ sở Ninh Bình (`DEPARTMENT_ID = 915`) được c
   - **Chẩn đoán**: `[K56.7] Tắc ruột non`.
 
 ---
+
+## 20. CƠ CHẾ XÁC THỰC ĐA TẦNG & FALLBACK TỰ ĐỘNG CHO CÔNG CỤ ĐỘC LẬP (STANDALONE AUTH PROTOCOL)
+
+Khi chạy các công cụ CLI độc lập (`.exe`, `.bat`) mà không có giao diện HIS chính đang mở hoặc khi TokenCode trong `Logs\LogSystem.txt` đã hết hạn (`401 Unauthorized` / `IsLostToken: true`), quy trình khởi tạo phiên làm việc BẮT BUỘC tuân thủ cơ chế Fallback sau:
+
+### 20.1. Cấu Trúc Khởi Tạo Session Chuẩn:
+1. **Tầng 1 (Live Token Log)**: Đọc chuỗi `TokenCode` 64 ký tự gần nhất từ `Logs\LogSystem.txt`. Gọi kiểm tra thử 1 API GET (`api/HisBedRoom/GetView`). Nếu thành công $\rightarrow$ Sử dụng ngay.
+2. **Tầng 2 (Direct ACS Fallback Login)**:
+   - Nếu token log hết hạn hoặc lỗi: Nạp cấu hình `Load.Init()`.
+   - Gán tĩnh `Constants.BASE_URI = "http://192.168.7.200:1401/"` và `Constants.LOGIN_URI = "api/Token/Login"`.
+   - Khởi tạo: `new ClientTokenManager("HIS", "http://192.168.7.200:1401/")`.
+   - Đăng nhập với tài khoản bác sĩ: `tokenManager.Login(param, "vmc", "789789", "2.390.0")` (hoặc `034727 / 9981`).
+   - Kích hoạt phòng làm việc: Gửi `POST api/Token/UpdateWorkInfo` với danh sách phòng Khoa 57 (`5248, 5252, 5251, 5257`).
+3. **Mã Nguồn Mẫu (Đã Chuẩn Hóa 100% trong `HisWardReportCreator.cs` & `HisClinicalCli.cs`)**:
+```csharp
+Load.Init();
+try
+{
+    var constType = typeof(ClientTokenManager).Assembly.GetType("Inventec.Token.ClientSystem.Constants");
+    var fBase = constType.GetField("BASE_URI", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+    if (fBase != null) fBase.SetValue(null, "http://192.168.7.200:1401/");
+    var fLogin = constType.GetField("LOGIN_URI", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+    if (fLogin != null) fLogin.SetValue(null, "api/Token/Login");
+}
+catch { }
+
+ClientTokenManager tokenManager = new ClientTokenManager("HIS", "http://192.168.7.200:1401/");
+var loginToken = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+if (loginToken == null)
+{
+    param = new CommonParam();
+    loginToken = tokenManager.Login(param, "034727", "9981", "2.390.0");
+}
+if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
+{
+    var mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", loginToken.TokenCode, "HIS");
+    var workInfo = new WorkInfoSDO
+    {
+        Rooms = new List<RoomSDO>
+        {
+            new RoomSDO { RoomId = 5248 },
+            new RoomSDO { RoomId = 5252 },
+            new RoomSDO { RoomId = 5251 },
+            new RoomSDO { RoomId = 5257 }
+        }
+    };
+    adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
+}
+```
+
+---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
 
 

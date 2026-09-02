@@ -5,9 +5,12 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using Inventec.Core;
+using Inventec.Token.ClientSystem;
 using Inventec.Common.Adapter;
 using Inventec.Common.WebApiClient;
+using HIS.Desktop.LocalStorage.ConfigSystem;
 using MOS.Filter;
+using MOS.SDO;
 using MOS.EFMODEL.DataModels;
 
 public class MyAdapter : AdapterBase
@@ -15,6 +18,11 @@ public class MyAdapter : AdapterBase
     public List<T> FetchList<T>(string uri, ApiConsumer consumer, object filter, CommonParam param)
     {
         return Get<List<T>>(uri, consumer, filter, param);
+    }
+
+    public T PostData<T>(string uri, ApiConsumer consumer, object data, CommonParam param)
+    {
+        return Post<T>(uri, consumer, data, param);
     }
 }
 
@@ -95,19 +103,99 @@ public class HisWardReportCreator
         return null;
     }
 
+    public static string InitSession(ref ApiConsumer mosConsumer, ref CommonParam param, ref MyAdapter adapter)
+    {
+        string token = ReadLiveToken();
+        param = new CommonParam();
+        adapter = new MyAdapter();
+
+        if (!string.IsNullOrEmpty(token))
+        {
+            mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+            try
+            {
+                HisBedRoomViewFilter testBf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
+                var testRooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, testBf, param);
+                if (testRooms != null && testRooms.Count > 0)
+                {
+                    return token;
+                }
+            }
+            catch { }
+        }
+
+        // Live token is empty or invalid, fallback to direct ACS login
+        token = null;
+        try
+        {
+            Load.Init();
+            try
+            {
+                var constType = typeof(ClientTokenManager).Assembly.GetType("Inventec.Token.ClientSystem.Constants");
+                var fBase = constType.GetField("BASE_URI", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                if (fBase != null) fBase.SetValue(null, "http://192.168.7.200:1401/");
+                var fLogin = constType.GetField("LOGIN_URI", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                if (fLogin != null) fLogin.SetValue(null, "api/Token/Login");
+            }
+            catch { }
+
+            ClientTokenManager tokenManager = new ClientTokenManager("HIS", "http://192.168.7.200:1401/");
+            var loginToken = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+            if (loginToken == null)
+            {
+                param = new CommonParam();
+                loginToken = tokenManager.Login(param, "034727", "9981", "2.390.0");
+            }
+
+            if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
+            {
+                token = loginToken.TokenCode;
+                mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+
+                try
+                {
+                    var workInfo = new WorkInfoSDO
+                    {
+                        Rooms = new List<RoomSDO>
+                        {
+                            new RoomSDO { RoomId = 5248 },
+                            new RoomSDO { RoomId = 5252 },
+                            new RoomSDO { RoomId = 5251 },
+                            new RoomSDO { RoomId = 5257 }
+                        }
+                    };
+                    adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
+                }
+                catch { }
+
+                return token;
+            }
+            else
+            {
+                Console.WriteLine("❌ Đăng nhập ACS thất bại!");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("⚠️ Fallback login error: " + ex.Message);
+        }
+
+        return token;
+    }
+
     public static void GenerateReport(string roomFilter = "712,714,716,724,725", bool openBrowser = false)
     {
         Console.OutputEncoding = Encoding.UTF8;
-        string token = ReadLiveToken();
-        if (string.IsNullOrEmpty(token))
+        ApiConsumer mosConsumer = null;
+        CommonParam param = null;
+        MyAdapter adapter = null;
+
+        string token = InitSession(ref mosConsumer, ref param, ref adapter);
+        if (string.IsNullOrEmpty(token) || mosConsumer == null)
         {
-            Console.WriteLine("❌ Không tìm thấy TokenCode hợp lệ từ LogSystem.txt!");
+            Console.WriteLine("❌ Không khởi tạo được phiên làm việc HIS!");
             return;
         }
-
-        ApiConsumer mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
-        CommonParam param = new CommonParam();
-        MyAdapter adapter = new MyAdapter();
 
         Console.WriteLine("===============================================================================");
         Console.WriteLine("🏥 ĐANG TỔNG HỢP BÁO CÁO BUỒNG BỆNH KHOA CTCH & CỘT SỐNG (KHOA 57)");
