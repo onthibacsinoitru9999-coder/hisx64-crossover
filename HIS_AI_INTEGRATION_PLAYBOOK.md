@@ -818,10 +818,10 @@ Mỗi dòng báo cáo buồng bệnh phải chứa đầy đủ 8 trường thô
 .\HisWardReport.bat --open
 ```
 
-### 18.3. Cơ Chế Tự Động Lưu & Đồng Bộ 2 Nơi (Dual Sync Protocol)
+### 18.3. Cơ Chế Tự Động Lưu & Đồng Bộ Google Drive (Cloud Sync Protocol)
 Khi chạy lệnh, hệ thống đồng thời tạo ra 2 định dạng file (`.html` tương tác & `.md` gọn nhẹ) và tự động ghi vào 2 vị trí:
 1. **Thư mục Dự án**: `Reports\WardReports\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` & `.md`.
-2. **Thư mục Drive / OneDrive**: `C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` & `.md`.
+2. **Google Drive (`onthibacsinoitru9999@gmail.com`)**: Tự động tải lên thư mục `gdrive:BaoCaoBuongBenh_Khoa57` qua `rclone`.
 
 *Giao diện HTML tích hợp sẵn thanh tìm kiếm tức thì theo tên BN / buồng phòng, bộ đếm thống kê ca trực và nút In / Xuất PDF khổ A4 tiêu chuẩn.*
 

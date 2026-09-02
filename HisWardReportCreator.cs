@@ -378,12 +378,6 @@ public class HisWardReportCreator
         string reportFolder1 = Path.Combine(projectDir, "Reports", "WardReports");
         if (!Directory.Exists(reportFolder1)) Directory.CreateDirectory(reportFolder1);
 
-        string oneDriveDir = @"C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57";
-        if (!Directory.Exists(oneDriveDir))
-        {
-            try { Directory.CreateDirectory(oneDriveDir); } catch { }
-        }
-
         string mdContent = GenerateMarkdown(records, dateTitle);
         string htmlContent = GenerateHtml(records, dateTitle);
 
@@ -392,20 +386,30 @@ public class HisWardReportCreator
         File.WriteAllText(mdPath1, mdContent, Encoding.UTF8);
         File.WriteAllText(htmlPath1, htmlContent, Encoding.UTF8);
 
-        if (Directory.Exists(oneDriveDir))
+        Console.WriteLine("📁 Đã lưu Báo cáo Buồng bệnh cục bộ: " + htmlPath1);
+
+        // Đồng bộ trực tiếp lên Google Drive (onthibacsinoitru9999@gmail.com) qua rclone
+        try
         {
-            string mdPath2 = Path.Combine(oneDriveDir, string.Format("BaoCao_BuongBenh_{0}.md", timeStamp));
-            string htmlPath2 = Path.Combine(oneDriveDir, string.Format("BaoCao_BuongBenh_{0}.html", timeStamp));
-            try
+            var psi = new System.Diagnostics.ProcessStartInfo
             {
-                File.WriteAllText(mdPath2, mdContent, Encoding.UTF8);
-                File.WriteAllText(htmlPath2, htmlContent, Encoding.UTF8);
-                Console.WriteLine("📁 Đã đồng bộ sang Thư mục Drive: " + htmlPath2);
+                FileName = "rclone",
+                Arguments = "copy \"" + reportFolder1 + "\" \"gdrive:BaoCaoBuongBenh_Khoa57\" --quiet",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            };
+            var proc = System.Diagnostics.Process.Start(psi);
+            if (proc != null)
+            {
+                proc.WaitForExit(15000);
+                Console.WriteLine("☁️ Đã đồng bộ thành công lên Google Drive (onthibacsinoitru9999@gmail.com): gdrive:BaoCaoBuongBenh_Khoa57");
             }
-            catch { }
+        }
+        catch (Exception gEx)
+        {
+            Console.WriteLine("⚠️ GDrive sync note: " + gEx.Message);
         }
 
-        Console.WriteLine("📁 Đã lưu Báo cáo Buồng bệnh tại: " + htmlPath1);
         Console.WriteLine("===============================================================================");
 
         if (openBrowser)

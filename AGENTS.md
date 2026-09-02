@@ -117,8 +117,8 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      - Tình trạng Tờ điều trị hôm nay (Giờ tạo, tóm tắt diễn biến).
      - Tình trạng Kê đơn thuốc, Kháng sinh, Suất ăn dinh dưỡng hôm nay.
      - Cảnh báo tự động: 🔴 Chưa tạo tờ ĐT, 🔴 Chưa kê đơn, 🟠 BN Đái tháo đường cần theo dõi ĐH/Insulin.
-  3. **Tự động lưu & Đồng bộ 2 địa điểm**:
-     - **Thư mục Drive**: `C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` và `.md`.
+  3. **Tự động lưu & Đồng bộ Google Drive**:
+     - **Google Drive (`onthibacsinoitru9999@gmail.com`)**: Tự động tải lên thư mục `gdrive:BaoCaoBuongBenh_Khoa57` qua `rclone`.
      - **Thư mục Dự án**: `Reports\WardReports\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` và `.md`.
   4. **Phản hồi Bác sĩ**: In bảng tổng quan Markdown trực tiếp trong chat kèm link mở file HTML trực quan (hỗ trợ tìm kiếm, lọc buồng và in PDF khổ A4).
 

@@ -8,3 +8,8 @@ if exist "%SCRIPT_DIR%HisWardReportCreator.exe" (
     echo [ERROR] Khong tim thay HisWardReportCreator.exe! Vui long bien dich lai.
     exit /b 1
 )
+
+if exist "%SCRIPT_DIR%Reports\WardReports" (
+    rclone copy "%SCRIPT_DIR%Reports\WardReports" "gdrive:BaoCaoBuongBenh_Khoa57" --quiet
+)
+
