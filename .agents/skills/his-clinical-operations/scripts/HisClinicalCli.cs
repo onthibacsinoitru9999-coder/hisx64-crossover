@@ -592,11 +592,16 @@ public class HisClinicalCli
         InitSession();
         Console.WriteLine("===============================================================================");
         Console.WriteLine("👥 TRA CỨU BIÊN BẢN HỘI CHẨN & Ý KIẾN CHUYÊN KHOA CHO: " + key);
-        Console.WriteLine("===============================================================================");
-
         V_HIS_TREATMENT targetTreatment = null;
+        if (key.StartsWith("00") || key.Length == 12)
+        {
+            var tf = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = key.PadLeft(12, '0') };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (list != null && list.Count > 0) targetTreatment = list[0];
+        }
+
         long trId = 0;
-        if (long.TryParse(key, out trId) && trId > 1000000 && trId < 99999999)
+        if (targetTreatment == null && long.TryParse(key, out trId) && trId > 1000000 && trId < 99999999)
         {
             var tf = new HisTreatmentViewFilter { ID = trId };
             var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);

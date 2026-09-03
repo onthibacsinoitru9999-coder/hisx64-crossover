@@ -24,6 +24,7 @@
 17. [Cẩm Nang Chống Vòng Lặp & Kỹ Thuật Chẩn Đoán Lỗi Tức Thì (Anti-Loop Manual)](#17-cẩm-nang-chống-vòng-lặp--kỹ-thuật-chẩn-đoán-lỗi-tức-thì-anti-loop-manual)
 18. [Quy Chuẩn Báo Cáo Buồng Bệnh & Đồng Bộ Tự Động Lên Cloud Drive](#18-quy-chuẩn-báo-cáo-buồng-bệnh--đồng-bộ-tự-động-lên-cloud-drive)
 19. [Cơ Sở 2 (Bệnh Viện Bạch Mai Cơ Sở Ninh Bình) - Bản Đồ Cấu Hình & Quy Tắc Lâm Sàng](#19-cơ-sở-2-bệnh-viện-bạch-mai-cơ-sở-ninh-bình---bản-đồ-cấu-hình--quy-tắc-lâm-sàng)
+20. [Quy Trình Báo Cáo Đi Buồng Hội Chẩn Liên Khoa & Cập Nhật Tập Trung Cloud Drive](#20-quy-trình-báo-cáo-đi-buồng-hội-chẩn-liên-khoa--cập-nhật-tập-trung-cloud-drive)
 
 ---
 
@@ -920,8 +921,39 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
         }
     };
     adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
-}
 ```
+
+---
+
+## 20. QUY TRÌNH BÁO CÁO ĐI BUỒNG HỘI CHẨN LIÊN KHOA & CẬP NHẬT TẬP TRUNG CLOUD DRIVE
+
+### 20.1. Mục Đích & Nguyên Tắc Vàng
+* **Yêu cầu cốt lõi**: Bác sĩ đi buồng hội chẩn các khoa bạn (Cơ xương khớp, Gan mật tụy, Ngoại, Phẫu thuật thần kinh, Tim mạch...) cần có bức tranh toàn cảnh:
+  1. Khoa bạn đang chẩn đoán gì và xin ý kiến chuyên khoa CTCH & Cột sống về vấn đề gì?
+  2. Bệnh sử, diễn biến, kết quả chẩn đoán hình ảnh cốt lõi (MRI, CT, X-quang) trích xuất đích danh từng tầng theo **Rule 4**.
+  3. Đề xuất hướng xử trí sắc bén của chuyên khoa CTCH & Cột sống: Bơm xi măng sinh học / Phẫu thuật giải ép tủy / Phẫu thuật kết hợp xương / Điều trị bảo tồn nội khoa / Kế hoạch nhận bệnh nhân về Khoa 57.
+* **Nguyên tắc Master Document (Không tạo file rời rạc)**:
+  - Tất cả các đợt hội chẩn đều được cập nhật hoặc append vào **CÙNG 1 FILE DUY NHẤT**:
+    * `Reports\ConsultationReports\BaoCao_HoiChan_LienKhoa_Khoa57.html`
+    * `Reports\ConsultationReports\BaoCao_HoiChan_LienKhoa_Khoa57.md`
+  - Giữ nguyên đường dẫn cố định trên Google Drive (`gdrive:BaoCaoHoiChan_Khoa57`) để Bác sĩ truy cập nhanh từ điện thoại/máy tính bảng mọi lúc mọi nơi.
+
+### 20.2. Lệnh Thực Thi 1-Click: `HisConsultationReport.bat`
+```powershell
+# Xem và tự động mở báo cáo trên trình duyệt:
+.\HisConsultationReport.bat
+
+# Hoặc mở trực tiếp:
+.\HisConsultationReport.bat --open
+```
+
+### 20.3. Bẫy Lỗi (Gotchas) Xương Máu Về Tra Cứu & Hệ Thống
+1. **Lỗi `192.168.7.200:1430` (Lỗi download file webservice)**:
+   - *Bản chất*: Port 1430 trên IP 192.168.7.200 là webservice tải file template in ấn / biểu mẫu EMR của bệnh viện.
+   - *Nguyên nhân*: Xuất hiện trên UI HIS khi máy trạm cố gắng tải file template in ấn hoặc xem tài liệu nhưng đường truyền LAN nội bộ bị timeout hoặc file template chưa được cấu hình.
+   - *Không liên quan đến Script API*: Các script CLI truy vấn database chạy trên cổng `http://192.168.7.236:1608/` (MOS API), hoàn toàn độc lập với port 1430.
+2. **Phân biệt `TREATMENT_CODE` (12 số) và `TREATMENT_ID`**:
+   - Trong `HisClinicalCli.cs`, chuỗi 12 chữ số (VD `000007135233`) bắt buộc phải tìm theo `TREATMENT_CODE__EXACT`. Nếu dùng `long.TryParse` sẽ ra số `7135233` và nhầm sang `TREATMENT_ID` của bệnh nhân khác! Bắt buộc kiểm tra `key.StartsWith("00") || key.Length == 12` trước tiên.
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
