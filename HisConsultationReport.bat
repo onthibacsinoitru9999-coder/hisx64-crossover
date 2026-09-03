@@ -19,9 +19,12 @@ if exist "%REPORT_CSV%"  echo [OK] Bao cao CSV  : %REPORT_CSV%
 if exist "%SCRIPT_DIR%rclone.exe" (
     "%SCRIPT_DIR%rclone.exe" listremotes 2>nul | findstr /i "gdrive:" >nul
     if !errorlevel! equ 0 (
-        echo [SYNC] Dang dong bo len Google Drive...
-        "%SCRIPT_DIR%rclone.exe" copy "%SCRIPT_DIR%Reports\ConsultationReports" "gdrive:BaoCaoHoiChan_Khoa57" --quiet
-        echo [SYNC] Dong bo Google Drive thanh cong!
+        echo [SYNC] Dang dong bo len thu muc 'HC BM' tren Google Drive...
+        "%SCRIPT_DIR%rclone.exe" mkdir "gdrive:HC BM" 2>nul
+        "%SCRIPT_DIR%rclone.exe" copy "%REPORT_CSV%" "gdrive:HC BM" --drive-import-formats csv --drive-allow-import-name-change --quiet
+        "%SCRIPT_DIR%rclone.exe" copy "%REPORT_XLSX%" "gdrive:HC BM" --quiet
+        "%SCRIPT_DIR%rclone.exe" copy "%SCRIPT_DIR%Reports\ConsultationReports" "gdrive:HC BM" --quiet
+        echo [SYNC] Dong bo Google Drive thanh cong vao thu muc 'HC BM'!
     ) else (
         echo [INFO] Chua cau hinh remote 'gdrive'. File da duoc luu tai thu muc Reports\ConsultationReports.
     )
