@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal enabledelayedexpansion
 chcp 65001 > nul
 echo ===============================================================================
@@ -8,10 +8,10 @@ echo ===========================================================================
 set SCRIPT_DIR=%~dp0
 cd /d %SCRIPT_DIR%
 
-echo [1/3] Kiểm tra môi trường HIS...
-if exist ReferencedAssemblies\Inventec.Core.dll (
+echo [1/4] Kiểm tra môi trường HIS...
+if exist "ReferencedAssemblies\Inventec.Core.dll" (
     echo   ✔ Đã tìm thấy thư mục ReferencedAssemblies chuẩn.
-) else if exist Inventec.Core.dll (
+) else if exist "Inventec.Core.dll" (
     echo   ✔ Đã tìm thấy các thư viện lõi Inventec tại thư mục gốc.
 ) else (
     echo   ⚠ CẢNH BÁO: Không tìm thấy Inventec.Core.dll! Hãy đảm bảo bạn đã giải nén
@@ -19,11 +19,30 @@ if exist ReferencedAssemblies\Inventec.Core.dll (
 )
 
 echo.
-echo [2/3] Kiểm tra kết nối máy chủ và phiên đăng nhập (Health Check)...
-call %SCRIPT_DIR%HisDiagnosticDoctor.bat health
+echo [2/4] Kiểm tra và thiết lập Git đồng bộ tri thức cho Agent...
+if not exist ".git" (
+    where git >nul 2>nul
+    if !errorlevel! equ 0 (
+        echo   ⚡ Đang khởi tạo và kết nối Git Repository...
+        git init >nul 2>nul
+        git remote add origin https://github.com/onthibacsinoitru9999-coder/hisx64-crossover.git >nul 2>nul
+        git fetch origin main >nul 2>nul
+        git branch -M main >nul 2>nul
+        git reset origin/main >nul 2>nul
+        echo   ✔ Đã kết nối Git origin main thành công! Agent sẽ tự động git pull bình thường.
+    ) else (
+        echo   ⚠ Git chưa được cài trên PATH. Bác sĩ vẫn dùng các công cụ .exe/.bat bình thường.
+    )
+) else (
+    echo   ✔ Thư mục Git đã tồn tại và sẵn sàng đồng bộ.
+)
 
 echo.
-echo [3/3] Thử nghiệm tra cứu nhanh thông tin bệnh nhân...
+echo [3/4] Kiểm tra kết nối máy chủ và phiên đăng nhập (Health Check)...
+call "%SCRIPT_DIR%HisDiagnosticDoctor.bat" health
+
+echo.
+echo [4/4] Thử nghiệm tra cứu nhanh thông tin bệnh nhân...
 if exist %SCRIPT_DIR%HisClinicalCli.exe (
     %SCRIPT_DIR%HisClinicalCli.exe lookup 0003985947
 )

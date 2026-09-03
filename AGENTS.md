@@ -9,6 +9,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   ```powershell
   git pull origin main
   ```
+  *(Trường hợp thư mục mới chưa có `.git`, Agent tự động chạy lệnh tự phục hồi sau để liên kết ngay với repository: `git init ; git remote add origin https://github.com/onthibacsinoitru9999-coder/hisx64-crossover.git ; git fetch origin main ; git branch -M main ; git reset origin/main`)*
 * **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HIS_AI_INTEGRATION_PLAYBOOK.md) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
 
 ## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC PHẦN MỀM CON (SINGLE RESPONSIBILITY CLI MATRIX)
