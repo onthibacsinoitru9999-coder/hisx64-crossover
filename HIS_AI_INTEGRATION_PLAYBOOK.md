@@ -961,6 +961,12 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
    - *Không liên quan đến Script API*: Các script CLI truy vấn database chạy trên cổng `http://192.168.7.236:1608/` (MOS API), hoàn toàn độc lập với port 1430.
 2. **Phân biệt `TREATMENT_CODE` (12 số) và `TREATMENT_ID`**:
    - Trong `HisClinicalCli.cs`, chuỗi 12 chữ số (VD `000007135233`) bắt buộc phải tìm theo `TREATMENT_CODE__EXACT`. Nếu dùng `long.TryParse` sẽ ra số `7135233` và nhầm sang `TREATMENT_ID` của bệnh nhân khác! Bắt buộc kiểm tra `key.StartsWith("00") || key.Length == 12` trước tiên.
+3. **Di Dời Hệ Thống Sang Thư Mục / Bản HIS Mới (Migration & Standalone Gotcha)**:
+   - *Bản chất*: Khi giải nén gói Core Support sang thư mục HIS mới nguyên bản, một số công cụ độc lập có thể gặp lỗi kết nối hoặc biên dịch.
+   - *Nguyên nhân & Giải pháp*:
+     * **Thiếu `.exe.config`**: Mọi file `.exe` độc lập (`HisDiagnosticDoctor.exe`, `HisSummaryTrackingDoctor.exe`, `HisSummaryTrackingCreator.exe`, `HisRationAssigner.exe`, `HisWardReportCreator.exe`) bắt buộc phải có file `.exe.config` đi kèm (sao chép từ `HisClinicalCli.exe.config`) để khởi tạo cấu hình `log4net` và WCF client kết nối ACS/MOS.
+     * **Vị trí `MOS.EFMODEL.dll` & `LIS.EFMODEL.dll`**: Một số bản cài HIS chỉ đặt các DLL này ở thư mục gốc. Khi biên dịch lại công cụ, cần đảm bảo các DLL này có mặt trong `ReferencedAssemblies\` và đường dẫn trong `refs.rsp` được cập nhật chính xác theo thư mục mới.
+     * **Cơ chế Fallback Auto-Login**: Khi phần mềm HIS chính chưa mở hoặc vừa tắt (`IsLostToken: true`), các công cụ không được chỉ đọc thụ động từ log `LogSystem.txt` mà phải có cơ chế nạp `Load.Init()` và tự động đăng nhập qua `ClientTokenManager.Login("034727", "9981", ...)` kèm kích hoạt phòng làm việc `UpdateWorkInfo`.
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*

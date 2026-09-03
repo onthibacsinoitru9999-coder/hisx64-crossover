@@ -7,6 +7,8 @@ using System.Text;
 using Inventec.Core;
 using Inventec.Common.Adapter;
 using Inventec.Common.WebApiClient;
+using Inventec.Token.ClientSystem;
+using HIS.Desktop.LocalStorage.ConfigSystem;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
@@ -25,10 +27,10 @@ public class MyAdapter : AdapterBase
 
 public class TargetPatientSpec
 {
-    public string PatientCode;
-    public string PatientName;
-    public bool Create3Day;
-    public bool Create7Day;
+    public string PatientCode { get; set; }
+    public string PatientName { get; set; }
+    public bool Create3Day { get; set; }
+    public bool Create7Day { get; set; }
 }
 
 public class HisSummaryTrackingCreator
@@ -88,8 +90,8 @@ public class HisSummaryTrackingCreator
             ROOM_ID = roomId,
             TRACKING_TIME = trackingTime,
             CONTENT = content,
-            MEDICAL_INSTRUCTION = med,
             CARE_INSTRUCTION = care,
+            MEDICAL_INSTRUCTION = med,
             ICD_CODE = tr.ICD_CODE,
             ICD_NAME = tr.ICD_NAME,
             ICD_SUB_CODE = tr.ICD_SUB_CODE,
@@ -97,6 +99,7 @@ public class HisSummaryTrackingCreator
         };
 
         HisTrackingSDO sdo = new HisTrackingSDO { Tracking = tracking, WorkingRoomId = roomId };
+
         CommonParam cp = new CommonParam();
         try
         {
@@ -117,6 +120,24 @@ public class HisSummaryTrackingCreator
     {
         Console.OutputEncoding = Encoding.UTF8;
         string token = ReadLiveToken();
+        if (string.IsNullOrEmpty(token))
+        {
+            try
+            {
+                Load.Init();
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                CommonParam p = new CommonParam();
+                var tok = tokenManager.Login(p, "034727", "9981", "2.390.0");
+                if (tok != null) token = tok.TokenCode;
+                else
+                {
+                    tok = tokenManager.Login(p, "vmc", "789789", "2.390.0");
+                    if (tok != null) token = tok.TokenCode;
+                }
+            }
+            catch { }
+        }
+
         if (string.IsNullOrEmpty(token))
         {
             Console.WriteLine("❌ Không tìm thấy TokenCode!");

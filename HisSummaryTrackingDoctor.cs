@@ -7,6 +7,8 @@ using System.Text;
 using Inventec.Core;
 using Inventec.Common.Adapter;
 using Inventec.Common.WebApiClient;
+using Inventec.Token.ClientSystem;
+using HIS.Desktop.LocalStorage.ConfigSystem;
 using MOS.Filter;
 using MOS.EFMODEL.DataModels;
 
@@ -67,6 +69,24 @@ public class HisSummaryTrackingDoctor
     {
         Console.OutputEncoding = Encoding.UTF8;
         string token = ReadLiveToken();
+        if (string.IsNullOrEmpty(token))
+        {
+            try
+            {
+                Load.Init();
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                CommonParam p = new CommonParam();
+                var tok = tokenManager.Login(p, "034727", "9981", "2.390.0");
+                if (tok != null) token = tok.TokenCode;
+                else
+                {
+                    tok = tokenManager.Login(p, "vmc", "789789", "2.390.0");
+                    if (tok != null) token = tok.TokenCode;
+                }
+            }
+            catch { }
+        }
+
         if (string.IsNullOrEmpty(token))
         {
             Console.WriteLine("❌ Không tìm thấy TokenCode!");
