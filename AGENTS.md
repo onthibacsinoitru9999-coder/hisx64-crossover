@@ -123,7 +123,12 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      - **Thư mục Dự án**: `Reports\WardReports\BaoCao_BuongBenh_YYYYMMDD_HHmmss.html` và `.md`.
   4. **Phản hồi Bác sĩ**: In bảng tổng quan Markdown trực tiếp trong chat kèm link mở file HTML trực quan (hỗ trợ tìm kiếm, lọc buồng và in PDF khổ A4).
 
-
-
-
-
+## 9. QUY TẮC BẢO GÌ LÀM NẤY - TRỰC DIỆN, SIÊU TỐC & TUYỆT ĐỐI KHÔNG LAN MAN (STRICT SCOPE & FAST RESPONSE PROTOCOL)
+* **Tuyệt đối tuân thủ đúng phạm vi yêu cầu (Strict Scope)**:
+  - Bác sĩ hỏi buồng nào (VD: `Phòng 714`), Agent CHỈ kiểm tra và trả lời đích danh buồng đó.
+  - **TUYỆT ĐỐI CẤM** tự ý quét lan sang các buồng khác (712, 715, 716, 724...), không tự ý tra cứu lịch sử bệnh nhân cũ đã ra viện/chuyển đi từ các ngày trước, không tự động chạy quét toàn viện (`--all`) khi không có yêu cầu.
+* **Tốc độ phản hồi tức thì (Fast Response - Dưới 15 giây)**:
+  - Nếu buồng rỗng/không có bệnh nhân: Phải báo ngay lập tức: **"Phòng [X] hiện đang trống (0 bệnh nhân)"**, kết thúc phản hồi ngắn gọn trong 1-2 câu. TUYỆT ĐỐI KHÔNG mất vài phút đào bới thông tin thừa.
+* **Nguyên tắc "Đúng trọng tâm, ngắn gọn, súc tích"**:
+  - Không in các bảng dữ liệu ngoài phạm vi câu hỏi.
+  - Mọi thao tác kiểm tra phải dứt điểm, tiết kiệm tối đa thời gian của Bác sĩ trong ca trực.

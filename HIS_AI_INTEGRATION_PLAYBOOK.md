@@ -967,6 +967,10 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
      * **Thiếu `.exe.config`**: Mọi file `.exe` độc lập (`HisDiagnosticDoctor.exe`, `HisSummaryTrackingDoctor.exe`, `HisSummaryTrackingCreator.exe`, `HisRationAssigner.exe`, `HisWardReportCreator.exe`) bắt buộc phải có file `.exe.config` đi kèm (sao chép từ `HisClinicalCli.exe.config`) để khởi tạo cấu hình `log4net` và WCF client kết nối ACS/MOS.
      * **Vị trí `MOS.EFMODEL.dll` & `LIS.EFMODEL.dll`**: Một số bản cài HIS chỉ đặt các DLL này ở thư mục gốc. Khi biên dịch lại công cụ, cần đảm bảo các DLL này có mặt trong `ReferencedAssemblies\` và đường dẫn trong `refs.rsp` được cập nhật chính xác theo thư mục mới.
      * **Cơ chế Fallback Auto-Login**: Khi phần mềm HIS chính chưa mở hoặc vừa tắt (`IsLostToken: true`), các công cụ không được chỉ đọc thụ động từ log `LogSystem.txt` mà phải có cơ chế nạp `Load.Init()` và tự động đăng nhập qua `ClientTokenManager.Login("034727", "9981", ...)` kèm kích hoạt phòng làm việc `UpdateWorkInfo`.
+4. **Nguyên Tắc "Bảo Gì Làm Nấy" - Phản Hồi Trực Diện & Siêu Tốc**:
+   - *Bản chất*: Khi Bác sĩ hỏi tình hình của 1 buồng cụ thể (VD: `Phòng 714`), Agent CHỈ kiểm tra và trả lời đúng buồng đó.
+   - *Quy tắc phản hồi*: Nếu buồng rỗng (`0 bệnh nhân`), báo ngay lập tức trong 5-10 giây: **"Phòng 714 hiện đang trống (0 bệnh nhân)"**.
+   - *Nghiêm cấm*: Tuyệt đối không tự ý chạy quét các buồng khác (712, 715, 716, 724...), không tự ý viết script cào lịch sử bệnh nhân cũ đã xuất viện/chuyển buồng từ các ngày trước, không tự động quét toàn viện (`--all`) khi không có yêu cầu, tránh làm loãng thông tin và lãng phí thời gian của Bác sĩ.
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
