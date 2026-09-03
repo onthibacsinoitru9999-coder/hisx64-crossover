@@ -34,6 +34,7 @@ public class MedicineStockInfo
     public long MediStockId { get; set; }
     public string MediStockCode { get; set; }
     public string MediStockName { get; set; }
+    public bool IsCabinet { get; set; }
 
     public MedicineStockInfo(long id, string code, string name)
     {
@@ -229,7 +230,164 @@ public class MainForm : Form
     public string CurrentRoomName { get; set; }
 
     // Predefined Stocks
-    public static readonly List<MedicineStockInfo> CommonStocks = new List<MedicineStockInfo>
+    
+    public static string ExecutePrescription(AdapterBase adp, CommonParam prm, string loginName, string userName, long roomId, V_HIS_TREATMENT tr, V_HIS_MEDICINE_TYPE med, MedicineStockInfo stock, decimal amount, string tutorial, long trackingTime, long trackingId)
+    {
+        if (tr == null) throw new ArgumentNullException("tr", "Hồ sơ điều trị không được rỗng!");
+        if (med == null) throw new ArgumentNullException("med", "Thuốc chỉ định không được rỗng!");
+
+        string medName = med.MEDICINE_TYPE_NAME ?? "";
+        string medCode = med.MEDICINE_TYPE_CODE ?? "";
+
+        // 1. Kiểm tra nhóm thuốc Insulin & Quy đổi liều chuẩn xác (UI -> Lọ) theo Rule 5 AGENTS.md
+        bool isInsulin = medName.IndexOf("Insulin", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         medName.IndexOf("Actrapid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         medName.IndexOf("Lantus", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         medName.IndexOf("Mixtard", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         medName.IndexOf("Novorapid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         medName.IndexOf("Humalog", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         medName.IndexOf("1000IU", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        decimal presAmount = amount;
+        long? useFormId = null;
+        string morning = null, noon = null, afternoon = null, evening = null;
+        bool isExpend = false;
+
+        if (isInsulin)
+        {
+            if (amount >= 1.0m)
+            {
+                presAmount = amount / 1000.0m;
+                Console.WriteLine(string.Format("  [SAFETY] Quy đổi liều Insulin: {0} UI -> {1:F4} lọ", amount, presAmount));
+            }
+            useFormId = 15; // Tiêm
+            isExpend = false;
+
+            // Phân bổ cữ tiêm theo giờ chỉ định
+            string sTime = trackingTime.ToString();
+            int hour = 17;
+            if (sTime.Length >= 12) int.TryParse(sTime.Substring(8, 2), out hour);
+
+            string doseStr = ((int)(presAmount * 1000.0m)).ToString("D2");
+            if (hour >= 5 && hour <= 9) morning = doseStr;
+            else if (hour >= 10 && hour <= 13) noon = doseStr;
+            else if (hour >= 14 && hour <= 18) afternoon = doseStr;
+            else evening = doseStr;
+
+            if (string.IsNullOrEmpty(tutorial) || tutorial == "Theo chỉ dẫn của bác sĩ")
+            {
+                tutorial = string.Format("Tiêm dưới da {0} UI lúc {1}h theo phác đồ đường máu mao mạch", (int)(presAmount * 1000.0m), hour);
+            }
+        }
+        else if (medCode == "TH.POVI008" || medCode == "TH.NATR047" || medName.IndexOf("Povidone", StringComparison.OrdinalIgnoreCase) >= 0 || medName.IndexOf("thay băng", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            // Dung dịch và vật tư thay băng tiêu hao
+            useFormId = 25; // Dùng ngoài
+            isExpend = true; // BẮT BUỘC bật hao phí tiêu hao
+            if (string.IsNullOrEmpty(tutorial) || tutorial == "Theo chỉ dẫn của bác sĩ") tutorial = "thay băng";
+        }
+
+        if (stock.IsCabinet)
+        {
+            string sessionKey = Guid.NewGuid().ToString();
+            var takeBean = new TakeBeanSDO
+            {
+                TypeId = med.ID,
+                MediStockId = stock.MediStockId,
+                PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
+                Amount = presAmount,
+                ClientSessionKey = sessionKey,
+                ExpiredDate = null
+            };
+            var beans = ((MyAdapter)adp).PostData<System.Collections.Generic.List<MOS.EFMODEL.DataModels.HIS_MEDICINE_BEAN>>("api/HisMedicineBean/Take", ApiConsumers.MosConsumer, takeBean, prm);
+            if (beans == null || beans.Count == 0)
+            {
+                string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Không giữ được thuốc trong tủ trực (có thể hết tồn).";
+                throw new Exception(errMsg);
+            }
+
+            var outPresSDO = new OutPatientPresSDO
+            {
+                TreatmentId = tr.ID,
+                InstructionTime = trackingTime,
+                UseTimes = new System.Collections.Generic.List<long> { trackingTime },
+                TrackingId = trackingId > 0 ? (long?)trackingId : null,
+                RequestRoomId = roomId,
+                RequestLoginName = loginName,
+                RequestUserName = userName,
+                IcdCode = (tr.ICD_CODE ?? "") + (string.IsNullOrEmpty(tr.ICD_SUB_CODE) ? "" : "," + tr.ICD_SUB_CODE),
+                IcdName = (tr.ICD_NAME ?? "") + (string.IsNullOrEmpty(tr.ICD_TEXT) ? "" : " - " + tr.ICD_TEXT),
+                IsCabinet = true,
+                ClientSessionKey = sessionKey,
+                Medicines = new System.Collections.Generic.List<PresMedicineSDO>
+                {
+                    new PresMedicineSDO
+                    {
+                        MedicineTypeId = med.ID,
+                        MediStockId = stock.MediStockId,
+                        Amount = presAmount,
+                        PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
+                        Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ",
+                        MedicineUseFormId = useFormId,
+                        Morning = morning,
+                        Noon = noon,
+                        Afternoon = afternoon,
+                        Evening = evening,
+                        IsExpend = isExpend,
+                        MedicineBeanIds = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(beans, b => b.ID))
+                    }
+                }
+            };
+            var outRes = ((MyAdapter)adp).PostData<OutPatientPresResultSDO>("api/HisServiceReq/OutPatientPresCreateList", ApiConsumers.MosConsumer, new System.Collections.Generic.List<OutPatientPresSDO> { outPresSDO }, prm);
+            if (outRes == null)
+            {
+                string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Kê đơn tủ trực thất bại (API trả về null)";
+                throw new Exception(errMsg);
+            }
+            return (outRes.ExpMests != null && outRes.ExpMests.Count > 0) ? outRes.ExpMests[0].EXP_MEST_CODE : (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0 ? outRes.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
+        }
+        else
+        {
+            var presSDO = new InPatientPresSDO
+            {
+                TreatmentId = tr.ID,
+                InstructionTimes = new System.Collections.Generic.List<long> { trackingTime },
+                UseTimes = new System.Collections.Generic.List<long> { trackingTime },
+                TrackingId = trackingId > 0 ? (long?)trackingId : null,
+                TrackingInfos = trackingId > 0 ? new System.Collections.Generic.List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime } } : null,
+                RequestRoomId = roomId,
+                RequestLoginName = loginName,
+                RequestUserName = userName,
+                IcdCode = (tr.ICD_CODE ?? "") + (string.IsNullOrEmpty(tr.ICD_SUB_CODE) ? "" : "," + tr.ICD_SUB_CODE),
+                IcdName = (tr.ICD_NAME ?? "") + (string.IsNullOrEmpty(tr.ICD_TEXT) ? "" : " - " + tr.ICD_TEXT),
+                Medicines = new System.Collections.Generic.List<PresMedicineSDO>
+                {
+                    new PresMedicineSDO
+                    {
+                        MedicineTypeId = med.ID,
+                        MediStockId = stock.MediStockId,
+                        Amount = presAmount,
+                        PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
+                        Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ",
+                        MedicineUseFormId = useFormId,
+                        Morning = morning,
+                        Noon = noon,
+                        Afternoon = afternoon,
+                        Evening = evening,
+                        IsExpend = isExpend
+                    }
+                }
+            };
+            var res = ((MyAdapter)adp).PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, presSDO, prm);
+            if (res == null)
+            {
+                string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Kê đơn nội trú thất bại (API trả về null)";
+                throw new Exception(errMsg);
+            }
+            return (res.ExpMests != null && res.ExpMests.Count > 0) ? res.ExpMests[0].EXP_MEST_CODE : (res.ServiceReqs != null && res.ServiceReqs.Count > 0 ? res.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
+        }
+    }
+public static readonly List<MedicineStockInfo> CommonStocks = new List<MedicineStockInfo>
     {
         new MedicineStockInfo(810, "TT_KCTCHCS", "Tủ trực Khoa CTCH & Cột sống"),
         new MedicineStockInfo(4210, "KT_KD15", "Kho thuốc viên"),
@@ -978,38 +1136,7 @@ public class MainForm : Form
                     if (meds == null || meds.Count == 0) throw new Exception("Không tìm thấy thuốc khớp từ khóa: " + medKw);
                     var targetMed = meds[0];
 
-                    InPatientPresSDO presSDO = new InPatientPresSDO
-                    {
-                        TreatmentId = tr.ID,
-                        InstructionTimes = new List<long> { trackingTime },
-                        UseTimes = new List<long> { trackingTime },
-                        TrackingId = trackingId,
-                        TrackingInfos = new List<TrackingInfoSDO>
-                        {
-                            new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime }
-                        },
-                        RequestRoomId = CurrentRoomId,
-                        RequestLoginName = CurrentLoginName,
-                        RequestUserName = CurrentUserName,
-                        IcdCode = tr.ICD_CODE,
-                        IcdName = tr.ICD_NAME,
-                        IcdSubCode = tr.ICD_SUB_CODE,
-                        IcdText = tr.ICD_TEXT,
-                        Medicines = new List<PresMedicineSDO>
-                        {
-                            new PresMedicineSDO
-                            {
-                                MedicineTypeId = targetMed.ID,
-                                MediStockId = stock.MediStockId,
-                                Amount = amount,
-                                PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
-                                Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ"
-                            }
-                        }
-                    };
-
-                    var res = adapter.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, presSDO, param);
-                    string code = (res != null && res.ExpMests != null && res.ExpMests.Count > 0) ? res.ExpMests[0].EXP_MEST_CODE : (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0 ? res.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
+                    string code = MainForm.ExecutePrescription(adapter, param, CurrentLoginName, CurrentUserName, CurrentRoomId, tr, targetMed, stock, amount, tutorial, trackingTime, trackingId);
                     return new { Success = true, Code = code, PatientName = tr.TDL_PATIENT_NAME };
                 });
 
@@ -1070,6 +1197,49 @@ class Program
         }
         fields.Add(current.ToString());
         return fields;
+    }
+
+    public static string ReadLiveTokenFast()
+    {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
+        {
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
+            {
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
+                    {
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
+                        {
+                            return chunk.Substring(start, 64);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
     }
 
     [STAThread]
@@ -1170,42 +1340,7 @@ class Program
             {
                 HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
                 CommonParam bp = new CommonParam();
-                string bToken = "";
-
-                // 1. Dò Live Token từ LogSystem.txt
-                string[] logCandidates = new string[] {
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt")
-                };
-                foreach (var lp in logCandidates)
-                {
-                    if (File.Exists(lp))
-                    {
-                        try
-                        {
-                            using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            using (var sr = new StreamReader(fs))
-                            {
-                                string text = sr.ReadToEnd();
-                                var lns = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                                for (int k = lns.Length - 1; k >= 0; k--)
-                                {
-                                    if (lns[k].Contains("TokenCode|"))
-                                    {
-                                        int idx = lns[k].IndexOf("TokenCode|") + 10;
-                                        if (lns[k].Length >= idx + 64)
-                                        {
-                                            bToken = lns[k].Substring(idx, 64);
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        catch { }
-                        if (!string.IsNullOrEmpty(bToken)) break;
-                    }
-                }
+                string bToken = ReadLiveTokenFast();
 
                 // 2. Fallback: login qua ACS nếu không có live token
                 if (string.IsNullOrEmpty(bToken))
@@ -1351,43 +1486,8 @@ class Program
                         }
                         var bMed = medicineCache[bMedKw];
 
-                        // Xác định kho thuốc: BẮT BUỘC lấy từ Kho Tủ Trực Khoa 57 (810 - TT_KCTCHCS)
-                        long bStockId = 810; // Tủ trực Khoa CTCH & Cột sống (Mặc định chuẩn lâm sàng)
-
-                        // 4. Tạo đơn thuốc nội trú
-                        InPatientPresSDO bPresSDO = new InPatientPresSDO
-                        {
-                            TreatmentId       = btr.ID,
-                            InstructionTimes  = new List<long> { bTkTime },
-                            UseTimes          = new List<long> { bTkTime },
-                            TrackingId        = bTkId,
-                            TrackingInfos     = new List<TrackingInfoSDO>
-                            {
-                                new TrackingInfoSDO { TrackingId = bTkId, IntructionTime = bTkTime }
-                            },
-                            RequestRoomId     = 5248,
-                            RequestLoginName  = batchUser,
-                            RequestUserName   = batchUser.ToUpper(),
-                            IcdCode           = btr.ICD_CODE,
-                            IcdName           = btr.ICD_NAME,
-                            IcdSubCode        = btr.ICD_SUB_CODE,
-                            IcdText           = btr.ICD_TEXT,
-                            Medicines = new List<PresMedicineSDO>
-                            {
-                                new PresMedicineSDO
-                                {
-                                    MedicineTypeId = bMed.ID,
-                                    MediStockId    = bStockId,
-                                    Amount         = bAmount,
-                                    PatientTypeId  = btr.TDL_PATIENT_TYPE_ID ?? 1,
-                                    Tutorial       = bTut
-                                }
-                            }
-                        };
-
-                        var bRes = bad.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, bPresSDO, bp);
-                        string bCode = (bRes != null && bRes.ServiceReqs != null && bRes.ServiceReqs.Count > 0)
-                            ? bRes.ServiceReqs[0].SERVICE_REQ_CODE : "OK";
+                        // 4. Tạo đơn thuốc nội trú từ Kho Tủ Trực Khoa 57 (810 - TT_KCTCHCS)
+                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUser.ToUpper(), 5248, btr, bMed, MainForm.CommonStocks[0], bAmount, bTut, bTkTime, bTkId);
 
                         Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã: {5}",
                             bPatKey, btr.TDL_PATIENT_NAME, bMed.MEDICINE_TYPE_NAME, bAmount, bTime, bCode));
@@ -1427,18 +1527,54 @@ class Program
             try
             {
                 HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
-                ClientTokenManager tm = new ClientTokenManager("HIS");
+                string sToken = ReadLiveTokenFast();
                 CommonParam p = new CommonParam();
-                var tok = tm.Login(p, user, pass, "2.390.0");
-                if (tok == null) { Console.WriteLine("❌ Đăng nhập thất bại!"); return; }
-                ApiConsumers.SetConsunmer(tok.TokenCode);
+                if (string.IsNullOrEmpty(sToken))
+                {
+                    ClientTokenManager tm = new ClientTokenManager("HIS");
+                    var tok = tm.Login(p, user, pass, "2.390.0");
+                    if (tok != null) sToken = tok.TokenCode;
+                }
+                if (string.IsNullOrEmpty(sToken)) { Console.WriteLine("❌ Đăng nhập và tìm token thất bại!"); return; }
+                ApiConsumers.SetConsunmer(sToken);
                 MyAdapter ad = new MyAdapter();
 
+                try
+                {
+                    var workInfo = new WorkInfoSDO
+                    {
+                        Rooms = new List<RoomSDO>
+                        {
+                            new RoomSDO { RoomId = 5248 },
+                            new RoomSDO { RoomId = 5252 },
+                            new RoomSDO { RoomId = 5251 },
+                            new RoomSDO { RoomId = 5257 }
+                        }
+                    };
+                    ad.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, p);
+                }
+                catch { }
+
                 HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-                tf.KEY_WORD = patKey;
+                long pCodeNum;
+                if (long.TryParse(patKey, out pCodeNum))
+                {
+                    tf.PATIENT_CODE__EXACT = patKey.PadLeft(10, '0');
+                }
+                else
+                {
+                    tf.KEY_WORD = patKey;
+                }
                 var trs = ad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, p);
-                if (trs == null || trs.Count == 0) { Console.WriteLine("❌ Không tìm thấy bệnh nhân!"); return; }
-                var tr = trs[0];
+                if ((trs == null || trs.Count == 0) && long.TryParse(patKey, out pCodeNum))
+                {
+                    tf = new HisTreatmentViewFilter();
+                    tf.KEY_WORD = patKey;
+                    trs = ad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, p);
+                }
+                if (trs == null || trs.Count == 0) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
+                var tr = trs.Where(t => t.END_DEPARTMENT_ID == 57 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0)).OrderByDescending(t => t.IN_TIME).FirstOrDefault() 
+                         ?? trs.OrderByDescending(t => t.IN_TIME).First();
 
                 HisTrackingViewFilter tkf = new HisTrackingViewFilter();
                 tkf.TREATMENT_ID = tr.ID;
@@ -1455,34 +1591,7 @@ class Program
                 if (meds == null || meds.Count == 0) { Console.WriteLine("❌ Không tìm thấy thuốc!"); return; }
                 var med = meds[0];
 
-                InPatientPresSDO presSDO = new InPatientPresSDO
-                {
-                    TreatmentId = tr.ID,
-                    InstructionTimes = new List<long> { tkTime },
-                    UseTimes = new List<long> { tkTime },
-                    TrackingId = tkId,
-                    TrackingInfos = new List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = tkId, IntructionTime = tkTime } },
-                    RequestRoomId = 5248,
-                    RequestLoginName = user,
-                    RequestUserName = user.ToUpper(),
-                    IcdCode = tr.ICD_CODE,
-                    IcdName = tr.ICD_NAME,
-                    IcdSubCode = tr.ICD_SUB_CODE,
-                    IcdText = tr.ICD_TEXT,
-                    Medicines = new List<PresMedicineSDO>
-                    {
-                        new PresMedicineSDO
-                        {
-                            MedicineTypeId = med.ID,
-                            MediStockId = 810,
-                            Amount = amount,
-                            PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
-                            Tutorial = tut
-                        }
-                    }
-                };
-
-                var res = ad.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", ApiConsumers.MosConsumer, presSDO, p);
+                string code = MainForm.ExecutePrescription(ad, p, user, user.ToUpper(), 5248, tr, med, MainForm.CommonStocks[0], amount, tut, tkTime, tkId);
                 Console.WriteLine("✔ Kê đơn thành công!");
             }
             catch (Exception ex)

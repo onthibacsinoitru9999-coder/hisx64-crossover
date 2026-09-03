@@ -33,42 +33,47 @@ public class HisDiagnosticDoctor
     public static MyAdapter myAdapter = new MyAdapter();
     public static CommonParam param = new CommonParam();
     public static string currentToken = null;
+    public static Inventec.Common.WebApiClient.ApiConsumer mosConsumer = null;
 
     public static string ReadLiveToken()
     {
-        string[] candidates = new string[] {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt"),
-            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
-        };
-
-        foreach (var logPath in candidates)
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
         {
-            if (File.Exists(logPath))
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
             {
-                try
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var sr = new StreamReader(fs, Encoding.UTF8))
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
                     {
-                        string text = sr.ReadToEnd();
-                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                        for (int i = lines.Length - 1; i >= 0; i--)
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
                         {
-                            if (lines[i].Contains("TokenCode|"))
-                            {
-                                int idx = lines[i].IndexOf("TokenCode|") + 10;
-                                if (lines[i].Length >= idx + 64)
-                                {
-                                    return lines[i].Substring(idx, 64);
-                                }
-                            }
+                            return chunk.Substring(start, 64);
                         }
                     }
                 }
-                catch { }
             }
+            catch { }
         }
         return null;
     }
@@ -76,6 +81,7 @@ public class HisDiagnosticDoctor
     public static void InitSession()
     {
         if (!string.IsNullOrEmpty(currentToken)) return;
+        try { Load.Init(); } catch { }
         param = new CommonParam();
         string tokenCode = ReadLiveToken();
 
@@ -83,7 +89,6 @@ public class HisDiagnosticDoctor
         {
             try
             {
-                Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
                 var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
                 if (token != null)
@@ -102,7 +107,8 @@ public class HisDiagnosticDoctor
         if (!string.IsNullOrEmpty(tokenCode))
         {
             currentToken = tokenCode;
-            ApiConsumers.SetConsunmer(currentToken);
+            mosConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.236:1608/", currentToken, "HIS");
+            try { ApiConsumers.SetConsunmer(currentToken); } catch { }
             try
             {
                 var workInfo = new WorkInfoSDO
@@ -115,7 +121,7 @@ public class HisDiagnosticDoctor
                         new RoomSDO { RoomId = 5257 }
                     }
                 };
-                myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
+                myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
             }
             catch { }
         }
@@ -177,12 +183,12 @@ public class HisDiagnosticDoctor
 
         // 3. Kiểm tra xác thực MOS API
         Console.WriteLine("\n3. Kiểm tra khả năng gọi API MOS Backend:");
-        if (!string.IsNullOrEmpty(currentToken))
+        if (!string.IsNullOrEmpty(currentToken) && mosConsumer != null)
         {
             try
             {
                 HisDepartmentFilter df = new HisDepartmentFilter { ID = 57 };
-                var depts = myAdapter.FetchList<HIS_DEPARTMENT>("api/HisDepartment/Get", ApiConsumers.MosConsumer, df, param);
+                var depts = myAdapter.FetchList<HIS_DEPARTMENT>("api/HisDepartment/Get", mosConsumer, df, param);
                 if (depts != null && depts.Count > 0)
                 {
                     Console.WriteLine("   ✅ Gọi API MOS Backend thành công! Khoa: " + depts[0].DEPARTMENT_NAME + " (ID: 57)");
@@ -223,16 +229,36 @@ public class HisDiagnosticDoctor
         Console.WriteLine("===============================================================================");
 
         InitSession();
-        if (string.IsNullOrEmpty(currentToken))
+        if (string.IsNullOrEmpty(currentToken) || mosConsumer == null)
         {
             Console.WriteLine("❌ Chưa có token xác thực!");
             return;
         }
 
-        HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-        tf.KEY_WORD = keyword;
+        List<V_HIS_TREATMENT> tList = null;
+        string kw = keyword.Trim();
+        long pNum;
+        if (long.TryParse(kw, out pNum))
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+            tfCode.PATIENT_CODE__EXACT = kw.PadLeft(10, '0');
+            tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
 
-        var tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+            if (tList == null || tList.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter();
+                tfCode.TREATMENT_CODE__EXACT = kw.PadLeft(12, '0');
+                tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+        }
+
+        if (tList == null || tList.Count == 0)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            tf.KEY_WORD = kw;
+            tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+        }
+
         if (tList == null || tList.Count == 0)
         {
             Console.WriteLine("❌ KHÔNG TÌM THẤY BỆNH NHÂN NÀO VỚI TỪ KHÓA: " + keyword);
@@ -248,7 +274,7 @@ public class HisDiagnosticDoctor
 
         // Kiểm tra buồng giường
         HisBedLogViewFilter bf = new HisBedLogViewFilter { TREATMENT_ID = tr.ID };
-        var bedList = myAdapter.FetchList<V_HIS_BED_LOG>("api/HisBedLog/GetView", ApiConsumers.MosConsumer, bf, param);
+        var bedList = myAdapter.FetchList<V_HIS_BED_LOG>("api/HisBedLog/GetView", mosConsumer, bf, param);
         if (bedList != null && bedList.Count > 0)
         {
             var activeBed = bedList.OrderByDescending(x => x.START_TIME).First();
@@ -261,7 +287,7 @@ public class HisDiagnosticDoctor
 
         // Kiểm tra Tờ điều trị mới nhất
         HisTrackingFilter trkFilter = new HisTrackingFilter { TREATMENT_ID = tr.ID };
-        var trkList = myAdapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", ApiConsumers.MosConsumer, trkFilter, param);
+        var trkList = myAdapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, trkFilter, param);
         if (trkList != null && trkList.Count > 0)
         {
             var lastTrk = trkList.OrderByDescending(x => x.TRACKING_TIME).First();

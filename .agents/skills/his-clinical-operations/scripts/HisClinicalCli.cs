@@ -86,50 +86,55 @@ public class HisClinicalCli
         { "GLUCOSE_BEDSIDE", new ServiceTarget(6217, 5248, "BM02426", "Xét nghiệm đường máu mao mạch tại giường (một lần)") }
     };
 
+    public static string ReadLiveTokenFast()
+    {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
+        {
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
+            {
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
+                    {
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
+                        {
+                            return chunk.Substring(start, 64);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
+    }
+
     public static void InitSession(bool forceRefresh = false)
     {
         if (!forceRefresh && !string.IsNullOrEmpty(currentToken)) return;
 
         param = new CommonParam();
-        string tokenCode = null;
-
-        string[] candidateLogs = new string[]
-        {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt"),
-            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
-        };
-
-        foreach (var logFile in candidateLogs)
-        {
-            if (File.Exists(logFile))
-            {
-                try
-                {
-                    using (var fs = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var sr = new StreamReader(fs))
-                    {
-                        string text = sr.ReadToEnd();
-                        var lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
-                        for (int i = lines.Length - 1; i >= 0; i--)
-                        {
-                            if (lines[i].Contains("TokenCode|"))
-                            {
-                                int idx = lines[i].IndexOf("TokenCode|") + 10;
-                                if (lines[i].Length >= idx + 64)
-                                {
-                                    tokenCode = lines[i].Substring(idx, 64);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-                if (!string.IsNullOrEmpty(tokenCode)) break;
-            }
-        }
+        string tokenCode = ReadLiveTokenFast();
 
         if (string.IsNullOrEmpty(tokenCode))
         {
@@ -193,21 +198,42 @@ public class HisClinicalCli
         // 1. Try exact match by Patient Code or Treatment Code
         if (!string.IsNullOrEmpty(keyword))
         {
-            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
-            tfCode.PATIENT_CODE__EXACT = keyword.Trim();
-            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            string kw = keyword.Trim();
+            long numVal;
+            bool isNum = long.TryParse(kw, out numVal);
+
+            if (isNum)
+            {
+                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+                tfCode.PATIENT_CODE__EXACT = kw.PadLeft(10, '0');
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+
+                if (treatments == null || treatments.Count == 0)
+                {
+                    tfCode = new HisTreatmentViewFilter();
+                    tfCode.TREATMENT_CODE__EXACT = kw.PadLeft(12, '0');
+                    treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                }
+            }
 
             if (treatments == null || treatments.Count == 0)
             {
-                tfCode = new HisTreatmentViewFilter();
-                tfCode.TREATMENT_CODE__EXACT = keyword.Trim();
+                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+                tfCode.PATIENT_CODE__EXACT = kw;
                 treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
             }
 
             if (treatments == null || treatments.Count == 0)
             {
-                tfCode = new HisTreatmentViewFilter();
-                tfCode.KEY_WORD = keyword.Trim();
+                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+                tfCode.TREATMENT_CODE__EXACT = kw;
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+
+            if (treatments == null || treatments.Count == 0)
+            {
+                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+                tfCode.KEY_WORD = kw;
                 treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
             }
         }
@@ -261,8 +287,14 @@ public class HisClinicalCli
         var bedRooms = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, bedFilter, param);
         var curBed = bedRooms != null ? bedRooms.LastOrDefault(x => x.REMOVE_TIME == null || x.REMOVE_TIME == 0) : null;
 
+        int birthYear = 0;
+        string dobStr = tr.TDL_PATIENT_DOB.ToString();
+        if (dobStr.Length >= 4) int.TryParse(dobStr.Substring(0, 4), out birthYear);
+        int age = birthYear > 0 ? (DateTime.Now.Year - birthYear) : 0;
+        string ageDisplay = age > 0 ? string.Format("{0} tuổi (Sinh năm: {1})", age, birthYear) : "N/A";
+
         Console.WriteLine("===============================================================================");
-        Console.WriteLine(string.Format("🏥 THÔNG TIN BỆNH NHÂN: {0} ({1} tuổi - {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_DOB.ToString().Substring(0, 4), tr.TDL_PATIENT_GENDER_NAME));
+        Console.WriteLine(string.Format("🏥 THÔNG TIN BỆNH NHÂN: {0} ({1} - {2})", tr.TDL_PATIENT_NAME, ageDisplay, tr.TDL_PATIENT_GENDER_NAME));
         Console.WriteLine(string.Format("Mã BN: {0} | Mã ĐT: {1} | ID Đợt điều trị: {2}", tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, tr.ID));
         Console.WriteLine(string.Format("Khoa: {0} | Buồng/Giường: {1} - {2}", tr.END_DEPARTMENT_NAME ?? "Khoa 57", curBed != null ? curBed.BED_ROOM_NAME : "Chưa xếp buồng", curBed != null ? curBed.BED_NAME : "-"));
         Console.WriteLine(string.Format("Chẩn đoán ICD: [{0}] {1} (Chi tiết: {2})", tr.ICD_CODE, tr.ICD_NAME, tr.ICD_TEXT ?? tr.ICD_SUB_CODE));
@@ -815,13 +847,25 @@ public class HisClinicalCli
         )).OrderBy(x => x.BED_ROOM_NAME).ThenBy(x => x.BED_NAME).ToList();
 
         Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân tại các buồng phụ trách:\n", dept57Beds.Count));
+
+        // BATCH QUERY: Gom toàn bộ Treatment IDs vào 1 request HTTP duy nhất
+        var treatIds = dept57Beds.Select(b => b.TREATMENT_ID).Distinct().ToList();
+        var treatMap = new Dictionary<long, V_HIS_TREATMENT>();
+        if (treatIds.Count > 0)
+        {
+            HisTreatmentViewFilter tfBatch = new HisTreatmentViewFilter();
+            tfBatch.IDs = treatIds;
+            var tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfBatch, param);
+            if (tList != null)
+            {
+                foreach (var t in tList) treatMap[t.ID] = t;
+            }
+        }
+
         int stt = 1;
         foreach (var b in dept57Beds)
         {
-            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-            tf.ID = b.TREATMENT_ID;
-            var tList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
-            var tr = tList != null && tList.Count > 0 ? tList[0] : null;
+            var tr = treatMap.ContainsKey(b.TREATMENT_ID) ? treatMap[b.TREATMENT_ID] : null;
 
             string patName = tr != null ? tr.TDL_PATIENT_NAME : "N/A";
             string patCode = tr != null ? tr.TDL_PATIENT_CODE : "N/A";

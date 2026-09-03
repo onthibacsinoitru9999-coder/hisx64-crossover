@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -37,39 +37,43 @@ public class HisSummaryTrackingCreator
 
     public static string ReadLiveToken()
     {
-        string[] candidates = new string[] {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LogSystem.txt"),
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "HLSLogSystem.txt"),
-            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
-        };
-
-        foreach (var logPath in candidates)
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
         {
-            if (File.Exists(logPath))
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
             {
-                try
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var sr = new StreamReader(fs, Encoding.UTF8))
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
                     {
-                        string text = sr.ReadToEnd();
-                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                        for (int i = lines.Length - 1; i >= 0; i--)
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
                         {
-                            if (lines[i].Contains("TokenCode|"))
-                            {
-                                int idx = lines[i].IndexOf("TokenCode|") + 10;
-                                if (lines[i].Length >= idx + 64)
-                                {
-                                    return lines[i].Substring(idx, 64);
-                                }
-                            }
+                            return chunk.Substring(start, 64);
                         }
                     }
                 }
-                catch { }
             }
+            catch { }
         }
         return null;
     }

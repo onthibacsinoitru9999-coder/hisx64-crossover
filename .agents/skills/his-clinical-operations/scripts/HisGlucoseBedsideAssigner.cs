@@ -1112,38 +1112,101 @@ public class MainForm : Form
     // BACKEND INTEGRATION METHODS
     // =========================================================================
 
+    public static string ReadLiveTokenFast()
+    {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
+        {
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
+            {
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
+                    {
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
+                        {
+                            return chunk.Substring(start, 64);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
+    }
+
     public static void InitSession()
     {
         if (!string.IsNullOrEmpty(currentToken)) return;
 
-        HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
-        ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-        param = new CommonParam();
-        var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-        if (token != null)
+        try
         {
-            currentToken = token.TokenCode;
+            HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+        }
+        catch { }
+
+        param = new CommonParam();
+        string tokenCode = ReadLiveTokenFast();
+
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            try
+            {
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+                if (token != null) tokenCode = token.TokenCode;
+            }
+            catch { }
+        }
+
+        if (!string.IsNullOrEmpty(tokenCode))
+        {
+            currentToken = tokenCode;
             ApiConsumers.SetConsunmer(currentToken);
             adapter = new BackendAdapter(param);
 
-            // Bind token session to all 23 valid working rooms in Department 57 on MOS backend
-            long[] validRoomIds = new long[] {
-                931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
-                5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                5267, 6622, 6623
-            };
-
-            var workInfo = new WorkInfoSDO
+            // Bind token session to all valid working rooms in Department 57 on MOS backend
+            try
             {
-                Rooms = validRoomIds.Select(id => new RoomSDO { RoomId = id }).ToList()
-            };
-            var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
-            HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
-            HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkInfoSDO = workInfo;
+                long[] validRoomIds = new long[] {
+                    931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
+                    5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
+                    5267, 6622, 6623
+                };
+
+                var workInfo = new WorkInfoSDO
+                {
+                    Rooms = validRoomIds.Select(id => new RoomSDO { RoomId = id }).ToList()
+                };
+                var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
+                HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
+                HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkInfoSDO = workInfo;
+            }
+            catch { }
         }
         else
         {
-            throw new Exception("Không thể xác thực tài khoản BS 'vmc' trên hệ thống HIS!");
+            throw new Exception("Không thể xác thực Token hệ thống HIS từ Live Log hoặc đăng nhập!");
         }
     }
 
@@ -1151,10 +1214,31 @@ public class MainForm : Form
     {
         InitSession();
 
-        // 1. Try finding by PATIENT_CODE
-        HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-        tf.PATIENT_CODE__EXACT = code;
-        var trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+        List<V_HIS_TREATMENT> trs = null;
+        long pNum;
+        bool isNum = long.TryParse(code, out pNum);
+
+        // 1. Try finding by PATIENT_CODE (with PadLeft 10 if numeric)
+        if (isNum)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            tf.PATIENT_CODE__EXACT = code.PadLeft(10, '0');
+            trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+
+            if (trs == null || trs.Count == 0)
+            {
+                HisTreatmentViewFilter tf2 = new HisTreatmentViewFilter();
+                tf2.TREATMENT_CODE__EXACT = code.PadLeft(12, '0');
+                trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf2, param);
+            }
+        }
+
+        if (trs == null || trs.Count == 0)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            tf.PATIENT_CODE__EXACT = code;
+            trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+        }
 
         // 2. Fallback to TREATMENT_CODE
         if (trs == null || trs.Count == 0)
@@ -1599,12 +1683,18 @@ class Program
                     int h = int.Parse(parts[0]);
                     int m = parts.Length > 1 ? int.Parse(parts[1]) : 0;
                     DateTime dt = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, h, m, 0);
+
+                    // Quy tắc 5 AGENTS.md: Mốc 06:00 tự động tính ngày hôm sau nếu chỉ định từ buổi trưa/chiều/tối
+                    if (h <= 7 && DateTime.Now.Hour >= 12 && rawDate == DateTime.Today.ToString("yyyy-MM-dd"))
+                    {
+                        dt = dt.AddDays(1);
+                    }
                     long instructionTime = long.Parse(dt.ToString("yyyyMMddHHmmss"));
 
                     try
                     {
                         string reqCode = MainForm.AssignSinglePatientService(patient, instructionTime, t, executeRoomId, note, true);
-                        Console.WriteLine(string.Format("   ✔ [{0}] Chỉ định thành công! Mã Y Lệnh: {1}", t, reqCode));
+                        Console.WriteLine(string.Format("   ✔ [{0} - {1:dd/MM}] Chỉ định thành công! Mã Y Lệnh: {2}", t, dt, reqCode));
                         totalSuccess++;
                     }
                     catch (Exception ex)

@@ -1,17 +1,14 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Drawing;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Inventec.Core;
-using Inventec.Token.Core;
 using Inventec.Token.ClientSystem;
 using Inventec.Common.Adapter;
-using HIS.Desktop.LocalStorage.ConfigSystem;
-using HIS.Desktop.LocalStorage.LocalData;
 using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
@@ -25,26 +22,35 @@ public class Program
         {
             string folderPath = AppDomain.CurrentDomain.BaseDirectory;
             string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
-            string[] searchPaths = new string[]
+            
+            string path1 = Path.Combine(folderPath, name);
+            if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+            
+            string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+            if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+            
+            DirectoryInfo cur = new DirectoryInfo(folderPath);
+            for (int i = 0; i < 5; i++)
             {
-                Path.Combine(folderPath, name),
-                Path.Combine(folderPath, "ReferencedAssemblies", name),
-                Path.Combine(folderPath, "Plugins", "Module", name),
-                Path.Combine(folderPath, "HisAutoPrescribe_Portable", name),
-                Path.Combine(Environment.CurrentDirectory, name),
-                Path.Combine(Environment.CurrentDirectory, "ReferencedAssemblies", name),
-                Path.Combine(Environment.CurrentDirectory, "Plugins", "Module", name)
-            };
-
-            foreach (var p in searchPaths)
-            {
-                if (File.Exists(p))
-                {
-                    try { return Assembly.LoadFrom(p); } catch { }
-                }
+                if (cur.Parent == null) break;
+                cur = cur.Parent;
+                string pRoot = Path.Combine(cur.FullName, name);
+                if (File.Exists(pRoot)) return Assembly.LoadFrom(pRoot);
+                string pRef = Path.Combine(cur.FullName, "ReferencedAssemblies", name);
+                if (File.Exists(pRef)) return Assembly.LoadFrom(pRef);
             }
             return null;
         };
+
+        DirectoryInfo rootDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (rootDir != null && !File.Exists(Path.Combine(rootDir.FullName, "Inventec.Core.dll")))
+        {
+            rootDir = rootDir.Parent;
+        }
+        if (rootDir != null)
+        {
+            Directory.SetCurrentDirectory(rootDir.FullName);
+        }
 
         Execute(args);
     }
@@ -73,6 +79,150 @@ public class HisDebateCreator
 {
     static MyAdapter adapter = new MyAdapter();
     static CommonParam commonParam = new CommonParam();
+    static string currentToken = null;
+
+    public static string ReadLiveTokenFast()
+    {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
+        {
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
+            {
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
+                    {
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
+                        {
+                            return chunk.Substring(start, 64);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
+    }
+
+    static void InitSession()
+    {
+        if (!string.IsNullOrEmpty(currentToken)) return;
+
+        try
+        {
+            HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+        }
+        catch { }
+
+        commonParam = new CommonParam();
+        string tokenCode = ReadLiveTokenFast();
+
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            try
+            {
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                var token = tokenManager.Login(commonParam, "vmc", "789789", "2.390.0");
+                if (token != null) tokenCode = token.TokenCode;
+            }
+            catch { }
+        }
+
+        if (!string.IsNullOrEmpty(tokenCode))
+        {
+            currentToken = tokenCode;
+            ApiConsumers.SetConsunmer(currentToken);
+            Console.WriteLine("[SUCCESS] Xác thực HIS thành công | Token: " + currentToken.Substring(0, 8) + "...");
+            
+            // Kích hoạt WorkInfo phòng làm việc
+            try
+            {
+                var workInfo = new WorkInfoSDO
+                {
+                    Rooms = new List<RoomSDO>
+                    {
+                        new RoomSDO { RoomId = 5248 }, // Phòng 734
+                        new RoomSDO { RoomId = 5252 }, // Phòng 712
+                        new RoomSDO { RoomId = 5251 }  // Phòng 714
+                    }
+                };
+                adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, commonParam);
+            }
+            catch { }
+        }
+        else
+        {
+            throw new Exception("Đăng nhập và lấy Token hệ thống HIS thất bại!");
+        }
+    }
+
+    static string RemoveDiacritics(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        string normalizedString = text.Normalize(NormalizationForm.FormD);
+        StringBuilder stringBuilder = new StringBuilder();
+
+        foreach (char c in normalizedString)
+        {
+            UnicodeCategory unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+            {
+                stringBuilder.Append(c);
+            }
+        }
+
+        return stringBuilder.ToString().Normalize(NormalizationForm.FormC).Replace('đ', 'd').Replace('Đ', 'D');
+    }
+
+    static List<V_HIS_TREATMENT> GetAllDept57Treatments()
+    {
+        List<V_HIS_TREATMENT> list = new List<V_HIS_TREATMENT>();
+        try
+        {
+            HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
+            tbrf.IS_IN_ROOM = true;
+            tbrf.TREATMENT_IS_ACTIVE = true;
+            var beds = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, tbrf, commonParam);
+            if (beds != null && beds.Count > 0)
+            {
+                var dept57Beds = beds.Where(b => b.DEPARTMENT_ID == 57).GroupBy(b => b.TREATMENT_ID).Select(g => g.First()).ToList();
+                List<long> treatmentIds = dept57Beds.Select(b => b.TREATMENT_ID).ToList();
+
+                int batchSize = 100;
+                for (int i = 0; i < treatmentIds.Count; i += batchSize)
+                {
+                    var batch = treatmentIds.Skip(i).Take(batchSize).ToList();
+                    HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+                    tf.IDs = batch;
+                    var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, commonParam);
+                    if (trList != null) list.AddRange(trList);
+                }
+            }
+        }
+        catch { }
+
+        return list;
+    }
 
     public static void Run(string[] args)
     {
@@ -83,7 +233,8 @@ public class HisDebateCreator
         Console.WriteLine("==========================================================================");
 
         string treatmentCode = "";
-        string specialist = "ck tạo hình thẩm mỹ";
+        string patientNameSearch = "";
+        string specialist = "Khoa/Trung tâm Bệnh nhiệt đới";
         string summary = "";
         string discussion = "";
         string icdCode = "";
@@ -94,12 +245,30 @@ public class HisDebateCreator
         string secretaryLogin = "034727";
         string secretaryName = "NGUYỄN HỮU SÂM";
         long departmentId = 57;
+        bool isSearchOnly = false;
+        bool isListAll = false;
 
         for (int i = 0; i < args.Length; i++)
         {
             string k = args[i].ToLower();
-            if ((k == "-t" || k == "--treatment-code" || k == "--treatment" || k == "-p") && i + 1 < args.Length)
+            if ((k == "-t" || k == "--treatment-code" || k == "--treatment") && i + 1 < args.Length)
+            {
                 treatmentCode = args[++i];
+            }
+            else if ((k == "-p" || k == "--patient" || k == "--patient-name") && i + 1 < args.Length)
+            {
+                patientNameSearch = args[++i];
+            }
+            else if (k == "--search" && i + 1 < args.Length)
+            {
+                patientNameSearch = args[++i];
+                isSearchOnly = true;
+            }
+            else if (k == "--list" || k == "--list-dept57" || k == "-l57")
+            {
+                isListAll = true;
+                isSearchOnly = true;
+            }
             else if ((k == "-s" || k == "--specialist" || k == "--ck") && i + 1 < args.Length)
                 specialist = args[++i];
             else if ((k == "-m" || k == "--summary" || k == "--reason") && i + 1 < args.Length)
@@ -130,94 +299,171 @@ public class HisDebateCreator
             }
         }
 
-        if (string.IsNullOrEmpty(treatmentCode))
+        if (string.IsNullOrEmpty(treatmentCode) && string.IsNullOrEmpty(patientNameSearch) && !isListAll)
         {
             Console.WriteLine("HƯỚNG DẪN SỬ DỤNG:");
-            Console.WriteLine("  HisDebateCreator.exe -t <mã_bệnh_án> -s <chuyên_khoa> -m <tóm_tắt_bệnh_án> [-l <địa_điểm>]");
-            Console.WriteLine("\nVÍ DỤ THỰC TẾ:");
-            Console.WriteLine("  1. Hội chẩn Tạo hình thẩm mỹ (vết thương lóc da):");
-            Console.WriteLine("     HisDebateCreator.exe -t 000007070917 -s \"ck tạo hình thẩm mỹ\" -m \"Bn nam Vết thương phức tạp mu bàn chân (P). Hiện tại có diện hoại tử vạt ngược 4cm, xin ý kiến CK tạo hình phối hợp điều trị.\"");
-            Console.WriteLine("\n  2. Hội chẩn Tim mạch (tăng huyết áp / rối loạn nhịp):");
-            Console.WriteLine("     HisDebateCreator.exe -t 000007070917 -s \"Viện Tim Mạch\" -m \"Bệnh nhân tiền sử THA, rung nhĩ, xin ý kiến tối ưu hóa huyết động trước phẫu thuật.\"");
-            Console.WriteLine("\n  3. Tùy chọn bác sĩ ký:");
-            Console.WriteLine("     --president hdc    (Chủ tọa: BS Hà Đức Cường - mặc định)");
-            Console.WriteLine("     --secretary 034727 (Thư ký: Ths.BS Nguyễn Hữu Sâm - mặc định) hoặc --secretary vmc (BS Vũ Minh Cường)");
-            Console.WriteLine("     --location \"Phòng 716 Khoa 57\" (Địa điểm hội chẩn)");
+            Console.WriteLine("  HisDebateCreator.exe -t <mã_bệnh_án_hoặc_tên> -s <chuyên_khoa> -m <tóm_tắt_bệnh_án> [-l <địa_điểm>]");
+            Console.WriteLine("  HisDebateCreator.exe -p <tên_bệnh_nhân> -s <chuyên_khoa> -m <tóm_tắt_bệnh_án>");
+            Console.WriteLine("  HisDebateCreator.exe --search <tên_bệnh_nhân>");
+            Console.WriteLine("  HisDebateCreator.exe --list-dept57");
             return;
         }
 
-        // 1. Init HIS Config & Login / Read Token
-        try
-        {
-            HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
-        }
-        catch { }
+        // 1. Khởi tạo phiên làm việc
+        InitSession();
 
-        string tokenCode = GetLiveToken();
-        if (string.IsNullOrEmpty(tokenCode))
+        if (isListAll)
         {
-            Console.WriteLine("[INFO] Đang đăng nhập tự động lấy Token...");
-            ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-            var token = tokenManager.Login(commonParam, "034727", "9981", "2.390.0");
-            if (token != null && !string.IsNullOrEmpty(token.TokenCode))
+            Console.WriteLine("[INFO] Đang tải toàn bộ bệnh nhân nội trú Khoa 57...");
+            var deptPatients = GetAllDept57Treatments();
+            Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân nội trú Khoa 57:", deptPatients.Count));
+            for (int idx = 0; idx < deptPatients.Count; idx++)
             {
-                tokenCode = token.TokenCode;
-                Console.WriteLine("[SUCCESS] Đăng nhập thành công, Token: " + tokenCode.Substring(0, 8) + "...");
+                var m = deptPatients[idx];
+                Console.WriteLine(string.Format(" [{0}] {1} ({2}) - {3} | Mã BA: {4} | ID: {5} | Vào: {6} | ICD: {7} - {8}",
+                    idx + 1, m.TDL_PATIENT_NAME, m.TDL_PATIENT_GENDER_NAME, m.TDL_PATIENT_DOB.ToString().Substring(0, 4),
+                    m.TREATMENT_CODE, m.ID, m.IN_TIME, m.ICD_CODE, m.ICD_NAME));
             }
-            else
+            return;
+        }
+
+        // Tra cứu đợt điều trị nếu có tìm theo tên
+        if (!string.IsNullOrEmpty(patientNameSearch) || (!string.IsNullOrEmpty(treatmentCode) && !treatmentCode.All(char.IsDigit)))
+        {
+            string searchKey = !string.IsNullOrEmpty(patientNameSearch) ? patientNameSearch : treatmentCode;
+            string searchKeyNorm = RemoveDiacritics(searchKey).ToLower();
+            Console.WriteLine(string.Format("[INFO] Đang tìm kiếm bệnh nhân theo tên: '{0}' (Chuẩn hóa: '{1}')...", searchKey, searchKeyNorm));
+            
+            // 1. Ưu tiên tìm trong Khoa 57
+            var dept57Patients = GetAllDept57Treatments();
+            List<V_HIS_TREATMENT> matches = new List<V_HIS_TREATMENT>();
+            
+            if (dept57Patients != null)
             {
-                Console.WriteLine("[ERROR] Đăng nhập thất bại!");
+                matches = dept57Patients.Where(t => t.TDL_PATIENT_NAME != null && 
+                    (t.TDL_PATIENT_NAME.IndexOf(searchKey, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     RemoveDiacritics(t.TDL_PATIENT_NAME).ToLower().Contains(searchKeyNorm))).ToList();
+            }
+
+            // 2. Nếu không thấy trong Khoa 57, tìm toàn viện trong các bệnh nhân active
+            if (matches.Count == 0)
+            {
+                var tf = new HisTreatmentViewFilter();
+                tf.IS_PAUSE = false;
+                var activeTreatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, commonParam);
+                if (activeTreatments != null)
+                {
+                    matches = activeTreatments.Where(t => t.TDL_PATIENT_NAME != null && 
+                        (t.TDL_PATIENT_NAME.IndexOf(searchKey, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         RemoveDiacritics(t.TDL_PATIENT_NAME).ToLower().Contains(searchKeyNorm))).ToList();
+                }
+            }
+
+            // 3. Nếu vẫn không thấy, tìm theo HIS_PATIENT
+            if (matches.Count == 0)
+            {
+                var pf = new HisPatientViewFilter();
+                pf.KEY_WORD = searchKey;
+                var pts = adapter.FetchList<V_HIS_PATIENT>("api/HisPatient/GetView", ApiConsumers.MosConsumer, pf, commonParam);
+                if (pts != null)
+                {
+                    foreach (var p in pts)
+                    {
+                        var tpf = new HisTreatmentViewFilter();
+                        tpf.PATIENT_ID = p.ID;
+                        var ptTreatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tpf, commonParam);
+                        if (ptTreatments != null) matches.AddRange(ptTreatments);
+                    }
+                }
+            }
+
+            if (matches.Count == 0)
+            {
+                Console.WriteLine("[ERROR] Không tìm thấy bệnh nhân nào khớp với từ khóa: " + searchKey);
                 return;
             }
-        }
-        else
-        {
-            Console.WriteLine("[SUCCESS] Sử dụng Live Token: " + tokenCode.Substring(0, 8) + "...");
-        }
 
-        ApiConsumers.SetConsunmer(tokenCode);
-
-        // Kích hoạt WorkInfo phòng làm việc
-        try
-        {
-            var workInfo = new WorkInfoSDO
+            Console.WriteLine(string.Format("Tìm thấy {0} hồ sơ phù hợp:", matches.Count));
+            for (int idx = 0; idx < matches.Count; idx++)
             {
-                Rooms = new List<RoomSDO>
-                {
-                    new RoomSDO { RoomId = 5248 }, // Phòng 734
-                    new RoomSDO { RoomId = 5252 }  // Phòng 712
-                }
-            };
-            adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, commonParam);
+                var m = matches[idx];
+                Console.WriteLine(string.Format(" [{0}] {1} ({2}) | Mã BA: {3} | ID: {4} | Khoa: {5} | Ngày vào: {6} | ICD: {7} - {8}",
+                    idx + 1, m.TDL_PATIENT_NAME, m.TDL_PATIENT_GENDER_NAME, m.TREATMENT_CODE, m.ID, m.LAST_DEPARTMENT_ID, m.IN_TIME, m.ICD_CODE, m.ICD_NAME));
+            }
+
+            if (isSearchOnly)
+            {
+                return;
+            }
+
+            // Ưu tiên hồ sơ ở Khoa 57 hoặc đang điều trị (IS_PAUSE != 1)
+            var bestMatch = matches.FirstOrDefault(m => m.LAST_DEPARTMENT_ID == 57 && m.IS_PAUSE != 1) 
+                         ?? matches.FirstOrDefault(m => m.IS_PAUSE != 1) 
+                         ?? matches.First();
+
+            treatmentCode = bestMatch.TREATMENT_CODE;
+            Console.WriteLine(string.Format("[AUTO-SELECT] Chọn hồ sơ: {0} ({1}) - Mã BA: {2}", bestMatch.TDL_PATIENT_NAME, bestMatch.TDL_PATIENT_GENDER_NAME, treatmentCode));
         }
-        catch { }
 
         // 2. Tra cứu đợt điều trị
         Console.WriteLine("[INFO] Đang tra cứu hồ sơ điều trị: " + treatmentCode);
-        var treatmentFilter = new HisTreatmentViewFilter
+        List<V_HIS_TREATMENT> treatments = null;
+
+        // 1. Thử tìm theo PATIENT_CODE
+        var pCodeFilter = new HisTreatmentViewFilter
         {
-            TREATMENT_CODE__EXACT = treatmentCode.PadLeft(12, '0')
+            PATIENT_CODE__EXACT = treatmentCode.PadLeft(10, '0')
         };
-        var treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, treatmentFilter, commonParam);
+        treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, pCodeFilter, commonParam);
+
+        // 2. Thử tìm theo TREATMENT_CODE (12 số)
+        if (treatments == null || treatments.Count == 0)
+        {
+            var treatmentFilter = new HisTreatmentViewFilter
+            {
+                TREATMENT_CODE__EXACT = treatmentCode.PadLeft(12, '0')
+            };
+            treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, treatmentFilter, commonParam);
+        }
+
+        // 3. Thử tìm theo TREATMENT_CODE gốc không pad
+        if (treatments == null || treatments.Count == 0)
+        {
+            var rawTrFilter = new HisTreatmentViewFilter
+            {
+                TREATMENT_CODE__EXACT = treatmentCode
+            };
+            treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, rawTrFilter, commonParam);
+        }
+
+        // 4. Thử tìm theo ID nếu là số
+        long numId;
+        if ((treatments == null || treatments.Count == 0) && long.TryParse(treatmentCode, out numId))
+        {
+            var idFilter = new HisTreatmentViewFilter { ID = numId };
+            treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, idFilter, commonParam);
+        }
+
         if (treatments == null || treatments.Count == 0)
         {
             Console.WriteLine("[ERROR] Không tìm thấy hồ sơ điều trị với mã: " + treatmentCode);
             return;
         }
 
-        var tm = treatments[0];
+        // Ưu tiên đợt điều trị mới nhất (hoặc đang mở)
+        var tm = treatments.OrderByDescending(t => t.IS_ACTIVE == 1).ThenByDescending(t => t.ID).First();
         Console.WriteLine("--------------------------------------------------------------------------");
         Console.WriteLine(string.Format("BỆNH NHÂN : {0} ({1}) | NĂM SINH: {2}", tm.TDL_PATIENT_NAME, tm.TDL_PATIENT_GENDER_NAME, tm.TDL_PATIENT_DOB.ToString().Substring(0, 4)));
         Console.WriteLine(string.Format("MÃ BỆNH ÁN: {0} | MÃ ĐỢT ĐIỀU TRỊ: {1} | ID: {2}", tm.TREATMENT_CODE, tm.TREATMENT_CODE, tm.ID));
         Console.WriteLine(string.Format("CHẨN ĐOÁN : {0} - {1}", tm.ICD_CODE, tm.ICD_NAME));
         Console.WriteLine("--------------------------------------------------------------------------");
 
-        if (string.IsNullOrEmpty(icdCode)) icdCode = tm.ICD_CODE ?? "S91.0";
-        if (string.IsNullOrEmpty(icdName)) icdName = tm.ICD_NAME ?? "Vết thương bàn chân";
+        if (string.IsNullOrEmpty(icdCode)) icdCode = tm.ICD_CODE ?? "T81.4";
+        if (string.IsNullOrEmpty(icdName)) icdName = tm.ICD_NAME ?? "Nhiễm khuẩn sau phẫu thuật";
         
         if (string.IsNullOrEmpty(summary))
         {
-            summary = string.Format("Bệnh nhân {0} chẩn đoán {1}. Hiện tại có tổn thương cần xin ý kiến {2} xét nhận điều trị / phối hợp.", tm.TDL_PATIENT_NAME, icdName, specialist);
+            summary = string.Format("Bệnh nhân {0} chẩn đoán {1}. Cấy dịch vết mổ ra tụ cầu vàng 2+, xin ý kiến {2} hội chẩn và hướng dẫn phác đồ kháng sinh điều trị.", tm.TDL_PATIENT_NAME, icdName, specialist);
         }
 
         if (string.IsNullOrEmpty(discussion))
@@ -267,6 +513,31 @@ public class HisDebateCreator
         Console.WriteLine("[INFO] Đang gửi yêu cầu Hội chẩn Chuyên khoa (api/HisDebate/CreateAutoTracking)...");
         var result = adapter.PostData<HIS_DEBATE>("api/HisDebate/CreateAutoTracking", ApiConsumers.MosConsumer, debate, commonParam);
 
+        if (result == null || result.ID == 0)
+        {
+            Console.WriteLine("[INFO] Chuyển tiếp tạo Hội chẩn qua api/HisDebate/Create...");
+            result = adapter.PostData<HIS_DEBATE>("api/HisDebate/Create", ApiConsumers.MosConsumer, debate, commonParam);
+            
+            if (result != null && result.ID > 0)
+            {
+                // Đồng bộ tạo Tờ điều trị
+                try
+                {
+                    var tracking = new HIS_TRACKING
+                    {
+                        TREATMENT_ID = tm.ID,
+                        TRACKING_TIME = debateTime,
+                        CONTENT = string.Format("Hội chẩn {0}: {1}", specialist, summary),
+                        DEPARTMENT_ID = departmentId,
+                        ICD_CODE = icdCode,
+                        ICD_NAME = icdName
+                    };
+                    adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, tracking, commonParam);
+                }
+                catch { }
+            }
+        }
+
         if (result != null && result.ID > 0)
         {
             Console.ForegroundColor = ConsoleColor.Green;
@@ -298,45 +569,5 @@ public class HisDebateCreator
             }
             Console.ResetColor();
         }
-    }
-
-    static string GetLiveToken()
-    {
-        string[] searchDirs = new string[]
-        {
-            @"D:\New folder (3)\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"Logs\LogSystem.txt",
-            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
-        };
-
-        foreach (var path in searchDirs)
-        {
-            if (File.Exists(path))
-            {
-                try
-                {
-                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var sr = new StreamReader(fs, Encoding.UTF8))
-                    {
-                        string text = sr.ReadToEnd();
-                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                        for (int i = lines.Length - 1; i >= 0; i--)
-                        {
-                            if (lines[i].Contains("TokenCode|"))
-                            {
-                                int idx = lines[i].IndexOf("TokenCode|") + 10;
-                                if (lines[i].Length >= idx + 64)
-                                {
-                                    return lines[i].Substring(idx, 64);
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
-        }
-        return "";
     }
 }
