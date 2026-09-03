@@ -740,6 +740,56 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void LookupConsultationQueue(string dateParam = null)
+    {
+        InitSession();
+        DateTime targetDate = DateTime.Now;
+        if (!string.IsNullOrEmpty(dateParam))
+        {
+            DateTime parsed;
+            if (DateTime.TryParseExact(dateParam, new string[] { "yyyyMMdd", "dd/MM/yyyy", "yyyy-MM-dd" }, null, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                targetDate = parsed;
+            }
+        }
+        long fromTime = long.Parse(targetDate.ToString("yyyyMMdd000000"));
+        long toTime   = long.Parse(targetDate.ToString("yyyyMMdd235959"));
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("🏥 PHÒNG HỘI CHẨN KHOA CHẤN THƯƠNG CHỈNH HÌNH & CỘT SỐNG (ROOM ID: 11387)");
+        Console.WriteLine("Ngày: " + targetDate.ToString("dd/MM/yyyy") + " | Quét tất cả yêu cầu hội chẩn gửi đến Khoa 57");
+        Console.WriteLine("===============================================================================");
+
+        var srf = new HisServiceReqViewFilter
+        {
+            EXECUTE_ROOM_ID = 11387,
+            INTRUCTION_TIME_FROM = fromTime,
+            INTRUCTION_TIME_TO = toTime
+        };
+
+        var list = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
+        if (list == null || list.Count == 0)
+        {
+            Console.WriteLine("Không có yêu cầu hội chẩn nào gửi đến Khoa 57 trong ngày.");
+            return;
+        }
+
+        Console.WriteLine(string.Format("Tìm thấy {0} yêu cầu hội chẩn:\n", list.Count));
+        int idx = 1;
+        foreach (var r in list.OrderBy(x => x.INTRUCTION_TIME))
+        {
+            string timeStr = r.INTRUCTION_TIME.ToString().Length >= 12 ? r.INTRUCTION_TIME.ToString().Substring(8, 4).Insert(2, ":") : r.INTRUCTION_TIME.ToString();
+            string stt = r.SERVICE_REQ_STT_ID == 3 ? "🟢 ĐÃ KHÁM/TRẢ LỜI" : (r.SERVICE_REQ_STT_ID == 2 ? "🟡 ĐANG KHÁM" : "🔴 CHỜ KHÁM/HC");
+            Console.WriteLine(string.Format("{0}. [{1}] {2} | Mã ĐT: {3}", 
+                idx++, timeStr, r.TDL_PATIENT_NAME, r.TREATMENT_CODE));
+            Console.WriteLine(string.Format("   • Nơi gửi: {0} ({1}) | Bác sĩ Y/C: {2}", 
+                r.REQUEST_DEPARTMENT_NAME, r.REQUEST_ROOM_NAME, r.REQUEST_USERNAME ?? r.REQUEST_LOGINNAME));
+            Console.WriteLine(string.Format("   • Trạng thái: {0} | Mã phiếu: {1} | BS xử lý: {2}", 
+                stt, r.SERVICE_REQ_CODE, r.EXECUTE_USERNAME ?? "Chưa phân công"));
+            Console.WriteLine("-------------------------------------------------------------------------------");
+        }
+    }
+
     public static void ScanWardRooms()
     {
         InitSession();
@@ -858,6 +908,11 @@ public class HisClinicalCli
                 string packType = (cmd == "assign-bilan-cement" || args.Length < 4) ? "cement" : args[3];
                 int ptId = args.Length > 4 ? int.Parse(args[4]) : 1;
                 AssignSurgicalBilan(treatmentId, trackingId, packType, ptId);
+            }
+            else if (cmd == "consult-room" || cmd == "consult-queue" || cmd == "room11387")
+            {
+                string dateStr = args.Length > 1 ? args[1] : null;
+                LookupConsultationQueue(dateStr);
             }
             else
             {
