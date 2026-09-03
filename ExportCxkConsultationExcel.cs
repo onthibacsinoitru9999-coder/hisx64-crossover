@@ -27,7 +27,6 @@ namespace ExportCxkExcel
         public string PlanCategory { get; set; }
         public string WardTransfer { get; set; }
         public string HisStatus { get; set; }
-        public bool IsInpatient { get; set; }
     }
 
     class Program
@@ -59,36 +58,23 @@ namespace ExportCxkExcel
             string xlsxPath = Path.Combine(outDir, "BaoCao_HoiChan_CoXuongKhop_20260903.xlsx");
             string csvPath = Path.Combine(outDir, "BaoCao_HoiChan_CoXuongKhop_20260903.csv");
 
-            var list = GetPatientData();
+            var list = GetPatientDataRoom11387();
 
             // 1. Tạo Workbook bằng Aspose.Cells
             Workbook wb = new Workbook();
-            
-            // Sheet 1: Nội trú CXK (18 BN)
-            Worksheet ws1 = wb.Worksheets[0];
-            ws1.Name = "NoiTru_CXK_DiBuong";
-            FillSheet(wb, ws1, "BÁO CÁO HỘI CHẨN ĐI BUỒNG NỘI TRÚ - VIỆN CƠ XƯƠNG KHỚP GỬI KHOA 57", 
-                list.Where(x => x.IsInpatient).ToList(), true);
-
-            // Sheet 2: Ngoại trú CXK (10 BN)
-            Worksheet ws2 = wb.Worksheets.Add("NgoaiTru_CXK");
-            FillSheet(wb, ws2, "DANH SÁCH YÊU CẦU HỘI CHẨN NGOẠI TRÚ - VIỆN CƠ XƯƠNG KHỚP GỬI KHOA 57", 
-                list.Where(x => !x.IsInpatient).ToList(), false);
-
-            // Sheet 3: Toàn bộ 28 BN
-            Worksheet ws3 = wb.Worksheets.Add("TongHop_TatCa_28BN");
-            FillSheet(wb, ws3, "TỔNG HỢP TOÀN BỘ 28 CA HỘI CHẨN TỪ VIỆN CƠ XƯƠNG KHỚP (03/09/2026)", 
-                list, false);
+            Worksheet ws = wb.Worksheets[0];
+            ws.Name = "Phong_Hoi_Chan_11387";
+            FillSheet(wb, ws, "DANH SÁCH HỘI CHẨN ĐI BUỒNG - PHÒNG HỘI CHẨN KHOA CTCH & CỘT SỐNG (PHÒNG 11387)", list);
 
             wb.Save(xlsxPath, SaveFormat.Xlsx);
             Console.WriteLine("✅ Đã tạo file Excel thành công: " + xlsxPath);
 
-            // 2. Xuất thêm file CSV chuẩn UTF-8 BOM để mở tức thì trên Google Sheets / Excel
-            ExportCsv(list.Where(x => x.IsInpatient).ToList(), csvPath);
+            // 2. Xuất thêm file CSV chuẩn UTF-8 BOM để import Google Sheets 1-click
+            ExportCsv(list, csvPath);
             Console.WriteLine("✅ Đã tạo file CSV thành công: " + csvPath);
         }
 
-        static void FillSheet(Workbook wb, Worksheet ws, string title, List<PatientItem> items, bool highlightUrgent)
+        static void FillSheet(Workbook wb, Worksheet ws, string title, List<PatientItem> items)
         {
             // Title
             ws.Cells.Merge(0, 0, 1, 16);
@@ -108,7 +94,7 @@ namespace ExportCxkExcel
             // Subtitle
             ws.Cells.Merge(1, 0, 1, 16);
             Cell cSub = ws.Cells[1, 0];
-            cSub.PutValue("Ngày hội chẩn: 03/09/2026 | Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57) - Bệnh viện Bạch Mai | BS phụ trách: Ths.BS Nguyễn Hữu Sâm - BS Hà Đức Cường");
+            cSub.PutValue("Ngày 03/09/2026 | Chỉ lọc bệnh nhân gửi đích danh vào Phòng Hội Chẩn Khoa CTCH & CS (Room ID: 11387) | Loại trừ Phòng Thông qua mổ");
             Style sSub = wb.CreateStyle();
             sSub.Font.IsItalic = true;
             sSub.Font.Size = 10;
@@ -243,7 +229,6 @@ namespace ExportCxkExcel
         static void ExportCsv(List<PatientItem> items, string path)
         {
             StringBuilder sb = new StringBuilder();
-            // BOM for UTF-8
             sb.Append('\uFEFF');
             sb.AppendLine("STT,GioGui,BuongGiuong,MaDT,MaBN,HoVaTen,Tuoi,Gioi,BacSiYeuCau,ChanDoan,NoiDungHoiChan,CDHA_DichDanh_Rule4,DeXuat_CTCH_Khoa57,PhanLoaiXuTri,KeHoachTiepNhan,TrangThaiHIS");
 
@@ -279,15 +264,13 @@ namespace ExportCxkExcel
             return s.Replace("\"", "\"\"").Replace("\r\n", " ").Replace("\n", " ");
         }
 
-        static List<PatientItem> GetPatientData()
+        static List<PatientItem> GetPatientDataRoom11387()
         {
             var list = new List<PatientItem>();
 
-            // --- NỘI TRÚ (18 BN) ---
             // 1. NGUYỄN THỊ OANH
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "07:04",
                 RoomBed = "Phòng 507 - Giường 32",
                 TreatmentCode = "000007124259",
@@ -308,7 +291,6 @@ namespace ExportCxkExcel
             // 2. NGUYỄN NGỌC HƯNG
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "07:13",
                 RoomBed = "Phòng 511 - Giường 53",
                 TreatmentCode = "000007141049",
@@ -329,7 +311,6 @@ namespace ExportCxkExcel
             // 3. NGUYỄN THỊ MINH NGUYỆT
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "07:31",
                 RoomBed = "Phòng 507 - Giường 31",
                 TreatmentCode = "000007138586",
@@ -350,7 +331,6 @@ namespace ExportCxkExcel
             // 4. PHẠM THỊ LƠ
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "08:33",
                 RoomBed = "Phòng 510 - Giường 48",
                 TreatmentCode = "000007114733",
@@ -362,7 +342,7 @@ namespace ExportCxkExcel
                 Diagnosis = "[L02.4] Áp xe 1/2 dưới mặt ngoài cẳng chân trái do MRSA",
                 ReasonAndTracking = "Áp xe cẳng chân - cổ chân trái do tụ cầu vàng MRSA đã rạch hút tại Việt Tiệp nhưng không đỡ, hiện vết mổ rỉ mủ vàng thấm băng. Xin ý kiến CTCH chỉ định phẫu thuật nạo vét.",
                 ExactImaging = "MRI cẳng chân: Các ổ áp xe phần mềm sâu trong cơ và giữa các lớp cơ mặt sau cẳng chân, kích thước ổ lớn nhất 125 x 10 mm có đường rò ra da 1/3 dưới; ổ áp xe cổ bàn chân 29x11mm; phù xương sên, gót.",
-                OrthoPlan = "CÓ CHỈ ĐỊNH PHẪU THUẬT: Mở rộng, nạo vét, cắt lọc tổ chức hoại tử và tháo mủ ổ áp xe sâu giữa các lớp cơ cẳng chân (12,5 cm) và cổ chân trái. Duy trì Vancomycin tĩnh mạch.",
+                OrthoPlan = "CÓ CHỈ ĐỊNH PHẪU THUẬT: Mở rộng, nạo vét, cắt lọc tổ chức hoại tử và tháo mủ ổ áp xe sâu giữa các lớp cơ cẳng chân (12,5 cm) và cổ chân trái. Duy trì Vancomycin tĩnh mạch. (Đã bắn form mổ cấp cứu có trì hoãn).",
                 PlanCategory = "🔴 Mổ nạo áp xe sâu",
                 WardTransfer = "Nhận Khoa 57 mổ",
                 HisStatus = "🔴 Chờ khám/HC"
@@ -371,7 +351,6 @@ namespace ExportCxkExcel
             // 5. NGUYỄN THỊ ĐỈNH
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "09:02",
                 RoomBed = "Phòng 510 - Giường 50",
                 TreatmentCode = "000007135233",
@@ -389,31 +368,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 6. HÀ THỊ HƯỜNG
+            // 6. NGUYỄN XUÂN CHÍN
             list.Add(new PatientItem
             {
-                IsInpatient = true,
-                SendTime = "09:14",
-                RoomBed = "Phòng 507 - Giường 29",
-                TreatmentCode = "000007130951",
-                PatientCode = "0003400670",
-                FullName = "HÀ THỊ HƯỜNG",
-                Age = 68,
-                Gender = "Nữ",
-                RequestDoctor = "BS NGUYỄN THỊ KIM ANH",
-                Diagnosis = "[M48.54] Theo dõi viêm đốt sống đĩa đệm chưa loại trừ lao / Loãng xương nặng xẹp D8, suy thận độ 3",
-                ReasonAndTracking = "Đau CSTL và ngực nhiều, hạn chế vận động. Chẩn đoán theo dõi viêm đĩa đệm đốt sống do lao / suy thận 3. Xin hội chẩn Khoa 57 xét sinh thiết đốt sống.",
-                ExactImaging = "MRI CSTL: Tổn thương phù tủy xương gây xẹp thân đốt sống D7-D9, nhiều nhất D8 gây gù cột sống, lồi tường sau hẹp ống sống (d=8.1mm), dày thâm nhiễm cạnh sống theo dõi lao; phình L2-S1.",
-                OrthoPlan = "CHỈ ĐỊNH SINH THIẾT ĐỐT SỐNG D8 dưới hướng dẫn C-arm/CT để chẩn đoán xác định căn nguyên (Lao vs Vi khuẩn thường). Hội chẩn chuyên khoa Lao & Thận nhân tạo trước can thiệp.",
-                PlanCategory = "🟣 Sinh thiết đốt sống D8",
-                WardTransfer = "Khoa 57 làm sinh thiết",
-                HisStatus = "🔴 Chờ khám/HC"
-            });
-
-            // 7. NGUYỄN XUÂN CHÍN
-            list.Add(new PatientItem
-            {
-                IsInpatient = true,
                 SendTime = "09:49",
                 RoomBed = "Phòng 508 - Giường 38",
                 TreatmentCode = "000007136273",
@@ -431,10 +388,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 8. ĐINH VĂN ĐIỆP
+            // 7. ĐINH VĂN ĐIỆP
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "09:53",
                 RoomBed = "Phòng 513 - Giường 75",
                 TreatmentCode = "000007134908",
@@ -452,10 +408,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 9. NÔNG THỊ CHẤN
+            // 8. NÔNG THỊ CHẤN
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "09:56",
                 RoomBed = "Phòng 505 - Giường 8",
                 TreatmentCode = "000007075564",
@@ -473,10 +428,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 10. NGUYỄN THỊ XUYẾN
+            // 9. NGUYỄN THỊ XUYẾN
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "09:59",
                 RoomBed = "Phòng 510 - Giường 45",
                 TreatmentCode = "000007138790",
@@ -494,31 +448,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 11. DƯƠNG THỊ LỨU
+            // 10. NGUYỄN DUY SÁU
             list.Add(new PatientItem
             {
-                IsInpatient = true,
-                SendTime = "09:59",
-                RoomBed = "Phòng 513 - Giường 78",
-                TreatmentCode = "000007129882",
-                PatientCode = "0003998446",
-                FullName = "DƯƠNG THỊ LỨU",
-                Age = 89,
-                Gender = "Nữ",
-                RequestDoctor = "BS NGỌ CÔNG MINH",
-                Diagnosis = "[M51.1] Xẹp cấp thân đốt sống L4-L5 - Hẹp nặng ống sống / Loãng xương nặng, Đau thắt ngực",
-                ReasonAndTracking = "Cụ bà 89 tuổi, tự ngã tại nhà đau dữ dội CSTL, đau tăng khi thay đổi tư thế. Đau ngực sau xương ức. Xin ý kiến CTCH can thiệp cột sống.",
-                ExactImaging = "MRI CSTL: Xẹp cấp thân đốt sống L4, L5 có phù tủy xương STIR, hẹp nặng ống sống ngang mức L4/5; loãng xương sau mãn kinh nặng.",
-                OrthoPlan = "ĐÁNH GIÁ CHỈ ĐỊNH BƠM XI MĂNG SINH HỌC L4, L5. Tuy nhiên do BN 89 tuổi có đau thắt ngực không ổn định, bắt buộc kiểm tra men tim (Troponin T), điện tim, hội chẩn Tim mạch trước can thiệp.",
-                PlanCategory = "🟢 Bơm xi măng L4, L5 (Cần HC Tim mạch)",
-                WardTransfer = "Xem xét nhận Khoa 57",
-                HisStatus = "🔴 Chờ khám/HC"
-            });
-
-            // 12. NGUYỄN DUY SÁU
-            list.Add(new PatientItem
-            {
-                IsInpatient = true,
                 SendTime = "10:08",
                 RoomBed = "Phòng 505 - Giường 12",
                 TreatmentCode = "000007140157",
@@ -536,10 +468,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 13. LÊ VĂN HUY
+            // 11. LÊ VĂN HUY
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "10:17",
                 RoomBed = "Phòng 506 - Giường 14",
                 TreatmentCode = "000007121494",
@@ -557,31 +488,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 14. DƯƠNG VĂN ĐỐC
+            // 12. LẠI THỊ KHA
             list.Add(new PatientItem
             {
-                IsInpatient = true,
-                SendTime = "10:19",
-                RoomBed = "Phòng 508 - Giường 33",
-                TreatmentCode = "000007071973",
-                PatientCode = "0003505307",
-                FullName = "DƯƠNG VĂN ĐỐC",
-                Age = 41,
-                Gender = "Nam",
-                RequestDoctor = "BS PHẠM KHÁNH MINH",
-                Diagnosis = "[M46.47] Viêm đĩa đệm đốt sống L4-L5 mạn tính tái phát",
-                ReasonAndTracking = "Đau CSTL L4-L5 tái phát sau 5 tháng. Đã sinh thiết T4/2026 là viêm mạn tính, Quantiferon (-). Chụp CLVT theo ý kiến HC lần 1. Xin ý kiến mổ thông qua Khoa 57.",
-                ExactImaging = "CLVT & MRI CSTL: Tổn thương phá hủy bề mặt thân đốt sống L4, L5 và khe đĩa đệm L4/5, phù nề mô mềm cạnh sống mức độ vừa, không thấy ổ áp xe lớn ngoài màng cứng.",
-                OrthoPlan = "Nếu điều trị nội khoa kháng sinh đủ liều mà lâm sàng còn đau nhiều hoặc có mất vững cột sống: Chỉ định Phẫu thuật nạo vét đĩa đệm viêm, giải ép và hàn xương liên thân đốt lối sau (TLIF/PLIF) nẹp vít L4-L5.",
-                PlanCategory = "🔴 Mổ hàn xương L4-L5",
-                WardTransfer = "Xem xét nhận Khoa 57 mổ",
-                HisStatus = "🔴 Chờ khám/HC"
-            });
-
-            // 15. LẠI THỊ KHA
-            list.Add(new PatientItem
-            {
-                IsInpatient = true,
                 SendTime = "10:25",
                 RoomBed = "Phòng 507 - Giường 28",
                 TreatmentCode = "000007133397",
@@ -599,10 +508,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 16. NGUYỄN VĂN DŨNG
+            // 13. NGUYỄN VĂN DŨNG
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "10:27",
                 RoomBed = "Phòng 508 - Giường 35",
                 TreatmentCode = "000007133965",
@@ -620,10 +528,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 17. ĐOÀN TRỌNG HÀ
+            // 14. ĐOÀN TRỌNG HÀ
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "10:46",
                 RoomBed = "Phòng 508 - Giường 38",
                 TreatmentCode = "000007112655",
@@ -641,10 +548,9 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // 18. NGUYỄN VĂN MINH
+            // 15. NGUYỄN VĂN MINH
             list.Add(new PatientItem
             {
-                IsInpatient = true,
                 SendTime = "11:09",
                 RoomBed = "Phòng 506 - Giường 21",
                 TreatmentCode = "000007137214",
@@ -662,205 +568,44 @@ namespace ExportCxkExcel
                 HisStatus = "🔴 Chờ khám/HC"
             });
 
-            // --- NGOẠI TRÚ (10 BN) ---
+            // 16. NGUYỄN VĂN VANG (MỚI GỬI LÚC 11:12)
             list.Add(new PatientItem
             {
-                IsInpatient = false,
-                SendTime = "06:23",
-                RoomBed = "PK Cơ Xương Khớp 1 (P.407 K1)",
-                TreatmentCode = "000007133180",
-                PatientCode = "0004000091",
-                FullName = "LÊ VĂN NGỪNG",
-                Age = 55,
+                SendTime = "11:12",
+                RoomBed = "Phòng 508 - Giường 35",
+                TreatmentCode = "000007137316",
+                PatientCode = "0004002419",
+                FullName = "NGUYỄN VĂN VANG",
+                Age = 69,
                 Gender = "Nam",
-                RequestDoctor = "BS TRẦN THỊ THU HUYỀN",
-                Diagnosis = "[M17.0] Thoái hóa khớp gối nguyên phát hai bên",
-                ReasonAndTracking = "Khám ngoại trú chuyển khám chuyên khoa khớp CTCH",
-                ExactImaging = "X-quang khớp gối: Hẹp khe khớp, gai xương rìa khớp",
-                OrthoPlan = "Khám tư vấn tiêm nội khớp / nội soi khớp tại PK 424 Nhà K1",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 424 Nhà K1",
-                HisStatus = "🟡 Đang khám"
+                RequestDoctor = "BS PHẠM KHÁNH MINH",
+                Diagnosis = "[A41.0] Viêm mô tế bào cẳng bàn chân phải - Nhiễm trùng vỡ hạt tophi ngón I chân phải - Gút mạn - THA",
+                ReasonAndTracking = "Gút 20 năm, vỡ chảy dịch hạt tophi ngón I chân P cách 20 ngày kèm sốt 38.5 độ, mu chân và cẳng chân sưng nề táy đỏ, nốt phỏng vỡ. Xin HC CTCH hướng xử trí.",
+                ExactImaging = "MRI Cổ bàn chân & Cẳng chân P: Tổn thương hạt tophi ăn mòn xương sên, gót, chêm, hộp, thuyền, đầu dưới xương chày mác. Ổ tụ dịch cơ gan chân, mắt cá ngoài. Viêm lan tỏa mô mềm và cơ cẳng chân P kèm vài ổ áp xe nhỏ trong cơ.",
+                OrthoPlan = "CÓ CHỈ ĐỊNH PHẪU THUẬT: Rạch nạo vét làm sạch tổ chức hạt tophi hoại tử ngón I chân phải, rạch tháo mủ và dẫn lưu ổ áp xe gan chân - cẳng chân phải, bảo tồn bàn ngón chân, dùng kháng sinh phổ rộng chống tụ cầu.",
+                PlanCategory = "🔴 Mổ nạo tophi hoại tử bàn chân",
+                WardTransfer = "Nhận Khoa 57 mổ",
+                HisStatus = "🔴 Chờ khám/HC"
             });
 
+            // 17. ĐÀO VĂN CHÍNH (MỚI GỬI LÚC 11:31)
             list.Add(new PatientItem
             {
-                IsInpatient = false,
-                SendTime = "06:40",
-                RoomBed = "PK Cơ Xương Khớp (P.427 K1)",
-                TreatmentCode = "000007134973",
-                PatientCode = "0004001055",
-                FullName = "VÕ QUÝ BÁ",
-                Age = 62,
+                SendTime = "11:31",
+                RoomBed = "Phòng 506 - Giường 18",
+                TreatmentCode = "000007114581",
+                PatientCode = "0003899926",
+                FullName = "ĐÀO VĂN CHÍNH",
+                Age = 66,
                 Gender = "Nam",
-                RequestDoctor = "BS PHÙNG VĂN ANH ĐỨC",
-                Diagnosis = "[M54.5] Đau thắt lưng - Thoát vị đĩa đệm cột sống thắt lưng",
-                ReasonAndTracking = "Chuyển khám chuyên khoa cột sống",
-                ExactImaging = "MRI CSTL: Thoát vị đĩa đệm L4/5 thể trung tâm lệch trái",
-                OrthoPlan = "Khám và kê đơn điều trị ngoại trú tại PK 425 Nhà K1",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 425 Nhà K1",
-                HisStatus = "🟡 Đang khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "07:33",
-                RoomBed = "PK Cơ Xương Khớp 1 (P.407 K1)",
-                TreatmentCode = "000007144694",
-                PatientCode = "0004005882",
-                FullName = "PHẠM THỊ OANH",
-                Age = 58,
-                Gender = "Nữ",
-                RequestDoctor = "BS TRẦN THỊ THU HUYỀN",
-                Diagnosis = "[M17.1] Thoái hóa khớp gối sau chấn thương",
-                ReasonAndTracking = "Chuyển khám chuyên khoa khớp",
-                ExactImaging = "X-quang khớp gối",
-                OrthoPlan = "Tư vấn điều trị ngoại trú",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 424 Nhà K1",
-                HisStatus = "🟡 Đang khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "08:34",
-                RoomBed = "PK Cơ Xương Khớp 2 (P.408 K1)",
-                TreatmentCode = "000007142154",
-                PatientCode = "0004004739",
-                FullName = "TRỊNH KẾ THÔNG",
-                Age = 67,
-                Gender = "Nam",
-                RequestDoctor = "BS NGUYỄN ĐỨC PHONG",
-                Diagnosis = "[M16.0] Thoái hóa khớp háng nguyên phát",
-                ReasonAndTracking = "Chuyển khám chuyên khoa khớp xét chỉ định thay khớp",
-                ExactImaging = "X-quang khung chậu: Thoái hóa khớp háng độ III",
-                OrthoPlan = "Tư vấn kế hoạch phẫu thuật thay khớp háng nhân tạo",
-                PlanCategory = "🟡 Tư vấn thay khớp",
-                WardTransfer = "PK 424 Nhà K1",
-                HisStatus = "🟡 Đang khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "09:10",
-                RoomBed = "PK Cơ xương khớp (P410 K1)",
-                TreatmentCode = "000007145556",
-                PatientCode = "0004006277",
-                FullName = "NGUYỄN THỊ XUÂN",
-                Age = 54,
-                Gender = "Nữ",
-                RequestDoctor = "BS NGUYỄN THỊ BẢO THOA",
-                Diagnosis = "[M75.1] Hội chứng chèn ép khoang dưới mỏm cùng vai - Rách gân trên gai",
-                ReasonAndTracking = "Chuyển khám chuyên khoa khớp CTCH",
-                ExactImaging = "MRI khớp vai: Rách bán phần gân trên gai vai phải",
-                OrthoPlan = "Tư vấn nội soi khâu phục hồi gân chóp xoay khớp vai",
-                PlanCategory = "🟡 Tư vấn nội soi vai",
-                WardTransfer = "PK 424 Nhà K1",
-                HisStatus = "🟡 Đang khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "09:18",
-                RoomBed = "PK Cơ Xương Khớp (P.427 K1)",
-                TreatmentCode = "000007139884",
-                PatientCode = "0004003712",
-                FullName = "PHẠM VĂN SẤN",
-                Age = 60,
-                Gender = "Nam",
-                RequestDoctor = "BS PHÙNG VĂN ANH ĐỨC",
-                Diagnosis = "[M54.4] Đau dây thần kinh tọa do thoát vị đĩa đệm",
-                ReasonAndTracking = "Chuyển khám chuyên khoa cột sống",
-                ExactImaging = "MRI CSTL: Thoát vị đĩa đệm L5/S1 chèn rễ S1",
-                OrthoPlan = "Tư vấn điều trị nội khoa hoặc phẫu thuật ít xâm lấn",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 425 Nhà K1",
-                HisStatus = "🔴 Chờ khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "09:56",
-                RoomBed = "PK Cơ Xương Khớp (P.428 K1)",
-                TreatmentCode = "000007144350",
-                PatientCode = "0004005721",
-                FullName = "NINH THỊ NHIÊN",
-                Age = 51,
-                Gender = "Nữ",
-                RequestDoctor = "BS NGUYỄN THỊ NGA",
-                Diagnosis = "[M77.1] Viêm lồi cầu ngoài xương cánh tay (Tennis elbow)",
-                ReasonAndTracking = "Chuyển khám chuyên khoa khớp",
-                ExactImaging = "Siêu âm khuỷu tay",
-                OrthoPlan = "Tư vấn tiêm huyết tương giàu tiểu cầu (PRP) / tiêm nội khớp",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 424 Nhà K1",
-                HisStatus = "🔴 Chờ khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "10:29",
-                RoomBed = "PK Cơ Xương Khớp (P.427 K1)",
-                TreatmentCode = "000007143449",
-                PatientCode = "0004005330",
-                FullName = "ĐỖ THỊ HUYỀN",
-                Age = 47,
-                Gender = "Nữ",
-                RequestDoctor = "BS PHÙNG VĂN ANH ĐỨC",
-                Diagnosis = "[M54.2] Đau cột sống cổ - Thoái hóa đĩa đệm cột sống cổ",
-                ReasonAndTracking = "Chuyển khám chuyên khoa cột sống",
-                ExactImaging = "MRI CS Cổ: Phình đĩa đệm C4/5, C5/6",
-                OrthoPlan = "Khám và điều trị bảo tồn ngoại trú tại PK 425",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 425 Nhà K1",
-                HisStatus = "🔴 Chờ khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "11:03",
-                RoomBed = "PK Cơ Xương Khớp (P.427 K1)",
-                TreatmentCode = "000007143655",
-                PatientCode = "0004005421",
-                FullName = "NGUYỄN THỊ CHÉN",
-                Age = 65,
-                Gender = "Nữ",
-                RequestDoctor = "BS PHÙNG VĂN ANH ĐỨC",
-                Diagnosis = "[M17.0] Thoái hóa khớp gối - Tràn dịch khớp gối",
-                ReasonAndTracking = "Chuyển khám chuyên khoa khớp",
-                ExactImaging = "X-quang khớp gối",
-                OrthoPlan = "Tư vấn hút dịch, tiêm khớp tại PK 424 Nhà K1",
-                PlanCategory = "🟡 Khám ngoại trú",
-                WardTransfer = "PK 424 Nhà K1",
-                HisStatus = "🔴 Chờ khám"
-            });
-
-            list.Add(new PatientItem
-            {
-                IsInpatient = false,
-                SendTime = "11:07",
-                RoomBed = "PK Cơ xương khớp (P410 K1)",
-                TreatmentCode = "000007144839",
-                PatientCode = "0004005953",
-                FullName = "TRẦN THỊ NHUẦN",
-                Age = 58,
-                Gender = "Nữ",
-                RequestDoctor = "BS NGUYỄN THỊ BẢO THOA",
-                Diagnosis = "[M65.3] Ngón tay lò xo (Trigger finger) ngón 1 tay phải",
-                ReasonAndTracking = "Chuyển khám chuyên khoa chấn thương chỉnh hình",
-                ExactImaging = "Lâm sàng: Ngón tay lò xo kẹt độ III",
-                OrthoPlan = "Chỉ định phẫu thuật giải phóng ròng rọc A1 ngón tay tại Phòng tiểu phẫu Nhà Q",
-                PlanCategory = "🟢 Tiểu phẫu ngón tay lò xo",
-                WardTransfer = "Phòng tiểu phẫu Nhà Q",
-                HisStatus = "🔴 Chờ khám"
+                RequestDoctor = "BS PHẠM KHÁNH MINH",
+                Diagnosis = "[M10.00] Nhiễm khuẩn khớp gối phải - Đợt cấp gút mạn - Bệnh thận mạn giai đoạn 3b - THA - Hậu phẫu nạo tophi mắt cá ngoài",
+                ReasonAndTracking = "Sau mổ nạo tophi mắt cá ngoài P, nay khớp gối P sưng đau nhiều, không sốt. Soi dịch gối P: Cầu khuẩn Gram (+). CRP 317 -> 96. Xin ý kiến CTCH điều trị.",
+                ExactImaging = "MRI Khớp gối phải: Phù nề dây chằng chéo trước, rách sừng trước sụn chêm ngoài độ 3; tràn dịch khớp gối và thoái hóa khớp gối phải.",
+                OrthoPlan = "CÓ CHỈ ĐỊNH PHẪU THUẬT NỘI SOI: Nội soi bơm rửa làm sạch khoang khớp gối phải, cắt lọc sụn chêm ngoài rách và cắt lọc màng hoạt dịch viêm nhiễm khuẩn, đặt dẫn lưu khớp. Chỉnh liều KS phù hợp mức lọc cầu thận (Suy thận 3b).",
+                PlanCategory = "🔴 Mổ nội soi rửa khớp gối",
+                WardTransfer = "Nhận Khoa 57 mổ",
+                HisStatus = "🔴 Chờ khám/HC"
             });
 
             return list;
