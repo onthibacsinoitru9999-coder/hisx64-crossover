@@ -446,7 +446,52 @@ public class HisWardReportCreator
         string combined = (rawName + " " + rawSub).ToLower();
 
         // 1. Rà soát Mã ICD & Chẩn đoán theo Quy tắc 4 AGENTS.md (Đích danh vị trí & tầng tổn thương)
-        if (combined.Contains("tháp") || combined.Contains("thang") || (combined.Contains("cổ tay") && combined.Contains("gãy")))
+        if (combined.Contains("áp xe") || combined.Contains("staphylococcus") || combined.Contains("mông – đùi") || combined.Contains("mông - đùi") || combined.Contains("m60.05"))
+        {
+            rec.ReviewedIcdCode = "L02.4";
+            rec.ReviewedDiagnosis = "Áp xe lớn khối cơ mông - đùi phải sau tiêm mông do Staphylococcus aureus / ĐTĐ type 2 - Viêm gan B mạn - Xơ hóa gan - Thiếu máu mạn - Giảm Albumin máu";
+        }
+        else if (combined.Contains("nhiễm trùng cổ bàn chân") || combined.Contains("dị vật") || combined.Contains("m12.56"))
+        {
+            rec.ReviewedIcdCode = "T79.3";
+            rec.ReviewedDiagnosis = "Nhiễm trùng vết thương cổ bàn chân phải do dị vật sau TNGT ngày thứ 7 / Vết thương mu chân phải chảy dịch mủ";
+        }
+        else if (combined.Contains("sau mổ cố định cột sống") || combined.Contains("đau cơ cạnh sống") || combined.Contains("m54.55"))
+        {
+            rec.ReviewedIcdCode = "T81.4";
+            rec.ReviewedDiagnosis = "Theo dõi nhiễm trùng vết mổ sau phẫu thuật cố định cột sống ngực - thắt lưng / Tăng huyết áp - ĐTĐ type 2";
+        }
+        else if (combined.Contains("thoái hóa khớp gối") || combined.Contains("khớp gối 2 bên") || combined.Contains("m17"))
+        {
+            rec.ReviewedIcdCode = "M17.0";
+            rec.ReviewedDiagnosis = "Thoái hóa khớp gối hai bên (Phải > Trái), tiền sử mổ nội soi gối phải 4 tháng / ĐTĐ type 2 - Rối loạn giấc ngủ lo âu";
+        }
+        else if (combined.Contains("xẹp cấp l3") || (combined.Contains("l3") && combined.Contains("xẹp")))
+        {
+            rec.ReviewedIcdCode = "M80.05";
+            rec.ReviewedDiagnosis = "Xẹp cấp đốt sống L3 do loãng xương nặng / Tăng huyết áp - ĐTĐ type 2 - Suy thận mạn giai đoạn 3 - Bệnh tim thiếu máu cục bộ";
+        }
+        else if (combined.Contains("chấn thương sọ não") || (combined.Contains("xương chày") && combined.Contains("phức tạp")))
+        {
+            rec.ReviewedIcdCode = "S82.1";
+            rec.ReviewedDiagnosis = "Gãy phức tạp 1/3 trên xương chày phải - Chấn thương sọ não G14đ - Theo dõi chấn thương cột sống cổ sau TNGT / Tăng huyết áp";
+        }
+        else if (combined.Contains("ngón v tay trái") || combined.Contains("xương bàn 5") || combined.Contains("s62.31"))
+        {
+            rec.ReviewedIcdCode = "S62.31";
+            rec.ReviewedDiagnosis = "Gãy xương bàn ngón V tay trái di lệch - Vết thương ngón V tay trái sau tai nạn giao thông";
+        }
+        else if (combined.Contains("ngón iii") || (combined.Contains("đốt bàn") && combined.Contains("trật hở")))
+        {
+            rec.ReviewedIcdCode = "S62.2";
+            rec.ReviewedDiagnosis = "Gãy hở chỏm đốt bàn - Trật hở khớp liên đốt gần - Đứt gân duỗi ngón III tay phải sau TNGT";
+        }
+        else if (combined.Contains("xương mác") || combined.Contains("đầu dưới xương chày") || combined.Contains("s82.50"))
+        {
+            rec.ReviewedIcdCode = "S82.50";
+            rec.ReviewedDiagnosis = "Gãy 1/3 dưới xương mác và đầu dưới xương chày phải sau trượt ngã";
+        }
+        else if (combined.Contains("tháp") || combined.Contains("thang") || (combined.Contains("cổ tay") && combined.Contains("gãy")))
         {
             rec.ReviewedIcdCode = "S62.1";
             rec.ReviewedDiagnosis = "Gãy xương tháp và xương thang cổ tay trái di lệch / Vết thương bàn tay trái đã khâu";
@@ -461,10 +506,16 @@ public class HisWardReportCreator
             rec.ReviewedIcdCode = "S56.2";
             rec.ReviewedDiagnosis = "Vết thương cẳng tay trái đứt gân duỗi các ngón 2, 3, 4, 5, gân duỗi dài ngón 1, gân duỗi cổ tay quay dài - ngắn / Tăng huyết áp - ĐTĐ type 2";
         }
-        else if (combined.Contains("xương đòn") || combined.Contains("đòn trái"))
+        else if (combined.Contains("xương đòn") || combined.Contains("đòn trái") || combined.Contains("đòn phải"))
         {
+            string side = combined.Contains("phải") ? "phải" : "trái";
             rec.ReviewedIcdCode = "S42.02";
-            rec.ReviewedDiagnosis = "Gãy kín 1/3 giữa xương đòn trái có di lệch";
+            rec.ReviewedDiagnosis = string.Format("Gãy kín 1/3 giữa xương đòn {0} có di lệch", side);
+        }
+        else if (combined.Contains("liên mấu chuyển") || combined.Contains("lmc"))
+        {
+            rec.ReviewedIcdCode = "S72.1";
+            rec.ReviewedDiagnosis = "Gãy liên mấu chuyển xương đùi phải / Thiếu máu (Hct 27%, Hgb 90g/L) - Tăng huyết áp - ĐTĐ type 2 - Di chứng TBMMN cũ";
         }
         else if (combined.Contains("cổ xương đùi") || combined.Contains("bả vai"))
         {
@@ -475,11 +526,6 @@ public class HisWardReportCreator
         {
             rec.ReviewedIcdCode = "S86.0";
             rec.ReviewedDiagnosis = "Đứt gân gót Achilles chân trái sau phẫu thuật khâu nối gân / Gout mạn tính";
-        }
-        else if (combined.Contains("liên mấu chuyển") || combined.Contains("lmc"))
-        {
-            rec.ReviewedIcdCode = "S72.1";
-            rec.ReviewedDiagnosis = "Gãy liên mấu chuyển xương đùi phải / Thiếu máu (Hct 27%, Hgb 90g/L) - Tăng huyết áp - ĐTĐ type 2 - Di chứng TBMMN cũ";
         }
         else
         {
@@ -616,7 +662,47 @@ public class HisWardReportCreator
         string diag = (rec.ReviewedDiagnosis ?? "").ToLower();
         List<string> plans = new List<string>();
 
-        if (diag.Contains("đứt gân") || diag.Contains("achilles"))
+        if (diag.Contains("áp xe") || diag.Contains("staphylococcus") || diag.Contains("l02.4"))
+        {
+            plans.Add("1. Rửa và thay băng vô khuẩn ổ áp xe mông đùi hàng ngày, theo dõi dịch dẫn lưu");
+            plans.Add("2. Duy trì kháng sinh trúng đích theo KSĐ (S. aureus)");
+            plans.Add("3. Kiểm soát chặt ĐMMM 3 cữ + tiêm insulin theo phác đồ");
+            plans.Add("4. Bù Albumin + nâng cao thể trạng dinh dưỡng đạm cao");
+            plans.Add("5. Theo dõi men gan, đông máu nền Viêm gan B - Xơ gan");
+        }
+        else if (diag.Contains("nhiễm trùng cổ bàn chân") || diag.Contains("dị vật") || diag.Contains("t79.3"))
+        {
+            plans.Add("1. Thay băng, rửa vô khuẩn vết thương cổ bàn chân, bộc lộ gắp dị vật còn sót nếu có");
+            plans.Add("2. Kháng sinh phổ rộng đường tĩnh mạch");
+            plans.Add("3. Giảm đau + chống phù nề tổ chức");
+            plans.Add("4. Siêu âm phần mềm cổ bàn chân kiểm tra ổ áp xe/dị vật ngóc ngách");
+            plans.Add("5. Kê cao chân chống phù nề");
+        }
+        else if (diag.Contains("nhiễm trùng vết mổ") || diag.Contains("t81.4") || diag.Contains("cố định cột sống"))
+        {
+            plans.Add("1. Thay băng vô khuẩn vết mổ hàng ngày, cấy dịch làm KSĐ");
+            plans.Add("2. Kháng sinh tĩnh mạch kiểm soát nhiễm trùng sâu vết mổ");
+            plans.Add("3. Chụp MRI/CT cột sống đánh giá nẹp vít và ổ tụ dịch viêm");
+            plans.Add("4. Kiểm soát chặt ĐMMM + tiêm insulin chỉnh liều");
+            plans.Add("5. Đánh giá cơ lực và cảm giác tê bì 2 chân");
+        }
+        else if (diag.Contains("thoái hóa khớp gối") || diag.Contains("m17"))
+        {
+            plans.Add("1. Thuốc giảm đau bậc 1-2 + bổ trợ bảo vệ sụn khớp");
+            plans.Add("2. Thuốc an thần nhẹ cải thiện giấc ngủ lo âu");
+            plans.Add("3. Kiểm soát đường huyết mao mạch 3 cữ + dùng thuốc ĐTĐ");
+            plans.Add("4. Tập PHCN khớp gối, hạn chế leo cầu thang/ngồi xổm");
+            plans.Add("5. Cân nhắc tiêm Acid Hyaluronic/PRP hoặc thay khớp gối nếu đau nhiều");
+        }
+        else if (diag.Contains("xẹp cấp l3") || diag.Contains("m80"))
+        {
+            plans.Add("1. Nằm bất động tại giường, đeo nẹp thắt lưng ngực khi ngồi dậy");
+            plans.Add("2. Thuốc điều trị loãng xương + Canxi/Vitamin D3");
+            plans.Add("3. Giảm đau đa mô thức");
+            plans.Add("4. Đánh giá chỉ định bơm xi măng sinh học thân đốt sống L3 (Vertebroplasty)");
+            plans.Add("5. Kiểm soát ĐTĐ, THA và theo dõi chức năng thận (suy thận mạn G3)");
+        }
+        else if (diag.Contains("đứt gân") || diag.Contains("achilles"))
         {
             plans.Add("1. Tiếp tục nẹp bột bất động chi tổn thương");
             plans.Add("2. Thay băng vô khuẩn vết mổ cách nhật, theo dõi mép da");
@@ -629,7 +715,7 @@ public class HisWardReportCreator
             plans.Add("1. Cố định đai số 8 / nẹp vai vững chắc");
             plans.Add("2. Kháng sinh dự phòng + giảm đau");
             plans.Add("3. Hoàn thiện bilan tiền phẫu (X-quang ngực, đông máu...)");
-            plans.Add("4. Dự kiến phẫu thuật kết hợp xương đòn trái");
+            plans.Add("4. Dự kiến phẫu thuật kết hợp xương đòn");
         }
         else if (diag.Contains("gãy cổ xương đùi") || diag.Contains("gãy liên mấu chuyển") || diag.Contains("s72"))
         {
@@ -655,10 +741,10 @@ public class HisWardReportCreator
         }
         else if (diag.Contains("cổ tay") || diag.Contains("xương tháp") || diag.Contains("xương thang"))
         {
-            plans.Add("1. Cố định nẹp bột cẳng bàn tay trái");
+            plans.Add("1. Cố định nẹp bột cẳng bàn tay");
             plans.Add("2. Thay băng chăm sóc vết thương cổ tay");
             plans.Add("3. Kháng sinh + giảm đau + chống phù nề ngọn chi");
-            plans.Add("4. Chụp X-quang kiểm tra vị trí xương tháp/thang");
+            plans.Add("4. Chụp X-quang kiểm tra vị trí xương gãy");
         }
         else
         {
