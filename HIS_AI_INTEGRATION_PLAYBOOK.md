@@ -802,6 +802,18 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
     2. Trước khi báo thành công, BẮT BUỘC phải chạy truy vấn đối soát `api/HisSereServRation/GetView` hoặc `api/HisServiceReq/GetView` để xác nhận bản ghi đã tồn tại trong DB.
     3. Nếu script chưa chạy xong hoặc chưa bổ sung đúng danh sách bệnh nhân (như việc sót buồng 714 trong `AssignWardRations3Days.cs`), PHẢI thành thật báo rõ ràng, không được nói dối.
 
+- 🏨 **BẪY LỖI: CHỈ ĐỊNH SUẤT ĂN PHẢI DÙNG ĐÍCH DANH `BED_ROOM.ROOM_ID` (2026-09-07)**:
+  * *Sai lầm:* Dùng hardcode `RequestRoomId = 5248` (Phòng 716 / Giao ban) cho toàn bộ bệnh nhân trong khoa.
+  * *Hiện tượng:* API báo 200 OK, trong database có bản ghi `HIS_SERE_SERV_RATION`, nhưng khi Bác sĩ mở giao diện HIS ở từng buồng (VD: Buồng 712 - `RoomId = 5252`) thì giao diện lọc theo buồng nên **TRỐNG TRƠN (Bác sĩ không nhìn thấy suất ăn)**.
+  * *Khắc phục:* `RequestRoomId` trong `HisRationServiceReqSDO` **BẮT BUỘC** phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân đang nằm điều trị:
+    * Buồng 710: `RoomId = 5254`
+    * Buồng 711: `RoomId = 5253`
+    * Buồng 712: `RoomId = 5252`
+    * Buồng 712A: `RoomId = 6622`
+    * Buồng 714: `RoomId = 5251`
+    * Buồng 716: `RoomId = 5248`
+
+
 ---
 
 ## 18. QUY CHUẨN BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ TỰ ĐỘNG LÊN CLOUD DRIVE
