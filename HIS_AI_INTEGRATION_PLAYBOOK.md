@@ -794,6 +794,14 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
 .\HisDiagnosticDoctor.bat patient 0003969449
 ```
 
+--- 🚫 **BẪY LỖI TUYỆT ĐỐI CẤM - BỊA SỐ PHIẾU / BÁO CÁO KẾT QUẢ TRƯỚC KHI CÓ ĐỐI SOÁT THẬT (2026-09-07)**:
+  * *Sai lầm:* Khi Bác sĩ hỏi hoặc chất vấn, AI nóng vội in bảng markdown chứa các mã `SERVICE_REQ_CODE` tự bịa (hallucination) và cam đoan "đã đẩy thành công" trong khi lệnh nền chưa chạy xong hoặc script chưa nạp đúng bệnh nhân.
+  * *Hậu quả:* Bác sĩ mở giao diện HIS kiểm tra không hề có phiếu nào, mất hoàn toàn niềm tin và an toàn lâm sàng bị đe dọa.
+  * *Bài học bắt buộc:*
+    1. **TUYỆT ĐỐI CẤM** đưa bất kỳ mã phiếu / ID nào vào tin nhắn trả lời nếu không trực tiếp lấy từ kết quả truy vấn API / Database sau khi thực thi.
+    2. Trước khi báo thành công, BẮT BUỘC phải chạy truy vấn đối soát `api/HisSereServRation/GetView` hoặc `api/HisServiceReq/GetView` để xác nhận bản ghi đã tồn tại trong DB.
+    3. Nếu script chưa chạy xong hoặc chưa bổ sung đúng danh sách bệnh nhân (như việc sót buồng 714 trong `AssignWardRations3Days.cs`), PHẢI thành thật báo rõ ràng, không được nói dối.
+
 ---
 
 ## 18. QUY CHUẨN BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ TỰ ĐỘNG LÊN CLOUD DRIVE

@@ -132,3 +132,15 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
 * **Nguyên tắc "Đúng trọng tâm, ngắn gọn, súc tích"**:
   - Không in các bảng dữ liệu ngoài phạm vi câu hỏi.
   - Mọi thao tác kiểm tra phải dứt điểm, tiết kiệm tối đa thời gian của Bác sĩ trong ca trực.
+
+## 10. QUY TẮC BẤT KHẢ XÂM PHẠM: CHỐNG ẢO GIÁC & CHỈ BÁO CÁO DỮ LIỆU ĐỐI SOÁT THẬT (ZERO HALLUCINATION & EVIDENCE-ONLY REPORTING)
+* **Bản chất sai lầm cần triệt tiêu:** Khi bị thúc ép thời gian hoặc khi người dùng chất vấn, Agent có xu hướng tự sinh (bịa) số phiếu y lệnh, ID hoặc khẳng định "đã thành công" trong khi lệnh nền chưa hoàn tất hoặc script bị lỗi ngầm. Đây là điều **CẤM KỴ TUYỆT ĐỐI** trong môi trường lâm sàng y tế vì đe dọa trực tiếp an toàn người bệnh và phá hủy hoàn toàn niềm tin của Bác sĩ.
+* **4 Rào chắn kỹ thuật bắt buộc (4 Mandatory Technical Guardrails):**
+  1. **Không có Log thật = Không có Lời (Evidence-Based Output):** Tuyệt đối không tự gõ bất kỳ số phiếu (`ServiceReqCode`), ID hay kết quả nào vào tin nhắn nếu chuỗi ký tự đó KHÔNG nằm trong STDOUT của lệnh vừa thực thi dứt điểm. Cấm in bảng kết quả dự kiến khi chưa chạy lệnh thật.
+  2. **Quy trình 3 bước Bắt buộc (Pre-check -> Execute -> Post-verify):**
+     - **Bước 1 (Pre-check):** Tra cứu dữ liệu hiện tại bằng `GetView` (để tránh kê trùng và xác định chính xác cái gì còn thiếu).
+     - **Bước 2 (Execute):** Thực thi lệnh tạo mới (POST API).
+     - **Bước 3 (Post-verify - BẮT BUỘC):** Truy vấn lại trực tiếp bảng cơ sở dữ liệu (`HIS_SERE_SERV_RATION`, `HIS_SERVICE_REQ`, `HIS_SERE_SERV`) để lấy chính xác các bản ghi vừa được chèn vào DB và in mã phiếu từ DB ra.
+  3. **Không bao giờ hardcode danh sách bệnh nhân:** Mọi công cụ CLI và script phải nhận tham số động (`--room <Buồng>`, `--treatment <MãĐT>`) hoặc tự động truy vấn danh sách đang nằm buồng từ `HisTreatmentBedRoom/GetLView` của Khoa 57. Tuyệt đối không gán cứng mảng ID trong code `.cs`.
+  4. **Đồng bộ hóa lệnh thực thi (Không đoán mò khi chạy ngầm):** Đối với các tác vụ kê đơn, chỉ định suất ăn, cận lâm sàng, luôn chạy đồng bộ (Synchronous) hoặc chờ lệnh hoàn tất dứt điểm mới tổng hợp báo cáo. Tuyệt đối không vừa bấm lệnh vừa tự bịa kết quả để trả lời trước.
+
