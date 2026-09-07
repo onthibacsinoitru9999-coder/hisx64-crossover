@@ -144,3 +144,21 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   3. **Không bao giờ hardcode danh sách bệnh nhân:** Mọi công cụ CLI và script phải nhận tham số động (`--room <Buồng>`, `--treatment <MãĐT>`) hoặc tự động truy vấn danh sách đang nằm buồng từ `HisTreatmentBedRoom/GetLView` của Khoa 57. Tuyệt đối không gán cứng mảng ID trong code `.cs`.
   4. **Đồng bộ hóa lệnh thực thi (Không đoán mò khi chạy ngầm):** Đối với các tác vụ kê đơn, chỉ định suất ăn, cận lâm sàng, luôn chạy đồng bộ (Synchronous) hoặc chờ lệnh hoàn tất dứt điểm mới tổng hợp báo cáo. Tuyệt đối không vừa bấm lệnh vừa tự bịa kết quả để trả lời trước.
 
+## 11. QUY TẮC BẢO MẬT & ĐỐI SOÁT GOOGLE SHEET BÁO CÁO HOẠT ĐỘNG & HÀNH CHÍNH (STRICT READ-ONLY PROTOCOL)
+* **File nguồn chuẩn hóa**: [Báo Cáo Hoạt Động & Hành Chính Khoa CTCH & Cột Sống - Cơ Sở Hà Nội](https://docs.google.com/spreadsheets/d/1z8Stz0XnEA4-s2AxKSzMijoiZxLxxOlkbYfqSiRwU28/edit?gid=340181132#gid=340181132)
+* **Quy tắc cứng BẤT KHẢ XÂM PHẠM (STRICT READ-ONLY - 100%)**:
+  - **TUYỆT ĐỐI CẤM** ghi chép, chỉnh sửa, xóa, thêm hàng/cột, cập nhật hay can thiệp bất kỳ dữ liệu nào vào file Google Sheet này dưới mọi hình thức.
+  - File này là tài liệu điều hành và báo cáo hoạt động hành chính của Khoa CTCH & Cột Sống cơ sở Hà Nội.
+  - Agent CHỈ ĐƯỢC PHÉP QUÉT, ĐỐI SOÁT và THAM CHIẾU (Read-Only) để nắm bắt bức tranh toàn cảnh lâm sàng, hỗ trợ Bác sĩ tra cứu và kiểm tra thông tin.
+* **Cấu trúc 9 Sheet chuyên biệt của Hệ thống**:
+  1. 📊 **`DASHBOARD`** (`gid=340181132`): Bảng điều khiển giao ban, thống kê tổng BN nội trú, phân loại bệnh nhân (hậu phẫu ổn định, điều trị nội khoa, mổ phiên, làm chẩn đoán, đã xếp lịch mổ, chưa xếp lịch...), phẫu thuật, vào/ra viện hôm nay và biểu đồ tự động.
+  2. 👥 **`DANH SÁCH BN`** (`gid=520846210`): Danh sách bệnh nhân chi tiết (Mã BN, Mã ĐT, Buồng, Giường, Chẩn đoán chính, Tiền sử, Bệnh sử, Khám, Bilan mổ, Link phim, Link bệnh án, PTV chính/phụ, BS điều trị, SĐT người nhà, Phân loại chăm sóc).
+  3. 🩺 **`ĐI BUỒNG`** (`gid=360892229`): Bảng theo dõi đi buồng lâm sàng theo Buồng/Giường, hướng xử trí của Bác sĩ, y lệnh lãnh đạo đi buồng, ĐD bàn giao theo dõi.
+  4. 🚨 **`MỔ CẤP CỨU`** (`gid=1791790800`): Danh sách bệnh nhân mổ cấp cứu tại khoa hoặc hội chẩn từ khoa khác (CC Lưu, Hồi sức Ngoại P...), tình trạng mổ, PTV.
+  5. 📝 **`THÔNG QUA MỔ HÀNG NGÀY`** (`gid=282218154`): Danh sách bệnh nhân thông qua mổ hàng ngày của khoa.
+  6. 📅 **`LỊCH MỔ NGÀY`** (`gid=1532702217`): Lịch mổ chi tiết theo phòng mổ (Phòng 5 CS, Phòng 2 CTCH), kíp mổ, giờ dự kiến, thời lượng mổ.
+  7. 📋 **`BÁO CÁO TRỰC`** (`gid=779922548`): Báo cáo số liệu giao ban của kíp trực (Bác sĩ trực, Điều dưỡng trực, tổng số bệnh nhân).
+  8. 📚 **`DANH MỤC`** (`gid=258386294`): Danh mục chuẩn hóa phân loại BN, bilan mổ, phương pháp mổ, danh sách PTV, phân loại chăm sóc, phòng mổ.
+  9. 📂 **`RA VIỆN`** (`gid=351678517`): Lưu trữ dữ liệu hồ sơ bệnh nhân đã ra viện / chuyển khoa / chuyển viện.
+
+
