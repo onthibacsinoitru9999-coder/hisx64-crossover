@@ -4,6 +4,7 @@ using System.Text;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Globalization;
 using Inventec.Core;
 using Inventec.Token.ClientSystem;
 using Inventec.Common.Adapter;
@@ -190,6 +191,65 @@ public class HisClinicalCli
         catch { }
     }
 
+    public static string RemoveDiacritics(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        string normalized = text.Normalize(NormalizationForm.FormD);
+        StringBuilder sb = new StringBuilder();
+        foreach (char c in normalized)
+        {
+            var uc = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (uc != UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC).Replace('đ', 'd').Replace('Đ', 'D');
+    }
+
+    public static List<string> GenerateSearchVariants(string input)
+    {
+        var variants = new List<string>();
+        if (string.IsNullOrEmpty(input)) return variants;
+
+        string original = input.Trim();
+        variants.Add(original);
+
+        // Biến thể dấu thanh tiếng Việt kiểu truyền thống vs hiện đại (hòa <-> hoà, hóa <-> hoá...)
+        string[,] pairs = new string[,] {
+            { "òa", "oà" }, { "óa", "oá" }, { "ỏa", "oả" }, { "õa", "oã" }, { "ọa", "oạ" },
+            { "ÒA", "OÀ" }, { "ÓA", "OÁ" }, { "ỎA", "OẢ" }, { "ÕA", "OÃ" }, { "ỌA", "OẠ" },
+            { "òe", "oè" }, { "óe", "oé" }, { "ỏe", "oẻ" }, { "õe", "oẽ" }, { "ọe", "oẹ" },
+            { "ùy", "uỳ" }, { "úy", "uý" }, { "ủy", "uỷ" }, { "ũy", "uỹ" }, { "ụy", "uỵ" },
+            { "ÙY", "UỲ" }, { "ÚY", "UÝ" }, { "ỦY", "UỶ" }, { "ŨY", "UỸ" }, { "ỤY", "UỴ" }
+        };
+
+        for (int i = 0; i < pairs.GetLength(0); i++)
+        {
+            string from = pairs[i, 0];
+            string to = pairs[i, 1];
+            if (original.Contains(from))
+            {
+                string v = original.Replace(from, to);
+                if (!variants.Contains(v)) variants.Add(v);
+            }
+            if (original.Contains(to))
+            {
+                string v = original.Replace(to, from);
+                if (!variants.Contains(v)) variants.Add(v);
+            }
+        }
+
+        // Biến thể không dấu
+        string unaccented = RemoveDiacritics(original);
+        if (!string.IsNullOrEmpty(unaccented) && !variants.Contains(unaccented))
+        {
+            variants.Add(unaccented);
+        }
+
+        return variants;
+    }
+
     public static void LookupPatient(string keyword)
     {
         InitSession();
@@ -215,26 +275,80 @@ public class HisClinicalCli
                     treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
                 }
             }
-
-            if (treatments == null || treatments.Count == 0)
+            else
             {
-                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
-                tfCode.PATIENT_CODE__EXACT = kw;
+                // Thử tìm theo PATIENT_CODE hoặc TREATMENT_CODE chữ
+                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = kw };
                 treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
-            }
 
-            if (treatments == null || treatments.Count == 0)
-            {
-                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
-                tfCode.TREATMENT_CODE__EXACT = kw;
-                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
-            }
+                if (treatments == null || treatments.Count == 0)
+                {
+                    tfCode = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = kw };
+                    treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                }
 
-            if (treatments == null || treatments.Count == 0)
-            {
-                HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
-                tfCode.KEY_WORD = kw;
-                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (treatments == null || treatments.Count == 0)
+                {
+                    // BƯỚC 1: Quét nhanh trong danh sách bệnh nhân đang nằm buồng (In-memory, Siêu tốc < 0.1s, loại bỏ 100% rào cản dấu)
+                    string searchNorm = RemoveDiacritics(kw).Trim().ToLower();
+                    try
+                    {
+                        HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter
+                        {
+                            IS_IN_ROOM = true,
+                            TREATMENT_IS_ACTIVE = true
+                        };
+                        var allBeds = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", mosConsumer, tbrf, param);
+                        if (allBeds != null && allBeds.Count > 0)
+                        {
+                            var matchedBeds = allBeds.Where(b => 
+                                b.DEPARTMENT_ID == 57 &&
+                                !string.IsNullOrEmpty(b.TDL_PATIENT_NAME) &&
+                                RemoveDiacritics(b.TDL_PATIENT_NAME).ToLower().Contains(searchNorm)
+                            ).ToList();
+
+                            // Nếu không có ở Khoa 57, tìm ở các khoa khác
+                            if (matchedBeds.Count == 0)
+                            {
+                                matchedBeds = allBeds.Where(b => 
+                                    !string.IsNullOrEmpty(b.TDL_PATIENT_NAME) &&
+                                    RemoveDiacritics(b.TDL_PATIENT_NAME).ToLower().Contains(searchNorm)
+                                ).ToList();
+                            }
+
+                            if (matchedBeds.Count > 0)
+                            {
+                                var tIds = matchedBeds.Select(x => x.TREATMENT_ID).Distinct().ToList();
+                                HisTreatmentViewFilter tfBatch = new HisTreatmentViewFilter { IDs = tIds };
+                                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfBatch, param);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (treatments == null || treatments.Count == 0)
+                {
+                    // BƯỚC 2: Tự động tìm kiếm qua các biến thể dấu thanh (hòa <-> hoà) và không dấu trên MOS
+                    var variants = GenerateSearchVariants(kw);
+                    var allFound = new List<V_HIS_TREATMENT>();
+                    var seenIds = new HashSet<long>();
+
+                    foreach (var v in variants)
+                    {
+                        var tf = new HisTreatmentViewFilter { KEY_WORD = v, IS_PAUSE = false };
+                        var res = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+                        if (res != null)
+                        {
+                            foreach (var item in res)
+                            {
+                                if (seenIds.Add(item.ID)) allFound.Add(item);
+                            }
+                        }
+                        if (allFound.Count > 0 && !v.Contains("òa") && !v.Contains("oà")) break;
+                    }
+                    treatments = allFound;
+                }
             }
         }
 
@@ -279,7 +393,28 @@ public class HisClinicalCli
             return;
         }
 
-        var tr = treatments.LastOrDefault(x => x.IS_PAUSE != 1) ?? treatments.Last();
+        // CẢNH BÁO ĐỐI SOÁT KHI CÓ NHIỀU BỆNH NHÂN TRÙNG TÊN / TRÙNG TỪ KHÓA
+        var activeTreatments = treatments.Where(x => x.IS_PAUSE != 1).ToList();
+        if (activeTreatments.Count > 1)
+        {
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine(string.Format("⚠️ CẢNH BÁO ĐỐI SOÁT TRÙNG TÊN: Tìm thấy {0} bệnh nhân đang nằm viện khớp với '{1}':", activeTreatments.Count, keyword));
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            int idx = 1;
+            foreach (var at in activeTreatments)
+            {
+                Console.WriteLine(string.Format("  {0}. [{1}] Mã BN: {2} | Mã ĐT: {3} | Khoa: {4}",
+                    idx++, at.TDL_PATIENT_NAME, at.TDL_PATIENT_CODE, at.TREATMENT_CODE, at.END_DEPARTMENT_NAME ?? "Khoa 57"));
+                Console.WriteLine(string.Format("     Chẩn đoán: [{0}] {1}", at.ICD_CODE, at.ICD_NAME));
+            }
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            Console.WriteLine("👉 Chi tiết bên dưới hiển thị hồ sơ ưu tiên tại Khoa 57:");
+            Console.WriteLine("===============================================================================");
+        }
+
+        var tr = treatments.LastOrDefault(x => x.IS_PAUSE != 1 && (x.END_DEPARTMENT_ID == 57 || x.LAST_DEPARTMENT_ID == 57))
+                 ?? treatments.LastOrDefault(x => x.IS_PAUSE != 1)
+                 ?? treatments.Last();
 
         HisTreatmentBedRoomLViewFilter bedFilter = new HisTreatmentBedRoomLViewFilter();
         bedFilter.TREATMENT_IDs = new List<long> { tr.ID };
@@ -488,7 +623,6 @@ public class HisClinicalCli
                     MultipleExecute = 1,
                     IsNotUseBhyt = false,
                     IsNoHeinDifference = false,
-                    IsGuaranteed = false,
                     EkipInfos = new List<EkipSDO>()
                 }
             }

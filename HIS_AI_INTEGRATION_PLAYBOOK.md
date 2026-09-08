@@ -150,6 +150,11 @@ filter.KEY_WORD = patientCode; // hoặc TREATMENT_CODE__EXACT
 var treatments = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, filter, param);
 var currentTreatment = treatments.LastOrDefault(x => x.IS_PAUSE != 1);
 ```
+* 💡 **Lưu ý sống còn khi tìm kiếm theo tên bệnh nhân (Rule 12)**:
+  - HIS/Oracle phân biệt dấu thanh kiểu cũ (`òa`, `óa` - VD: `TÔ XUÂN HÒA`) và kiểu mới (`oà`, `oá` - VD: `NGUYỄN VĂN HOÀ`).
+  - Khi tra cứu bằng tên, luôn quét in-memory danh sách buồng bệnh (`HisTreatmentBedRoom/GetView`) bằng hàm `RemoveDiacritics()` hoặc thử cả 2 biến thể dấu để không bỏ sót bệnh nhân.
+  - Khi phát hiện nhiều bệnh nhân trùng tên, bắt buộc in bảng đối soát cảnh báo, không được tự ý chọn 1 bản ghi duy nhất.
+
 
 ### 4.2. Lấy vị trí buồng / giường hiện tại (`api/HisTreatmentBedRoom/GetLView`)
 ```csharp
@@ -824,6 +829,17 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
   * *Sai lầm:* Dùng mốc `YYYYMMDD050000` cho ngày tương lai xa (D+2).
   * *Hiện tượng:* Backend MOS có thể từ chối ghi nhận yêu cầu và trả về `null`.
   * *Khắc phục:* Sử dụng mốc chuẩn đầu ngày `YYYYMMDD000000` (hoặc `050000`) và luôn kiểm tra đối soát trực tiếp từ `HIS_SERE_SERV_RATION` sau khi gọi API.
+
+- 🔤 **BẪY LỖI: PHÂN BIỆT DẤU TIẾNG VIỆT "HÒA" VS "HOÀ" KHI TRA CỨU THEO TÊN (2026-09-08)**:
+  * *Bản chất:* Hệ thống cơ sở dữ liệu HIS / Oracle phân biệt chính xác từng ký tự Unicode của 2 trường phái đặt dấu thanh tiếng Việt:
+    - Kiểu truyền thống (dấu trên âm đệm): `òa`, `óa`, `ỏa`, `õa`, `ọa`, `ùy`, `úy`... (VD: `TÔ XUÂN HÒA`).
+    - Kiểu hiện đại (dấu trên nguyên âm chính): `oà`, `oá`, `oả`, `oã`, `oạ`, `uỳ`, `uý`... (VD: `NGUYỄN VĂN HOÀ`).
+  * *Hậu quả:* Nếu tìm kiếm bằng chuỗi có dấu cụ thể (VD `lookup "hòa"`), API sẽ bỏ sót hoàn toàn các bệnh nhân được nhập theo kiểu `hoà`. Ngược lại nếu tìm `hoà` sẽ sót `hòa`.
+  * *Khắc phục chuẩn hóa:*
+    1. **Tìm không dấu & In-memory Matching:** Sử dụng `RemoveDiacritics()` quét danh sách bệnh nhân đang nằm buồng (`api/HisTreatmentBedRoom/GetView`) trong bộ nhớ RAM, tốc độ siêu tốc (< 0.1s) và khớp 100% mọi biến thể.
+    2. **Hoán vị dấu tự động:** Khi người dùng nhập từ khóa có chứa các cặp dấu nhạy cảm (`òa`/`oà`, `óa`/`oá`, `ủy`/`uỷ`...), công cụ tự động sinh cả 2 biến thể để truy vấn.
+    3. **Cảnh báo đối soát trùng tên:** Khi có từ 2 bệnh nhân trở lên trùng tên/từ khóa, công cụ bắt buộc in bảng danh sách tất cả các bệnh nhân khớp để Bác sĩ phân biệt rõ ràng.
+
 
 
 

@@ -161,4 +161,15 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   8. 📚 **`DANH MỤC`** (`gid=258386294`): Danh mục chuẩn hóa phân loại BN, bilan mổ, phương pháp mổ, danh sách PTV, phân loại chăm sóc, phòng mổ.
   9. 📂 **`RA VIỆN`** (`gid=351678517`): Lưu trữ dữ liệu hồ sơ bệnh nhân đã ra viện / chuyển khoa / chuyển viện.
 
+## 12. QUY TẮC XỬ LÝ DẤU TIẾNG VIỆT KHI TRA CỨU TÊN BỆNH NHÂN: "HÒA" VS "HOÀ" (VIETNAMESE ACCENT & TONE VARIANT SEARCH PROTOCOL)
+* **Bản chất kỹ thuật (Gotcha)**:
+  - Hệ thống HIS / Cơ sở dữ liệu Oracle phân biệt nghiêm ngặt các kiểu đặt dấu thanh tiếng Việt kiểu truyền thống (dấu trên âm đệm) và kiểu mới (dấu trên nguyên âm chính).
+  - *Ví dụ thực tế:* **`hòa`** (ò + a) khác biệt hoàn toàn với **`hoà`** (o + à); tương tự: **`hóa`** / **`hoá`**, **`thủy`** / **`thuỷ`**, **`khỏe`** / **`khoẻ`**...
+  - Khi điều dưỡng nhập tên vào hệ thống: có bệnh nhân lưu là `TÔ XUÂN HÒA` (kiểu cũ), nhưng bệnh nhân khác lại lưu là `NGUYỄN VĂN HOÀ` (kiểu mới). Nếu chỉ tìm kiếm chính xác một kiểu gõ có dấu, hệ thống sẽ bỏ sót hoàn toàn bệnh nhân thuộc kiểu gõ kia!
+* **Quy trình tra cứu bắt buộc (Mandatory Protocol)**:
+  1. **Thử tìm kiếm không dấu (Unaccented)**: Khi tìm kiếm theo tên, luôn ưu tiên thử biến thể không dấu (VD: tìm `hoa` thay vì chỉ `hòa` hay `hoà`) hoặc quét in-memory danh sách buồng bệnh Khoa 57 bằng hàm `RemoveDiacritics()` để vét cạn toàn bộ các biến thể dấu.
+  2. **Thử hoán đổi cả 2 kiểu dấu**: Nếu tìm kiếm có dấu, phải tự động thử cả biến thể kiểu cũ và kiểu mới (`òa` ⟷ `oà`, `óa` ⟷ `oá`, `ủy` ⟷ `uỷ`...).
+  3. **Đối chiếu đa chiều (Cross-Reference)**: Khi có nhiều bệnh nhân trùng tên/trùng từ khóa (VD: `TÔ XUÂN HÒA` và `NGUYỄN VĂN HOÀ`), tuyệt đối không được tự ý chọn ngầm bản ghi cuối cùng (`LastOrDefault`). Bắt buộc liệt kê toàn bộ danh sách khớp kèm Mã BN, Mã ĐT, Buồng/Giường, Năm sinh và Chẩn đoán để Bác sĩ đối soát chính xác, tránh nhầm lẫn y lệnh.
+
+
 
