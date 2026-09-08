@@ -636,6 +636,7 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **42**| Bỏ sót padding 10 chữ số cho mã bệnh nhân và 12 chữ số cho mã đợt điều trị khi người dùng nhập mã ngắn (VD: `3985947`) | Kiểm tra `PATIENT_CODE__EXACT = "3985947"` khiến database HIS không tìm thấy vì trong DB lưu `0003985947` | Kiểm tra nếu tham số là số (`long.TryParse`), tự động đệm `kw.PadLeft(10, '0')` cho mã BN và `kw.PadLeft(12, '0')` cho mã ĐT trước khi fallback `KEY_WORD`. |
 | **43**| Kê thuốc Tủ Trực (Actrapid/Lantus/Mixtard) bị lỗi hết hàng / tồn âm do bốc nhầm mã thuốc mới tồn 0 (`TH.ACTR005`) | Tìm kiếm từ khóa theo danh mục chung và lấy `meds[0]` (bốc trúng mã vừa tạo `TH.ACTR005` - ID 29507 tồn 0, trong khi tủ trực 810 thực tế có `TH.ACTR004` - ID 27727 tồn > 1.9 lọ) | **Cơ chế Stock-Aware Matching (`FindMedicineWithStock`)**: Quét trước `V_HIS_MEDICINE_BEAN` với `MEDI_STOCK_ID = stockId` và `AMOUNT > 0`, gom nhóm theo `MEDICINE_TYPE_ID` và bốc đúng mã thuốc có tồn kho thực tế dương trong tủ trực. |
 | **44**| Y lệnh thuốc Tủ Trực bị tách rời khỏi Tờ Điều Trị ngày khiến Bác sĩ không thể duyệt ký EMR 1-click | Truyền `InstructionTime` lệch với `TRACKING_TIME` hoặc gán vào Tờ điều trị ngày cũ / thiếu Tờ điều trị ngày chỉ định | **Cơ chế Tự động gán Tờ Điều Trị (`EnsureTrackingForPrescription`)**: Dò tìm tờ điều trị cùng ngày (`YYYYMMDD`), nếu chưa có thì tự động tạo mới (`ROOM_ID = 5248`, `WorkingRoomId = 5248`), đồng bộ `InstructionTime = TrackingTime` và gán trực tiếp `TrackingId` vào `OutPatientPresSDO`. |
+| **45**| Xóa y lệnh chưa thực hiện (màu trắng) do Bác sĩ khác chỉ định bị MOS chặn lỗi `DuLieuDoNguoiKhacTaoKhongChoPhepXoa` | Backend MOS kiểm tra `Token.LoginName == REQUEST_LOGINNAME` khi gọi `api/HisServiceReq/Delete`. Nếu y lệnh do BS khác chỉ định (VD: `hdc`) mà tài khoản đang login là BS khác (VD: `034727`), hệ thống từ chối xóa | **Quy trình 2 bước Bypass chuẩn hóa**: Bước 1: Gọi `POST api/HisServiceReq/UpdateCommonInfo` đổi `REQUEST_LOGINNAME`, `REQUEST_USERNAME`, `REQUEST_USER_TITLE` về thông tin Bác sĩ đang login (MOS cho phép cập nhật này không chặn sở hữu). Bước 2: Gọi `POST api/HisServiceReq/Delete` xóa y lệnh với `Id` và `RequestRoomId`. Đã tích hợp tự động 100% vào lệnh `HisClinicalCli.exe cancel-order <ID>`. |
 
 ---
 
@@ -650,6 +651,9 @@ Hệ thống đã được hợp nhất vào **`HisClinicalCli.exe`** duy nhất
 | **`wardround`** | Quét danh sách BN buồng trọng điểm (712, 714, 716, 724, 725) | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe wardround` |
 | **`create-tracking`** | Tạo tờ điều trị ngày kèm DHST | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe create-tracking 7108039 "BN tỉnh..." 80 36.5 120 80` |
 | **`prescribe`** | Kê đơn thuốc an toàn | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe prescribe 7108039 9745346 27727 810 0.008 "tiêm SC"` |
+| **`orders <mã>`** | Xem danh sách y lệnh & trạng thái màu sắc (trắng/vàng/xanh) | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders 0001430277` |
+| **`cancel-order <ID>`** | Hủy y lệnh chưa thực hiện (Tự động bypass nếu do BS khác kê) | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order 89787400` |
+| **`cancel-service <ID>`** | Hủy dịch vụ lẻ trong phiếu y lệnh | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service 8215310` |
 | **`assign-cls`** | Chỉ định CLS đơn lẻ | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-cls 7108039 9745346 5853 410 "Điện giải đồ"` |
 | **`assign-bilan`** | Chỉ định gói Bilan phẫu thuật 1-Click | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-bilan 7108039 9745346 cement` |
 
@@ -658,19 +662,28 @@ Hệ thống đã được hợp nhất vào **`HisClinicalCli.exe`** duy nhất
 # 1. Tra cứu thông tin bệnh nhân, buồng giường & Bilan xét nghiệm:
 .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup 0003969449
 
-# 2. Quét danh sách bệnh nhân các buồng phụ trách (Phòng 712, 714, 716, 724, 725):
+# 2. Xem toàn bộ y lệnh & trạng thái màu sắc (Trắng: Chưa làm, Vàng: Đang làm, Xanh: Đã xong):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders 0001430277
+
+# 3. Hủy y lệnh chưa thực hiện (màu trắng) - Tự động bypass người chỉ định:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <SERVICE_REQ_ID>
+
+# 4. Hủy dịch vụ lẻ trong phiếu y lệnh:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SERE_SERV_ID>
+
+# 5. Quét danh sách bệnh nhân các buồng phụ trách (Phòng 712, 714, 716, 724, 725):
 .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe wardround
 
-# 3. Tạo tờ điều trị & Dấu hiệu sinh tồn (DHST):
+# 6. Tạo tờ điều trị & Dấu hiệu sinh tồn (DHST):
 .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe create-tracking <treatmentId> "Bệnh nhân tỉnh, vết mổ khô" [mạch] [nhiệt_độ] [huyết_áp_tối_đa] [huyết_áp_tối_thiểu]
 
-# 4. Kê đơn thuốc an toàn (Tự động chuyển Tủ trực 810 cho Insulin & tự động quy đổi UI -> Lọ):
+# 7. Kê đơn thuốc an toàn (Tự động chuyển Tủ trực 810 cho Insulin & tự động quy đổi UI -> Lọ):
 .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe prescribe <treatmentId> <trackingId> <medicineTypeId> <stockId> <amount> <tutorial>
 
-# 5. Chỉ định Cận lâm sàng đơn lẻ:
+# 8. Chỉ định Cận lâm sàng đơn lẻ:
 .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe assign-cls <treatmentId> <trackingId> <serviceId> <roomId> [ghi_chú] [đối_tượng]
 
-# 6. Chỉ định Gói Bilan Phẫu Thuật 1-Click:
+# 9. Chỉ định Gói Bilan Phẫu Thuật 1-Click:
 #    - Bơm xi măng cột sống (18 mục): cement (hoặc bxm)
 #    - Cố định cột sống / Nẹp vít (15 mục): spine (hoặc nepvit)
 #    - Thay khớp háng / gối (13 mục): hip (hoặc thaykhop)

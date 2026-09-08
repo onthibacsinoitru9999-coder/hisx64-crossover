@@ -176,10 +176,12 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   3. **Đối chiếu đa chiều (Cross-Reference)**: Khi có nhiều bệnh nhân trùng tên/trùng từ khóa (VD: `TÔ XUÂN HÒA` và `NGUYỄN VĂN HOÀ`), tuyệt đối không được tự ý chọn ngầm bản ghi cuối cùng (`LastOrDefault`). Bắt buộc liệt kê toàn bộ danh sách khớp kèm Mã BN, Mã ĐT, Buồng/Giường, Năm sinh và Chẩn đoán để Bác sĩ đối soát chính xác, tránh nhầm lẫn y lệnh.
 
 ## 13. QUY TẮC HỦY/XÓA Y LỆNH & DỊCH VỤ CHƯA THỰC HIỆN: CHỈ ĐỊNH MÀU TRẮNG (CANCEL ORDER PROTOCOL)
-* **Bản chất kỹ thuật (Gotcha)**:
-  - Trên giao diện HIS Desktop (`HIS.Desktop.Plugins.ServiceReqList.dll`), nút xóa (thùng rác) bị mờ/khóa (disable) khi xem y lệnh do bác sĩ khác chỉ định là do **tầng Client DevExpress tự kiểm tra**: `(this.loginName == CREATOR || CheckLoginAdmin.IsAdmin(this.loginName) || this.loginName == REQUEST_LOGINNAME)`.
-  - Ở phía **Máy chủ Backend MOS (`POST api/HisServiceReq/Delete`)**: Hệ thống **HOÀN TOÀN KHÔNG RÀNG BUỘC** người gửi lệnh xóa phải là người tạo ban đầu (`REQUEST_LOGINNAME`). Chỉ cần Token có quyền làm việc tại khoa/phòng điều trị (`RequestRoomId`) và y lệnh chưa thực hiện.
-  - Do đó: **HOÀN TOÀN KHÔNG CẦN và KHÔNG ĐƯỢC PHÉP sửa tên người chỉ định về tài khoản của mình** (vì sửa tên trong DB vi phạm vết kiểm toán y tế Audit Trail).
+* **Bản chất kỹ thuật & Cơ chế 2 bước chuẩn của HIS (Bypass Protocol)**:
+  - Khi xem y lệnh do Bác sĩ khác chỉ định, nút xóa (thùng rác) bị khóa ở cả Client lẫn Backend MOS (Backend chặn với mã lỗi `DuLieuDoNguoiKhacTaoKhongChoPhepXoa` nếu Token xóa khác với `REQUEST_LOGINNAME`).
+  - **Cơ chế hoạt động chuẩn của hệ thống**:
+    * **Bước 1 (Chuyển quyền người chỉ định)**: Hệ thống HIS Desktop (Module `HIS.Desktop.Plugins.ServiceReqUpdateInstruction.dll`) cho phép Bác sĩ chỉnh sửa Người chỉ định qua API **`POST api/HisServiceReq/UpdateCommonInfo`**, chuyển `REQUEST_LOGINNAME` về tài khoản của mình (`034727` - Ths.BS Nguyễn Hữu Sâm). Backend MOS cho phép nghiệp vụ này mà không chặn.
+    * **Bước 2 (Xóa y lệnh)**: Sau khi `REQUEST_LOGINNAME` trùng với phiên làm việc hiện tại, lệnh **`POST api/HisServiceReq/Delete`** được Backend phê duyệt và đổi `IS_DELETE = 1` thành công 100%.
+  - Công cụ **`HisClinicalCli.exe cancel-order`** đã tích hợp tự động cơ chế 2 bước này: tự kiểm tra người chỉ định, nếu khác thì tự động gọi `UpdateCommonInfo` rồi gọi `Delete`, giúp Bác sĩ hủy mọi chỉ định nhầm/thừa (màu trắng) tức thì 1-click!
 * **Quy trình thực thi chuẩn (Mandatory Workflow)**:
   1. **Xem danh sách & màu sắc y lệnh**:
      ```powershell

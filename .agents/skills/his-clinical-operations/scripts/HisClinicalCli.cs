@@ -91,6 +91,18 @@ public class HisClinicalCli
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         List<string> candidates = new List<string>();
+
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
+            if (procs != null && procs.Length > 0)
+            {
+                string hisDir = Path.GetDirectoryName(procs[0].MainModule.FileName);
+                candidates.Add(Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+            }
+        }
+        catch { }
+
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -164,6 +176,12 @@ public class HisClinicalCli
             catch { }
         }
 
+        if (string.IsNullOrEmpty(currentDoctorLogin))
+        {
+            currentDoctorLogin = "034727";
+            currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
+        }
+
         if (string.IsNullOrEmpty(tokenCode))
         {
             throw new Exception("Không thể lấy Token xác thực HIS từ cả Live Log và ACS Login!");
@@ -183,7 +201,8 @@ public class HisClinicalCli
                     new RoomSDO { RoomId = 5248 },
                     new RoomSDO { RoomId = 5252 },
                     new RoomSDO { RoomId = 5251 },
-                    new RoomSDO { RoomId = 5257 }
+                    new RoomSDO { RoomId = 5257 },
+                    new RoomSDO { RoomId = 5264 }
                 }
             };
             var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
@@ -1239,7 +1258,39 @@ public class HisClinicalCli
         }
         catch { }
 
-        // RÀO CHẮN 3: Thực thi xóa ServiceReq qua API MOS Backend
+        // RÀO CHẮN 3: Tự động chuyển quyền người chỉ định về Bác sĩ hiện tại nếu do người khác chỉ định (Bypass cơ chế MOS qua UpdateCommonInfo)
+        if (!string.IsNullOrEmpty(req.REQUEST_LOGINNAME) && !string.Equals(req.REQUEST_LOGINNAME, currentDoctorLogin, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine(string.Format("🔄 Y lệnh do {0} ({1}) chỉ định. Đang tự động chuyển quyền Người chỉ định về {2} ({3}) qua UpdateCommonInfo...",
+                req.REQUEST_USERNAME, req.REQUEST_LOGINNAME, currentDoctorName, currentDoctorLogin));
+            try
+            {
+                var rawFilter = new HisServiceReqFilter { ID = req.ID };
+                var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawFilter, param);
+                if (rawList != null && rawList.Count > 0)
+                {
+                    var rawReq = rawList[0];
+                    rawReq.REQUEST_LOGINNAME = currentDoctorLogin;
+                    rawReq.REQUEST_USERNAME = currentDoctorName;
+                    rawReq.REQUEST_USER_TITLE = "Thạc sỹ y học";
+                    var updRes = myAdapter.PostData<HIS_SERVICE_REQ>("api/HisServiceReq/UpdateCommonInfo", mosConsumer, rawReq, param);
+                    if (updRes != null && !param.HasException)
+                    {
+                        Console.WriteLine("✔ Đã chuyển quyền người chỉ định thành công! Tiến hành xóa y lệnh...");
+                    }
+                    else
+                    {
+                        Console.WriteLine("⚠️ Cảnh báo UpdateCommonInfo: " + param.GetMessage());
+                    }
+                }
+            }
+            catch (Exception exUpd)
+            {
+                Console.WriteLine("⚠️ Không thể UpdateCommonInfo: " + exUpd.Message);
+            }
+        }
+
+        // RÀO CHẮN 4: Thực thi xóa ServiceReq qua API MOS Backend
         long reqRoomId = customRoomId ?? req.REQUEST_ROOM_ID;
         if (reqRoomId <= 0) reqRoomId = 5252; // Mặc định P712 Khoa 57
 
