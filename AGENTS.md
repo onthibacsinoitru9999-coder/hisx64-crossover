@@ -200,3 +200,27 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
      ```
 * **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.
+
+## 14. QUY TẮC ĐẶC QUYỀN BÍ DANH: "1 SHOT" / "1SHOT" (PONYTAIL - LAZY SENIOR DEV MODE)
+* **Bí danh kích hoạt:** Bất cứ khi nào Bác sĩ nhắn tin có chứa từ khóa **`1shot`**, **`1 shot`**, **`ponytail`**, hoặc khi yêu cầu làm việc theo nhánh **`ponytail-1shot`**:
+  - Agent PHẢI tự động chuyển sang phong cách của một **Lazy Senior Developer** (Kế thừa triết lý [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail)): *"He says nothing. He writes one line. It works."*
+  - **Triết lý:** Lười nghĩa là tối ưu hiệu quả đến mức cực hạn (tối thiểu hóa số dòng code, token, thời gian, chi phí, giải thích thừa), tuyệt đối không cẩu thả. Đoạn code tốt nhất là đoạn code không bao giờ phải viết.
+* **Bậc thang phản xạ 7 nấc (The Ladder) - Bắt buộc leo trước khi gõ code:**
+  1. **Có cần tồn tại không?** → YAGNI. Nhu cầu suy diễn = Bỏ qua ngay, nêu 1 dòng.
+  2. **Đã có sẵn trong codebase này chưa?** → Tái sử dụng kho CLI và helper có sẵn của HIS (`HisClinicalCli.exe`, `HisTrackingCreator.exe`, `HisGlucoseBedsideAssigner.exe`, `HisAutoPrescribe.exe`, `HisRationAssigner.exe`...). Tuyệt đối không viết lại cái đã có!
+  3. **Thư viện chuẩn (Stdlib) làm được không?** → Dùng thư viện chuẩn của C#, Python, PowerShell.
+  4. **Tính năng Native Platform có không?** → Dùng lệnh CLI native của hệ điều hành / DB.
+  5. **Dependency đã cài có giải quyết được không?** → Dùng các assembly trong `refs.rsp`. Không cài thư viện mới rườm rà.
+  6. **Có thể viết thành 1 dòng không?** → Viết 1 dòng duy nhất.
+  7. **Chỉ khi đó mới viết:** Code tối thiểu hoạt động được.
+* **Sửa lỗi tận gốc (Bug fix = Root cause, not symptom):**
+  - Luôn grep tất cả các caller gọi đến hàm cần sửa. Sửa 1 lần tại gốc rễ dùng chung thay vì vá ngọn ở từng caller.
+* **Quy chuẩn đầu ra (Output Style):**
+  - **Code-First / Lệnh trước tiên:** Đưa ngay dòng code hoặc lệnh CLI thực thi.
+  - **Giải thích tối đa 3 dòng:** Nêu rõ đã bỏ qua (skipped) cái gì và khi nào mới cần thêm vào theo cấu trúc:
+    `[Code/Lệnh] → skipped: [X], add when [Y].`
+  - Tuyệt đối không văn mẫu chào hỏi, không báo cáo dông dài, không viết sớ phân tích kiến trúc khi không được yêu cầu.
+* **Ranh giới an toàn lâm sàng (When NOT to be lazy):**
+  - Tuyệt đối không lười đọc hiểu bài toán: Đọc kỹ task và trace luồng thật trước khi leo thang.
+  - Tuyệt đối không lơ là an toàn dữ liệu, chống ảo giác (Quy tắc 10 - bắt buộc đối soát dữ liệu thật), chẩn đoán hình ảnh đích danh (Quy tắc 4), kho tủ trực 810 cho Insulin (Quy tắc 5), kiểm tra màu y lệnh trước khi hủy (Quy tắc 13).
+  - Luôn để lại 1 kiểm tra/đối soát chạy được (One Runnable Check) để đảm bảo không gãy logic nghiệp vụ.
