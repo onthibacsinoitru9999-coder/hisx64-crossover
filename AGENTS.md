@@ -25,6 +25,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
 | 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | **`HisGlucoseBedsideAssigner.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
 | 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01, DD01, TM01`)** | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
+| 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro PreSur)** | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN1,MãBN2>"` | ❌ Không kê người >= 70t / ĐTĐ |
 | 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17 / Mps000019)** | **`HisDebateCreator.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
 | 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
 | 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |

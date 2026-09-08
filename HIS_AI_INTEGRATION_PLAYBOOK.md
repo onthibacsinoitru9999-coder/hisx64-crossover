@@ -353,6 +353,36 @@ Khi kê y lệnh thay băng rửa vết thương, chăm sóc vết mổ hàng ng
 
 ---
 
+### 7.5. QUY CHUẨN KÊ DỊCH DINH DƯỠNG LEANPRO PRESUR 12.5% TRƯỚC PHẪU THUẬT (CHUẨN ERAS)
+Khi chuẩn bị người bệnh trước phẫu thuật phiên (kê vào buổi chiều trước ngày mổ):
+
+* **Sản phẩm & Danh mục chuẩn**:
+  - Tên biệt dược: **`Leanpro PreSur 12.5%- Dung dịch Carbohydrate trước phẫu thuật. 2025`**
+  - Mã thuốc: **`SPBM25651`** (ID: `26851`) | Dạng: `Chai` 200ml | Đường dùng: `Uống` (`MedicineUseFormId = 1`).
+* **Kho cấp y lệnh**:
+  - BẮT BUỘC kê từ **Kho sản phẩm dinh dưỡng điều trị (`MediStockId = 753` - `LA_TTDDLS`)** thuộc Trung tâm Dinh dưỡng lâm sàng.
+  - Tồn kho: > 1,400 chai. *(Tuyệt đối không kê từ Kho Dược 4209/4210)*.
+* **Liều lượng & Hướng dẫn sử dụng**:
+  - Tổng số lượng: **`6 chai`** (`Amount = 6.0m`).
+  - Hướng dẫn dùng (`Tutorial`): **`"Ngày uống 4 chai buổi tối 20h 2 chai sáng 6h"`** (Chuẩn ERAS: Uống tối 4 chai lúc 20:00 trước mổ, 2 chai lúc 06:00 sáng ngày mổ trước giờ khởi mê ít nhất 2 tiếng).
+  - Cữ nhập trên HIS: `Evening = "06"`.
+* **Thông số DTO bắt buộc (`InPatientPresSDO`)**:
+  - `PrescriptionTypeId = (PrescriptionType)1` (Đơn điều trị nội trú, `EXP_MEST_TYPE_ID = 9`).
+  - `PatientTypeId = 42` (**BẮT BUỘC Viện phí**, do sản phẩm dinh dưỡng BHYT không thanh toán; đơn giá 37.200 đ/chai).
+  - `InstructionTimes = [DateTime.Now.ToString("yyyyMMddHHmmss")]` (Thời điểm ra y lệnh buổi chiều trước ngày mổ).
+* **Tờ điều trị bắt buộc đi kèm (`HIS_TRACKING`)**:
+  - Luôn tạo 1 tờ điều trị đi kèm cùng thời điểm ra y lệnh:
+    * `CONTENT = "bổ sung dịch dinh dưỡng trước mổ"`
+    * `MEDICAL_INSTRUCTION = "Bổ sung dịch dinh dưỡng trước mổ (Leanpro PreSur 12.5% - 6 chai): Uống tối 4 chai lúc 20h, sáng uống 2 chai lúc 6h."`
+* **Rào chắn sàng lọc bệnh nhân bắt buộc (Gatekeeper)**:
+  1. **Tuổi < 70**: Người bệnh phải dưới 70 tuổi (`Age < 70`). Nếu `>= 70` tuổi: Chống chỉ định nạp carbohydrate đậm đặc trước mổ, hệ thống tự động từ chối.
+  2. **Không Đái tháo đường**: Chẩn đoán (`ICD_CODE`, `ICD_SUB_CODE`, `ICD_NAME`, `ICD_TEXT`) không chứa mã `E10` - `E14` hoặc từ khóa `đái tháo đường`, `đái đường`, `tiểu đường`, `diabetes`, `đtđ`. Nếu mắc ĐTĐ: Chống chỉ định bù Carbohydrate, hệ thống tự động từ chối.
+  3. **Chống kê trùng**: Quét kiểm tra `V_HIS_EXP_MEST_MEDICINE` trong ngày: nếu đã có đơn Leanpro hôm nay thì bỏ qua để tránh trùng lặp.
+* **Công cụ thực thi 1-Click**:
+  - `HisLeanproAssigner.bat <MãBN_hoặc_MãĐT>` hoặc `HisLeanproAssigner.bat -p <MãBN1,MãBN2,...>`
+
+---
+
 ## 8. PHÂN HỆ 4: CHỈ ĐỊNH CẬN LÂM SÀNG & ĐƯỜNG MÁU MAO MẠCH TẠI GIƯỜNG (BM02426)
 
 ### 8.1. Chỉ Định Đường Máu Mao Mạch Tại Giường (`HisGlucoseBedsideAssigner.exe`)
@@ -839,12 +869,16 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
   * *Khắc phục chuẩn hóa:*
     1. **Tìm không dấu & In-memory Matching:** Sử dụng `RemoveDiacritics()` quét danh sách bệnh nhân đang nằm buồng (`api/HisTreatmentBedRoom/GetView`) trong bộ nhớ RAM, tốc độ siêu tốc (< 0.1s) và khớp 100% mọi biến thể.
     2. **Hoán vị dấu tự động:** Khi người dùng nhập từ khóa có chứa các cặp dấu nhạy cảm (`òa`/`oà`, `óa`/`oá`, `ủy`/`uỷ`...), công cụ tự động sinh cả 2 biến thể để truy vấn.
-    3. **Cảnh báo đối soát trùng tên:** Khi có từ 2 bệnh nhân trở lên trùng tên/từ khóa, công cụ bắt buộc in bảng danh sách tất cả các bệnh nhân khớp để Bác sĩ phân biệt rõ ràng.
+- 🥛 **BẪY LỖI & QUY CHUẨN KÊ DỊCH DINH DƯỠNG LEANPRO TRƯỚC MỔ (2026-09-08)**:
+  * *Kho cấp y lệnh:* BẮT BUỘC kê từ **Kho sản phẩm dinh dưỡng điều trị (`MediStockId = 753` - `LA_TTDDLS`)** thuộc Trung tâm Dinh dưỡng lâm sàng, tồn kho > 1,400 chai. Tuyệt đối không kê từ Kho Dược (4209/4210).
+  * *Mã thuốc & Liều dùng:* Mã `SPBM25651` (ID `26851`), số lượng 6 chai. Phác đồ: Ngày uống 4 chai buổi tối 20h, 2 chai sáng 6h (chuẩn ERAS trước mổ). Cữ tối `"06"`.
+  * *Diện thanh toán:* BẮT BUỘC đặt `PatientTypeId = 42` (Viện phí / Dịch vụ, 37.200 đ/chai). BHYT không chi trả.
+  * *Tờ điều trị kèm theo:* BẮT BUỘC tạo kèm 1 tờ điều trị (`api/HisTracking/Create`) ghi diễn biến: `"bổ sung dịch dinh dưỡng trước mổ"`.
+  * *Tiêu chuẩn loại trừ (Gatekeeper):*
+    - Tuổi `>= 70`: Chống chỉ định nạp Carbohydrate đậm đặc, tự động từ chối.
+    - Đái tháo đường (`ICD E10-E14` hoặc từ khóa `đái tháo đường/tiểu đường`): Chống chỉ định nạp Carbohydrate, tự động từ chối.
+  * *Hủy đơn thuốc nội trú:* Endpoint chuẩn để hủy phiếu xuất thuốc/dinh dưỡng là `POST api/HisExpMest/Delete` với tham số là `Int64` (`EXP_MEST_ID`). Endpoint `api/HisServiceReq/InPatientPresDelete` không tồn tại (trả về 404 Not Found).
 
-
-
-
----
 
 ## 18. QUY CHUẨN BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ TỰ ĐỘNG LÊN CLOUD DRIVE
 
