@@ -159,316 +159,332 @@ namespace Generate4PT01
 
             XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
-            byte[] templateBytes;
-            using (var fs = new FileStream(templateDocx, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var ms = new MemoryStream())
-            {
-                fs.CopyTo(ms);
-                templateBytes = ms.ToArray();
-            }
-
             foreach (var pData in patients)
             {
                 string targetFilePath = Path.Combine(outputDir, pData.FileName);
-                File.WriteAllBytes(targetFilePath, templateBytes);
+                string modifiedDocXml = "";
 
-                using (ZipArchive archive = ZipFile.Open(targetFilePath, ZipArchiveMode.Update))
+                // 1. Đọc và chỉnh sửa word/document.xml từ template gốc
+                using (var srcZip = ZipFile.OpenRead(templateDocx))
                 {
-                    ZipArchiveEntry docEntry = archive.GetEntry("word/document.xml");
-                    string docXmlText = "";
-                    using (var reader = new StreamReader(docEntry.Open(), Encoding.UTF8))
+                    var entry = srcZip.GetEntry("word/document.xml");
+                    using (var r = new StreamReader(entry.Open(), Encoding.UTF8))
                     {
-                        docXmlText = reader.ReadToEnd();
+                        XDocument doc = XDocument.Parse(r.ReadToEnd(), LoadOptions.PreserveWhitespace);
+
+                        // Thay thế các đoạn văn bản (paragraphs)
+                        foreach (var p in doc.Descendants(w + "p"))
+                        {
+                            string pText = string.Concat(p.Descendants(w + "t").Select(t => t.Value));
+
+                            if (pText.Contains("Họ và tên người bệnh"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Họ và tên người bệnh: " + pData.HoTen)
+                                ));
+                            }
+                            else if (pText.Contains("Ngày sinh:") && pText.Contains("Giới tính:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", string.Format("Ngày sinh: {0}   Giới tính:  {1}", pData.NgaySinh, pData.GioiTinh))
+                                ));
+                            }
+                            else if (pText.StartsWith("Địa chỉ:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Địa chỉ: " + pData.DiaChi)
+                                ));
+                            }
+                            else if (pText.StartsWith("Vào viện:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Vào viện: " + pData.VaoVien)
+                                ));
+                            }
+                            else if (pText.StartsWith("Chẩn đoán:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Chẩn đoán: " + pData.ChanDoan)
+                                ));
+                            }
+                            else if (pText.StartsWith("Tiền sử:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Tiền sử: " + pData.TienSu)
+                                ));
+                            }
+                            else if (pText.StartsWith("Bệnh sử:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Bệnh sử: " + pData.BenhSu)
+                                ));
+                            }
+                            else if (pText.Contains("Thời gian hội chẩn:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Thời gian hội chẩn:    " + pData.ThoiGianHoiChan)
+                                ));
+                            }
+                            else if (pText.StartsWith("Tóm tắt tình trạng bệnh"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Tóm tắt tình trạng bệnh: ")
+                                ));
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", pData.TomTat)
+                                ));
+                            }
+                            else if (pText.StartsWith("Các xét nghiệm, chẩn đoán hình ảnh"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Các xét nghiệm, chẩn đoán hình ảnh: ")
+                                ));
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", pData.Cls)
+                                ));
+                            }
+                            else if (pText.StartsWith("Phương pháp phẫu thuật"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Phương pháp phẫu thuật: ")
+                                ));
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", pData.Pppt)
+                                ));
+                            }
+                            else if (pText.StartsWith("Phương pháp vô cảm dự kiến"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Phương pháp vô cảm dự kiến: ")
+                                ));
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", pData.VoCam)
+                                ));
+                            }
+                            else if (pText.Contains("Phẫu  thuật  viên  chính:") || pText.Contains("Phẫu thuật viên chính:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Phẫu  thuật  viên  chính: " + pData.PhauThuatVien)
+                                ));
+                            }
+                            else if (pText.Contains("Ngày, giờ phẫu thuật dự kiến"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Ngày, giờ phẫu thuật dự kiến: " + pData.NgayMo)
+                                ));
+                            }
+                            else if (pText.Contains("Chảy máu , nhiễm trùng, mổ đi mổ lại nhiều lần"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", pData.BienChung)
+                                ));
+                            }
+                            else if (pText.Contains("Các biện pháp thay thế hoặc các yêu cầu chuẩn bị đặc biệt:"))
+                            {
+                                p.Descendants(w + "t").Remove();
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "b", new XAttribute(w + "val", "1")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", "Các biện pháp thay thế hoặc các yêu cầu chuẩn bị đặc biệt: ")
+                                ));
+                                p.Add(new XElement(w + "r",
+                                    new XElement(w + "rPr",
+                                        new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
+                                        new XElement(w + "sz", new XAttribute(w + "val", "24"))
+                                    ),
+                                    new XElement(w + "t", pData.BienPhap)
+                                ));
+                            }
+                        }
+
+                        // Cập nhật Bảng đánh giá GMHS (Table 1)
+                        var tables = doc.Descendants(w + "tbl").ToList();
+                        if (tables.Count >= 2)
+                        {
+                            var tbl1 = tables[1];
+                            var rows = tbl1.Elements(w + "tr").ToList();
+
+                            // Hàng 0: Mallampati
+                            if (rows.Count > 0)
+                            {
+                                var cells = rows[0].Elements(w + "tc").ToList();
+                                SetCellText(cells, 1, pData.Mallampati == "I" ? "x" : "", w);
+                                SetCellText(cells, 3, pData.Mallampati == "II" ? "x" : "", w);
+                                SetCellText(cells, 5, pData.Mallampati == "III" ? "x" : "", w);
+                                SetCellText(cells, 7, pData.Mallampati == "IV" ? "x" : "", w);
+                            }
+
+                            // Hàng 1: Loại phẫu thuật
+                            if (rows.Count > 1)
+                            {
+                                var cells = rows[1].Elements(w + "tc").ToList();
+                                SetCellText(cells, 1, pData.LoaiPhauThuat == "Đặc biệt" ? "x" : "", w);
+                                SetCellText(cells, 3, pData.LoaiPhauThuat == "Loại I" ? "x" : "", w);
+                                SetCellText(cells, 5, pData.LoaiPhauThuat == "Loại II" ? "x" : "", w);
+                                SetCellText(cells, 7, pData.LoaiPhauThuat == "Loại III" ? "x" : "", w);
+                            }
+
+                            // Hàng 2: Phân loại ASA
+                            if (rows.Count > 2)
+                            {
+                                var cells = rows[2].Elements(w + "tc").ToList();
+                                SetCellText(cells, 1, pData.Asa == "I" ? "x" : "", w);
+                                SetCellText(cells, 3, pData.Asa == "II" ? "x" : "", w);
+                                SetCellText(cells, 5, pData.Asa == "III" ? "x" : "", w);
+                                SetCellText(cells, 7, pData.Asa == "IV" ? "x" : "", w);
+                                SetCellText(cells, 9, pData.Asa == "V" ? "x" : "", w);
+                            }
+
+                            // Hàng 3: Phân loại nguy cơ
+                            if (rows.Count > 3)
+                            {
+                                var cells = rows[3].Elements(w + "tc").ToList();
+                                SetCellText(cells, 1, pData.NguyCo == "Sạch" ? "x" : "", w);
+                                SetCellText(cells, 3, pData.NguyCo == "Sạch nhiễm" ? "x" : "", w);
+                                SetCellText(cells, 5, pData.NguyCo == "Nhiễm" ? "x" : "", w);
+                                SetCellText(cells, 7, pData.NguyCo == "Bẩn" ? "x" : "", w);
+                            }
+                        }
+
+                        using (var ms = new MemoryStream())
+                        {
+                            using (var writer = new StreamWriter(ms, new UTF8Encoding(false)))
+                            {
+                                doc.Save(writer, SaveOptions.DisableFormatting);
+                            }
+                            modifiedDocXml = Encoding.UTF8.GetString(ms.ToArray());
+                        }
                     }
+                }
 
-                    XDocument doc = XDocument.Parse(docXmlText);
+                // 2. Tạo file ZIP mới (Fresh ZIP), copy toàn bộ entries theo đúng thứ tự ban đầu
+                // và ghi đè nội dung word/document.xml chuẩn OpenXML (UTF-8 No BOM)
+                if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
 
-                    // 1. Duyệt và thay thế nội dung các đoạn văn bản (paragraphs)
-                    foreach (var p in doc.Descendants(w + "p"))
+                using (var srcZip = ZipFile.OpenRead(templateDocx))
+                using (var destFile = new FileStream(targetFilePath, FileMode.Create))
+                using (var destZip = new ZipArchive(destFile, ZipArchiveMode.Create))
+                {
+                    foreach (var entry in srcZip.Entries)
                     {
-                        string pText = "";
-                        foreach (var t in p.Descendants(w + "t"))
+                        var newEntry = destZip.CreateEntry(entry.FullName, CompressionLevel.Optimal);
+                        using (var destStream = newEntry.Open())
                         {
-                            pText += t.Value;
+                            if (entry.FullName == "word/document.xml")
+                            {
+                                byte[] bytes = new UTF8Encoding(false).GetBytes(modifiedDocXml);
+                                destStream.Write(bytes, 0, bytes.Length);
+                            }
+                            else
+                            {
+                                using (var srcStream = entry.Open())
+                                {
+                                    srcStream.CopyTo(destStream);
+                                }
+                            }
                         }
-
-                        if (pText.Contains("Họ và tên người bệnh"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Họ và tên người bệnh: " + pData.HoTen)
-                            ));
-                        }
-                        else if (pText.Contains("Ngày sinh:") && pText.Contains("Giới tính:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", string.Format("Ngày sinh: {0}   Giới tính:  {1}", pData.NgaySinh, pData.GioiTinh))
-                            ));
-                        }
-                        else if (pText.StartsWith("Địa chỉ:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Địa chỉ: " + pData.DiaChi)
-                            ));
-                        }
-                        else if (pText.StartsWith("Vào viện:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Vào viện: " + pData.VaoVien)
-                            ));
-                        }
-                        else if (pText.StartsWith("Chẩn đoán:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Chẩn đoán: " + pData.ChanDoan)
-                            ));
-                        }
-                        else if (pText.StartsWith("Tiền sử:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Tiền sử: " + pData.TienSu)
-                            ));
-                        }
-                        else if (pText.StartsWith("Bệnh sử:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Bệnh sử: " + pData.BenhSu)
-                            ));
-                        }
-                        else if (pText.Contains("Thời gian hội chẩn:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Thời gian hội chẩn:    " + pData.ThoiGianHoiChan)
-                            ));
-                        }
-                        else if (pText.StartsWith("Tóm tắt tình trạng bệnh"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Tóm tắt tình trạng bệnh: ")
-                            ));
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", pData.TomTat)
-                            ));
-                        }
-                        else if (pText.StartsWith("Các xét nghiệm, chẩn đoán hình ảnh"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Các xét nghiệm, chẩn đoán hình ảnh: ")
-                            ));
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", pData.Cls)
-                            ));
-                        }
-                        else if (pText.StartsWith("Phương pháp phẫu thuật"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Phương pháp phẫu thuật: ")
-                            ));
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", pData.Pppt)
-                            ));
-                        }
-                        else if (pText.StartsWith("Phương pháp vô cảm dự kiến"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Phương pháp vô cảm dự kiến: ")
-                            ));
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", pData.VoCam)
-                            ));
-                        }
-                        else if (pText.Contains("Phẫu  thuật  viên  chính:") || pText.Contains("Phẫu thuật viên chính:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Phẫu  thuật  viên  chính: " + pData.PhauThuatVien)
-                            ));
-                        }
-                        else if (pText.Contains("Ngày, giờ phẫu thuật dự kiến"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Ngày, giờ phẫu thuật dự kiến: " + pData.NgayMo)
-                            ));
-                        }
-                        else if (pText.Contains("Chảy máu , nhiễm trùng, mổ đi mổ lại nhiều lần"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", pData.BienChung)
-                            ));
-                        }
-                        else if (pText.Contains("Các biện pháp thay thế hoặc các yêu cầu chuẩn bị đặc biệt:"))
-                        {
-                            p.Descendants(w + "t").Remove();
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "b", new XAttribute(w + "val", "1")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", "Các biện pháp thay thế hoặc các yêu cầu chuẩn bị đặc biệt:\n")
-                            ));
-                            p.Add(new XElement(w + "r",
-                                new XElement(w + "rPr",
-                                    new XElement(w + "rFonts", new XAttribute(w + "ascii", "Times New Roman"), new XAttribute(w + "hAnsi", "Times New Roman")),
-                                    new XElement(w + "sz", new XAttribute(w + "val", "24"))
-                                ),
-                                new XElement(w + "t", pData.BienPhap)
-                            ));
-                        }
-                    }
-
-                    // 2. Cập nhật các ô đánh dấu trong Bảng đánh giá GMHS (Table 1)
-                    var tables = doc.Descendants(w + "tbl").ToList();
-                    if (tables.Count >= 2)
-                    {
-                        var tbl1 = tables[1]; // Bảng đánh giá GMHS
-                        var rows = tbl1.Elements(w + "tr").ToList();
-
-                        // Hàng 0: Mallampati
-                        if (rows.Count > 0)
-                        {
-                            var cells = rows[0].Elements(w + "tc").ToList();
-                            SetCellText(cells, 1, pData.Mallampati == "I" ? "x" : "", w);
-                            SetCellText(cells, 3, pData.Mallampati == "II" ? "x" : "", w);
-                            SetCellText(cells, 5, pData.Mallampati == "III" ? "x" : "", w);
-                            SetCellText(cells, 7, pData.Mallampati == "IV" ? "x" : "", w);
-                        }
-
-                        // Hàng 1: Loại phẫu thuật
-                        if (rows.Count > 1)
-                        {
-                            var cells = rows[1].Elements(w + "tc").ToList();
-                            SetCellText(cells, 1, pData.LoaiPhauThuat == "Đặc biệt" ? "x" : "", w);
-                            SetCellText(cells, 3, pData.LoaiPhauThuat == "Loại I" ? "x" : "", w);
-                            SetCellText(cells, 5, pData.LoaiPhauThuat == "Loại II" ? "x" : "", w);
-                            SetCellText(cells, 7, pData.LoaiPhauThuat == "Loại III" ? "x" : "", w);
-                        }
-
-                        // Hàng 2: Phân loại ASA
-                        if (rows.Count > 2)
-                        {
-                            var cells = rows[2].Elements(w + "tc").ToList();
-                            SetCellText(cells, 1, pData.Asa == "I" ? "x" : "", w);
-                            SetCellText(cells, 3, pData.Asa == "II" ? "x" : "", w);
-                            SetCellText(cells, 5, pData.Asa == "III" ? "x" : "", w);
-                            SetCellText(cells, 7, pData.Asa == "IV" ? "x" : "", w);
-                            SetCellText(cells, 9, pData.Asa == "V" ? "x" : "", w);
-                        }
-
-                        // Hàng 3: Phân loại nguy cơ
-                        if (rows.Count > 3)
-                        {
-                            var cells = rows[3].Elements(w + "tc").ToList();
-                            SetCellText(cells, 1, pData.NguyCo == "Sạch" ? "x" : "", w);
-                            SetCellText(cells, 3, pData.NguyCo == "Sạch nhiễm" ? "x" : "", w);
-                            SetCellText(cells, 5, pData.NguyCo == "Nhiễm" ? "x" : "", w);
-                            SetCellText(cells, 7, pData.NguyCo == "Bẩn" ? "x" : "", w);
-                        }
-                    }
-
-                    // Ghi đè vào document.xml
-                    docEntry.Delete();
-                    ZipArchiveEntry newDocEntry = archive.CreateEntry("word/document.xml");
-                    using (var writer = new StreamWriter(newDocEntry.Open(), Encoding.UTF8))
-                    {
-                        doc.Save(writer);
                     }
                 }
 

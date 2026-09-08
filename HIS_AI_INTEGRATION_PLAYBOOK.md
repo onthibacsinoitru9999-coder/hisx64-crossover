@@ -1093,4 +1093,58 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
   - Host: `http://192.168.7.239:1415/` (`ApiConsumers.EmrConsumer`)
 
 ---
+
+## 22. BẪY LỖI XUẤT BIỂU MẪU WORD/DOCX BIÊN BẢN PT-01 (LỖI CORRUPT TRÊN LIBREOFFICE / WORD)
+
+### 22.1. Hiện Tượng & Mã Lỗi
+* Khi tạo file `.docx` từ template `PT-01.docx`, mở trên **LibreOffice** (hoặc MS Word) báo lỗi:
+  > *"The file '... - PT-01.docx' is corrupt and therefore cannot be opened. LibreOffice can try to repair the file."*
+
+### 22.2. Ba Nguyên Nhân Cốt Lõi (Root Causes)
+1. **Lỗi Xáo Trộn Thứ Tự Entries trong ZipArchive (.NET 4.x)**:
+   - Thao tác `ZipFile.Open(path, ZipArchiveMode.Update)` kết hợp `entry.Delete()` và `archive.CreateEntry("word/document.xml")` làm đẩy `word/document.xml` xuống cuối file zip và xáo trộn cấu trúc OpenXML Package (ECMA-376 Part 2).
+2. **Lỗi Ký Tự UTF-8 BOM (`0xEF, 0xBB, 0xBF`)**:
+   - `StreamWriter(stream, Encoding.UTF8)` mặc định sinh UTF-8 BOM. Theo tiêu chuẩn OpenXML (ECMA-376 Part 2 §10.1.2), các XML parts trong file docx **TUYỆT ĐỐI KHÔNG ĐƯỢC CHỨA BOM**. LibreOffice có parser XML rất nghiêm ngặt nên lập tức báo hỏng file.
+3. **Lỗi Ký Tự Xuống Dòng Thô `\n` Trong Thẻ `<w:t>` & Định Dạng XML**:
+   - Chuỗi văn bản đưa vào `<w:t>` có chứa `\n` thô vi phạm chuẩn ECMA-376 (phải dùng `<w:br/>`).
+   - `doc.Save(writer)` mặc định tự động format/indent, chèn khoảng trắng ngoài ý muốn làm hỏng bố cục.
+
+### 22.3. Giải Pháp Kỹ Thuật Chuẩn Hóa 100% (Strict Fresh Zip Pattern)
+Khi chỉnh sửa và xuất file `.docx` từ template OpenXML:
+```csharp
+// 1. Tạo file ZIP mới (ZipArchiveMode.Create) duyệt toàn bộ entry của file mẫu theo ĐÚNG THỨ TỰ:
+using (var srcZip = ZipFile.OpenRead(templateDocx))
+using (var destFile = new FileStream(targetFilePath, FileMode.Create))
+using (var destZip = new ZipArchive(destFile, ZipArchiveMode.Create))
+{
+    foreach (var entry in srcZip.Entries)
+    {
+        var newEntry = destZip.CreateEntry(entry.FullName, CompressionLevel.Optimal);
+        using (var destStream = newEntry.Open())
+        {
+            if (entry.FullName == "word/document.xml")
+            {
+                // 2. Ghi UTF-8 NO BOM và tắt định dạng tự động:
+                byte[] bytes = new UTF8Encoding(false).GetBytes(modifiedDocXml);
+                destStream.Write(bytes, 0, bytes.Length);
+            }
+            else
+            {
+                using (var srcStream = entry.Open())
+                {
+                    srcStream.CopyTo(destStream);
+                }
+            }
+        }
+    }
+}
+```
+* **Kiểm thử tự động bằng CLI headless**:
+  ```powershell
+  & "D:\office fake\program\soffice.exe" --headless --convert-to pdf "<file.docx>" --outdir "<outdir>"
+  ```
+  Nếu chuyển đổi sang `.pdf` thành công tức là file `.docx` hoàn toàn hợp lệ, không còn bất kỳ cảnh báo lỗi cấu trúc nào.
+
+---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
