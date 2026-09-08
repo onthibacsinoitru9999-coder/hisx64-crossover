@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$rootDir    = 'D:\his\his-x64-28-11fix GDYK\his-x64'
+$rootDir    = $PSScriptRoot
 $portDir    = Join-Path $rootDir 'HisAutoPrescribe_Portable'
 $scriptDir  = Join-Path $rootDir '.agents\skills\his-clinical-operations\scripts'
 $srcFile    = Join-Path $scriptDir 'HisAutoPrescribe.cs'
@@ -11,7 +11,7 @@ Write-Host "=== Build HisAutoPrescribe.exe ===" -ForegroundColor Cyan
 
 # Xây dựng response file (.rsp) để tránh command line quá dài
 $lines = @(
-    "/target:winexe",
+    "/target:exe",
     "/platform:x64",
     "/out:`"$outExe`"",
     "/reference:System.dll",
@@ -23,29 +23,22 @@ $lines = @(
     "/reference:System.Net.Http.dll"
 )
 
-# Thu thap managed DLLs - chi tu Portable folder (tranh duplicate voi root)
+# Them DLLs tu ReferencedAssemblies va root
 $addedNames = @{}
-if (Test-Path $portDir) {
-    Get-ChildItem $portDir -Filter '*.dll' | ForEach-Object {
-        $asmName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-        if (-not $addedNames.ContainsKey($asmName)) {
-            try {
-                [void][System.Reflection.AssemblyName]::GetAssemblyName($_.FullName)
-                $lines += "/reference:`"$($_.FullName)`""
-                $addedNames[$asmName] = $true
-            } catch { }
+$refDir = Join-Path $rootDir 'ReferencedAssemblies'
+$searchDirs = @($portDir, $refDir, $rootDir)
+foreach ($d in $searchDirs) {
+    if (Test-Path $d) {
+        Get-ChildItem $d -Depth 0 -Filter '*.dll' | ForEach-Object {
+            $asmName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+            if (-not $addedNames.ContainsKey($asmName)) {
+                try {
+                    [void][System.Reflection.AssemblyName]::GetAssemblyName($_.FullName)
+                    $lines += "/reference:`"$($_.FullName)`""
+                    $addedNames[$asmName] = $true
+                } catch { }
+            }
         }
-    }
-}
-# Them DLLs root neu chua co trong Portable
-Get-ChildItem $rootDir -Depth 0 -Filter '*.dll' | ForEach-Object {
-    $asmName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-    if (-not $addedNames.ContainsKey($asmName)) {
-        try {
-            [void][System.Reflection.AssemblyName]::GetAssemblyName($_.FullName)
-            $lines += "/reference:`"$($_.FullName)`""
-            $addedNames[$asmName] = $true
-        } catch { }
     }
 }
 Write-Host "  Tong refs: $($lines.Count - 8) DLL"  # -8 = 7 sys refs + 1 target
@@ -63,6 +56,8 @@ Write-Host "Compiling..." -ForegroundColor Yellow
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n[OK] BUILD THANH CONG: $outExe" -ForegroundColor Green
+    Copy-Item -Force $outExe (Join-Path $rootDir 'HisAutoPrescribe.exe')
+    Write-Host "   Da dong bo vao thu muc goc: $(Join-Path $rootDir 'HisAutoPrescribe.exe')" -ForegroundColor Green
     $exeInfo = Get-Item $outExe
     Write-Host "   Size: $([math]::Round($exeInfo.Length/1024)) KB | Time: $($exeInfo.LastWriteTime)"
 } else {

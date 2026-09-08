@@ -29,6 +29,13 @@ public class MyAdapter : AdapterBase
     }
 }
 
+public class TrackingMatchResult
+{
+    public long TrackingId { get; set; }
+    public long TrackingTime { get; set; }
+    public bool IsNewlyCreated { get; set; }
+}
+
 public class MedicineStockInfo
 {
     public long MediStockId { get; set; }
@@ -36,11 +43,12 @@ public class MedicineStockInfo
     public string MediStockName { get; set; }
     public bool IsCabinet { get; set; }
 
-    public MedicineStockInfo(long id, string code, string name)
+    public MedicineStockInfo(long id, string code, string name, bool isCabinet = false)
     {
         MediStockId = id;
         MediStockCode = code;
         MediStockName = name;
+        IsCabinet = isCabinet;
     }
 
     public override string ToString()
@@ -287,7 +295,8 @@ public class MainForm : Form
             if (string.IsNullOrEmpty(tutorial) || tutorial == "Theo chỉ dẫn của bác sĩ") tutorial = "thay băng";
         }
 
-        if (stock.IsCabinet)
+        bool isCabinetStock = (stock != null && stock.IsCabinet) || (stock != null && (stock.MediStockId == 810 || stock.MediStockId == 7787 || (stock.MediStockCode != null && stock.MediStockCode.StartsWith("TT"))));
+        if (isCabinetStock)
         {
             string sessionKey = Guid.NewGuid().ToString();
             var takeBean = new TakeBeanSDO
@@ -312,7 +321,7 @@ public class MainForm : Form
                 InstructionTime = trackingTime,
                 UseTimes = new System.Collections.Generic.List<long> { trackingTime },
                 TrackingId = trackingId > 0 ? (long?)trackingId : null,
-                RequestRoomId = roomId,
+                RequestRoomId = roomId > 0 ? roomId : 5248,
                 RequestLoginName = loginName,
                 RequestUserName = userName,
                 IcdCode = (tr.ICD_CODE ?? "") + (string.IsNullOrEmpty(tr.ICD_SUB_CODE) ? "" : "," + tr.ICD_SUB_CODE),
@@ -326,6 +335,7 @@ public class MainForm : Form
                         MedicineTypeId = med.ID,
                         MediStockId = stock.MediStockId,
                         Amount = presAmount,
+                        PresAmount = presAmount,
                         PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
                         Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ",
                         MedicineUseFormId = useFormId,
@@ -334,6 +344,7 @@ public class MainForm : Form
                         Afternoon = afternoon,
                         Evening = evening,
                         IsExpend = isExpend,
+                        NumOfDays = 1,
                         MedicineBeanIds = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(beans, b => b.ID))
                     }
                 }
@@ -355,7 +366,7 @@ public class MainForm : Form
                 UseTimes = new System.Collections.Generic.List<long> { trackingTime },
                 TrackingId = trackingId > 0 ? (long?)trackingId : null,
                 TrackingInfos = trackingId > 0 ? new System.Collections.Generic.List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime } } : null,
-                RequestRoomId = roomId,
+                RequestRoomId = roomId > 0 ? roomId : 5248,
                 RequestLoginName = loginName,
                 RequestUserName = userName,
                 IcdCode = (tr.ICD_CODE ?? "") + (string.IsNullOrEmpty(tr.ICD_SUB_CODE) ? "" : "," + tr.ICD_SUB_CODE),
@@ -367,6 +378,7 @@ public class MainForm : Form
                         MedicineTypeId = med.ID,
                         MediStockId = stock.MediStockId,
                         Amount = presAmount,
+                        PresAmount = presAmount,
                         PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
                         Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ",
                         MedicineUseFormId = useFormId,
@@ -374,7 +386,8 @@ public class MainForm : Form
                         Noon = noon,
                         Afternoon = afternoon,
                         Evening = evening,
-                        IsExpend = isExpend
+                        IsExpend = isExpend,
+                        NumOfDays = 1
                     }
                 }
             };
@@ -387,18 +400,186 @@ public class MainForm : Form
             return (res.ExpMests != null && res.ExpMests.Count > 0) ? res.ExpMests[0].EXP_MEST_CODE : (res.ServiceReqs != null && res.ServiceReqs.Count > 0 ? res.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
         }
     }
-public static readonly List<MedicineStockInfo> CommonStocks = new List<MedicineStockInfo>
+
+    public static readonly List<MedicineStockInfo> CommonStocks = new List<MedicineStockInfo>
     {
-        new MedicineStockInfo(810, "TT_KCTCHCS", "Tủ trực Khoa CTCH & Cột sống"),
-        new MedicineStockInfo(4210, "KT_KD15", "Kho thuốc viên"),
-        new MedicineStockInfo(4209, "KT_KD14", "Kho thuốc ống"),
-        new MedicineStockInfo(4208, "KT_KD13", "Kho thuốc Hướng thần"),
-        new MedicineStockInfo(4207, "KT_KD12", "Kho thuốc Gây nghiện"),
-        new MedicineStockInfo(753, "LA_TTDDLS", "Kho SP Dinh dưỡng điều trị"),
-        new MedicineStockInfo(7787, "TTSPDD_9", "Tủ trực SP Dinh dưỡng Khoa 57"),
-        new MedicineStockInfo(796, "KVT_KCTCGCS", "Kho Vật tư Khoa CTCH & Cột sống"),
-        new MedicineStockInfo(4168, "KT_KD10", "Kho Vắc xin")
+        new MedicineStockInfo(810, "TT_KCTCHCS", "Tủ trực Khoa CTCH & Cột sống", true),
+        new MedicineStockInfo(4210, "KT_KD15", "Kho thuốc viên", false),
+        new MedicineStockInfo(4209, "KT_KD14", "Kho thuốc ống", false),
+        new MedicineStockInfo(4208, "KT_KD13", "Kho thuốc Hướng thần", false),
+        new MedicineStockInfo(4207, "KT_KD12", "Kho thuốc Gây nghiện", false),
+        new MedicineStockInfo(753, "LA_TTDDLS", "Kho SP Dinh dưỡng điều trị", false),
+        new MedicineStockInfo(7787, "TTSPDD_9", "Tủ trực SP Dinh dưỡng Khoa 57", true),
+        new MedicineStockInfo(796, "KVT_KCTCGCS", "Kho Vật tư Khoa CTCH & Cột sống", false),
+        new MedicineStockInfo(4168, "KT_KD10", "Kho Vắc xin", false)
     };
+
+    private static Dictionary<long, List<V_HIS_MEDICINE_BEAN>> stockBeanCache = new Dictionary<long, List<V_HIS_MEDICINE_BEAN>>();
+
+    public static TrackingMatchResult EnsureTrackingForPrescription(AdapterBase adp, CommonParam prm, V_HIS_TREATMENT tr, long departmentId, string loginName, string userName, long? targetTime = null)
+    {
+        if (tr == null) throw new ArgumentNullException("tr");
+        long desiredTime = targetTime.HasValue && targetTime.Value > 0 ? targetTime.Value : long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+        long targetDate = desiredTime / 1000000; // YYYYMMDD
+
+        HisTrackingViewFilter tkf = new HisTrackingViewFilter();
+        tkf.TREATMENT_ID = tr.ID;
+        tkf.ORDER_FIELD = "TRACKING_TIME";
+        tkf.ORDER_DIRECTION = "DESC";
+        var tks = ((MyAdapter)adp).FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, tkf, prm);
+
+        if (tks != null && tks.Count > 0)
+        {
+            var sameDayTrackings = tks.Where(tk => (tk.TRACKING_TIME / 1000000) == targetDate).ToList();
+            if (sameDayTrackings.Count > 0)
+            {
+                var matched = sameDayTrackings.OrderBy(tk => Math.Abs(tk.TRACKING_TIME - desiredTime)).FirstOrDefault();
+                if (matched != null)
+                {
+                    Console.WriteLine(string.Format("  ✔ [TRACKING-LINK] Gán trực tiếp vào Tờ điều trị ID {0} lúc {1} (Ngày {2})",
+                        matched.ID, matched.TRACKING_TIME, targetDate));
+                    return new TrackingMatchResult
+                    {
+                        TrackingId = matched.ID,
+                        TrackingTime = matched.TRACKING_TIME,
+                        IsNewlyCreated = false
+                    };
+                }
+            }
+        }
+
+        // Tự động tạo tờ điều trị mới cho ngày hôm nay để gắn y lệnh trực tiếp
+        long deptId = departmentId > 0 ? departmentId : 57;
+        Console.WriteLine(string.Format("  ℹ [AUTO-TRACKING] Chưa có tờ điều trị ngày {0}. Đang tạo tờ điều trị mới lúc {1}...", targetDate, desiredTime));
+
+        HIS_TRACKING newTk = new HIS_TRACKING
+        {
+            TREATMENT_ID = tr.ID,
+            DEPARTMENT_ID = deptId,
+            ROOM_ID = 5248,
+            TRACKING_TIME = desiredTime,
+            CONTENT = "Bệnh nhân tỉnh, tiếp xúc tốt. Thực hiện y lệnh thuốc tủ trực và theo dõi diễn biến.",
+            CARE_INSTRUCTION = "Theo dõi toàn trạng, sinh hiệu.",
+            ICD_CODE = tr.ICD_CODE,
+            ICD_NAME = tr.ICD_NAME,
+            ICD_SUB_CODE = tr.ICD_SUB_CODE,
+            ICD_TEXT = tr.ICD_TEXT
+        };
+        HisTrackingSDO sdo = new HisTrackingSDO 
+        { 
+            Tracking = newTk,
+            WorkingRoomId = 5248,
+            Dhst = null
+        };
+        var created = ((MyAdapter)adp).PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, prm);
+        if (created == null || created.ID == 0)
+        {
+            string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Lỗi từ máy chủ HIS";
+            throw new Exception("Không thể tạo tờ điều trị tự động: " + errMsg);
+        }
+
+        Console.WriteLine(string.Format("  ✔ [AUTO-TRACKING] Đã tạo thành công Tờ điều trị ID {0} lúc {1}", created.ID, created.TRACKING_TIME));
+        return new TrackingMatchResult
+        {
+            TrackingId = created.ID,
+            TrackingTime = created.TRACKING_TIME,
+            IsNewlyCreated = true
+        };
+    }
+
+    public static V_HIS_MEDICINE_TYPE FindMedicineWithStock(AdapterBase adp, CommonParam prm, string medKw, MedicineStockInfo stock)
+    {
+        if (string.IsNullOrEmpty(medKw)) throw new ArgumentNullException("medKw", "Tên thuốc không được rỗng!");
+        string kw = medKw.Trim();
+        long stockId = stock != null ? stock.MediStockId : 810;
+
+        // 1. Quét tồn kho thực tế (Stock-Aware) trong kho/tủ trực
+        if (stockId > 0)
+        {
+            try
+            {
+                List<V_HIS_MEDICINE_BEAN> beans = null;
+                if (!stockBeanCache.TryGetValue(stockId, out beans) || beans == null)
+                {
+                    HisMedicineBeanViewFilter bf = new HisMedicineBeanViewFilter();
+                    bf.MEDI_STOCK_ID = stockId;
+                    bf.IS_ACTIVE = 1;
+                    beans = ((MyAdapter)adp).FetchList<V_HIS_MEDICINE_BEAN>("api/HisMedicineBean/GetView", ApiConsumers.MosConsumer, bf, prm);
+                    if (beans != null) stockBeanCache[stockId] = beans;
+                }
+
+                if (beans != null && beans.Count > 0)
+                {
+                    var activeBeans = beans.Where(b => b.AMOUNT > 0 && (
+                        (b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                        (b.MEDICINE_TYPE_CODE != null && b.MEDICINE_TYPE_CODE.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                        (b.ACTIVE_INGR_BHYT_NAME != null && b.ACTIVE_INGR_BHYT_NAME.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0)
+                    )).ToList();
+
+                    // Bí danh viết tắt Insulin lâm sàng: R -> Actrapid, L -> Lantus, M -> Mixtard
+                    if (activeBeans.Count == 0)
+                    {
+                        string kwUpper = kw.ToUpper();
+                        if (kwUpper == "R" || kwUpper.StartsWith("ACTR"))
+                        {
+                            activeBeans = beans.Where(b => b.AMOUNT > 0 && b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.IndexOf("Actrapid", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                        }
+                        else if (kwUpper == "L" || kwUpper.StartsWith("LANT"))
+                        {
+                            activeBeans = beans.Where(b => b.AMOUNT > 0 && b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.IndexOf("Lantus", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                        }
+                        else if (kwUpper == "M" || kwUpper.StartsWith("MIXT"))
+                        {
+                            activeBeans = beans.Where(b => b.AMOUNT > 0 && b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.IndexOf("Mixtard", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                        }
+                    }
+
+                    if (activeBeans.Count > 0)
+                    {
+                        var bestGroup = activeBeans.GroupBy(b => b.MEDICINE_TYPE_ID)
+                                                   .OrderByDescending(g => g.Sum(b => b.AMOUNT))
+                                                   .First();
+                        long bestTypeId = bestGroup.Key;
+                        decimal totalStock = bestGroup.Sum(b => b.AMOUNT);
+                        var sample = bestGroup.First();
+
+                        Console.WriteLine(string.Format("  ✔ [STOCK-AWARE] Kho/Tủ {0}: Bốc đúng thuốc có tồn {1} ({2}), Tồn: {3:F4} (ID: {4})",
+                            stockId, sample.MEDICINE_TYPE_NAME, sample.MEDICINE_TYPE_CODE, totalStock, bestTypeId));
+
+                        HisMedicineTypeViewFilter mtf = new HisMedicineTypeViewFilter();
+                        mtf.ID = bestTypeId;
+                        var meds = ((MyAdapter)adp).FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, mtf, prm);
+                        if (meds != null && meds.Count > 0) return meds[0];
+
+                        return new V_HIS_MEDICINE_TYPE
+                        {
+                            ID = sample.MEDICINE_TYPE_ID,
+                            MEDICINE_TYPE_CODE = sample.MEDICINE_TYPE_CODE,
+                            MEDICINE_TYPE_NAME = sample.MEDICINE_TYPE_NAME,
+                            SERVICE_UNIT_NAME = sample.SERVICE_UNIT_NAME,
+                            MEDICINE_USE_FORM_ID = sample.MEDICINE_USE_FORM_ID
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("  ⚠️ [STOCK-AWARE] Lỗi kiểm tra tồn kho: " + ex.Message);
+            }
+        }
+
+        // 2. Fallback tra cứu danh mục chung nếu không tìm thấy trong kho
+        HisMedicineTypeViewFilter genFilter = new HisMedicineTypeViewFilter();
+        genFilter.KEY_WORD = kw;
+        genFilter.IS_ACTIVE = 1;
+        var generalMeds = ((MyAdapter)adp).FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, genFilter, prm);
+        if (generalMeds == null || generalMeds.Count == 0)
+        {
+            throw new Exception("Không tìm thấy thuốc khớp từ khóa: " + kw);
+        }
+
+        return generalMeds[0];
+    }
 
     // UI Tab Control
     private TabControl tabMain;
@@ -1098,43 +1279,13 @@ public static readonly List<MedicineStockInfo> CommonStocks = new List<MedicineS
                     if (trs == null || trs.Count == 0) throw new Exception("Không tìm thấy BN / Mã ĐT: " + patKey);
                     var tr = trs[0];
 
-                    HisTrackingViewFilter tkf = new HisTrackingViewFilter();
-                    tkf.TREATMENT_ID = tr.ID;
-                    tkf.ORDER_FIELD = "TRACKING_TIME";
-                    tkf.ORDER_DIRECTION = "DESC";
-                    var tks = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, tkf, param);
+                    // 1. Tự động đối soát và gắn trực tiếp vào tờ điều trị trong ngày để BS ký 1-click
+                    var tkResult = MainForm.EnsureTrackingForPrescription(adapter, param, tr, CurrentDepartmentId, CurrentLoginName, CurrentUserName, null);
+                    long trackingId = tkResult.TrackingId;
+                    long trackingTime = tkResult.TrackingTime;
 
-                    long trackingId = 0;
-                    long trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
-
-                    if (tks != null && tks.Count > 0)
-                    {
-                        trackingId = tks[0].ID;
-                        trackingTime = tks[0].TRACKING_TIME;
-                    }
-                    else
-                    {
-                        HIS_TRACKING tk = new HIS_TRACKING
-                        {
-                            TREATMENT_ID = tr.ID,
-                            DEPARTMENT_ID = CurrentDepartmentId,
-                            TRACKING_TIME = trackingTime,
-                            CONTENT = "Theo dõi và thực hiện thuốc theo y lệnh.",
-                            ICD_CODE = tr.ICD_CODE,
-                            ICD_NAME = tr.ICD_NAME,
-                            ICD_SUB_CODE = tr.ICD_SUB_CODE
-                        };
-                        HisTrackingSDO sdo = new HisTrackingSDO { Tracking = tk };
-                        var cr = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, param);
-                        if (cr != null) trackingId = cr.ID;
-                    }
-
-                    HisMedicineTypeViewFilter mtf = new HisMedicineTypeViewFilter();
-                    mtf.KEY_WORD = medKw;
-                    mtf.IS_ACTIVE = 1;
-                    var meds = adapter.FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, mtf, param);
-                    if (meds == null || meds.Count == 0) throw new Exception("Không tìm thấy thuốc khớp từ khóa: " + medKw);
-                    var targetMed = meds[0];
+                    // 2. Tra cứu thuốc có tồn thực tế trong kho/tủ trực (Stock-Aware)
+                    var targetMed = MainForm.FindMedicineWithStock(adapter, param, medKw, stock);
 
                     string code = MainForm.ExecutePrescription(adapter, param, CurrentLoginName, CurrentUserName, CurrentRoomId, tr, targetMed, stock, amount, tutorial, trackingTime, trackingId);
                     return new { Success = true, Code = code, PatientName = tr.TDL_PATIENT_NAME };
@@ -1441,48 +1592,15 @@ class Program
                         }
                         var btr = treatmentCache[bPatKey];
 
-                        // 2. Tìm tờ điều trị gần nhất TRÙNG giờ chỉ định (trong ±30 phút)
-                        HisTrackingViewFilter btkf = new HisTrackingViewFilter();
-                        btkf.TREATMENT_ID    = btr.ID;
-                        btkf.ORDER_FIELD     = "TRACKING_TIME";
-                        btkf.ORDER_DIRECTION = "DESC";
-                        var btks = bad.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, btkf, bp);
+                        // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
+                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, 57, batchUser, batchUser.ToUpper(), instructionTime);
+                        long bTkId   = tkResult.TrackingId;
+                        long bTkTime = tkResult.TrackingTime;
 
-                        long bTkId   = 0;
-                        long bTkTime = instructionTime;
-
-                        if (btks != null && btks.Count > 0)
-                        {
-                            // Tìm tờ điều trị có TRACKING_TIME gần nhất với instructionTime (±30 phút)
-                            long tolerance = 3000; // 30 phút = 3000 (đơn vị HHMMSS)
-                            var matched = btks.Where(tk =>
-                            {
-                                long diff = Math.Abs(tk.TRACKING_TIME - instructionTime);
-                                return diff <= tolerance;
-                            }).OrderBy(tk => Math.Abs(tk.TRACKING_TIME - instructionTime)).FirstOrDefault();
-
-                            if (matched != null)
-                            {
-                                bTkId   = matched.ID;
-                                bTkTime = matched.TRACKING_TIME;
-                            }
-                            else
-                            {
-                                // Dùng tờ điều trị mới nhất nếu không có tờ trùng giờ
-                                bTkId   = btks[0].ID;
-                                bTkTime = instructionTime; // Dùng đúng giờ chỉ định
-                            }
-                        }
-
-                        // 3. Tra cứu thuốc (cache theo tên)
+                        // 3. Tra cứu thuốc tồn thực tế trong kho/tủ trực (Stock-Aware)
                         if (!medicineCache.ContainsKey(bMedKw))
                         {
-                            HisMedicineTypeViewFilter bmtf = new HisMedicineTypeViewFilter();
-                            bmtf.KEY_WORD  = bMedKw;
-                            bmtf.IS_ACTIVE = 1;
-                            var bmeds = bad.FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, bmtf, bp);
-                            if (bmeds == null || bmeds.Count == 0) throw new Exception("Không tìm thấy thuốc: " + bMedKw);
-                            medicineCache[bMedKw] = bmeds[0];
+                            medicineCache[bMedKw] = MainForm.FindMedicineWithStock(bad, bp, bMedKw, MainForm.CommonStocks[0]);
                         }
                         var bMed = medicineCache[bMedKw];
 
@@ -1555,6 +1673,13 @@ class Program
                 }
                 catch { }
 
+                long pNum;
+                if (string.IsNullOrWhiteSpace(patKey) || (long.TryParse(patKey, out pNum) && pNum <= 0))
+                {
+                    Console.WriteLine("❌ Mã bệnh nhân không hợp lệ: " + patKey);
+                    return;
+                }
+
                 HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
                 long pCodeNum;
                 if (long.TryParse(patKey, out pCodeNum))
@@ -1576,23 +1701,19 @@ class Program
                 var tr = trs.Where(t => t.END_DEPARTMENT_ID == 57 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0)).OrderByDescending(t => t.IN_TIME).FirstOrDefault() 
                          ?? trs.OrderByDescending(t => t.IN_TIME).First();
 
-                HisTrackingViewFilter tkf = new HisTrackingViewFilter();
-                tkf.TREATMENT_ID = tr.ID;
-                tkf.ORDER_FIELD = "TRACKING_TIME";
-                tkf.ORDER_DIRECTION = "DESC";
-                var tks = ad.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", ApiConsumers.MosConsumer, tkf, p);
-                long tkId = tks != null && tks.Count > 0 ? tks[0].ID : 0;
-                long tkTime = tks != null && tks.Count > 0 ? tks[0].TRACKING_TIME : long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                Console.WriteLine(string.Format("  ✔ BN: {0} ({1}) | Mã ĐT: {2} | Khoa: {3}",
+                    tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, tr.END_DEPARTMENT_NAME ?? "Khoa 57"));
 
-                HisMedicineTypeViewFilter mtf = new HisMedicineTypeViewFilter();
-                mtf.KEY_WORD = medKw;
-                mtf.IS_ACTIVE = 1;
-                var meds = ad.FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", ApiConsumers.MosConsumer, mtf, p);
-                if (meds == null || meds.Count == 0) { Console.WriteLine("❌ Không tìm thấy thuốc!"); return; }
-                var med = meds[0];
+                // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
+                var tkResult = MainForm.EnsureTrackingForPrescription(ad, p, tr, 57, user, user.ToUpper(), null);
+                long tkId = tkResult.TrackingId;
+                long tkTime = tkResult.TrackingTime;
+
+                // 3. Tra cứu thuốc tồn thực tế trong tủ trực (Stock-Aware)
+                var med = MainForm.FindMedicineWithStock(ad, p, medKw, MainForm.CommonStocks[0]);
 
                 string code = MainForm.ExecutePrescription(ad, p, user, user.ToUpper(), 5248, tr, med, MainForm.CommonStocks[0], amount, tut, tkTime, tkId);
-                Console.WriteLine("✔ Kê đơn thành công!");
+                Console.WriteLine(string.Format("✔ Kê đơn thành công! Mã y lệnh / phiếu xuất: {0}", code));
             }
             catch (Exception ex)
             {
