@@ -1231,17 +1231,72 @@ public class MainForm : Form
         public string IcdText { get; set; }
     }
 
+    public static string ReadLiveTokenFast()
+    {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        List<string> candidates = new List<string>();
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
+        {
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
+            {
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
+                    {
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
+                        {
+                            return chunk.Substring(start, 64);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
+    }
+
     public static void InitSession()
     {
         if (string.IsNullOrEmpty(currentToken))
         {
-            HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
+            try { HIS.Desktop.LocalStorage.ConfigSystem.Load.Init(); } catch { }
             param = new CommonParam();
-            ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-            var token = tokenManager.Login(param, CurrentLoginName, "789789", "2.390.0");
-            if (token != null)
+            string liveToken = ReadLiveTokenFast();
+            if (!string.IsNullOrEmpty(liveToken))
             {
-                currentToken = token.TokenCode;
+                currentToken = liveToken;
+            }
+            else
+            {
+                try
+                {
+                    ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                    var token = tokenManager.Login(param, CurrentLoginName, "789789", "2.390.0");
+                    if (token != null)
+                    {
+                        currentToken = token.TokenCode;
+                    }
+                }
+                catch { }
             }
         }
 
@@ -1277,20 +1332,50 @@ public class MainForm : Form
     {
         InitSession();
 
-        HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-        if (code.Length >= 11) tf.TREATMENT_CODE__EXACT = code;
-        else tf.PATIENT_CODE__EXACT = code;
+        string kw = code.Trim();
+        long numVal;
+        bool isNum = long.TryParse(kw, out numVal);
 
-        var treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+        List<V_HIS_TREATMENT> treatments = null;
+
+        if (isNum)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            tf.PATIENT_CODE__EXACT = kw.PadLeft(10, '0');
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+
+            if (treatments == null || treatments.Count == 0)
+            {
+                tf = new HisTreatmentViewFilter();
+                tf.TREATMENT_CODE__EXACT = kw.PadLeft(12, '0');
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+            }
+        }
+
         if (treatments == null || treatments.Count == 0)
         {
-            tf = new HisTreatmentViewFilter();
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            if (kw.Length >= 11) tf.TREATMENT_CODE__EXACT = kw;
+            else tf.PATIENT_CODE__EXACT = kw;
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
+        }
+
+        if (treatments == null || treatments.Count == 0)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
             long tId;
-            if (long.TryParse(code, out tId))
+            if (long.TryParse(kw, out tId))
             {
                 tf.ID = tId;
                 treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
             }
+        }
+
+        if (treatments == null || treatments.Count == 0)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            tf.KEY_WORD = kw;
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, param);
         }
 
         if (treatments == null || treatments.Count == 0) return null;
