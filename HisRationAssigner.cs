@@ -76,7 +76,7 @@ public class HisRationAssigner
     public static List<RationServiceSDO> BuildRationServices(string comboType, long patientTypeId)
     {
         var list = new List<RationServiceSDO>();
-        long ptId = patientTypeId > 0 ? patientTypeId : 42;
+        long ptId = 42; // BẮT BUỘC 42 (Viện phí) cho 100% bệnh nhân, BHYT không chi trả tiền suất ăn
 
         if (comboType == "DD01") // Đái tháo đường
         {
@@ -110,15 +110,18 @@ public class HisRationAssigner
         return "BT01";
     }
 
-    public static bool AssignRationForDay(ApiConsumer consumer, V_HIS_TREATMENT tr, long trackingId, DateTime date, string comboType)
+    public static bool AssignRationForDay(ApiConsumer consumer, V_HIS_TREATMENT tr, long trackingId, DateTime date, string comboType, long requestRoomId = 5248)
     {
-        long instructionTime = long.Parse(date.ToString("yyyyMMdd") + "050000");
+        // QUY TẮC: Hôm nay là lúc ra y lệnh (DateTime.Now); Các ngày tới là 05:00 sáng
+        long instructionTime = date.Date == DateTime.Today
+            ? long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"))
+            : long.Parse(date.ToString("yyyyMMdd") + "050000");
 
         var sdo = new HisRationServiceReqSDO
         {
             TreatmentIds = new List<long> { tr.ID },
             InstructionTimes = new List<long> { instructionTime },
-            RequestRoomId = 5248, // Phòng 734
+            RequestRoomId = requestRoomId > 0 ? requestRoomId : 5248,
             RequestLoginName = "034727",
             RequestUserName = "Ths.BS NGUYỄN HỮU SÂM",
             IcdCode = tr.ICD_CODE,
@@ -129,7 +132,7 @@ public class HisRationAssigner
             IsForAutoCreateRation = false,
             IsForHomie = false,
             TrackingId = trackingId > 0 ? (long?)trackingId : null,
-            RationServices = BuildRationServices(comboType, tr.TDL_PATIENT_TYPE_ID ?? 42)
+            RationServices = BuildRationServices(comboType, 42)
         };
 
         CommonParam callParam = new CommonParam();
@@ -225,6 +228,17 @@ public class HisRationAssigner
 
             Console.WriteLine(string.Format("🏥 Buồng: {0} ({1} bệnh nhân)", room.BED_ROOM_NAME, inP.Count));
 
+            long roomId = room.ROOM_ID > 0 ? room.ROOM_ID : 5248;
+            try
+            {
+                var workInfo = new WorkInfoSDO
+                {
+                    Rooms = new List<RoomSDO> { new RoomSDO { RoomId = roomId } }
+                };
+                adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, p);
+            }
+            catch { }
+
             foreach (var patient in inP.OrderBy(x => x.BED_NAME))
             {
                 long tId = patient.TREATMENT_ID;
@@ -254,7 +268,7 @@ public class HisRationAssigner
                 if (todayRations.Count == 0)
                 {
                     Console.WriteLine("   ⚡ Đang chỉ định suất ăn hôm nay (" + today.ToString("dd/MM") + ")...");
-                    bool ok = AssignRationForDay(mosConsumer, tr, latestTrackingId, today, combo);
+                    bool ok = AssignRationForDay(mosConsumer, tr, latestTrackingId, today, combo, roomId);
                     if (ok)
                     {
                         Console.WriteLine("   ✔ Chỉ định THÀNH CÔNG suất ăn " + combo + " (3 bữa Sáng - Trưa - Chiều) ngày " + today.ToString("dd/MM/yyyy"));
@@ -270,7 +284,7 @@ public class HisRationAssigner
                 if (tmrRations.Count == 0)
                 {
                     Console.WriteLine("   ⚡ Đang chỉ định suất ăn ngày mai (" + tomorrow.ToString("dd/MM") + ")...");
-                    bool ok = AssignRationForDay(mosConsumer, tr, latestTrackingId, tomorrow, combo);
+                    bool ok = AssignRationForDay(mosConsumer, tr, latestTrackingId, tomorrow, combo, roomId);
                     if (ok)
                     {
                         Console.WriteLine("   ✔ Chỉ định THÀNH CÔNG suất ăn " + combo + " (3 bữa Sáng - Trưa - Chiều) ngày " + tomorrow.ToString("dd/MM/yyyy"));

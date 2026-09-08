@@ -825,10 +825,9 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
   * *Hiện tượng:* Gọi API `HisServiceReq/RationCreate` trả về `null` (không có exception, không có bản ghi nào được tạo trong `HIS_SERE_SERV_RATION` và `HIS_SERVICE_REQ`) do danh mục BHYT không chi trả tiền suất ăn.
   * *Khắc phục:* Trong `RationServiceSDO`, thuộc tính `PatientTypeId` **BẮT BUỘC PHẢI LÀ 42 (Viện phí)** cho 100% bệnh nhân bất kể họ có thẻ BHYT hay không.
 
-- ⏰ **BẪY LỖI: MỐC GIỜ `InstructionTimes` CHO NGÀY TƯƠNG LAI (D+2) (2026-09-07)**:
-  * *Sai lầm:* Dùng mốc `YYYYMMDD050000` cho ngày tương lai xa (D+2).
-  * *Hiện tượng:* Backend MOS có thể từ chối ghi nhận yêu cầu và trả về `null`.
-  * *Khắc phục:* Sử dụng mốc chuẩn đầu ngày `YYYYMMDD000000` (hoặc `050000`) và luôn kiểm tra đối soát trực tiếp từ `HIS_SERE_SERV_RATION` sau khi gọi API.
+- ⏰ **QUY TẮC BẮT BUỘC: GIỜ CHỈ ĐỊNH SUẤT ĂN HÔM NAY VS NGÀY TỚI (2026-09-08)**:
+  * **Y lệnh ăn HÔM NAY (Bổ sung bữa trưa/chiều)**: Giờ chỉ định `InstructionTimes` **BẮT BUỘC LÀ LÚC RA Y LỆNH** (thời điểm thực tế: `DateTime.Now`, VD: `YYYYMMDDHHmmss`).
+  * **Y lệnh ăn CÁC NGÀY TỚI (Từ ngày mai trở đi: D+1, D+2, D+3)**: Giờ chỉ định `InstructionTimes` **BẮT BUỘC LÀ 05:00 SÁNG** (`YYYYMMDD050000`).
 
 - 🔤 **BẪY LỖI: PHÂN BIỆT DẤU TIẾNG VIỆT "HÒA" VS "HOÀ" KHI TRA CỨU THEO TÊN (2026-09-08)**:
   * *Bản chất:* Hệ thống cơ sở dữ liệu HIS / Oracle phân biệt chính xác từng ký tự Unicode của 2 trường phái đặt dấu thanh tiếng Việt:
