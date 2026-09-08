@@ -1179,16 +1179,41 @@ public class HisClinicalCli
         }
 
         long reqId = 0;
-        if ((reqs == null || reqs.Count == 0) && long.TryParse(ok, out reqId))
+        // 1. Nếu là số ID (8 chữ số thông thường)
+        if (long.TryParse(ok, out reqId) && !ok.StartsWith("0"))
         {
             HisServiceReqViewFilter srfId = new HisServiceReqViewFilter { ID = reqId };
             reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfId, param);
+
+            if (reqs == null || reqs.Count == 0)
+            {
+                var rawF = new HisServiceReqFilter { ID = reqId };
+                var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawF, param);
+                if (rawList != null && rawList.Count > 0 && rawList[0].IS_DELETE == 1)
+                {
+                    Console.WriteLine(string.Format("✔ Y lệnh ID {0} (Mã: {1}) đã ở trạng thái ĐÃ XÓA (IS_DELETE = 1) từ trước.", rawList[0].ID, rawList[0].SERVICE_REQ_CODE));
+                    return;
+                }
+            }
         }
 
-        if (reqs == null || reqs.Count == 0)
+        // 2. Tìm theo Mã phiếu (SERVICE_REQ_CODE) - Chỉ áp dụng khi chuỗi bắt đầu bằng '0' hoặc có độ dài >= 10
+        if ((reqs == null || reqs.Count == 0) && (ok.StartsWith("0") || ok.Length >= 10))
         {
-            HisServiceReqViewFilter srfCode = new HisServiceReqViewFilter { SERVICE_REQ_CODE = ok };
+            string codeToCheck = ok.PadLeft(12, '0');
+            HisServiceReqViewFilter srfCode = new HisServiceReqViewFilter { SERVICE_REQ_CODE = codeToCheck };
             reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfCode, param);
+
+            if (reqs == null || reqs.Count == 0)
+            {
+                var rawF = new HisServiceReqFilter { SERVICE_REQ_CODE__EXACT = codeToCheck };
+                var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawF, param);
+                if (rawList != null && rawList.Count > 0 && rawList[0].IS_DELETE == 1)
+                {
+                    Console.WriteLine(string.Format("✔ Y lệnh Mã {0} (ID: {1}) đã ở trạng thái ĐÃ XÓA (IS_DELETE = 1) từ trước.", rawList[0].SERVICE_REQ_CODE, rawList[0].ID));
+                    return;
+                }
+            }
         }
 
         if (reqs == null || reqs.Count == 0)
@@ -1464,13 +1489,94 @@ public class HisClinicalCli
             else if (cmd == "cancel-order" || cmd == "delete-order" || cmd == "cancel-req")
             {
                 if (args.Length < 2) throw new Exception("Thiếu ID hoặc Mã phiếu y lệnh cần hủy!");
-                long? rId = args.Length > 2 ? (long?)long.Parse(args[2]) : null;
-                CancelOrder(args[1], rId);
+                
+                // Thu thập toàn bộ các mã/ID được truyền vào (hỗ trợ dấu phẩy, chấm phẩy, khoảng trắng hoặc nhiều tham số)
+                var allKeys = new List<string>();
+                for (int i = 1; i < args.Length; i++)
+                {
+                    string[] parts = args[i].Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    allKeys.AddRange(parts);
+                }
+
+                if (allKeys.Count == 1)
+                {
+                    CancelOrder(allKeys[0], null);
+                }
+                else
+                {
+                    long maybeRoom = 0;
+                    if (allKeys.Count == 2 && long.TryParse(allKeys[1], out maybeRoom) && maybeRoom > 1000 && maybeRoom < 99999 && !allKeys[1].StartsWith("0"))
+                    {
+                        // Trường hợp truyền 1 mã + 1 roomId (VD: cancel-order 89758750 5248)
+                        CancelOrder(allKeys[0], maybeRoom);
+                    }
+                    else
+                    {
+                        Console.WriteLine("===============================================================================");
+                        Console.WriteLine(string.Format("🚀 BẮT ĐẦU XỬ LÝ HỦY MẺ CHO {0} Y LỆNH...", allKeys.Count));
+                        Console.WriteLine("===============================================================================");
+                        int done = 0;
+                        for (int idx = 0; idx < allKeys.Count; idx++)
+                        {
+                            string k = allKeys[idx];
+                            Console.WriteLine(string.Format("\n👉 [{0}/{1}] Đang xử lý: {2}", idx + 1, allKeys.Count, k));
+                            try
+                            {
+                                CancelOrder(k, null);
+                                done++;
+                            }
+                            catch (Exception exK)
+                            {
+                                Console.WriteLine(string.Format("❌ Lỗi khi xử lý {0}: {1}", k, exK.Message));
+                            }
+                        }
+                        Console.WriteLine("===============================================================================");
+                        Console.WriteLine(string.Format("📊 HOÀN TẤT XỬ LÝ: {0}/{1} y lệnh đã được thực thi.", done, allKeys.Count));
+                        Console.WriteLine("===============================================================================");
+                    }
+                }
             }
             else if (cmd == "cancel-service" || cmd == "delete-service")
             {
                 if (args.Length < 2) throw new Exception("Thiếu ID dịch vụ con (SERE_SERV_ID) cần hủy!");
-                CancelSereServ(long.Parse(args[1]));
+                
+                var allSsIds = new List<long>();
+                for (int i = 1; i < args.Length; i++)
+                {
+                    string[] parts = args[i].Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var p in parts)
+                    {
+                        long sid = 0;
+                        if (long.TryParse(p.Trim(), out sid)) allSsIds.Add(sid);
+                    }
+                }
+
+                if (allSsIds.Count == 1)
+                {
+                    CancelSereServ(allSsIds[0]);
+                }
+                else
+                {
+                    Console.WriteLine("===============================================================================");
+                    Console.WriteLine(string.Format("🚀 BẮT ĐẦU HỦY MẺ CHO {0} DỊCH VỤ CON (SERE_SERV)...", allSsIds.Count));
+                    Console.WriteLine("===============================================================================");
+                    int done = 0;
+                    foreach (var sid in allSsIds)
+                    {
+                        try
+                        {
+                            CancelSereServ(sid);
+                            done++;
+                        }
+                        catch (Exception exS)
+                        {
+                            Console.WriteLine(string.Format("❌ Lỗi hủy dịch vụ {0}: {1}", sid, exS.Message));
+                        }
+                    }
+                    Console.WriteLine("===============================================================================");
+                    Console.WriteLine(string.Format("📊 HOÀN TẤT: {0}/{1} dịch vụ đã được xử lý.", done, allSsIds.Count));
+                    Console.WriteLine("===============================================================================");
+                }
             }
             else
             {
