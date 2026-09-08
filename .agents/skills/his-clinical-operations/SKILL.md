@@ -250,6 +250,25 @@ Khi cần tổng hợp danh sách bệnh nhân đang nằm buồng, kiểm tra t
   1. Thư mục Drive: `C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57\`
   2. Thư mục Dự án: `Reports\WardReports\`
 
+---
 
+## 11. Quy Trình Hủy/Xóa Y Lệnh & Dịch Vụ Chưa Thực Hiện (Chỉ Định Màu Trắng)
 
+Hỗ trợ Bác sĩ hủy nhanh các y lệnh thừa hoặc chỉ định nhầm (kể cả y lệnh do Bác sĩ khác tạo) mà trên giao diện HIS Desktop bị khóa nút xóa:
 
+### 11.1. Cú pháp thực thi CLI (`HisClinicalCli.exe`)
+```powershell
+# Xem danh sách y lệnh & trạng thái màu sắc của bệnh nhân:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN|MãĐT|Tên>
+
+# Hủy cả phiếu y lệnh màu trắng (ServiceReqId hoặc ServiceReqCode):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ServiceReqId|ServiceReqCode>
+
+# Hủy 1 dịch vụ con đơn lẻ bên trong phiếu:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
+```
+
+### 11.2. Rào chắn an toàn (Guardrails)
+1. **Chỉ xóa màu trắng (`SERVICE_REQ_STT_ID = 1`)**: Chặn 100% việc xóa y lệnh đang thực hiện (vàng) hoặc đã có kết quả (xanh).
+2. **Không sửa Audit Trail**: Tuyệt đối không can thiệp sửa tên người chỉ định trong CSDL.
+3. **Tự động dọn dẹp EMR**: Tự động phát hiện và gọi `api/EmrDocument/Delete` nếu y lệnh có văn bản ký số EMR liên kết.

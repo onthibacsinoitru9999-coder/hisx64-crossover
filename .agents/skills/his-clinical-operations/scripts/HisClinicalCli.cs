@@ -1011,6 +1011,303 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void ListOrders(string keyword)
+    {
+        InitSession();
+        List<V_HIS_TREATMENT> treatments = null;
+        string kw = keyword.Trim();
+        long numVal;
+        bool isNum = long.TryParse(kw, out numVal);
+
+        if (isNum)
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+            tfCode.PATIENT_CODE__EXACT = kw.PadLeft(10, '0');
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+
+            if (treatments == null || treatments.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter();
+                tfCode.TREATMENT_CODE__EXACT = kw.PadLeft(12, '0');
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+        }
+        else
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = kw };
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            if (treatments == null || treatments.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = kw };
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+            if (treatments == null || treatments.Count == 0)
+            {
+                string searchNorm = RemoveDiacritics(kw).Trim().ToLower();
+                try
+                {
+                    HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter { IS_IN_ROOM = true, TREATMENT_IS_ACTIVE = true };
+                    var allBeds = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", mosConsumer, tbrf, param);
+                    if (allBeds != null && allBeds.Count > 0)
+                    {
+                        var matchedBeds = allBeds.Where(b => !string.IsNullOrEmpty(b.TDL_PATIENT_NAME) && RemoveDiacritics(b.TDL_PATIENT_NAME).ToLower().Contains(searchNorm)).ToList();
+                        if (matchedBeds.Count > 0)
+                        {
+                            var tIds = matchedBeds.Select(x => x.TREATMENT_ID).Distinct().ToList();
+                            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, new HisTreatmentViewFilter { IDs = tIds }, param);
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+
+        if (treatments == null || treatments.Count == 0)
+        {
+            Console.WriteLine(string.Format("❌ Không tìm thấy bệnh nhân nào khớp với từ khóa: {0}", keyword));
+            return;
+        }
+
+        var tr = treatments.LastOrDefault(x => x.IS_PAUSE != 1) ?? treatments.Last();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("📋 DANH SÁCH Y LỆNH: {0} (Mã BN: {1} | Mã ĐT: {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE));
+        Console.WriteLine("===============================================================================");
+
+        HisServiceReqViewFilter srf = new HisServiceReqViewFilter
+        {
+            TREATMENT_ID = tr.ID
+        };
+        var orders = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
+        if (orders == null || orders.Count == 0)
+        {
+            Console.WriteLine("Bệnh nhân chưa có y lệnh nào.");
+            Console.WriteLine("===============================================================================");
+            return;
+        }
+
+        var sorted = orders.OrderByDescending(x => x.INTRUCTION_TIME).ToList();
+        int stt = 1;
+        foreach (var r in sorted)
+        {
+            string timeStr = r.INTRUCTION_TIME.ToString().Length >= 12 
+                ? string.Format("{0}/{1} {2}:{3}", r.INTRUCTION_TIME.ToString().Substring(6, 2), r.INTRUCTION_TIME.ToString().Substring(4, 2), r.INTRUCTION_TIME.ToString().Substring(8, 2), r.INTRUCTION_TIME.ToString().Substring(10, 2)) 
+                : r.INTRUCTION_TIME.ToString();
+
+            string sttBadge;
+            string canCancelTag = "";
+            if (r.SERVICE_REQ_STT_ID == 1)
+            {
+                sttBadge = "⚪ CHƯA THỰC HIỆN (Màu trắng)";
+                canCancelTag = " 👉 [CÓ THỂ HỦY/XÓA]";
+            }
+            else if (r.SERVICE_REQ_STT_ID == 2)
+            {
+                sttBadge = "🟡 ĐANG THỰC HIỆN";
+            }
+            else if (r.SERVICE_REQ_STT_ID == 3)
+            {
+                sttBadge = "🟢 ĐÃ HOÀN THÀNH";
+            }
+            else
+            {
+                sttBadge = "⚫ KHÁC (" + r.SERVICE_REQ_STT_ID + ")";
+            }
+
+            Console.WriteLine(string.Format("{0:D2}. [ID: {1} | Mã: {2}] Lúc {3} | {4}{5}", 
+                stt++, r.ID, r.SERVICE_REQ_CODE, timeStr, sttBadge, canCancelTag));
+            Console.WriteLine(string.Format("    • Loại: {0} | BS Chỉ định: {1} ({2}) | Nơi Y/C: {3}", 
+                r.SERVICE_REQ_TYPE_NAME, r.REQUEST_USERNAME, r.REQUEST_LOGINNAME, r.REQUEST_ROOM_NAME));
+            
+            try
+            {
+                HisSereServViewFilter ssf = new HisSereServViewFilter { SERVICE_REQ_ID = r.ID };
+                var ssList = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
+                if (ssList != null && ssList.Count > 0)
+                {
+                    var names = ssList.Select(x => string.Format("{0} (SS_ID: {1})", x.TDL_SERVICE_NAME, x.ID));
+                    Console.WriteLine(string.Format("    • Dịch vụ: {0}", string.Join("; ", names)));
+                }
+            }
+            catch { }
+            Console.WriteLine("-------------------------------------------------------------------------------");
+        }
+        Console.WriteLine("💡 Hủy cả phiếu: .\\.agents\\skills\\his-clinical-operations\\scripts\\HisClinicalCli.exe cancel-order <ID>");
+        Console.WriteLine("💡 Hủy dịch vụ lẻ: .\\.agents\\skills\\his-clinical-operations\\scripts\\HisClinicalCli.exe cancel-service <SS_ID>");
+        Console.WriteLine("===============================================================================");
+    }
+
+    public static void CancelOrder(string orderKey, long? customRoomId = null)
+    {
+        InitSession();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🗑️ HỦY/XÓA Y LỆNH (MÃ HOẶC ID: {0})", orderKey));
+        Console.WriteLine("===============================================================================");
+
+        if (string.IsNullOrEmpty(orderKey))
+        {
+            Console.WriteLine("❌ Vui lòng cung cấp ID phiếu y lệnh (ServiceReqId) hoặc Mã phiếu (ServiceReqCode)!");
+            return;
+        }
+
+        string ok = orderKey.Trim();
+        long reqId = 0;
+        bool isNumeric = long.TryParse(ok, out reqId);
+
+        List<V_HIS_SERVICE_REQ> reqs = null;
+        if (isNumeric)
+        {
+            HisServiceReqViewFilter srfId = new HisServiceReqViewFilter { ID = reqId };
+            reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfId, param);
+        }
+
+        if (reqs == null || reqs.Count == 0)
+        {
+            HisServiceReqViewFilter srfCode = new HisServiceReqViewFilter { SERVICE_REQ_CODE = ok };
+            reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfCode, param);
+        }
+
+        if (reqs == null || reqs.Count == 0)
+        {
+            Console.WriteLine(string.Format("❌ Không tìm thấy y lệnh với từ khóa: {0} (hoặc y lệnh đã bị xóa trước đó).", orderKey));
+            return;
+        }
+
+        var req = reqs[0];
+        string timeStr = req.INTRUCTION_TIME.ToString().Length >= 12 
+            ? string.Format("{0}/{1} {2}:{3}", req.INTRUCTION_TIME.ToString().Substring(6, 2), req.INTRUCTION_TIME.ToString().Substring(4, 2), req.INTRUCTION_TIME.ToString().Substring(8, 2), req.INTRUCTION_TIME.ToString().Substring(10, 2)) 
+            : req.INTRUCTION_TIME.ToString();
+
+        Console.WriteLine(string.Format("• Bệnh nhân     : {0} (Mã BN: {1} | Mã ĐT: {2})", req.TDL_PATIENT_NAME, req.TDL_PATIENT_CODE, req.TREATMENT_CODE));
+        Console.WriteLine(string.Format("• Mã phiếu      : {0} | ID Phiếu: {1} | Loại: {2}", req.SERVICE_REQ_CODE, req.ID, req.SERVICE_REQ_TYPE_NAME));
+        Console.WriteLine(string.Format("• Người chỉ định: {0} ({1}) lúc {2}", req.REQUEST_USERNAME, req.REQUEST_LOGINNAME, timeStr));
+        Console.WriteLine(string.Format("• Nơi chỉ định  : {0} (Phòng ID: {1})", req.REQUEST_ROOM_NAME, req.REQUEST_ROOM_ID));
+        Console.WriteLine(string.Format("• Bác sĩ thực hiện hủy: {0} ({1})", currentDoctorName, currentDoctorLogin));
+
+        // RÀO CHẮN AN TOÀN 1: Kiểm tra trạng thái y lệnh
+        if (req.SERVICE_REQ_STT_ID != 1)
+        {
+            string sttName = req.SERVICE_REQ_STT_ID == 2 ? "🟡 ĐANG THỰC HIỆN (Đã tiếp nhận mẫu)" : (req.SERVICE_REQ_STT_ID == 3 ? "🟢 ĐÃ HOÀN THÀNH / ĐÃ CÓ KẾT QUẢ" : "KHÁC (" + req.SERVICE_REQ_STT_ID + ")");
+            Console.WriteLine(string.Format("❌ CẢNH BÁO AN TOÀN: Y lệnh đang ở trạng thái {0}.", sttName));
+            Console.WriteLine("👉 Quy định HIS: Chỉ được phép xóa y lệnh ở trạng thái CHƯA THỰC HIỆN (Chỉ định màu trắng).");
+            Console.WriteLine("👉 Nếu cần hủy chỉ định này, vui lòng liên hệ phòng thực hiện để HỦY TIẾP NHẬN / HỦY KẾT QUẢ trên HIS trước.");
+            return;
+        }
+
+        // Liệt kê chi tiết dịch vụ đính kèm
+        try
+        {
+            HisSereServViewFilter ssf = new HisSereServViewFilter { SERVICE_REQ_ID = req.ID };
+            var ssList = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
+            if (ssList != null && ssList.Count > 0)
+            {
+                Console.WriteLine(string.Format("• Dịch vụ sẽ bị hủy ({0} mục):", ssList.Count));
+                foreach (var s in ssList)
+                {
+                    Console.WriteLine(string.Format("   - [{0}] {1} (SL: {2})", s.ID, s.TDL_SERVICE_NAME, s.AMOUNT));
+                }
+            }
+        }
+        catch { }
+
+        // RÀO CHẮN AN TOÀN 2: Kiểm tra và hủy văn bản ký EMR nếu có
+        try
+        {
+            var docFilter = new EMR.Filter.EmrDocumentFilter();
+            docFilter.TREATMENT_CODE__EXACT = req.TDL_TREATMENT_CODE;
+            ApiConsumer emrConsumer = new ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+            var emrDocs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, param);
+            if (emrDocs != null && emrDocs.Count > 0)
+            {
+                string reqTag = "SERVICE_REQ_CODE:" + req.SERVICE_REQ_CODE;
+                var matchedDocs = emrDocs.Where(d => d.HIS_CODE != null && d.HIS_CODE.Contains(reqTag)).ToList();
+                if (matchedDocs.Count > 0)
+                {
+                    Console.WriteLine(string.Format("⚠️ Phát hiện {0} văn bản ký EMR liên kết với y lệnh này. Đang tự động hủy văn bản EMR...", matchedDocs.Count));
+                    foreach (var doc in matchedDocs)
+                    {
+                        bool delEmr = myAdapter.PostData<bool>("api/EmrDocument/Delete", emrConsumer, doc, param);
+                        Console.WriteLine(string.Format("   - Hủy văn bản EMR ID {0}: {1}", doc.ID, delEmr ? "✔ THÀNH CÔNG" : "❌ THẤT BẠI"));
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // RÀO CHẮN 3: Thực thi xóa ServiceReq qua API MOS Backend
+        long reqRoomId = customRoomId ?? req.REQUEST_ROOM_ID;
+        if (reqRoomId <= 0) reqRoomId = 5252; // Mặc định P712 Khoa 57
+
+        var sdo = new HisServiceReqSDO
+        {
+            Id = req.ID,
+            RequestRoomId = reqRoomId
+        };
+
+        Console.WriteLine(string.Format("🚀 Đang gửi lệnh xóa y lệnh đến Backend MOS (RequestRoomId: {0})...", reqRoomId));
+        bool isSuccess = myAdapter.PostData<bool>("api/HisServiceReq/Delete", mosConsumer, sdo, param);
+
+        if (isSuccess)
+        {
+            // Post-verify
+            HisServiceReqViewFilter vf = new HisServiceReqViewFilter { ID = req.ID };
+            var vList = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, vf, param);
+            bool isGone = (vList == null || vList.Count == 0 || vList[0].IS_DELETE == 1);
+
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            Console.WriteLine(string.Format("✔ ĐÃ XÓA THÀNH CÔNG Y LỆNH: ID {0} (Mã phiếu: {1})", req.ID, req.SERVICE_REQ_CODE));
+            if (isGone)
+            {
+                Console.WriteLine("✔ ĐỐI SOÁT HỆ THỐNG: Y lệnh đã được gỡ bỏ hoàn toàn khỏi hồ sơ bệnh án.");
+            }
+            Console.WriteLine("👉 Bác sĩ tải lại màn hình HIS Desktop sẽ thấy y lệnh màu trắng đã biến mất.");
+            Console.WriteLine("===============================================================================");
+        }
+        else
+        {
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            Console.WriteLine(string.Format("❌ XÓA THẤT BẠI: {0} (BugCode: {1})", param.GetMessage(), param.GetBugCode()));
+            Console.WriteLine("===============================================================================");
+        }
+    }
+
+    public static void CancelSereServ(long sereServId)
+    {
+        InitSession();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🗑️ HỦY/XÓA DỊCH VỤ CON ĐƠN LẺ (SERE_SERV_ID: {0})", sereServId));
+        Console.WriteLine("===============================================================================");
+
+        HisSereServViewFilter ssf = new HisSereServViewFilter { ID = sereServId };
+        var ssList = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
+        if (ssList == null || ssList.Count == 0)
+        {
+            Console.WriteLine(string.Format("❌ Không tìm thấy dịch vụ với ID: {0} (hoặc đã bị xóa trước đó).", sereServId));
+            return;
+        }
+
+        var ss = ssList[0];
+        Console.WriteLine(string.Format("• Tên dịch vụ : {0} (Mã: {1})", ss.TDL_SERVICE_NAME, ss.TDL_SERVICE_CODE));
+        Console.WriteLine(string.Format("• Phiếu y lệnh: ID {0} (Mã phiếu: {1})", ss.SERVICE_REQ_ID, ss.TDL_SERVICE_REQ_CODE));
+        Console.WriteLine(string.Format("• Bệnh nhân   : Mã ĐT {0} (TreatmentId: {1})", ss.TDL_TREATMENT_CODE, ss.TDL_TREATMENT_ID));
+        Console.WriteLine(string.Format("• Số lượng    : {0} | Đơn giá: {1:N0} đ", ss.AMOUNT, ss.PRICE));
+
+        Console.WriteLine("🚀 Đang gửi lệnh xóa dịch vụ đến Backend MOS...");
+        bool isSuccess = myAdapter.PostData<bool>("api/HisSereServ/ExamDelete", mosConsumer, new HIS_SERE_SERV { ID = sereServId }, param);
+
+        if (isSuccess)
+        {
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            Console.WriteLine(string.Format("✔ ĐÃ XÓA THÀNH CÔNG DỊCH VỤ: {0} (ID: {1})", ss.TDL_SERVICE_NAME, sereServId));
+            Console.WriteLine("===============================================================================");
+        }
+        else
+        {
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            Console.WriteLine(string.Format("❌ XÓA THẤT BẠI: {0} (BugCode: {1})", param.GetMessage(), param.GetBugCode()));
+            Console.WriteLine("===============================================================================");
+        }
+    }
+
     public static void RunCli(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -1020,9 +1317,12 @@ public class HisClinicalCli
             Console.WriteLine("🏥 UNIFIED HIS CLINICAL AUTOMATION CLI - KHOA CTCH & CỘT SỐNG (KHOA 57)");
             Console.WriteLine("===============================================================================");
             Console.WriteLine("Cú pháp lệnh:");
-            Console.WriteLine("  lookup <patientCode|treatmentCode|name>   : Tra cứu thông tin, buồng giường & Bilan");
-            Console.WriteLine("  wardround                                 : Quét danh sách BN buồng 712, 714, 716, 724, 725");
-            Console.WriteLine("  create-tracking <trId> <content> [dhst..] : Tạo tờ điều trị và DHST");
+            Console.WriteLine("  lookup <patientCode|treatmentCode|name>      : Tra cứu thông tin, buồng giường & Bilan");
+            Console.WriteLine("  orders <patientCode|treatmentCode|name>      : Liệt kê danh sách y lệnh & trạng thái màu");
+            Console.WriteLine("  cancel-order <serviceReqId|reqCode> [roomId] : Hủy/Xóa y lệnh chưa thực hiện (Màu trắng)");
+            Console.WriteLine("  cancel-service <sereServId>                  : Hủy/Xóa 1 dịch vụ con lẻ trong phiếu");
+            Console.WriteLine("  wardround                                    : Quét danh sách BN buồng 712, 714, 716, 724, 725");
+            Console.WriteLine("  create-tracking <trId> <content> [dhst..]    : Tạo tờ điều trị và DHST");
             Console.WriteLine("  prescribe <trId> <tkId> <medId> <stId> <amount> <tutorial> : Kê đơn thuốc an toàn");
             Console.WriteLine("  assign-cls <trId> <tkId> <svcId> <roomId> [note] [ptId]    : Chỉ định CLS đơn lẻ");
             Console.WriteLine("  assign-bilan <trId> <tkId> <cement|spine|hip|hand>         : Chỉ định gói Bilan 1-Click");
@@ -1091,6 +1391,22 @@ public class HisClinicalCli
             {
                 string dateStr = args.Length > 1 ? args[1] : null;
                 LookupConsultationQueue(dateStr);
+            }
+            else if (cmd == "orders" || cmd == "list-orders")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN, mã ĐT hoặc tên bệnh nhân!");
+                ListOrders(args[1]);
+            }
+            else if (cmd == "cancel-order" || cmd == "delete-order" || cmd == "cancel-req")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu ID hoặc Mã phiếu y lệnh cần hủy!");
+                long? rId = args.Length > 2 ? (long?)long.Parse(args[2]) : null;
+                CancelOrder(args[1], rId);
+            }
+            else if (cmd == "cancel-service" || cmd == "delete-service")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu ID dịch vụ con (SERE_SERV_ID) cần hủy!");
+                CancelSereServ(long.Parse(args[1]));
             }
             else
             {

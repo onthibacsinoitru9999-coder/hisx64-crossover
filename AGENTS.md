@@ -18,6 +18,9 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | Mục Đích / Yêu Cầu Của Bác Sĩ | Công Cụ DUY NHẤT Được Phép Gọi | Lệnh Mẫu Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
 | :--- | :--- | :--- | :--- |
 | 🔍 **Tra cứu thông tin BN, buồng, tiền sử, dịch vụ, đơn cũ** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
+| 📋 **Xem danh sách y lệnh & trạng thái màu sắc (trắng/vàng/xanh)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN>` | ❌ Không tự cào DB |
+| 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (chỉ định màu trắng)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
+| 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu y lệnh** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
 | 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa khách** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
 | 💊 **Kê đơn thuốc, tiêm Insulin, tủ trực, dinh dưỡng** | **`HisAutoPrescribe.exe`** | `.\HisAutoPrescribe.exe single ...` hoặc `--batch` | ❌ Không dùng tra cứu |
 | 📝 **Tạo tờ điều trị hàng ngày (Ghi diễn biến + y lệnh)** | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` (Tích hợp OpenRouter AI) | ❌ Không dùng kê đơn |
@@ -172,5 +175,26 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   2. **Thử hoán đổi cả 2 kiểu dấu**: Nếu tìm kiếm có dấu, phải tự động thử cả biến thể kiểu cũ và kiểu mới (`òa` ⟷ `oà`, `óa` ⟷ `oá`, `ủy` ⟷ `uỷ`...).
   3. **Đối chiếu đa chiều (Cross-Reference)**: Khi có nhiều bệnh nhân trùng tên/trùng từ khóa (VD: `TÔ XUÂN HÒA` và `NGUYỄN VĂN HOÀ`), tuyệt đối không được tự ý chọn ngầm bản ghi cuối cùng (`LastOrDefault`). Bắt buộc liệt kê toàn bộ danh sách khớp kèm Mã BN, Mã ĐT, Buồng/Giường, Năm sinh và Chẩn đoán để Bác sĩ đối soát chính xác, tránh nhầm lẫn y lệnh.
 
-
-
+## 13. QUY TẮC HỦY/XÓA Y LỆNH & DỊCH VỤ CHƯA THỰC HIỆN: CHỈ ĐỊNH MÀU TRẮNG (CANCEL ORDER PROTOCOL)
+* **Bản chất kỹ thuật (Gotcha)**:
+  - Trên giao diện HIS Desktop (`HIS.Desktop.Plugins.ServiceReqList.dll`), nút xóa (thùng rác) bị mờ/khóa (disable) khi xem y lệnh do bác sĩ khác chỉ định là do **tầng Client DevExpress tự kiểm tra**: `(this.loginName == CREATOR || CheckLoginAdmin.IsAdmin(this.loginName) || this.loginName == REQUEST_LOGINNAME)`.
+  - Ở phía **Máy chủ Backend MOS (`POST api/HisServiceReq/Delete`)**: Hệ thống **HOÀN TOÀN KHÔNG RÀNG BUỘC** người gửi lệnh xóa phải là người tạo ban đầu (`REQUEST_LOGINNAME`). Chỉ cần Token có quyền làm việc tại khoa/phòng điều trị (`RequestRoomId`) và y lệnh chưa thực hiện.
+  - Do đó: **HOÀN TOÀN KHÔNG CẦN và KHÔNG ĐƯỢC PHÉP sửa tên người chỉ định về tài khoản của mình** (vì sửa tên trong DB vi phạm vết kiểm toán y tế Audit Trail).
+* **Quy trình thực thi chuẩn (Mandatory Workflow)**:
+  1. **Xem danh sách & màu sắc y lệnh**:
+     ```powershell
+     .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN|MãĐT|Tên>
+     ```
+     - ⚪ **Màu trắng (`SERVICE_REQ_STT_ID == 1`)**: Chưa thực hiện 👉 **Được phép hủy/xóa**.
+     - 🟡 **Màu vàng (`SERVICE_REQ_STT_ID == 2`)**: Đang thực hiện / đã tiếp nhận mẫu 👉 **TUYỆT ĐỐI KHÔNG xóa** (phải liên hệ phòng thực hiện hủy tiếp nhận trước).
+     - 🟢 **Màu xanh (`SERVICE_REQ_STT_ID == 3`)**: Đã hoàn thành / có kết quả 👉 **TUYỆT ĐỐI KHÔNG xóa**.
+  2. **Hủy toàn bộ phiếu y lệnh**:
+     ```powershell
+     .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ServiceReqId|ServiceReqCode>
+     ```
+     - Script tự động kiểm tra rào chắn trạng thái trắng, tự động hủy văn bản ký EMR liên kết (nếu có), và gọi API `api/HisServiceReq/Delete` với `RequestRoomId` của khoa 57.
+  3. **Hủy dịch vụ con đơn lẻ trong phiếu**:
+     ```powershell
+     .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
+     ```
+* **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.

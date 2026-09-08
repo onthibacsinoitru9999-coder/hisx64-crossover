@@ -1056,14 +1056,41 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
    - *Bản chất*: Khi Bác sĩ hỏi tình hình của 1 buồng cụ thể (VD: `Phòng 714`), Agent CHỈ kiểm tra và trả lời đúng buồng đó.
    - *Quy tắc phản hồi*: Nếu buồng rỗng (`0 bệnh nhân`), báo ngay lập tức trong 5-10 giây: **"Phòng 714 hiện đang trống (0 bệnh nhân)"**.
    - *Nghiêm cấm*: Tuyệt đối không tự ý chạy quét các buồng khác (712, 715, 716, 724...), không tự ý viết script cào lịch sử bệnh nhân cũ đã xuất viện/chuyển buồng từ các ngày trước, không tự động quét toàn viện (`--all`) khi không có yêu cầu, tránh làm loãng thông tin và lãng phí thời gian của Bác sĩ.
+5. **Bẫy Lỗi Xóa Y Lệnh & Dịch Vụ: "Chỉ Định Màu Trắng" vs "Bác Sĩ Khác Chỉ Định"**:
+   - *Bản chất*: Trên giao diện HIS Desktop, nút thùng rác bị mờ (disable) khi y lệnh do bác sĩ khác tạo là do kiểm tra ở tầng UI (`loginName == REQUEST_LOGINNAME`).
+   - *Backend API*: Máy chủ Backend MOS (`POST api/HisServiceReq/Delete`) HOÀN TOÀN KHÔNG RÀNG BUỘC `REQUEST_LOGINNAME`. Bất kỳ bác sĩ nào có Token hợp lệ tại khoa/phòng điều trị (`RequestRoomId`) đều có quyền xóa khi y lệnh ở trạng thái chưa thực hiện (`SERVICE_REQ_STT_ID == 1`).
+   - *Tuyệt đối cấm*: Không được sửa tên người chỉ định trong CSDL về tài khoản của mình rồi xóa, vì vi phạm Audit Trail và hoàn toàn thừa thãi.
+   - *Rào chắn*: Nếu y lệnh có văn bản EMR ký số đi kèm, bắt buộc phải hủy văn bản EMR qua `api/EmrDocument/Delete` trước.
+
+---
+
+## 21. QUY TRÌNH HỦY/XÓA Y LỆNH & DỊCH VỤ CHƯA THỰC HIỆN (CHỈ ĐỊNH MÀU TRẮNG)
+
+### 21.1. Bản Chất Nghiệp Vụ & Phân Loại Màu Sắc Y Lệnh
+* ⚪ **Chỉ định màu trắng (`SERVICE_REQ_STT_ID = 1`)**: Chưa thực hiện, chưa tiếp nhận mẫu, chưa có kết quả (`FINISH_TIME == null`), chưa khóa viện phí / thanh toán (`IS_PAID == 0`). 👉 **Được phép hủy/xóa**.
+* 🟡 **Chỉ định màu vàng (`SERVICE_REQ_STT_ID = 2`)**: Đang thực hiện / đã tiếp nhận mẫu tại phòng xét nghiệm/CĐHA. 👉 **Cấm xóa trực tiếp**, phải liên hệ phòng thực hiện hủy tiếp nhận trên HIS trước.
+* 🟢 **Chỉ định màu xanh (`SERVICE_REQ_STT_ID = 3`)**: Đã hoàn thành / đã trả kết quả. 👉 **Tuyệt đối cấm xóa**.
+
+### 21.2. Các Lệnh Thực Thi Chuẩn Hóa Trên `HisClinicalCli.exe`
+```powershell
+# 1. Tra cứu toàn bộ y lệnh của bệnh nhân kèm trạng thái màu sắc và đánh dấu [CÓ THỂ HỦY/XÓA]:
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN|MãĐT|Tên>
+
+# 2. Hủy toàn bộ phiếu y lệnh (Tự động kiểm tra màu trắng và dọn dẹp văn bản EMR nếu có):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ServiceReqId|ServiceReqCode>
+
+# 3. Hủy 1 dịch vụ con đơn lẻ bên trong phiếu (Gọi ExamDelete):
+.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
+```
+
+### 21.3. Cấu Trúc API Backend
+* **Endpoint Xóa Phiếu Y Lệnh**: `POST api/HisServiceReq/Delete`
+  - Host: `http://192.168.7.236:1608/` (`ApiConsumers.MosConsumer`)
+  - Payload: `MOS.SDO.HisServiceReqSDO { Id = serviceReqId, RequestRoomId = roomId }`
+* **Endpoint Xóa Dịch Vụ Lẻ**: `POST api/HisSereServ/ExamDelete`
+  - Payload: `HIS_SERE_SERV { ID = sereServId }`
+* **Endpoint Xóa Văn Bản Ký EMR (nếu có)**: `POST api/EmrDocument/Delete`
+  - Host: `http://192.168.7.239:1415/` (`ApiConsumers.EmrConsumer`)
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
-
-
-
-
-
-
-
-
