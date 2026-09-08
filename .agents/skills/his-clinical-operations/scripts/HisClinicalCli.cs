@@ -1291,8 +1291,7 @@ public class HisClinicalCli
         }
 
         // RÀO CHẮN 4: Thực thi xóa ServiceReq qua API MOS Backend
-        long reqRoomId = customRoomId ?? req.REQUEST_ROOM_ID;
-        if (reqRoomId <= 0) reqRoomId = 5252; // Mặc định P712 Khoa 57
+        long reqRoomId = customRoomId ?? (req.REQUEST_ROOM_ID > 0 ? req.REQUEST_ROOM_ID : 5248);
 
         var sdo = new HisServiceReqSDO
         {
@@ -1302,6 +1301,14 @@ public class HisClinicalCli
 
         Console.WriteLine(string.Format("🚀 Đang gửi lệnh xóa y lệnh đến Backend MOS (RequestRoomId: {0})...", reqRoomId));
         bool isSuccess = myAdapter.PostData<bool>("api/HisServiceReq/Delete", mosConsumer, sdo, param);
+
+        if (!isSuccess && reqRoomId != 5248 && customRoomId == null)
+        {
+            Console.WriteLine("⚠️ Thử lại lệnh xóa với Phòng làm việc chính (RequestRoomId: 5248)...");
+            sdo.RequestRoomId = 5248;
+            param = new CommonParam();
+            isSuccess = myAdapter.PostData<bool>("api/HisServiceReq/Delete", mosConsumer, sdo, param);
+        }
 
         if (isSuccess)
         {
