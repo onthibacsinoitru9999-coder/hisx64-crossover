@@ -781,6 +781,7 @@ Khi gặp lỗi lần đầu, Agent PHẢI kiểm tra theo thứ tự ưu tiên:
 | **OpenRouter trả lỗi 429 hoặc 402** | Hết credit hoặc rate-limit mô hình. | Dùng `openrouter_client.py` tự động chuyển tầng sang `minimax/minimax-m3:free` hoặc `google/gemma-4-31b-it:free`. |
 | **Kê tủ trực báo `CacKhoLaTuTrucKhongChoPhepKe`** | Tủ trực ở một số khoa/cơ sở (VD: CSNB Tủ 3E `5142`) cấu hình chặn kê đơn trực tiếp qua API `InPatientPresCreate`. | **Quy tắc bắt buộc**: Báo cáo ngay cho Bác sĩ nguyên nhân kỹ thuật, tuyệt đối không tự ý chuyển sang Kho Dược mà không thông báo và xin ý kiến Bác sĩ. |
 | **`InPatientPresCreate` trả về `Success: false` không rõ mã lỗi** | Token chưa được kích hoạt phòng làm việc (`WorkInfo`) tương ứng với buồng bệnh (`RequestRoomId`) và phòng trực (`5248`). | Gọi `POST api/Token/UpdateWorkInfo` với `WorkInfoSDO` chứa danh sách phòng bệnh nhân (`RoomId = 5257, 5259...`) và phòng trực (`5248`) trước khi gọi API kê đơn. |
+| **Sao thuốc / Kê đơn cho các ngày tới (`InstructionTimes` tương lai) bị từ chối ở Kho Tủ Trực 810** | Tủ trực chỉ cho phép xuất thuốc trong ca/ngày hiện tại, không hỗ trợ xuất trước qua các ngày tới. | Tự động chuyển sang Kho Dược xuất viện: Kho thuốc ống `4209`, Kho dịch truyền `804`, Kho hướng thần `4208`, Kho thuốc viên `4210` để Dược viện duyệt và cấp về khoa. |
 
 ---
 
