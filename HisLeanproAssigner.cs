@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Reflection;
 using System.Collections.Generic;
@@ -84,10 +84,9 @@ public class HisLeanproAssigner
         try
         {
             CommonParam p = new CommonParam();
-            var workInfo = new WorkInfoSDO
-            {
-                Rooms = new List<RoomSDO> { new RoomSDO { RoomId = roomId } }
-            };
+            var rooms = new List<RoomSDO> { new RoomSDO { RoomId = roomId } };
+            if (roomId != 5248) rooms.Add(new RoomSDO { RoomId = 5248 });
+            var workInfo = new WorkInfoSDO { Rooms = rooms };
             adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", consumer, workInfo, p);
         }
         catch { }
@@ -157,10 +156,10 @@ public class HisLeanproAssigner
         };
 
         CommonParam cp = new CommonParam();
-        var res = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", consumer, sdo, cp);
-        if (res != null && res.Tracking != null)
+        var res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cp);
+        if (res != null && res.ID > 0)
         {
-            return res.Tracking.ID;
+            return res.ID;
         }
         return 0;
     }
@@ -279,6 +278,11 @@ public class HisLeanproAssigner
         {
             string cleanCode = code.Trim();
             if (string.IsNullOrEmpty(cleanCode)) continue;
+
+            if (cleanCode.All(char.IsDigit) && cleanCode.Length < 10)
+            {
+                cleanCode = cleanCode.PadLeft(10, '0');
+            }
 
             Console.WriteLine(string.Format("🔍 Đang tra cứu hồ sơ: {0}...", cleanCode));
 
