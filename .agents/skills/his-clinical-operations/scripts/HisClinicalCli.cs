@@ -1150,11 +1150,17 @@ public class HisClinicalCli
         }
 
         string ok = orderKey.Trim();
-        long reqId = 0;
-        bool isNumeric = long.TryParse(ok, out reqId);
-
         List<V_HIS_SERVICE_REQ> reqs = null;
-        if (isNumeric)
+
+        // Nếu chuỗi bắt đầu bằng 0 hoặc có độ dài >= 11 ký tự -> Ưu tiên tìm theo SERVICE_REQ_CODE trước (tránh nhầm sang ID)
+        if (ok.StartsWith("0") || ok.Length >= 11)
+        {
+            HisServiceReqViewFilter srfCode = new HisServiceReqViewFilter { SERVICE_REQ_CODE = ok };
+            reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfCode, param);
+        }
+
+        long reqId = 0;
+        if ((reqs == null || reqs.Count == 0) && long.TryParse(ok, out reqId))
         {
             HisServiceReqViewFilter srfId = new HisServiceReqViewFilter { ID = reqId };
             reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfId, param);
