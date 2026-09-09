@@ -400,14 +400,49 @@ Khi chuẩn bị người bệnh trước phẫu thuật phiên (kê vào buổi
 * Lọc nhanh theo Buồng bệnh, Phân loại (Xét nghiệm, CĐHA, Siêu âm, TDCN, GPB).
 * 1-Click xuất báo cáo Excel (CSV) và Copy bản tin giao ban dán Zalo/Viber.
 
-### 8.3. Bảng Quy Tắc Bilan Tiền Phẫu & Cảnh Báo An Toàn Bắt Buộc:
-1. ⚠️ **Bơm xi măng thân đốt sống (BXM / Kyphoplasty / Vertebroplasty):** BẮT BUỘC phải có kết quả **Đo mật độ xương (DEXA - T-score)** kèm MRI cột sống trước khi thông qua mổ.
-2. 🫀 **Chỉ định Siêu âm tim (Echocardiography) trước mổ:**
-   - **BN > 60 tuổi:** BẮT BUỘC có Siêu âm tim.
-   - **BN > 50 tuổi có tiền sử tim mạch / THA / ĐTĐ / NMCT cũ:** BẮT BUỘC có Siêu âm tim.
-3. 👁️ **Khám chuyên khoa Mắt (Soi đáy mắt):**
-   - Áp dụng cho bệnh nhân phẫu thuật có **tư thế nằm sấp** (Cột sống ngực, thắt lưng, giải ép, CĐCS, BXM) có **tiền sử Đái tháo đường**.
-   - Mục đích sàng lọc bệnh võng mạc đái tháo đường, dự phòng thiếu máu thị thần kinh.
+### 8.3. Bảng Quy Tắc Bilan Mổ Phiên Chuẩn & Cảnh Báo An Toàn Bắt Buộc (Cập nhật 09/2026):
+
+Hệ thống phân định rõ ràng 2 nhánh Bilan mổ phiên chuyên biệt cho Khoa CTCH & Cột Sống (Khoa 57):
+
+#### 🦴 Nhánh 1: Bilan Mổ Cột Sống (Spine Surgery Bilan)
+* **1. Xét nghiệm máu & nước tiểu bắt buộc:**
+  - **`CTM`**: Tổng phân tích tế bào máu ngoại vi (Laser - `BM00110`).
+  - **`NM`**: Định nhóm máu hệ ABO, Rh(D) (`BM01700`).
+  - **`ĐMCB (3 chỉ số)`**: PT/TQ (`BM00531`), APTT/TCK (`BM260527.52`), Fibrinogen (`BM00542`).
+  - **`SHM (6 chỉ số)`**: Urê (`BM02304`), Creatinin (`BM01361`), Glucose (`BM10249`), GOT/AST (`BM01352`), GPT/ALT (`BM01347`), Điện giải đồ Na/K/Cl (`BM00132`).
+  - **`Bilan Virus (3 chỉ số)`**: HIV Ag/Ab (`BM00871`), HBsAg (`BM00859`), HCV Ab (`BM00837`).
+  - **`TPTNT`**: Tổng phân tích nước tiểu tự động (`BM02998`).
+* **2. Thăm dò chức năng & Chẩn đoán hình ảnh:**
+  - **`ĐTĐ`**: Điện tâm đồ thường (ECG - `BM04258`).
+  - **`SAOB`**: Siêu âm ổ bụng tổng quát gan mật tụy lách thận (`BM00199`).
+  - **`XQP`**: X-quang tim phổi thẳng (`BM21074` / `BM00338`).
+  - **`XQ cột sống`**: Chụp X-quang cột sống thẳng, nghiêng theo tầng tổn thương.
+  - **`MRI cột sống`**: Chụp cộng hưởng từ cột sống (xác định phù tủy xương, chèn ép tủy/rễ).
+* **3. Điều kiện & Cảnh báo an toàn chuyên khoa:**
+  - 🫀 **Siêu âm tim (`SAT`)**: BẮT BUỘC có khi **BN > 60 tuổi** HOẶC **BN > 50 tuổi có bệnh lý nền** (THA, ĐTĐ, bệnh mạch vành...).
+  - 🦴 **Đo mật độ xương (`MĐX / DEXA - T-score`)**: BẮT BUỘC với **tất cả bệnh nhân có xẹp đốt sống** (dự kiến bơm xi măng BXM, Kyphoplasty, Vertebroplasty hoặc CĐCS).
+  - 👁️ **Khám chuyên khoa Mắt (Soi đáy mắt)**: BẮT BUỘC với bệnh nhân phẫu thuật **tư thế nằm sấp (Prone position)** VÀ **có tiền sử Đái tháo đường** (sàng lọc bệnh võng mạc, phòng ngừa thiếu máu thị thần kinh).
+
+---
+
+#### 🦿 Nhánh 2: Bilan Mổ Chấn Thương (Trauma & Orthopedic Bilan)
+* **1. Xét nghiệm máu & nước tiểu bắt buộc:**
+  - **`CTM`**: Tổng phân tích tế bào máu ngoại vi (Laser - `BM00110`).
+  - **`NM`**: Định nhóm máu hệ ABO, Rh(D) (`BM01700`).
+  - **`ĐMCB (3 chỉ số)`**: PT/TQ (`BM00531`), APTT/TCK (`BM260527.52`), Fibrinogen (`BM00542`).
+  - **`SHM (6 chỉ số)`**: Urê (`BM02304`), Creatinin (`BM01361`), Glucose (`BM10249`), GOT/AST (`BM01352`), GPT/ALT (`BM01347`), Điện giải đồ Na/K/Cl (`BM00132`).
+  - **`Bilan Virus (3 chỉ số)`**: HIV Ag/Ab (`BM00871`), HBsAg (`BM00859`), HCV Ab (`BM00837`).
+  - **`TPTNT`**: Tổng phân tích nước tiểu tự động (`BM02998`).
+* **2. Thăm dò chức năng & Chẩn đoán hình ảnh:**
+  - **`ĐTĐ`**: Điện tâm đồ thường (ECG - `BM04258`).
+  - **`SAOB`**: Siêu âm ổ bụng tổng quát gan mật tụy lách thận (`BM00199`).
+  - **`XQP`**: X-quang tim phổi thẳng (`BM21074` / `BM00338`).
+  - **`XQ chi`**: X-quang vị trí chi/xương tổn thương (thẳng, nghiêng).
+  - **`CLVT (CT-Scanner)`**: Chụp cắt lớp vi tính chi/khớp/xương khi cần (gãy phức tạp, nội khớp, đa chấn thương).
+  - **`SAM (Siêu âm mạch)`**: Siêu âm Doppler mạch máu chi khi nghi ngờ tổn thương mạch máu hoặc huyết khối tĩnh mạch sâu.
+* **3. Điều kiện & Cảnh báo an toàn chuyên khoa:**
+  - 🫀 **Siêu âm tim (`SAT`)**: BẮT BUỘC có khi **BN > 60 tuổi** HOẶC **BN > 50 tuổi có bệnh lý tim mạch (TM)** (THA, bệnh mạch vành, rối loạn nhịp, van tim...).
+
 
 ### 8.4. Luồng Tự Động Hóa "Thợ Cho Đường Huyết" - Quy Trình Phối Hợp Mới (Cập nhật)
 * **Bí danh đặc quyền**: "thợ cho đường huyết" (Hoặc "tho cho duong huyet").

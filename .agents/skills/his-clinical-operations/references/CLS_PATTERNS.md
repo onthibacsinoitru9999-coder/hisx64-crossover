@@ -4,62 +4,73 @@ Tài liệu tham khảo các bộ chỉ định chuẩn xác định theo mặt 
 
 ---
 
-## 1. Bộ Bilan Xét Nghiệm Trước Mổ / Thường Quy Đa Chấn Thương
+## 1. Bộ Bilan Mổ Phiên Chuẩn Khoa 57 (Cập nhật 09/2026)
 
-| Mã DV | Tên Dịch vụ | Service ID | Khoa / Phòng thực hiện | Ghi chú lâm sàng |
-| :--- | :--- | :--- | :--- | :--- |
-| **`BM260527.94`** | **Định lượng Troponin Ths** *(Sau 28/5/2026)* | **`63596`** | Phòng XN Sinh Hóa (`410` - `P168`) | Hoại tử cơ tim, trước mổ |
-| **`BM08918`** | Định lượng Troponin Ths *(Trước 28/5/2026)* | `5920` | Phòng XN Sinh Hóa (`410` - `P168`) | Bệnh nhân cũ |
-| **`BM00110`** | Tổng phân tích tế bào máu ngoại vi bằng laser | `5745` | Phòng XN Huyết học tế bào (`1772`) | Theo dõi mất máu, nhiễm trùng |
-| **`BM00108`** | Đông máu cơ bản (PT, APTT, Fibrinogen) | `2658` | Phòng XN Huyết học đông máu (`1773`) | Rối loạn đông máu trước mổ |
-| **`BM00115`** | Sinh hóa máu: Định lượng Ure | `2663` | Phòng XN Sinh Hóa (`410` - `P168`) | Chức năng thận |
-| **`BM00116`** | Sinh hóa máu: Định lượng Creatinin | `2664` | Phòng XN Sinh Hóa (`410` - `P168`) | Chức năng thận |
-| **`BM00117`** | Sinh hóa máu: Định lượng GOT (AST) | `2665` | Phòng XN Sinh Hóa (`410` - `P168`) | Chức năng gan |
-| **`BM00118`** | Sinh hóa máu: Định lượng GPT (ALT) | `2666` | Phòng XN Sinh Hóa (`410` - `P168`) | Chức năng gan |
-| **`BM00120`** | Sinh hóa máu: Điện giải đồ (Na, K, Cl) | `2668` | Phòng XN Sinh Hóa (`410` - `P168`) | Rối loạn điện giải |
-| **`BM00125`** | Tổng phân tích nước tiểu (10 thông số) | `2673` | Phòng XN Sinh Hóa (`410` - `P168`) | Bilan tổng quát |
-| **`BM00085`** | Điện tim đồ (ECG) | `10074`| Phòng Thăm dò chức năng (`1771`) | Đánh giá tim mạch |
-| **`BM00103`** | Xét nghiệm Khí máu động mạch (11 thông số) | `5886` | Phòng XN Sinh Hóa (`410` - `P168`) | Suy hô hấp, tiền phẫu |
+### 🦴 Nhánh A: Bilan Mổ Cột Sống (Spine Surgery)
+| Mã DV | Tên Dịch Vụ / Chỉ Định | Service ID | Phòng Thực Hiện | Ghi Chú Lâm Sàng |
+| :--- | :--- | :---: | :--- | :--- |
+| **`BM00110`** | Tổng phân tích tế bào máu laser (`CTM`) | `5745` | P.XN Huyết học tế bào (`1772`) | Bắt buộc |
+| **`BM01700`** | Định nhóm máu ABO, Rh(D) Gelcard (`NM`) | `5783` | P.XN Truyền máu (`1464`) | Bắt buộc |
+| **`BM00531`** | Thời gian Prothrombin PT/TQ tự động (`ĐMCB 1/3`) | `5713` | P.XN Đông máu (`626`) | Bắt buộc |
+| **`BM260527.52`** | Thời gian APTT/TCK tự động (`ĐMCB 2/3`) | `63622` | P.XN Đông máu (`626`) | Bắt buộc |
+| **`BM00542`** | Định lượng Fibrinogen Clauss tự động (`ĐMCB 3/3`) | `5716` | P.XN Đông máu (`626`) | Bắt buộc |
+| **`BM02304`** | Sinh hóa máu: Định lượng Urê [Máu] | `5923` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM01361`** | Sinh hóa máu: Định lượng Creatinin [Máu] | `5934` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM10249`** | Sinh hóa máu: Định lượng Glucose | `5864` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM01352`** | Sinh hóa máu: Đo hoạt độ AST (GOT) | `5834` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM01347`** | Sinh hóa máu: Đo hoạt độ ALT (GPT) | `5833` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM00132`** | Sinh hóa máu: Điện giải đồ (Na, K, Cl) | `5853` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM00871`** | HIV Ag/Ab miễn dịch tự động | `6020` | P.XN Virus Vi sinh (`871`) | Bắt buộc |
+| **`BM00859`** | HBsAg miễn dịch tự động | `6135` | P.XN Virus Vi sinh (`871`) | Bắt buộc |
+| **`BM00837`** | HCV Ab miễn dịch tự động | `6147` | P.XN Virus Vi sinh (`871`) | Bắt buộc |
+| **`BM02998`** | Tổng phân tích nước tiểu tự động (`TPTNT`) | `5950` | P.XN Nước tiểu (`566`) | Bắt buộc |
+| **`BM04258`** | Điện tâm đồ thường (`ĐTĐ / ECG`) | `920` | P.Tiểu phẫu Nhà Q (`5248`/`931`) | Bắt buộc |
+| **`BM00199`** | Siêu âm ổ bụng tổng quát (`SAOB`) | `5567` | P.Tiếp đón Siêu âm (`17547`) | Bắt buộc |
+| **`BM21074`** | Chụp X-quang tim phổi thẳng (`XQP`) | `58112` | P.Tiếp đón X-quang (`17552`) | Bắt buộc |
+| **`BM00078`** | Chụp X-quang cột sống thẳng, nghiêng | `5576` | P.Tiếp đón X-quang (`17552`) | Bắt buộc theo tầng tổn thương |
+| **`BM00482.260119`**| Chụp cộng hưởng từ cột sống (`MRI`) | `58292` | P.Tiếp đón MRI (`17548`) | Bắt buộc |
+| **`BM00201`** | Siêu âm Doppler tim, van tim (`SAT`) | `5569` | P.Tiếp đón Siêu âm (`1715`) | **BN > 60t HOẶC > 50t có bệnh lý** |
+| **`BM08085`** | Đo mật độ xương DEXA 2 vị trí (`MĐX`) | `161` | P202 Nhà K2 (`6462`) | **Bắt buộc với BN xẹp đốt sống** |
+| **Khám Mắt** | Khám chuyên khoa Mắt (Soi đáy mắt) | - | Khoa Mắt | **Bắt buộc: Mổ nằm sấp + Tiền sử ĐTĐ** |
 
 ---
 
-## 2. Chẩn Đoán Hình Ảnh (X-quang, CT-Scanner, MRI)
-
-| Mã DV | Tên Dịch vụ | Service ID | Phòng thực hiện | Chỉ định cho bệnh lý |
-| :--- | :--- | :--- | :--- | :--- |
-| **`BM00078`** | Chụp X-quang cột sống / xương khớp | `5576` | Phòng Chụp X-quang (`1780` / `17552`) | Gãy xương, thoái hóa khớp |
-| **`BM00079`** | Chụp CLVT (CT-Scanner) sọ não không tiêm thuốc | `5580` | Phòng Chụp CT (`1785`) | Chấn thương sọ não, đa chấn thương |
-| **`BM00080`** | Chụp CLVT dựng hình 3D khớp / xương | `5582` | Phòng Chụp CT (`1785`) | Vỡ xương phức tạp cần phẫu thuật kết hợp xương |
+### 🦿 Nhánh B: Bilan Mổ Chấn Thương (Trauma & Orthopedics)
+| Mã DV | Tên Dịch Vụ / Chỉ Định | Service ID | Phòng Thực Hiện | Ghi Chú Lâm Sàng |
+| :--- | :--- | :---: | :--- | :--- |
+| **`BM00110`** | Tổng phân tích tế bào máu laser (`CTM`) | `5745` | P.XN Huyết học tế bào (`1772`) | Bắt buộc |
+| **`BM01700`** | Định nhóm máu ABO, Rh(D) Gelcard (`NM`) | `5783` | P.XN Truyền máu (`1464`) | Bắt buộc |
+| **`BM00531`** | Thời gian Prothrombin PT/TQ tự động (`ĐMCB 1/3`) | `5713` | P.XN Đông máu (`626`) | Bắt buộc |
+| **`BM260527.52`** | Thời gian APTT/TCK tự động (`ĐMCB 2/3`) | `63622` | P.XN Đông máu (`626`) | Bắt buộc |
+| **`BM00542`** | Định lượng Fibrinogen Clauss tự động (`ĐMCB 3/3`) | `5716` | P.XN Đông máu (`626`) | Bắt buộc |
+| **`BM02304`** | Sinh hóa máu: Định lượng Urê [Máu] | `5923` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM01361`** | Sinh hóa máu: Định lượng Creatinin [Máu] | `5934` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM10249`** | Sinh hóa máu: Định lượng Glucose | `5864` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM01352`** | Sinh hóa máu: Đo hoạt độ AST (GOT) | `5834` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM01347`** | Sinh hóa máu: Đo hoạt độ ALT (GPT) | `5833` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM00132`** | Sinh hóa máu: Điện giải đồ (Na, K, Cl) | `5853` | P.XN Sinh hóa (`410`) | Bắt buộc |
+| **`BM00871`** | HIV Ag/Ab miễn dịch tự động | `6020` | P.XN Virus Vi sinh (`871`) | Bắt buộc |
+| **`BM00859`** | HBsAg miễn dịch tự động | `6135` | P.XN Virus Vi sinh (`871`) | Bắt buộc |
+| **`BM00837`** | HCV Ab miễn dịch tự động | `6147` | P.XN Virus Vi sinh (`871`) | Bắt buộc |
+| **`BM02998`** | Tổng phân tích nước tiểu tự động (`TPTNT`) | `5950` | P.XN Nước tiểu (`566`) | Bắt buộc |
+| **`BM04258`** | Điện tâm đồ thường (`ĐTĐ / ECG`) | `920` | P.Tiểu phẫu Nhà Q (`5248`/`931`) | Bắt buộc |
+| **`BM00199`** | Siêu âm ổ bụng tổng quát (`SAOB`) | `5567` | P.Tiếp đón Siêu âm (`17547`) | Bắt buộc |
+| **`BM21074`** | Chụp X-quang tim phổi thẳng (`XQP`) | `58112` | P.Tiếp đón X-quang (`17552`) | Bắt buộc |
+| **`BM00078`** | Chụp X-quang xương chi tổn thương (`XQ chi`) | `5576` | P.Tiếp đón X-quang (`17552`) | Bắt buộc theo vị trí gãy xương |
+| **`BM00400.260119`**| Chụp cắt lớp vi tính chi/khớp (`CLVT`) | `58191` | P.Tiếp đón CLVT (`17549`) | Chỉ định khi cần (vỡ phức tạp, nội khớp) |
+| **`BM00203`** | Siêu âm Doppler mạch máu chi (`SAM`) | `5571` | P.Tiếp đón Siêu âm (`17547`) | Chỉ định khi nghi tổn thương mạch/huyết khối |
+| **`BM00201`** | Siêu âm Doppler tim, van tim (`SAT`) | `5569` | P.Tiếp đón Siêu âm (`1715`) | **BN > 60t HOẶC > 50t có bệnh lý Tim mạch (TM)** |
 
 ---
 
-## 3. Bilan Bắt Buộc Theo Nhóm Bệnh Phẫu Thuật Đặc Thù
+## 2. Quy Tắc Cảnh Báo An Toàn Bắt Buộc (Surgical Safety Guardrails)
+1. 🦴 **Bệnh nhân xẹp đốt sống**: Phải có kết quả **Đo mật độ xương (DEXA - T-score)** kèm MRI cột sống trước khi thông qua mổ.
+2. 🫀 **Siêu âm tim (Echocardiography)**:
+   - Cột sống: Bắt buộc khi **> 60 tuổi** hoặc **> 50 tuổi có bệnh lý nền**.
+   - Chấn thương: Bắt buộc khi **> 60 tuổi** hoặc **> 50 tuổi có bệnh lý Tim mạch (TM)**.
+3. 👁️ **Khám chuyên khoa Mắt (Soi đáy mắt)**:
+   - Bắt buộc với bệnh nhân phẫu thuật **tư thế nằm sấp (Prone position)** VÀ **có tiền sử Đái tháo đường**.
 
-### 🦴 Ca Xẹp Đốt Sống / Phẫu Thuật Bơm Xi Măng Thân Đốt (BXM / Kyphoplasty / Vertebroplasty):
-* ⚠️ **BẮT BUỘC PHẢI CÓ:**
-  1. **Đo mật độ xương (DEXA - Dual-energy X-ray Absorptiometry / T-score):** Đánh giá chính xác mức độ loãng xương (T-score), chỉ số bắt buộc trong biên bản thông qua mổ và định hướng điều trị nội khoa chống loãng xương sau can thiệp.
-  2. **Chụp cộng hưởng từ (MRI) cột sống thắt lưng - ngực:** Xác định phù nề tủy xương thân đốt (xẹp cấp tính / bán cấp) để quyết định vị trí đốt cần bơm xi măng.
-  3. **Chụp X-quang cột sống thẳng, nghiêng:** Đánh giá mức độ xẹp lún và hình thái cột sống.
-  4. **Bilan tiền phẫu cơ bản:** CTM, Đông máu cơ bản (PT, INR, APTT, Fib), Sinh hóa gan thận đường máu, Điện giải đồ, Bilan virus (HIV, HBsAg, HCV), Nhóm máu ABO/Rh, X-quang ngực thẳng, ECG.
-
-### 🫀 Quy Tắc Chỉ Định Siêu Âm Tim Tiền Phẫu (Echocardiography):
-* ⚠️ **BẮT BUỘC RÀ SOÁT / CHỈ ĐỊNH SIÊU ÂM TIM TRONG CÁC TRƯỜNG HỢP:**
-  1. **Người bệnh > 60 tuổi:** Bắt buộc có Siêu âm tim Doppler màu đánh giá chức năng tâm thu thất trái (EF%), hở hẹp van tim, tăng áp lực ĐMP trước mổ.
-  2. **Người bệnh > 50 tuổi có bệnh lý nền liên quan tim mạch / chuyển hóa:**
-     - Tăng huyết áp (THA).
-     - Đái tháo đường (ĐTĐ type 1, type 2).
-     - Bệnh tim thiếu máu cục bộ / Bệnh mạch vành / Tiền sử Nhồi máu cơ tim (NMCT cũ).
-     - Rối loạn nhịp tim, Suy tim, Bệnh van tim.
-     - Tiền sử tai biến mạch máu não / Đột quỵ cũ.
-  3. Khi soát bilan hoặc tạo biên bản thông qua mổ (`PT-01`): Nếu chưa có Siêu âm tim, tự động liệt kê vào danh sách **cần bổ sung trước mổ**.
-
-### 👁️ Quy Tắc Khám Mắt Tiền Phẫu (Soi Đáy Mắt):
-* ⚠️ **BẮT BUỘC KHÁM CHUYÊN KHOA MẮT KHI:**
-  1. **Người bệnh mổ ở tư thế nằm sấp (Prone position):** Phẫu thuật cột sống lối sau (cố định cột sống thắt lưng/ngực nẹp vít qua cuống, giải ép bản sống, mổ thoát vị đĩa đệm, tạo hình thân đốt sống bơm xi măng sinh học BXM...).
-  2. **VÀ có tiền sử Đái tháo đường (ĐTĐ type 1, ĐTĐ type 2):**
-     - Đánh giá tổn thương đáy mắt, bệnh võng mạc đái tháo đường (Diabetic Retinopathy).
-     - Phòng ngừa biến chứng thiếu máu thần kinh thị giác cục bộ (Ischemic Optic Neuropathy) và tăng nhãn áp do tư thế nằm sấp kéo dài trong phẫu thuật.
-  3. **Hành động:** Khi soát bilan mổ hoặc soạn biên bản thông qua mổ (`PT-01`): Nếu bệnh nhân thuộc diện mổ nằm sấp + có tiền sử ĐTĐ mà chưa có phiếu khám mắt $\rightarrow$ **Tự động cảnh báo và yêu cầu chỉ định Hội chẩn / Khám chuyên khoa Mắt**.
 
 ---
 

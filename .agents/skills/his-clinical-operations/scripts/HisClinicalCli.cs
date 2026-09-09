@@ -82,6 +82,9 @@ public class HisClinicalCli
         { "HIV_AB", new ServiceTarget(6020, 871, "BM00871", "HIV Ag/Ab miễn dịch tự động") },
         { "ECG", new ServiceTarget(920, 931, "BM04258", "Điện tim thường (ECG)") },
         { "ECHO_HEART", new ServiceTarget(5569, 1715, "BM00201", "Siêu âm Doppler tim, van tim", "điều dưỡng đưa bằng cáng - cs ii") },
+        { "GLUCOSE", new ServiceTarget(5864, 410, "BM10249", "Định lượng Glucose [Máu]") },
+        { "US_ABDOMEN", new ServiceTarget(5567, 17547, "BM00199", "Siêu âm ổ bụng tổng quát", "điều dưỡng đưa bằng cáng - cs ii") },
+        { "US_VASCULAR", new ServiceTarget(5571, 17547, "BM00203", "Siêu âm Doppler mạch máu chi", "điều dưỡng đưa bằng cáng - cs ii") },
         { "DEXA_2POS", new ServiceTarget(161, 6462, "BM08085", "Đo mật độ xương DEXA [2 vị trí]", "điều dưỡng đưa bằng cáng - cs ii") },
         { "XRAY_CHEST", new ServiceTarget(58112, 17552, "BM21074", "X-quang ngực thẳng số hóa") },
         { "GLUCOSE_BEDSIDE", new ServiceTarget(6217, 5248, "BM02426", "Xét nghiệm đường máu mao mạch tại giường (một lần)") }
@@ -763,75 +766,116 @@ public class HisClinicalCli
         {
             title = "BILAN MỔ BƠM XI MĂNG CỘT SỐNG (VERTEBROPLASTY)";
             targetList.Add(PredefinedServices["CBC_LASER"]);
-            targetList.Add(PredefinedServices["FIBRINOGEN"]);
+            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
             targetList.Add(PredefinedServices["PT_TQ"]);
             targetList.Add(PredefinedServices["APTT_TCK"]);
-            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["FIBRINOGEN"]);
             targetList.Add(PredefinedServices["URE"]);
             targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GLUCOSE"]);
             targetList.Add(PredefinedServices["GOT"]);
             targetList.Add(PredefinedServices["GPT"]);
             targetList.Add(PredefinedServices["ELECTROLYTES"]);
-            targetList.Add(PredefinedServices["HBA1C"]);
-            targetList.Add(PredefinedServices["URINE_10"]);
             targetList.Add(PredefinedServices["HBSAG"]);
             targetList.Add(PredefinedServices["HCV_AB"]);
             targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
             targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["US_ABDOMEN"]);
+            targetList.Add(PredefinedServices["XRAY_CHEST"]);
             targetList.Add(PredefinedServices["ECHO_HEART"]);
             targetList.Add(PredefinedServices["DEXA_2POS"]);
         }
-        else if (packType == "spine" || packType == "nepvit")
+        else if (packType == "spine" || packType == "cotsong" || packType == "nepvit")
         {
-            title = "BILAN MỔ CỐ ĐỊNH CỘT SỐNG (NẸP VÍT QUA CUỐNG / TLIF)";
+            title = "BILAN MỔ CỘT SỐNG (CỐ ĐỊNH NẸP VÍT / GIẢI ÉP / TLIF)";
             targetList.Add(PredefinedServices["CBC_LASER"]);
-            targetList.Add(PredefinedServices["COAGULATION"]);
             targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["PT_TQ"]);
+            targetList.Add(PredefinedServices["APTT_TCK"]);
+            targetList.Add(PredefinedServices["FIBRINOGEN"]);
             targetList.Add(PredefinedServices["URE"]);
             targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GLUCOSE"]);
             targetList.Add(PredefinedServices["GOT"]);
             targetList.Add(PredefinedServices["GPT"]);
             targetList.Add(PredefinedServices["ELECTROLYTES"]);
-            targetList.Add(PredefinedServices["URINE_10"]);
             targetList.Add(PredefinedServices["HBSAG"]);
             targetList.Add(PredefinedServices["HCV_AB"]);
             targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
             targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["US_ABDOMEN"]);
             targetList.Add(PredefinedServices["XRAY_CHEST"]);
-            targetList.Add(PredefinedServices["ECHO_HEART"]);
+        }
+        else if (packType == "trauma" || packType == "chanthuong" || packType == "ortho" || packType == "khx")
+        {
+            title = "BILAN MỔ CHẤN THƯƠNG CHỈNH HÌNH (KẾT HỢP XƯƠNG CHI)";
+            targetList.Add(PredefinedServices["CBC_LASER"]);
+            targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["PT_TQ"]);
+            targetList.Add(PredefinedServices["APTT_TCK"]);
+            targetList.Add(PredefinedServices["FIBRINOGEN"]);
+            targetList.Add(PredefinedServices["URE"]);
+            targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GLUCOSE"]);
+            targetList.Add(PredefinedServices["GOT"]);
+            targetList.Add(PredefinedServices["GPT"]);
+            targetList.Add(PredefinedServices["ELECTROLYTES"]);
+            targetList.Add(PredefinedServices["HBSAG"]);
+            targetList.Add(PredefinedServices["HCV_AB"]);
+            targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
+            targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["US_ABDOMEN"]);
+            targetList.Add(PredefinedServices["XRAY_CHEST"]);
         }
         else if (packType == "hip" || packType == "knee" || packType == "thaykhop")
         {
             title = "BILAN MỔ THAY KHỚP HÁNG / KHỚP GỐI NHÂN TẠO";
             targetList.Add(PredefinedServices["CBC_LASER"]);
-            targetList.Add(PredefinedServices["COAGULATION"]);
             targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["PT_TQ"]);
+            targetList.Add(PredefinedServices["APTT_TCK"]);
+            targetList.Add(PredefinedServices["FIBRINOGEN"]);
             targetList.Add(PredefinedServices["URE"]);
             targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GLUCOSE"]);
             targetList.Add(PredefinedServices["GOT"]);
             targetList.Add(PredefinedServices["GPT"]);
             targetList.Add(PredefinedServices["ELECTROLYTES"]);
             targetList.Add(PredefinedServices["HBSAG"]);
             targetList.Add(PredefinedServices["HCV_AB"]);
             targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
             targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["US_ABDOMEN"]);
             targetList.Add(PredefinedServices["XRAY_CHEST"]);
         }
         else if (packType == "hand" || packType == "viphau")
         {
             title = "BILAN MỔ VI PHẪU / NỐI GÂN MẠCH BÀN TAY";
             targetList.Add(PredefinedServices["CBC_LASER"]);
-            targetList.Add(PredefinedServices["COAGULATION"]);
             targetList.Add(PredefinedServices["BLOOD_GROUP_GEL"]);
+            targetList.Add(PredefinedServices["PT_TQ"]);
+            targetList.Add(PredefinedServices["APTT_TCK"]);
+            targetList.Add(PredefinedServices["FIBRINOGEN"]);
             targetList.Add(PredefinedServices["URE"]);
             targetList.Add(PredefinedServices["CREATININ"]);
+            targetList.Add(PredefinedServices["GLUCOSE"]);
+            targetList.Add(PredefinedServices["GOT"]);
+            targetList.Add(PredefinedServices["GPT"]);
+            targetList.Add(PredefinedServices["ELECTROLYTES"]);
             targetList.Add(PredefinedServices["HBSAG"]);
+            targetList.Add(PredefinedServices["HCV_AB"]);
             targetList.Add(PredefinedServices["HIV_AB"]);
+            targetList.Add(PredefinedServices["URINE_10"]);
             targetList.Add(PredefinedServices["ECG"]);
+            targetList.Add(PredefinedServices["XRAY_CHEST"]);
         }
         else
         {
-            Console.WriteLine(string.Format("❌ Gói Bilan '{0}' không hợp lệ! Hỗ trợ: cement (BXM), spine (Cột sống), hip (Thay khớp), hand (Vi phẫu).", packType));
+            Console.WriteLine(string.Format("❌ Gói Bilan '{0}' không hợp lệ! Hỗ trợ: spine (Cột sống), trauma (Chấn thương), cement (BXM), hip (Thay khớp), hand (Vi phẫu).", packType));
             return;
         }
 
@@ -1502,7 +1546,7 @@ public class HisClinicalCli
             Console.WriteLine("  create-tracking <trId> <content> [dhst..]    : Tạo tờ điều trị và DHST");
             Console.WriteLine("  prescribe <trId> <tkId> <medId> <stId> <amount> <tutorial> : Kê đơn thuốc an toàn");
             Console.WriteLine("  assign-cls <trId> <tkId> <svcId> <roomId> [note] [ptId]    : Chỉ định CLS đơn lẻ");
-            Console.WriteLine("  assign-bilan <trId> <tkId> <cement|spine|hip|hand>         : Chỉ định gói Bilan 1-Click");
+            Console.WriteLine("  assign-bilan <trId> <tkId> <spine|trauma|cement|hip|hand>  : Chỉ định gói Bilan 1-Click");
             Console.WriteLine("  debate <patientCode|treatmentCode>                         : Tra cứu biên bản hội chẩn & ý kiến các chuyên khoa");
             Console.WriteLine("===============================================================================");
             return;

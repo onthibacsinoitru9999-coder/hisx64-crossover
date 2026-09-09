@@ -147,16 +147,18 @@ Phần mềm tự động quét và giám sát 100% các chỉ định Cận Lâ
 - **`SessionCode = null`** (Bắt buộc với y lệnh mới).
 - **`MultipleExecute = 1`** & **`EkipInfos = new List<EkipSDO>()`**.
 - `InstructionTime`, `InstructionTimes`, `UseTimes`, `TrackingInfos` đồng bộ tuyệt đối với `TRACKING_TIME`.
-- **Lưu ý chuyên khoa CTCH & Cột sống & Quy tắc Bilan Tiền Phẫu:**
-  - ⚠️ **Các ca xẹp đốt sống dự kiến phẫu thuật bơm xi măng (BXM / Kyphoplasty / Vertebroplasty):** BẮT BUỘC phải rà soát và có kết quả **Đo mật độ xương (DEXA - T-score)** kèm theo MRI cột sống trước khi thông qua mổ. Khi soát bilan, nếu chưa có DEXA phải chủ động cảnh báo nhắc bác sĩ bổ sung ngay.
-  - 🫀 **Chỉ định Siêu âm tim (Echocardiography) trước mổ:**
-    - **BN > 60 tuổi:** BẮT BUỘC rà soát / chỉ định **Siêu âm tim** đánh giá chức năng tim trước phẫu thuật.
-    - **BN > 50 tuổi có bệnh lý nền liên quan tim mạch** (Tăng huyết áp, Đái tháo đường, Bệnh mạch vành/Nhồi máu cơ tim cũ, Suy tim, Rối loạn nhịp...): BẮT BUỘC rà soát / chỉ định **Siêu âm tim**.
-    - Khi soát bilan hoặc soạn biên bản thông qua mổ: Tự động đối chiếu tuổi và tiền sử bệnh nền của BN để cảnh báo bổ sung Siêu âm tim nếu chưa có.
-  - 👁️ **Khám chuyên khoa Mắt tiền phẫu (Soi đáy mắt):**
-    - **Áp dụng cho:** Bệnh nhân phẫu thuật có **tư thế nằm sấp** (Phẫu thuật cột sống ngực, thắt lưng, cố định cột sống, giải ép, bơm xi măng thân đốt...) có **tiền sử Đái tháo đường (ĐTĐ type 1 / type 2)**.
-    - **Mục đích:** Sàng lọc bệnh võng mạc đái tháo đường, tổn thương vi mạch đáy mắt, dự phòng biến chứng thiếu máu thị thần kinh do tư thế nằm sấp kéo dài.
-    - Khi soát bilan hoặc tạo biên bản thông qua mổ: Tự động cảnh báo và yêu cầu **Hội chẩn / Khám chuyên khoa Mắt** nếu chưa có.
+- **Lưu ý chuyên khoa CTCH & Cột sống & Quy tắc Bilan Mổ Phiên Chuẩn (Cập nhật 09/2026):**
+  - 🦴 **1. Bilan Mổ Cột Sống Bắt Buộc:**
+    - `CTM` (BM00110), `NM` (BM01700), `ĐMCB 3 chỉ số` (PT, APTT, Fibrinogen), `SHM 6 chỉ số` (Ure, Cre, Glu, GOT, GPT, ĐGĐ).
+    - `Bilan Virus 3 chỉ số` (HIV, HBsAg, HCV), `TPTNT` (BM02998), `ĐTĐ` (ECG), `SAOB` (Siêu âm ổ bụng), `XQP` (X-quang ngực thẳng), `XQ cột sống`, `MRI cột sống`.
+    - **Siêu âm tim (`SAT`)**: Bắt buộc khi **> 60 tuổi** HOẶC **> 50 tuổi có bệnh lý nền**.
+    - **Đo mật độ xương (`MĐX / DEXA`)**: Bắt buộc với **tất cả bệnh nhân có xẹp đốt sống**.
+    - **Khám Mắt (Soi đáy mắt)**: Bắt buộc với BN mổ tư thế **nằm sấp (Prone position)** VÀ **có tiền sử Đái tháo đường**.
+  - 🦿 **2. Bilan Mổ Chấn Thương Bắt Buộc:**
+    - `CTM`, `NM`, `ĐMCB 3 chỉ số`, `SHM 6 chỉ số`, `Bilan Virus 3 chỉ số`, `TPTNT`, `ĐTĐ`, `SAOB`, `XQP`, `XQ chi`.
+    - `CLVT (CT-Scanner)`: Chụp khi cần (gãy phức tạp, nát xương, nội khớp, đa chấn thương).
+    - `SAM (Siêu âm mạch)`: Chỉ định khi nghi ngờ tổn thương mạch máu hoặc huyết khối tĩnh mạch.
+    - **Siêu âm tim (`SAT`)**: Bắt buộc khi **> 60 tuổi** HOẶC **> 50 tuổi có bệnh lý Tim mạch (TM)**.
 
 ---
 
