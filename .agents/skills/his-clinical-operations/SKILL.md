@@ -140,25 +140,68 @@ Phần mềm tự động quét và giám sát 100% các chỉ định Cận Lâ
 
 ---
 
-## 5. Quy trình 3: Chỉ Định Cận Lâm Sàng (Xét nghiệm, CĐHA, TDCN)
+## 5. Quy trình 3: Chỉ Định Cận Lâm Sàng Trực Tiếp Bypass UI (Headless CLS) & Gom Ống 1-Barcode
 
-### Endpoint: `api/HisServiceReq/AssignServiceByInstructionTimes`
+### Endpoint: `POST api/HisServiceReq/AssignServiceByInstructionTimes`
 ### Payload: `MOS.SDO.AssignServiceSDO`
-- **`SessionCode = null`** (Bắt buộc với y lệnh mới).
-- **`MultipleExecute = 1`** & **`EkipInfos = new List<EkipSDO>()`**.
-- `InstructionTime`, `InstructionTimes`, `UseTimes`, `TrackingInfos` đồng bộ tuyệt đối với `TRACKING_TIME`.
-- **Lưu ý chuyên khoa CTCH & Cột sống & Quy tắc Bilan Mổ Phiên Chuẩn (Cập nhật 09/2026):**
-  - 🦴 **1. Bilan Mổ Cột Sống Bắt Buộc:**
-    - `CTM` (BM00110), `NM` (BM01700), `ĐMCB 3 chỉ số` (PT, APTT, Fibrinogen), `SHM 6 chỉ số` (Ure, Cre, Glu, GOT, GPT, ĐGĐ).
-    - `Bilan Virus 3 chỉ số` (HIV, HBsAg, HCV), `TPTNT` (BM02998), `ĐTĐ` (ECG), `SAOB` (Siêu âm ổ bụng), `XQP` (X-quang ngực thẳng), `XQ cột sống`, `MRI cột sống`.
-    - **Siêu âm tim (`SAT`)**: Bắt buộc khi **> 60 tuổi** HOẶC **> 50 tuổi có bệnh lý nền**.
-    - **Đo mật độ xương (`MĐX / DEXA`)**: Bắt buộc với **tất cả bệnh nhân có xẹp đốt sống**.
-    - **Khám Mắt (Soi đáy mắt)**: Bắt buộc với BN mổ tư thế **nằm sấp (Prone position)** VÀ **có tiền sử Đái tháo đường**.
-  - 🦿 **2. Bilan Mổ Chấn Thương Bắt Buộc:**
-    - `CTM`, `NM`, `ĐMCB 3 chỉ số`, `SHM 6 chỉ số`, `Bilan Virus 3 chỉ số`, `TPTNT`, `ĐTĐ`, `SAOB`, `XQP`, `XQ chi`.
-    - `CLVT (CT-Scanner)`: Chụp khi cần (gãy phức tạp, nát xương, nội khớp, đa chấn thương).
-    - `SAM (Siêu âm mạch)`: Chỉ định khi nghi ngờ tổn thương mạch máu hoặc huyết khối tĩnh mạch.
-    - **Siêu âm tim (`SAT`)**: Bắt buộc khi **> 60 tuổi** HOẶC **> 50 tuổi có bệnh lý Tim mạch (TM)**.
+
+```csharp
+// 1. Tự động lấy RequestRoomId từ buồng bệnh nhân đang nằm điều trị
+long reqRoomId = ResolvePatientRoomId(treatmentId);
+EnsureWorkInfoForRoom(reqRoomId);
+
+// 2. Gom tất cả dịch vụ trong phiên vào ServiceReqDetails
+var sdo = new AssignServiceSDO
+{
+    TreatmentId = treatmentId,
+    RequestRoomId = reqRoomId,
+    RequestLoginName = "vmc",
+    RequestUserName = "Vũ Minh Cường",
+    InstructionTime = trackingTime,
+    InstructionTimes = new List<long> { trackingTime },
+    UseTimes = new List<long> { trackingTime },
+    TrackingId = trackingId,
+    TrackingInfos = new List<TrackingInfoSDO>
+    {
+        new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime }
+    },
+    IcdCode = tr.ICD_CODE,
+    IcdName = tr.ICD_NAME,
+    IcdSubCode = tr.ICD_SUB_CODE,
+    IcdText = tr.ICD_TEXT,
+    SessionCode = Guid.NewGuid().ToString(),
+    ServiceReqDetails = new List<ServiceReqDetailSDO>
+    {
+        // Nhóm Virus/Miễn dịch (HIV, HBsAg, HCV) -> Cùng phòng 871 (CS1) hoặc 15721 (CS2) -> Gom 1 ống
+        new ServiceReqDetailSDO { ServiceId = 6020, RoomId = 871, Amount = 1.0m, PatientTypeId = 1, InstructionNote = "HIV Ag/Ab" },
+        new ServiceReqDetailSDO { ServiceId = 6135, RoomId = 871, Amount = 1.0m, PatientTypeId = 1, InstructionNote = "HBsAg" },
+        new ServiceReqDetailSDO { ServiceId = 34801, RoomId = 871, Amount = 1.0m, PatientTypeId = 1, InstructionNote = "HCV Ag/Ab" },
+
+        // Nhóm Sinh hóa -> Phòng 410 (CS1) hoặc 15231 (CS2) -> Gom 1 ống
+        new ServiceReqDetailSDO { ServiceId = 5864, RoomId = 410, Amount = 1.0m, PatientTypeId = 1, InstructionNote = "Glucose" },
+        new ServiceReqDetailSDO { ServiceId = 5934, RoomId = 410, Amount = 1.0m, PatientTypeId = 1, InstructionNote = "Creatinin" }
+    }
+};
+
+var res = adapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, sdo, param);
+```
+
+### 🩸 Quy Tắc Sống Còn: Gom Ống Bệnh Phẩm 1-Barcode (Tube Bundling Rule)
+- **Cơ chế gom của MOS**: Backend MOS tự động gom các dịch vụ có cùng `RoomId` trong `ServiceReqDetails` thành **1 `HIS_SERVICE_REQ` duy nhất**.
+- **Tránh nhân bản ống máu**: Luôn gửi toàn bộ các xét nghiệm trong cùng đợt vào **1 request duy nhất**. Tuyệt đối không lặp vòng lặp gọi API nhiều lần để tránh phát sinh nhiều barcode làm bệnh nhân bị lấy nhiều ống máu thừa thãi.
+
+### 🦴 Quy Chuẩn Bilan Mổ Chuẩn Khoa CTCH & Cột Sống:
+- 🦴 **1. Bilan Mổ Cột Sống Bắt Buộc:**
+  - `CTM` (BM00110), `NM` (BM01700), `ĐMCB 3 chỉ số` (PT, APTT, Fibrinogen), `SHM 6 chỉ số` (Ure, Cre, Glu, GOT, GPT, ĐGĐ).
+  - `Bilan Virus 3 chỉ số` (HIV, HBsAg, HCV), `TPTNT` (BM02998), `ĐTĐ` (ECG), `SAOB` (Siêu âm ổ bụng), `XQP` (X-quang ngực thẳng), `XQ cột sống`, `MRI cột sống`.
+  - **Siêu âm tim (`SAT`)**: Bắt buộc khi **> 60 tuổi** HOẶC **> 50 tuổi có bệnh lý nền**.
+  - **Đo mật độ xương (`MĐX / DEXA`)**: Bắt buộc với **tất cả bệnh nhân có xẹp đốt sống**.
+  - **Khám Mắt (Soi đáy mắt)**: Bắt buộc với BN mổ tư thế **nằm sấp (Prone position)** VÀ **có tiền sử Đái tháo đường**.
+- 🦿 **2. Bilan Mổ Chấn Thương Bắt Buộc:**
+  - `CTM`, `NM`, `ĐMCB 3 chỉ số`, `SHM 6 chỉ số`, `Bilan Virus 3 chỉ số`, `TPTNT`, `ĐTĐ`, `SAOB`, `XQP`, `XQ chi`.
+  - `CLVT (CT-Scanner)`: Chụp khi cần (gãy phức tạp, nát xương, nội khớp, đa chấn thương).
+  - `SAM (Siêu âm mạch)`: Chỉ định khi nghi ngờ tổn thương mạch máu hoặc huyết khối tĩnh mạch.
+  - **Siêu âm tim (`SAT`)**: Bắt buộc khi **> 60 tuổi** HOẶC **> 50 tuổi có bệnh lý Tim mạch (TM)**.
 
 ---
 

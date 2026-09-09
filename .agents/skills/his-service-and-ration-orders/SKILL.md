@@ -155,3 +155,12 @@ Khi chỉ định Cận lâm sàng cho Khoa Chấn thương Chỉnh hình & Cộ
 | | | Đo mật độ xương DEXA [1 vị trí] *(P202 - Nhà K2 - Room 6462)* | `BM08084` | `160` | BHYT (`1`) |
 | | | Siêu âm Doppler tim, van tim *(P112 T1 Nhà K2 - Room 16987)* | `BM00201` | `5569` | BHYT (`1`) |
 
+---
+
+## ⚡ QUY TRÌNH CHỈ ĐỊNH CLS TRỰC TIẾP BYPASS UI & GOM ỐNG 1-BARCODE
+
+* **Endpoint**: `POST http://192.168.7.236:1608/api/HisServiceReq/AssignServiceByInstructionTimes`
+* **Cơ chế gom ống**: Gửi toàn bộ các kỹ thuật trong mảng `ServiceReqDetails`. MOS Backend tự động gom các dịch vụ cùng `RoomId` (Phòng thực hiện) thành **1 `HIS_SERVICE_REQ` duy nhất (1 Barcode / 1 Ống máu)**, tuyệt đối không gửi vòng lặp lẻ từng dịch vụ.
+* **Quy tắc an toàn**: `RequestRoomId` phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân nằm điều trị, và đã được kích hoạt qua `POST api/Token/UpdateWorkInfo`.
+
+

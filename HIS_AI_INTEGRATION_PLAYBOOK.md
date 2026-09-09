@@ -25,6 +25,9 @@
 18. [Quy Chuẩn Báo Cáo Buồng Bệnh & Đồng Bộ Tự Động Lên Cloud Drive](#18-quy-chuẩn-báo-cáo-buồng-bệnh--đồng-bộ-tự-động-lên-cloud-drive)
 19. [Cơ Sở 2 (Bệnh Viện Bạch Mai Cơ Sở Ninh Bình) - Bản Đồ Cấu Hình & Quy Tắc Lâm Sàng](#19-cơ-sở-2-bệnh-viện-bạch-mai-cơ-sở-ninh-bình---bản-đồ-cấu-hình--quy-tắc-lâm-sàng)
 20. [Quy Trình Báo Cáo Đi Buồng Hội Chẩn Liên Khoa & Cập Nhật Tập Trung Cloud Drive](#20-quy-trình-báo-cáo-đi-buồng-hội-chẩn-liên-khoa--cập-nhật-tập-trung-cloud-drive)
+21. [Quy Trình Hủy/Xóa Y Lệnh & Dịch Vụ Chưa Thực Hiện (Chỉ Định Màu Trắng)](#21-quy-trình-hủyxóa-y-lệnh--dịch-vụ-chưa-thực-hiện-chỉ-định-màu-trắng)
+22. [Bẫy Lỗi Xuất Biểu Mẫu Word/Docx Biên Bản PT-01 (Strict Fresh Zip Pattern)](#22-bẫy-lỗi-xuất-biểu-mẫu-worddocx-biên-bản-pt-01-lỗi-corrupt-trên-libreoffice--word)
+23. [Quy Trình & Kỹ Thuật Chỉ Định CLS Trực Tiếp Bypass UI (Headless API) & Cơ Chế Gom Ống 1-Barcode](#23-quy-trình--kỹ-thuật-chỉ-định-cls-trực-tiếp-bypass-ui-headless-api--cơ-chế-gom-ống-bệnh-phẩm-1-barcode)
 
 ---
 
@@ -1192,6 +1195,92 @@ using (var destZip = new ZipArchive(destFile, ZipArchiveMode.Create))
   & "D:\office fake\program\soffice.exe" --headless --convert-to pdf "<file.docx>" --outdir "<outdir>"
   ```
   Nếu chuyển đổi sang `.pdf` thành công tức là file `.docx` hoàn toàn hợp lệ, không còn bất kỳ cảnh báo lỗi cấu trúc nào.
+
+---
+
+## 23. QUY TRÌNH & KỸ THUẬT CHỈ ĐỊNH CLS TRỰC TIẾP BYPASS UI (HEADLESS API) & CƠ CHẾ GOM ỐNG BỆNH PHẨM 1-BARCODE
+
+### 23.1. Bản Chất Nghiệp Vụ & Giá Trị Lâm Sàng
+* **Mục tiêu**: Cho phép AI Agent / CLI thực thi chỉ định trọn gói Bilan mổ cấp cứu hoặc mổ phiên (Xét nghiệm máu, Nước tiểu, Vi sinh, CĐHA, TDCN) trực tiếp qua REST API máy chủ MOS mà **hoàn toàn không cần mở giao diện HIS Desktop**, tiết kiệm thời gian thao tác từ vài phút xuống còn dưới 2 giây.
+* **Cơ chế Backend Endpoint**:
+  - `POST http://192.168.7.236:1608/api/HisServiceReq/AssignServiceByInstructionTimes`
+  - Headers: `TokenCode: <64_char_token>`, `ApplicationCode: HIS`, `Content-Type: application/json; charset=utf-8`
+  - Lớp DTO Payload: `MOS.SDO.AssignServiceSDO`
+
+### 23.2. 5 Rào Chắn Kỹ Thuật Bắt Buộc (5 Strict Backend Guardrails)
+Để Backend MOS chấp thuận y lệnh mà không trả về lỗi `Success: false` hay ngoại lệ ngầm:
+
+1. 🏨 **`RequestRoomId` Bắt Buộc Là Buồng Bệnh Nhân Nằm**:
+   - `RequestRoomId` trong `AssignServiceSDO` **BẮT BUỘC** phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân đang nằm điều trị (`V_HIS_TREATMENT_BED_ROOM.BED_ROOM_ID`).
+   - *Bẫy Gotcha*: Nếu gán phòng làm việc chung (VD: `5248`) cho bệnh nhân ở buồng khác (VD: `17413` - CSNB hoặc `5257` - P724) mà chưa đăng ký, Backend sẽ từ chối hoặc y lệnh không hiển thị trên giao diện theo dõi buồng của điều dưỡng.
+
+2. 🔑 **Kích Hoạt Phòng Làm Việc (`UpdateWorkInfo`) Trước Khi Gửi**:
+   - Token của Bác sĩ phải kích hoạt danh sách phòng làm việc chứa `RequestRoomId` của bệnh nhân:
+   - Gửi `POST api/Token/UpdateWorkInfo` với `WorkInfoSDO.Rooms` chứa `RoomId` của buồng bệnh và phòng trực.
+
+3. ⏰ **Đồng Bộ Tờ Điều Trị (`TrackingId` & `InstructionTime`)**:
+   - `TrackingId` phải trỏ tới một bản ghi `HIS_TRACKING` hợp lệ trong ngày.
+   - `InstructionTime`, `InstructionTimes`, `UseTimes` và `TrackingInfos.IntructionTime` phải đồng bộ chính xác với `HIS_TRACKING.TRACKING_TIME`.
+
+4. 🆔 **Mã Phiên Giao Dịch Đơn Nhất (`SessionCode`)**:
+   - Gán `SessionCode = Guid.NewGuid().ToString()` trong payload để Backend gom toàn bộ y lệnh trong đợt gửi vào cùng một phiên giao dịch.
+
+5. 🩸 **Cơ Chế Gom Ống Bệnh Phẩm 1-Barcode (Specimen & Tube Bundling Rule)**:
+   - **Nguyên lý cốt lõi của MOS**: Khi gửi mảng `ServiceReqDetails` chứa nhiều kỹ thuật, Backend MOS **tự động gom các dịch vụ có cùng `RoomId` (Phòng tiếp nhận / Thực hiện) thành 1 `HIS_SERVICE_REQ` duy nhất**.
+   - **Ý nghĩa sống còn**:
+     * 1 `HIS_SERVICE_REQ` = 1 Mã Barcode / 1 Tem lấy mẫu trên hệ thống LIS.
+     * Khi gom đúng: Bác sĩ chỉ định 3 xét nghiệm Virus (HIV + HBsAg + HCV) $\rightarrow$ Backend sinh ra **đúng 1 mã phiếu y lệnh** $\rightarrow$ Điều dưỡng dán 1 tem $\rightarrow$ **Lấy đúng 1 ống máu nắp vàng/đỏ**.
+     * Nếu gửi rời rạc qua vòng lặp nhiều lần $\rightarrow$ Sinh ra 3 mã phiếu y lệnh $\rightarrow$ **Bệnh nhân bị lấy 3 ống máu riêng biệt**, gây đau đớn và lãng phí vật tư!
+
+### 23.3. Cấu Trúc DTO JSON Chuẩn Khi Gửi API:
+```json
+{
+  "TreatmentId": 7147393,
+  "RequestRoomId": 17413,
+  "RequestLoginName": "vmc",
+  "RequestUserName": "VŨ MINH CƯỜNG",
+  "InstructionTime": 20260909084250,
+  "InstructionTimes": [ 20260909084250 ],
+  "UseTimes": [ 20260909084250 ],
+  "TrackingId": 9913239,
+  "TrackingInfos": [
+    { "TrackingId": 9913239, "IntructionTime": 20260909084250 }
+  ],
+  "IcdCode": "T07",
+  "IcdName": "Đa chấn thương",
+  "SessionCode": "a3f5e921-6b8c-4a3e-9f12-0987654321ab",
+  "ServiceReqDetails": [
+    { "ServiceId": 74110, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
+    { "ServiceId": 74107, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
+    { "ServiceId": 74096, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
+    { "ServiceId": 74042, "RoomId": 15231, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Hóa sinh" },
+    { "ServiceId": 73898, "RoomId": 15718, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Nhóm máu" },
+    { "ServiceId": 68137, "RoomId": 14819, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "ECG" }
+  ]
+}
+```
+
+### 23.4. Bản Đồ Phòng Thực Hiện Xét Nghiệm & Gom Ống (Cơ Sở 1 Hà Nội vs Cơ Sở 2 Ninh Bình)
+
+| Nhóm Xét Nghiệm / Kỹ Thuật | Loại Ống / Bệnh Phẩm | Phòng Thực Hiện CS1 (Bạch Mai HN - Khoa 57) | Phòng Thực Hiện CS2 (Ninh Bình - Khoa 915) | Kết Quả Gom Y Lệnh |
+| :--- | :--- | :---: | :---: | :--- |
+| **Huyết học Tế bào (CTM, Máu lắng)** | Ống EDTA (Nắp tím) | `RoomId = 1772` | `RoomId = 15711` | 1 Mã phiếu $\rightarrow$ 1 Ống EDTA |
+| **Đông máu (PT, APTT, Fibrinogen)** | Ống Citrate (Nắp xanh lam) | `RoomId = 626` | `RoomId = 15712` | 1 Mã phiếu $\rightarrow$ 1 Ống Citrate |
+| **Sinh hóa (Ure, Cre, Glu, Men gan, ĐGĐ)**| Ống Serum/Heparin (Nắp đỏ/vàng)| `RoomId = 410` | `RoomId = 15231` | 1 Mã phiếu $\rightarrow$ 1 Ống Sinh hóa |
+| **Virus Miễn dịch (HIV, HBsAg, HCV)** | Ống Serum (Nắp vàng/đỏ) | `RoomId = 871` | `RoomId = 15721` | 1 Mã phiếu $\rightarrow$ 1 Ống Miễn dịch |
+| **Truyền máu (Định nhóm máu ABO, Rh)**| Ống EDTA/Gelcard | `RoomId = 1464` | `RoomId = 15718` | 1 Mã phiếu $\rightarrow$ 1 Ống Nhóm máu |
+| **Tổng phân tích Nước tiểu** | Lọ đựng nước tiểu | `RoomId = 566` | `RoomId = 15721` / `15231` | 1 Mã phiếu $\rightarrow$ 1 Lọ nước tiểu |
+| **Điện tim thường (ECG)** | Phiếu đo điện tim | `RoomId = 920` / `931` | `RoomId = 19328` / `14819` | 1 Mã phiếu Điện tim |
+| **Siêu âm ổ bụng tổng quát** | Phiếu siêu âm | `RoomId = 17547` | `RoomId = 15724` | 1 Mã phiếu Siêu âm |
+
+### 23.5. Lệnh Thực Thi 1-Click Trên `HisClinicalCli.exe`:
+```powershell
+# 1. Chỉ định đơn lẻ:
+.\HisClinicalCli.exe assign-cls <TreatmentId> <TrackingId> <ServiceId> <ExecuteRoomId> "[Note]" [PatientTypeId]
+
+# 2. Chỉ định gói Bilan phẫu thuật (Tự động gom nhóm tối ưu theo phòng & ống bệnh phẩm):
+.\HisClinicalCli.exe assign-bilan <TreatmentId> <TrackingId> <spine|trauma|cement|hip|hand> [PatientTypeId]
+```
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*

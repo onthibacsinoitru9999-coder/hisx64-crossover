@@ -691,6 +691,45 @@ public class HisClinicalCli
         }
     }
 
+    public static long ResolvePatientRoomId(long treatmentId)
+    {
+        try
+        {
+            HisTreatmentBedRoomLViewFilter bedFilter = new HisTreatmentBedRoomLViewFilter();
+            bedFilter.TREATMENT_IDs = new List<long> { treatmentId };
+            bedFilter.IS_IN_ROOM = true;
+            var bedRooms = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, bedFilter, param);
+            var curBed = bedRooms != null ? bedRooms.LastOrDefault(x => x.REMOVE_TIME == null || x.REMOVE_TIME == 0) : null;
+            if (curBed != null && curBed.BED_ROOM_ID > 0)
+            {
+                return curBed.BED_ROOM_ID;
+            }
+        }
+        catch { }
+        return 5248;
+    }
+
+    public static void EnsureWorkInfoForRoom(long roomId)
+    {
+        try
+        {
+            var rooms = new List<RoomSDO>
+            {
+                new RoomSDO { RoomId = roomId },
+                new RoomSDO { RoomId = 5248 },
+                new RoomSDO { RoomId = 5252 },
+                new RoomSDO { RoomId = 5251 },
+                new RoomSDO { RoomId = 5257 }
+            };
+            var workInfo = new WorkInfoSDO
+            {
+                Rooms = rooms
+            };
+            myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
+        }
+        catch { }
+    }
+
     public static void AssignClsService(long treatmentId, long trackingId, long serviceId, long roomId, string note, int patientTypeId = 1)
     {
         InitSession();
@@ -701,10 +740,13 @@ public class HisClinicalCli
         if (trackings == null || trackings.Count == 0) throw new Exception("Không tìm thấy tờ điều trị!");
         var tr = trackings[0];
 
+        long reqRoomId = ResolvePatientRoomId(treatmentId);
+        EnsureWorkInfoForRoom(reqRoomId);
+
         AssignServiceSDO sdo = new AssignServiceSDO
         {
             TreatmentId = treatmentId,
-            RequestRoomId = 5248,
+            RequestRoomId = reqRoomId,
             RequestLoginName = currentDoctorLogin,
             RequestUserName = currentDoctorName,
             InstructionTime = tr.TRACKING_TIME,
@@ -719,7 +761,7 @@ public class HisClinicalCli
             IcdName = tr.ICD_NAME,
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = tr.ICD_TEXT,
-            SessionCode = null,
+            SessionCode = Guid.NewGuid().ToString(),
             ServiceReqDetails = new List<ServiceReqDetailSDO>
             {
                 new ServiceReqDetailSDO
@@ -729,11 +771,7 @@ public class HisClinicalCli
                     PatientTypeId = patientTypeId,
                     PrimaryPatientTypeId = (patientTypeId == 1 ? (long?)null : patientTypeId),
                     RoomId = roomId,
-                    InstructionNote = note,
-                    MultipleExecute = 1,
-                    IsNotUseBhyt = false,
-                    IsNoHeinDifference = false,
-                    EkipInfos = new List<EkipSDO>()
+                    InstructionNote = note
                 }
             }
         };
@@ -749,6 +787,74 @@ public class HisClinicalCli
         else
         {
             string err = "Chỉ định CLS thất bại!";
+            if (param.Messages != null && param.Messages.Count > 0) err += " " + string.Join("; ", param.Messages);
+            throw new Exception(err);
+        }
+    }
+
+    public static void AssignServiceBatch(long treatmentId, long trackingId, List<ServiceTarget> targetList, int patientTypeId = 1)
+    {
+        InitSession();
+        if (targetList == null || targetList.Count == 0) throw new Exception("Danh sách dịch vụ chỉ định trống!");
+
+        HisTrackingFilter tf = new HisTrackingFilter();
+        tf.ID = trackingId;
+        var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, tf, param);
+        if (trackings == null || trackings.Count == 0) throw new Exception("Không tìm thấy tờ điều trị!");
+        var tr = trackings[0];
+
+        long reqRoomId = ResolvePatientRoomId(treatmentId);
+        EnsureWorkInfoForRoom(reqRoomId);
+
+        string sessionCode = Guid.NewGuid().ToString();
+        AssignServiceSDO sdo = new AssignServiceSDO
+        {
+            TreatmentId = treatmentId,
+            RequestRoomId = reqRoomId,
+            RequestLoginName = currentDoctorLogin,
+            RequestUserName = currentDoctorName,
+            InstructionTime = tr.TRACKING_TIME,
+            InstructionTimes = new List<long> { tr.TRACKING_TIME },
+            UseTimes = new List<long> { tr.TRACKING_TIME },
+            TrackingId = trackingId,
+            TrackingInfos = new List<TrackingInfoSDO>
+            {
+                new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = tr.TRACKING_TIME }
+            },
+            IcdCode = tr.ICD_CODE,
+            IcdName = tr.ICD_NAME,
+            IcdSubCode = tr.ICD_SUB_CODE,
+            IcdText = tr.ICD_TEXT,
+            SessionCode = sessionCode,
+            ServiceReqDetails = new List<ServiceReqDetailSDO>()
+        };
+
+        foreach (var target in targetList)
+        {
+            sdo.ServiceReqDetails.Add(new ServiceReqDetailSDO
+            {
+                ServiceId = target.ServiceId,
+                Amount = 1.0m,
+                PatientTypeId = patientTypeId,
+                PrimaryPatientTypeId = (patientTypeId == 1 ? (long?)null : patientTypeId),
+                RoomId = target.RoomId,
+                InstructionNote = target.Note
+            });
+        }
+
+        var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", mosConsumer, sdo, param);
+        if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
+        {
+            Console.WriteLine(string.Format("✔ CHỈ ĐỊNH THÀNH CÔNG! Đã tạo {0} phiếu y lệnh (gom tự động theo phòng/ống bệnh phẩm):", res.ServiceReqs.Count));
+            foreach (var sr in res.ServiceReqs)
+            {
+                Console.WriteLine(string.Format("  👉 Mã phiếu: {0} (ID: {1}) | Nơi thực hiện: {2} | Loại: {3}",
+                    sr.SERVICE_REQ_CODE, sr.ID, sr.EXECUTE_ROOM_NAME ?? sr.EXECUTE_ROOM_ID.ToString(), sr.SERVICE_REQ_TYPE_NAME));
+            }
+        }
+        else
+        {
+            string err = "Chỉ định nhóm CLS thất bại!";
             if (param.Messages != null && param.Messages.Count > 0) err += " " + string.Join("; ", param.Messages);
             throw new Exception(err);
         }
@@ -880,27 +986,12 @@ public class HisClinicalCli
         }
 
         Console.WriteLine(string.Format("=== THỰC THI CHỈ ĐỊNH {0} ===", title));
-        Console.WriteLine(string.Format("Treatment ID: {0} | Tờ điều trị ID: {1}", treatmentId, trackingId));
+        Console.WriteLine(string.Format("Treatment ID: {0} | Tờ điều trị ID: {1} | Số kỹ thuật: {2}", treatmentId, trackingId, targetList.Count));
 
-        int successCount = 0;
-        int index = 1;
-        foreach (var item in targetList)
-        {
-            try
-            {
-                AssignClsService(treatmentId, trackingId, item.ServiceId, item.RoomId, item.Note, patientTypeId);
-                successCount++;
-                Console.WriteLine(string.Format("  ✔ [{0:D2}/{1:D2}] {2} ({3})", index, targetList.Count, item.ServiceName, item.ServiceCode));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(string.Format("  ❌ [{0:D2}/{1:D2}] {2}: {3}", index, targetList.Count, item.ServiceName, ex.Message));
-            }
-            index++;
-        }
+        AssignServiceBatch(treatmentId, trackingId, targetList, patientTypeId);
 
         Console.WriteLine("===============================================================================");
-        Console.WriteLine(string.Format("KẾT QUẢ CHỈ ĐỊNH GÓI: ✔ Thành công: {0}/{1}", successCount, targetList.Count));
+        Console.WriteLine(string.Format("✔ HOÀN TẤT CHỈ ĐỊNH GÓI: {0} kỹ thuật đã được gom nhóm tối ưu theo phòng tiếp nhận.", targetList.Count));
         Console.WriteLine("===============================================================================");
     }
 
