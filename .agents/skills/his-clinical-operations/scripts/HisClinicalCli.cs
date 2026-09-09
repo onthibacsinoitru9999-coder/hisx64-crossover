@@ -531,6 +531,94 @@ public class HisClinicalCli
         return created.ID;
     }
 
+    public static void ViewPatientMeds(string keyword)
+    {
+        InitSession();
+        long tId = 0;
+        V_HIS_TREATMENT tr = null;
+        if (long.TryParse(keyword, out tId) && tId > 1000000 && tId < 100000000)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { ID = tId };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (list != null && list.Count > 0) tr = list[0];
+        }
+        if (tr == null)
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = keyword.PadLeft(10, '0') };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            if (list != null && list.Count > 0) tr = list.Last();
+        }
+        if (tr == null)
+        {
+            Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + keyword);
+            return;
+        }
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🧑 BỆNH NHÂN: {0} ({1}) | Mã BN: {2} | Mã ĐT: {3} | TrID: {4}", 
+            tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_GENDER_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, tr.ID));
+        Console.WriteLine(string.Format("Chẩn đoán: [{0}] {1} (Chi tiết: {2})", tr.ICD_CODE, tr.ICD_NAME, tr.ICD_TEXT ?? tr.ICD_SUB_CODE));
+        Console.WriteLine("===============================================================================");
+
+        // 1. Service Requests for Prescriptions
+        HisServiceReqViewFilter srf = new HisServiceReqViewFilter { TREATMENT_ID = tr.ID };
+        var srs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
+        if (srs != null)
+        {
+            var presSrs = srs.Where(x => x.SERVICE_REQ_TYPE_ID == 6 || x.SERVICE_REQ_TYPE_ID == 7).ToList();
+            Console.WriteLine(string.Format("📋 PHIẾU ĐƠN THUỐC (SERVICE_REQ): {0} phiếu", presSrs.Count));
+            foreach (var ps in presSrs.OrderByDescending(x => x.INTRUCTION_TIME))
+            {
+                string tStr = ps.INTRUCTION_TIME.ToString();
+                string timeStr = tStr.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", tStr.Substring(6, 2), tStr.Substring(4, 2), tStr.Substring(0, 4), tStr.Substring(8, 2), tStr.Substring(10, 2)) : tStr;
+                Console.WriteLine(string.Format("  • [{0}] Ngày: {1} | Loại: {2} | Kho/Phòng: {3} | TT: {4}", 
+                    ps.SERVICE_REQ_CODE, timeStr, ps.SERVICE_REQ_TYPE_NAME, ps.REQUEST_ROOM_NAME, ps.SERVICE_REQ_STT_NAME));
+            }
+        }
+
+        // 2. ExpMestMedicine
+        HisExpMestMedicineViewFilter emf = new HisExpMestMedicineViewFilter { TDL_TREATMENT_ID = tr.ID };
+        var ems = myAdapter.FetchList<V_HIS_EXP_MEST_MEDICINE>("api/HisExpMestMedicine/GetView", mosConsumer, emf, param);
+        if (ems != null && ems.Count > 0)
+        {
+            Console.WriteLine(string.Format("\n💊 CHI TIẾT THUỐC ĐÃ XUẤT/KÊ (EXP_MEST_MEDICINE): {0} mục", ems.Count));
+            var grp = ems.GroupBy(x => (x.TDL_INTRUCTION_TIME ?? x.EXP_TIME ?? x.CREATE_TIME ?? 0).ToString().Substring(0, 8)).OrderByDescending(g => g.Key);
+            foreach (var g in grp)
+            {
+                string dStr = string.Format("{0}/{1}/{2}", g.Key.Substring(6, 2), g.Key.Substring(4, 2), g.Key.Substring(0, 4));
+                Console.WriteLine(string.Format("  📅 Ngày {0} ({1} thuốc):", dStr, g.Count()));
+                foreach (var m in g)
+                {
+                    string timing = string.Format("S:{0}|Tr:{1}|Ch:{2}|T:{3}", m.MORNING ?? "-", m.NOON ?? "-", m.AFTERNOON ?? "-", m.EVENING ?? "-");
+                    Console.WriteLine(string.Format("     • {0} | SL: {1:0.##} {2} [{3}] | Kho: {4}", m.MEDICINE_TYPE_NAME, m.AMOUNT, m.SERVICE_UNIT_NAME, timing, m.MEDI_STOCK_NAME));
+                    if (!string.IsNullOrEmpty(m.TUTORIAL)) Console.WriteLine(string.Format("       HD: \"{0}\"", m.TUTORIAL));
+                }
+            }
+        }
+        else
+        {
+            // 3. Try SereServ
+            HisSereServViewFilter ssf = new HisSereServViewFilter { TREATMENT_ID = tr.ID };
+            var sss = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
+            if (sss != null)
+            {
+                var medItems = sss.Where(x => x.TDL_SERVICE_TYPE_ID == 6).ToList();
+                Console.WriteLine(string.Format("\n💊 THUỐC TRONG SERE_SERV: {0} mục", medItems.Count));
+                var grp = medItems.GroupBy(x => x.TDL_INTRUCTION_TIME.ToString().Substring(0, 8)).OrderByDescending(g => g.Key);
+                foreach (var g in grp)
+                {
+                    string dStr = string.Format("{0}/{1}/{2}", g.Key.Substring(6, 2), g.Key.Substring(4, 2), g.Key.Substring(0, 4));
+                    Console.WriteLine(string.Format("  📅 Ngày {0} ({1} thuốc):", dStr, g.Count()));
+                    foreach (var item in g)
+                    {
+                        Console.WriteLine(string.Format("     • {0} | SL: {1:0.##}", item.TDL_SERVICE_NAME, item.AMOUNT));
+                    }
+                }
+            }
+        }
+        Console.WriteLine();
+    }
+
     public static void PrescribeMedication(long treatmentId, long trackingId, long medicineTypeId, long stockId, decimal amount, string tutorial, int patientTypeId = 1)
     {
         InitSession();
@@ -1427,6 +1515,11 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu từ khóa tra cứu!");
                 LookupPatient(args[1]);
+            }
+            else if (cmd == "view-meds" || cmd == "meds" || cmd == "donthuoc")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc TreatmentID!");
+                ViewPatientMeds(args[1]);
             }
             else if (cmd == "debate" || cmd == "hoichan")
             {

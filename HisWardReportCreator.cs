@@ -195,7 +195,7 @@ public class HisWardReportCreator
         return token;
     }
 
-    public static void GenerateReport(string roomFilter = "712,714,716,724,725", bool openBrowser = false)
+    public static void GenerateReport(string roomFilter = "712,714,716,724,725", bool openBrowser = false, long sinceTime712 = 0)
     {
         Console.OutputEncoding = Encoding.UTF8;
         ApiConsumer mosConsumer = null;
@@ -212,6 +212,10 @@ public class HisWardReportCreator
         Console.WriteLine("===============================================================================");
         Console.WriteLine("🏥 ĐANG TỔNG HỢP BÁO CÁO BUỒNG BỆNH KHOA CTCH & CỘT SỐNG (KHOA 57)");
         Console.WriteLine("Thời gian: " + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"));
+        if (sinceTime712 > 0)
+        {
+            Console.WriteLine("Bộ lọc Buồng 712: Chỉ lấy BN vào từ " + sinceTime712);
+        }
         Console.WriteLine("===============================================================================");
 
         HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
@@ -248,6 +252,27 @@ public class HisWardReportCreator
             foreach (var p in inPatients.OrderBy(x => x.BED_NAME))
             {
                 long tId = p.TREATMENT_ID;
+
+                // 1. Chi tiết Treatment
+                V_HIS_TREATMENT tr = null;
+                HisTreatmentViewFilter tf = new HisTreatmentViewFilter { ID = tId };
+                var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+                if (trList != null && trList.Count > 0)
+                {
+                    tr = trList[0];
+                }
+
+                // Lọc bệnh nhân buồng 712 nếu có yêu cầu thời gian vào viện/buồng
+                if (room.BED_ROOM_NAME != null && room.BED_ROOM_NAME.Contains("712") && sinceTime712 > 0)
+                {
+                    long pInTime = tr != null ? tr.IN_TIME : 0;
+                    long pBedTime = p.ADD_TIME.HasValue ? p.ADD_TIME.Value : 0;
+                    if (pInTime < sinceTime712 && pBedTime < sinceTime712)
+                    {
+                        continue;
+                    }
+                }
+
                 PatientWardRecord rec = new PatientWardRecord
                 {
                     RoomName = room.BED_ROOM_NAME,
@@ -258,13 +283,8 @@ public class HisWardReportCreator
                     PatientName = p.TDL_PATIENT_NAME
                 };
 
-                // 1. Chi tiết Treatment
-                V_HIS_TREATMENT tr = null;
-                HisTreatmentViewFilter tf = new HisTreatmentViewFilter { ID = tId };
-                var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
-                if (trList != null && trList.Count > 0)
+                if (tr != null)
                 {
-                    tr = trList[0];
                     rec.GenderName = tr.TDL_PATIENT_GENDER_NAME;
                     if (tr.TDL_PATIENT_DOB > 0)
                     {
@@ -280,7 +300,7 @@ public class HisWardReportCreator
                         string s = tr.IN_TIME.ToString();
                         if (s.Length == 14)
                         {
-                            rec.InTimeStr = string.Format("{0}/{1}/{2}", s.Substring(6, 2), s.Substring(4, 2), s.Substring(0, 4));
+                            rec.InTimeStr = string.Format("{0}/{1}/{2} {3}:{4}", s.Substring(6, 2), s.Substring(4, 2), s.Substring(0, 4), s.Substring(8, 2), s.Substring(10, 2));
                         }
                     }
 
@@ -449,7 +469,42 @@ public class HisWardReportCreator
         string combined = (rawName + " " + rawSub).ToLower();
 
         // 1. Rà soát Mã ICD & Chẩn đoán theo Quy tắc 4 AGENTS.md (Đích danh vị trí & tầng tổn thương)
-        if (combined.Contains("áp xe") || combined.Contains("staphylococcus") || combined.Contains("mông – đùi") || combined.Contains("mông - đùi") || combined.Contains("m60.05"))
+        if (combined.Contains("gãy hở") && (combined.Contains("cẳng tay") || combined.Contains("s52")))
+        {
+            rec.ReviewedIcdCode = "S52.71";
+            rec.ReviewedDiagnosis = "Gãy hở độ I hai xương cẳng tay trái sau ngã chống tay / Vảy nến";
+        }
+        else if (combined.Contains("c5c6") || combined.Contains("c5-c6") || combined.Contains("m50.1"))
+        {
+            rec.ReviewedIcdCode = "M50.1";
+            rec.ReviewedDiagnosis = "Hậu phẫu N1 phẫu thuật giải ép cố định thoát vị đĩa đệm và trượt C5-C6 chèn ép tủy cổ";
+        }
+        else if ((combined.Contains("giải ép") && combined.Contains("l45")) || (combined.Contains("l4-l5") && combined.Contains("3 tuần")))
+        {
+            rec.ReviewedIcdCode = "M51.1";
+            rec.ReviewedDiagnosis = "Theo dõi thoát vị đĩa đệm L4-L5 tái phát chèn ép rễ S1 trái sau phẫu thuật giải ép 3 tuần - Đau thần kinh tọa chân trái";
+        }
+        else if (combined.Contains("bánh chè") || combined.Contains("m22.3"))
+        {
+            rec.ReviewedIcdCode = "S83.6";
+            rec.ReviewedDiagnosis = "Đứt hoàn toàn gân bánh chè gối phải sau chấn thương / Mất duỗi gối phải";
+        }
+        else if (combined.Contains("còn nẹp vít") || combined.Contains("tháo nẹp") || combined.Contains("z96.6"))
+        {
+            rec.ReviewedIcdCode = "Z96.6";
+            rec.ReviewedDiagnosis = "Hậu phẫu tháo nẹp vít xương cẳng tay trái ngày thứ 1 / Liền xương tốt";
+        }
+        else if (combined.Contains("đốt bàn ngón iv") || combined.Contains("lóc da mu chân") || combined.Contains("t07"))
+        {
+            rec.ReviewedIcdCode = "S92.3";
+            rec.ReviewedDiagnosis = "Gãy hở chỏm đốt bàn ngón IV - Trật hở khớp đốt bàn V - Vết thương lóc da mu chân phải sau TNGT / CTSN theo dõi xuất huyết dưới nhện";
+        }
+        else if (combined.Contains("xương chày và") && combined.Contains("xương mác phải"))
+        {
+            rec.ReviewedIcdCode = "S82.70";
+            rec.ReviewedDiagnosis = "Gãy 1/3 dưới xương chày và 1/3 trên xương mác phải sau chấn thương";
+        }
+        else if (combined.Contains("áp xe") || combined.Contains("staphylococcus") || combined.Contains("mông – đùi") || combined.Contains("mông - đùi") || combined.Contains("m60.05"))
         {
             rec.ReviewedIcdCode = "L02.4";
             rec.ReviewedDiagnosis = "Áp xe lớn khối cơ mông - đùi phải sau tiêm mông do Staphylococcus aureus / ĐTĐ type 2 - Viêm gan B mạn - Xơ hóa gan - Thiếu máu mạn - Giảm Albumin máu";
@@ -631,41 +686,44 @@ public class HisWardReportCreator
         {
             if (trks != null && trks.Count > 1)
             {
-                notes.Add("Điều trị nội khoa theo dõi tại buồng bệnh, dùng thuốc theo y lệnh bác sĩ trực");
-            }
-            else
-            {
-                notes.Add("Mới vào khoa điều trị nội trú, hoàn thiện hồ sơ bệnh án và cận lâm sàng");
-            }
-        }
-
-        return string.Join("; ", notes.Distinct());
-    }
-
-    public static string FormatCurrentStatus(List<V_HIS_TRACKING> trks, PatientWardRecord rec)
-    {
-        if (trks != null && trks.Count > 0)
+                notes.Add("Đi�        if (diag.Contains("gãy hở") || diag.Contains("s52"))
         {
-            var latest = trks.OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
-            if (latest != null && !string.IsNullOrEmpty(latest.CONTENT))
-            {
-                string c = latest.CONTENT.Replace("\r\n", " ").Replace("\n", " ").Trim();
-                if (c == "T4 Ngày nghỉ" || c == "Ngày nghỉ lễ" || c == "Thuốc ngày nghỉ" || c == "Ngày nghỉ bác sĩ trực cho thuốc")
-                {
-                    return "BN tỉnh, tiếp xúc tốt, huyết động ổn định, đau giảm VAS 3-4đ, ngọn chi hồng ấm, vận động ngón trong giới hạn";
-                }
-                return c;
-            }
+            plans.Add("1. Cắt lọc, rửa và xử trí vô khuẩn vết thương gãy hở độ I");
+            plans.Add("2. Nẹp bột cẳng bàn tay trái bất động");
+            plans.Add("3. Kháng sinh tĩnh mạch dự phòng nhiễm trùng + tiêm SAT uốn ván + giảm đau");
+            plans.Add("4. Hoàn thiện bilan tiền phẫu (X-quang ngực, CTM, đông máu)");
+            plans.Add("5. Lên lịch phẫu thuật kết hợp xương hai xương cẳng tay trái");
         }
-        return "BN tỉnh, huyết động ổn định, các chức năng sống trong giới hạn bình thường";
-    }
-
-    public static string FormatTreatmentPlan(PatientWardRecord rec)
-    {
-        string diag = (rec.ReviewedDiagnosis ?? "").ToLower();
-        List<string> plans = new List<string>();
-
-        if (diag.Contains("áp xe") || diag.Contains("staphylococcus") || diag.Contains("l02.4"))
+        else if (diag.Contains("c5c6") || diag.Contains("c5-c6") || diag.Contains("m50.1"))
+        {
+            plans.Add("1. Đeo nẹp cổ cứng (Cervical Collar) cố định vững cột sống cổ");
+            plans.Add("2. Theo dõi sát tri giác, hô hấp, cơ lực tứ chi và dẫn lưu vết mổ");
+            plans.Add("3. Kháng sinh điều trị + giảm đau + chống phù nề tủy cổ");
+            plans.Add("4. Thay băng vô khuẩn vết mổ hàng ngày");
+            plans.Add("5. Chụp X-quang cột sống cổ thẳng nghiêng kiểm tra dụng cụ nẹp vít");
+        }
+        else if (diag.Contains("tái phát") || (diag.Contains("l4-l5") && diag.Contains("3 tuần")))
+        {
+            plans.Add("1. Chụp MRI cột sống thắt lưng có đối quang từ đánh giá tái phát thoát vị / xơ dính sau mổ");
+            plans.Add("2. Thuốc giảm đau thần kinh (Pregabalin) + giãn cơ + chống viêm");
+            plans.Add("3. Nghỉ ngơi tại giường phẳng, đeo đai cột sống khi ngồi dậy");
+            plans.Add("4. Hội chẩn Cột sống đánh giá chỉ định phẫu thuật cố định hàn xương liên thân đốt (TLIF)");
+        }
+        else if (diag.Contains("tháo nẹp") || diag.Contains("z96.6"))
+        {
+            plans.Add("1. Thay băng vô khuẩn vết mổ cẳng tay cách nhật");
+            plans.Add("2. Kháng sinh dự phòng + giảm đau");
+            plans.Add("3. Treo tay cao đỡ phù nề, cử động nhẹ nhàng ngón tay");
+            plans.Add("4. Dự kiến xuất viện khi vết mổ khô sạch");
+        }
+        else if (diag.Contains("bánh chè") || diag.Contains("s83.6"))
+        {
+            plans.Add("1. Bất động nẹp đùi cẳng chân tư thế duỗi gối hoàn toàn");
+            plans.Add("2. Giảm đau + chống viêm phù nề");
+            plans.Add("3. Hoàn thiện bilan tiền phẫu + chụp MRI khớp gối");
+            plans.Add("4. Dự kiến phẫu thuật khâu tái tạo gân bánh chè gối phải");
+        }
+        else if (diag.Contains("áp xe") || diag.Contains("staphylococcus") || diag.Contains("l02.4"))
         {
             plans.Add("1. Rửa và thay băng vô khuẩn ổ áp xe mông đùi hàng ngày, theo dõi dịch dẫn lưu");
             plans.Add("2. Duy trì kháng sinh trúng đích theo KSĐ (S. aureus)");
@@ -917,6 +975,78 @@ public class HisWardReportCreator
             sb.AppendLine(string.Format("          <td><small>{0}</small></td>", r.MedicalHistory));
             sb.AppendLine(string.Format("          <td><small>{0}</small></td>", r.RecentCourse));
             sb.AppendLine(string.Format("          <td><small>{0}</small></td>", r.CurrentStatus));
+            sb.AppendLine(string.Format("          <td><small style=\"color: #0b8043;\">{0}</small></td>", r.TreatmentPlan));
+            
+            string medsList = r.HasPrescriptionToday ? string.Format("✔ {0} thuốc", r.TodayMeds.Count) : "❌ Chưa kê đơn";
+            string ration = !string.IsNullOrEmpty(r.TodayRation) ? string.Format("<br><small>🍚 {0}</small>", r.TodayRation) : "";
+            sb.AppendLine(string.Format("          <td><span class=\"badge {0}\">{1}</span>{2}<br>", r.HasPrescriptionToday ? "badge-success" : "badge-danger", medsList, ration));
+            foreach (var b in r.ActionBadges)
+            {
+                string clsName = b.StartsWith("🔴") ? "badge-danger" : (b.StartsWith("🟠") ? "badge-warning" : "badge-success");
+                sb.AppendLine(string.Format("            <div class=\"badge {0}\">{1}</div>", clsName, b));
+            }
+            sb.AppendLine("          </td>");
+            sb.AppendLine("        </tr>");
+        }
+
+        sb.AppendLine("      </tbody>");
+        sb.AppendLine("    </table>");
+        sb.AppendLine("  </div>");
+        sb.AppendLine("  <script>");
+        sb.AppendLine("    function filterTable() {");
+        sb.AppendLine("      var input = document.getElementById('search');");
+        sb.AppendLine("      var filter = input.value.toLowerCase();");
+        sb.AppendLine("      var trs = document.getElementById('reportTable').getElementsByTagName('tr');");
+        sb.AppendLine("      for (var i = 1; i < trs.Length; i++) {");
+        sb.AppendLine("        var text = trs[i].textContent || trs[i].innerText;");
+        sb.AppendLine("        trs[i].style.display = text.toLowerCase().indexOf(filter) > -1 ? '' : 'none';");
+        sb.AppendLine("      }");
+        sb.AppendLine("    }");
+        sb.AppendLine("  </script>");
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+
+        return sb.ToString();
+    }
+
+    public static void Run(string[] args)
+    {
+        string rooms = "712,714,716,724,725";
+        bool open = false;
+        long since712 = 0;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i].ToLower() == "--all" || args[i].ToLower() == "-a")
+            {
+                rooms = "all";
+            }
+            else if ((args[i].ToLower() == "--room" || args[i].ToLower() == "-r") && i + 1 < args.Length)
+            {
+                rooms = args[i + 1];
+                i++;
+            }
+            else if (args[i].ToLower() == "--open" || args[i].ToLower() == "-o")
+            {
+                open = true;
+            }
+            else if (args[i].ToLower() == "--since-712" && i + 1 < args.Length)
+            {
+                string val = args[i + 1];
+                if (val.ToLower() == "7h" || val.ToLower() == "07:00")
+                {
+                    since712 = long.Parse(DateTime.Today.ToString("yyyyMMdd") + "070000");
+                }
+                else
+                {
+                    long.TryParse(val, out since712);
+                }
+                i++;
+            }
+        }
+
+        GenerateReport(rooms, open, since712);
+    }Format("          <td><small>{0}</small></td>", r.CurrentStatus));
             sb.AppendLine(string.Format("          <td><small style=\"color: #0b8043;\">{0}</small></td>", r.TreatmentPlan));
             
             string medsList = r.HasPrescriptionToday ? string.Format("✔ {0} thuốc", r.TodayMeds.Count) : "❌ Chưa kê đơn";
