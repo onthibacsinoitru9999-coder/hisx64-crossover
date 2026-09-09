@@ -1328,6 +1328,25 @@ public class HisClinicalCli
         }
 
         var sorted = orders.OrderByDescending(x => x.INTRUCTION_TIME).ToList();
+
+        Dictionary<long, List<V_HIS_SERE_SERV>> ssMap = new Dictionary<long, List<V_HIS_SERE_SERV>>();
+        try
+        {
+            var allReqIds = sorted.Select(x => x.ID).Distinct().ToList();
+            if (allReqIds.Count > 0)
+            {
+                HisSereServViewFilter ssf = new HisSereServViewFilter { SERVICE_REQ_IDs = allReqIds };
+                var allSsList = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
+                if (allSsList != null)
+                {
+                    ssMap = allSsList.Where(x => x.SERVICE_REQ_ID.HasValue)
+                                     .GroupBy(x => x.SERVICE_REQ_ID.Value)
+                                     .ToDictionary(g => g.Key, g => g.ToList());
+                }
+            }
+        }
+        catch { }
+
         int stt = 1;
         foreach (var r in sorted)
         {
@@ -1362,9 +1381,8 @@ public class HisClinicalCli
             
             try
             {
-                HisSereServViewFilter ssf = new HisSereServViewFilter { SERVICE_REQ_ID = r.ID };
-                var ssList = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
-                if (ssList != null && ssList.Count > 0)
+                List<V_HIS_SERE_SERV> ssList;
+                if (ssMap.TryGetValue(r.ID, out ssList) && ssList != null && ssList.Count > 0)
                 {
                     var names = ssList.Select(x => string.Format("{0} (SS_ID: {1})", x.TDL_SERVICE_NAME, x.ID));
                     Console.WriteLine(string.Format("    • Dịch vụ: {0}", string.Join("; ", names)));
@@ -1809,11 +1827,13 @@ public class HisClinicalCli
             else
             {
                 Console.WriteLine("Lệnh không hợp lệ: " + cmd);
+                Environment.ExitCode = 1;
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine("❌ LỖI THỰC THI: " + ex.Message);
+            Environment.ExitCode = 1;
         }
     }
 }

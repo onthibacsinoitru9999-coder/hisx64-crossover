@@ -72,10 +72,24 @@ public class PatientWardRecord
 
 public class HisWardReportCreator
 {
+    public static List<V_HIS_BED_ROOM> cachedRooms = null;
+
     public static string ReadLiveToken()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         List<string> candidates = new List<string>();
+
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
+            if (procs != null && procs.Length > 0)
+            {
+                string hisDir = Path.GetDirectoryName(procs[0].MainModule.FileName);
+                candidates.Add(Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+            }
+        }
+        catch { }
+
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -115,29 +129,9 @@ public class HisWardReportCreator
         return null;
     }
 
-    public static string InitSession(ref ApiConsumer mosConsumer, ref CommonParam param, ref MyAdapter adapter)
+    public static string FallbackLogin(ref ApiConsumer mosConsumer, ref CommonParam param, ref MyAdapter adapter)
     {
-        string token = ReadLiveToken();
-        param = new CommonParam();
-        adapter = new MyAdapter();
-
-        if (!string.IsNullOrEmpty(token))
-        {
-            mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
-            try
-            {
-                HisBedRoomViewFilter testBf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
-                var testRooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, testBf, param);
-                if (testRooms != null && testRooms.Count > 0)
-                {
-                    return token;
-                }
-            }
-            catch { }
-        }
-
-        // Live token is empty or invalid, fallback to direct ACS login
-        token = null;
+        string token = null;
         try
         {
             Load.Init();
@@ -195,6 +189,21 @@ public class HisWardReportCreator
         return token;
     }
 
+    public static string InitSession(ref ApiConsumer mosConsumer, ref CommonParam param, ref MyAdapter adapter)
+    {
+        string token = ReadLiveToken();
+        param = new CommonParam();
+        adapter = new MyAdapter();
+
+        if (!string.IsNullOrEmpty(token))
+        {
+            mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+            return token;
+        }
+
+        return FallbackLogin(ref mosConsumer, ref param, ref adapter);
+    }
+
     public static void GenerateReport(string roomFilter = "712,714,716,724,725", bool openBrowser = false, long sinceTime712 = 0)
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -218,8 +227,24 @@ public class HisWardReportCreator
         }
         Console.WriteLine("===============================================================================");
 
-        HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
-        var allRooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
+        List<V_HIS_BED_ROOM> allRooms = cachedRooms;
+        if (allRooms == null || allRooms.Count == 0)
+        {
+            HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
+            allRooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
+            if (allRooms == null || allRooms.Count == 0)
+            {
+                token = FallbackLogin(ref mosConsumer, ref param, ref adapter);
+                if (!string.IsNullOrEmpty(token))
+                {
+                    allRooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
+                }
+            }
+            if (allRooms != null && allRooms.Count > 0)
+            {
+                cachedRooms = allRooms;
+            }
+        }
         if (allRooms == null || allRooms.Count == 0)
         {
             Console.WriteLine("❌ Không tải được danh sách buồng bệnh Khoa 57!");
@@ -243,151 +268,258 @@ public class HisWardReportCreator
         DateTime today = DateTime.Today;
         long todayStart = long.Parse(today.ToString("yyyyMMdd") + "000000");
 
-        foreach (var room in targetRooms)
+        var targetRoomIds = targetRooms.Select(r => r.ID).ToList();
+        List<Tuple<V_HIS_BED_ROOM, V_HIS_TREATMENT_BED_ROOM>> bedPatients = new List<Tuple<V_HIS_BED_ROOM, V_HIS_TREATMENT_BED_ROOM>>();
+        if (targetRoomIds.Count > 0)
         {
-            HisTreatmentBedRoomLViewFilter tbrf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_ID = room.ID, IS_IN_ROOM = true };
-            var inPatients = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, tbrf, param);
-            if (inPatients == null || inPatients.Count == 0) continue;
-
-            foreach (var p in inPatients.OrderBy(x => x.BED_NAME))
+            HisTreatmentBedRoomLViewFilter tbrf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_IDs = targetRoomIds, IS_IN_ROOM = true };
+            var allInPatients = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, tbrf, param);
+            if (allInPatients != null && allInPatients.Count > 0)
             {
-                long tId = p.TREATMENT_ID;
-
-                // 1. Chi tiết Treatment
-                V_HIS_TREATMENT tr = null;
-                HisTreatmentViewFilter tf = new HisTreatmentViewFilter { ID = tId };
-                var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
-                if (trList != null && trList.Count > 0)
+                foreach (var room in targetRooms)
                 {
-                    tr = trList[0];
-                }
-
-                // Lọc bệnh nhân buồng 712 nếu có yêu cầu thời gian vào viện/buồng
-                if (room.BED_ROOM_NAME != null && room.BED_ROOM_NAME.Contains("712") && sinceTime712 > 0)
-                {
-                    long pInTime = tr != null ? tr.IN_TIME : 0;
-                    long pBedTime = p.ADD_TIME.HasValue ? p.ADD_TIME.Value : 0;
-                    if (pInTime < sinceTime712 && pBedTime < sinceTime712)
+                    var roomInPatients = allInPatients.Where(x => x.BED_ROOM_ID == room.ID).OrderBy(x => x.BED_NAME);
+                    foreach (var p in roomInPatients)
                     {
-                        continue;
+                        bedPatients.Add(Tuple.Create(room, p));
                     }
                 }
-
-                PatientWardRecord rec = new PatientWardRecord
-                {
-                    RoomName = room.BED_ROOM_NAME,
-                    BedName = p.BED_NAME,
-                    TreatmentId = tId,
-                    TreatmentCode = p.TREATMENT_CODE,
-                    PatientCode = p.TDL_PATIENT_CODE,
-                    PatientName = p.TDL_PATIENT_NAME
-                };
-
-                if (tr != null)
-                {
-                    rec.GenderName = tr.TDL_PATIENT_GENDER_NAME;
-                    if (tr.TDL_PATIENT_DOB > 0)
-                    {
-                        string dobStr = tr.TDL_PATIENT_DOB.ToString();
-                        if (dobStr.Length >= 4)
-                        {
-                            int birthYear = int.Parse(dobStr.Substring(0, 4));
-                            rec.AgeStr = (DateTime.Now.Year - birthYear).ToString();
-                        }
-                    }
-                    if (tr.IN_TIME > 0)
-                    {
-                        string s = tr.IN_TIME.ToString();
-                        if (s.Length == 14)
-                        {
-                            rec.InTimeStr = string.Format("{0}/{1}/{2} {3}:{4}", s.Substring(6, 2), s.Substring(4, 2), s.Substring(0, 4), s.Substring(8, 2), s.Substring(10, 2));
-                        }
-                    }
-
-                    rec.OriginalIcdCode = tr.ICD_CODE;
-                    rec.OriginalIcdName = tr.ICD_NAME;
-                    rec.OriginalIcdText = tr.ICD_TEXT;
-                }
-
-                // 2. Toàn bộ Tờ điều trị (Trackings)
-                HisTrackingViewFilter trkFilter = new HisTrackingViewFilter { TREATMENT_ID = tId };
-                var trkList = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", mosConsumer, trkFilter, param);
-                if (trkList != null && trkList.Count > 0)
-                {
-                    var todayTrk = trkList.Where(x => x.TRACKING_TIME >= todayStart).OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
-                    if (todayTrk != null)
-                    {
-                        rec.HasTrackingToday = true;
-                        string s = todayTrk.TRACKING_TIME.ToString();
-                        rec.TodayTrackingTime = string.Format("{0}:{1}", s.Substring(8, 2), s.Substring(10, 2));
-                        rec.TodayTrackingContent = todayTrk.CONTENT != null ? todayTrk.CONTENT.Replace("\r\n", " ").Replace("\n", " ") : "";
-                    }
-                }
-
-                // 3. Đơn thuốc, CLS & Y lệnh
-                HisServiceReqViewFilter srf = new HisServiceReqViewFilter { TREATMENT_ID = tId };
-                var srs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
-                if (srs != null)
-                {
-                    var todaySrs = srs.Where(x => x.INTRUCTION_TIME >= todayStart).ToList();
-                    var presSrs = todaySrs.Where(x => x.SERVICE_REQ_TYPE_ID == 6 || x.SERVICE_REQ_TYPE_ID == 7).ToList();
-                    if (presSrs.Count > 0) rec.HasPrescriptionToday = true;
-
-                    HisSereServViewFilter ssf = new HisSereServViewFilter { TREATMENT_ID = tId };
-                    var sss = adapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
-                    if (sss != null)
-                    {
-                        var todaySss = sss.Where(x => x.TDL_INTRUCTION_TIME >= todayStart).ToList();
-                        foreach (var item in todaySss)
-                        {
-                            if (item.TDL_SERVICE_TYPE_ID == 6)
-                            {
-                                rec.TodayMeds.Add(string.Format("{0} ({1:0.##})", item.TDL_SERVICE_NAME, item.AMOUNT));
-                            }
-                            else if (item.TDL_SERVICE_TYPE_ID == 2 || item.TDL_SERVICE_TYPE_ID == 3 || item.TDL_SERVICE_TYPE_ID == 4)
-                            {
-                                rec.TodayCls.Add(item.TDL_SERVICE_NAME);
-                            }
-                            else if (item.TDL_SERVICE_TYPE_ID == 14)
-                            {
-                                rec.TodayRation = item.TDL_SERVICE_NAME;
-                            }
-                        }
-                    }
-                }
-
-                // 4. Đánh giá Cảnh báo Lâm sàng & Hội chẩn
-                if (!rec.HasTrackingToday) rec.ActionBadges.Add("🔴 Chưa có Tờ ĐT hôm nay");
-                if (!rec.HasPrescriptionToday) rec.ActionBadges.Add("🔴 Chưa kê đơn thuốc hôm nay");
-                if ((rec.OriginalIcdName != null && rec.OriginalIcdName.ToLower().Contains("tháo đường")) ||
-                    (rec.OriginalIcdText != null && rec.OriginalIcdText.ToLower().Contains("tháo đường")))
-                {
-                    rec.ActionBadges.Add("🟠 BN Đái tháo đường (Theo dõi ĐH & Insulin)");
-                }
-
-                HisDebateFilter debFilter = new HisDebateFilter { TREATMENT_ID = tId };
-                var debList = adapter.FetchList<HIS_DEBATE>("api/HisDebate/Get", mosConsumer, debFilter, param);
-                if (debList != null && debList.Count > 0)
-                {
-                    var consultSrs = srs != null ? srs.Where(x => x.SERVICE_REQ_TYPE_ID == 1 || (x.EXECUTE_DEPARTMENT_NAME != null && (x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("hô hấp") || x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("truyền nhiễm") || x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("nhiệt đới")))).ToList() : new List<V_HIS_SERVICE_REQ>();
-                    int compCount = consultSrs.Count(x => x.SERVICE_REQ_STT_ID == 3);
-                    int waitCount = consultSrs.Count(x => x.SERVICE_REQ_STT_ID != 3);
-                    if (compCount > 0) rec.ActionBadges.Add(string.Format("🔵 Đã có KQ Hội chẩn ({0} CK)", compCount));
-                    if (waitCount > 0) rec.ActionBadges.Add(string.Format("🟡 Chờ ý kiến Hội chẩn ({0} CK)", waitCount));
-                    if (consultSrs.Count == 0) rec.ActionBadges.Add("🔵 Có Biên bản Hội chẩn");
-                }
-
-                if (rec.HasTrackingToday && rec.HasPrescriptionToday)
-                {
-                    rec.ActionBadges.Add("🟢 Đã hoàn tất y lệnh ngày");
-                }
-
-                // 5. Rà soát chuyên sâu Bệnh sử, Diễn biến gần đây, Hiện tại, Kế hoạch tiếp & Mã ICD đề nghị
-                ReviewClinicalCase(rec, trkList, srs, tr);
-
-                records.Add(rec);
-                Console.WriteLine(string.Format("  ✔ [{0} - {1}] {2} | ICD Đề nghị: [{3}] {4}", rec.RoomName, rec.BedName, rec.PatientName, rec.ReviewedIcdCode, rec.ReviewedDiagnosis));
             }
+        }
+
+        var allTreatmentIds = bedPatients.Select(x => x.Item2.TREATMENT_ID).Distinct().ToList();
+
+        // 5 Batch Queries across the entire ward cohort
+        Dictionary<long, V_HIS_TREATMENT> treatmentMap = new Dictionary<long, V_HIS_TREATMENT>();
+        Dictionary<long, List<V_HIS_TRACKING>> trackingMap = new Dictionary<long, List<V_HIS_TRACKING>>();
+        Dictionary<long, List<V_HIS_SERVICE_REQ>> serviceReqMap = new Dictionary<long, List<V_HIS_SERVICE_REQ>>();
+        Dictionary<long, List<V_HIS_SERE_SERV>> sereServMap = new Dictionary<long, List<V_HIS_SERE_SERV>>();
+        Dictionary<long, List<HIS_DEBATE>> debateMap = new Dictionary<long, List<HIS_DEBATE>>();
+
+        if (allTreatmentIds.Count > 0)
+        {
+            System.Threading.Tasks.Parallel.Invoke(
+                () =>
+                {
+                    try
+                    {
+                        var ad = new MyAdapter();
+                        var pr = new CommonParam();
+                        HisTreatmentViewFilter tf = new HisTreatmentViewFilter { IDs = allTreatmentIds };
+                        var trList = ad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, pr);
+                        if (trList != null)
+                        {
+                            var map = new Dictionary<long, V_HIS_TREATMENT>();
+                            foreach (var trItem in trList) map[trItem.ID] = trItem;
+                            lock (treatmentMap) { treatmentMap = map; }
+                        }
+                    }
+                    catch { }
+                },
+                () =>
+                {
+                    try
+                    {
+                        var ad = new MyAdapter();
+                        var pr = new CommonParam();
+                        HisTrackingViewFilter trkFilter = new HisTrackingViewFilter { TREATMENT_IDs = allTreatmentIds };
+                        var trkList = ad.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", mosConsumer, trkFilter, pr);
+                        if (trkList != null)
+                        {
+                            var map = trkList.GroupBy(x => x.TREATMENT_ID).ToDictionary(g => g.Key, g => g.ToList());
+                            lock (trackingMap) { trackingMap = map; }
+                        }
+                    }
+                    catch { }
+                },
+                () =>
+                {
+                    try
+                    {
+                        var ad = new MyAdapter();
+                        var pr = new CommonParam();
+                        HisServiceReqViewFilter srf = new HisServiceReqViewFilter { TREATMENT_IDs = allTreatmentIds };
+                        var srs = ad.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, pr);
+                        if (srs != null)
+                        {
+                            var map = srs.GroupBy(x => x.TREATMENT_ID).ToDictionary(g => g.Key, g => g.ToList());
+                            lock (serviceReqMap) { serviceReqMap = map; }
+                        }
+                    }
+                    catch { }
+                },
+                () =>
+                {
+                    try
+                    {
+                        var ad = new MyAdapter();
+                        var pr = new CommonParam();
+                        HisSereServViewFilter ssf = new HisSereServViewFilter { TREATMENT_IDs = allTreatmentIds };
+                        var sss = ad.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, pr);
+                        if (sss != null)
+                        {
+                            var map = sss.Where(x => x.TDL_TREATMENT_ID.HasValue)
+                                         .GroupBy(x => x.TDL_TREATMENT_ID.Value)
+                                         .ToDictionary(g => g.Key, g => g.ToList());
+                            lock (sereServMap) { sereServMap = map; }
+                        }
+                    }
+                    catch { }
+                },
+                () =>
+                {
+                    try
+                    {
+                        var ad = new MyAdapter();
+                        var pr = new CommonParam();
+                        HisDebateFilter debFilter = new HisDebateFilter { TREATMENT_IDs = allTreatmentIds };
+                        var debList = ad.FetchList<HIS_DEBATE>("api/HisDebate/Get", mosConsumer, debFilter, pr);
+                        if (debList != null)
+                        {
+                            var map = debList.GroupBy(x => x.TREATMENT_ID).ToDictionary(g => g.Key, g => g.ToList());
+                            lock (debateMap) { debateMap = map; }
+                        }
+                    }
+                    catch { }
+                }
+            );
+        }
+
+        foreach (var pair in bedPatients)
+        {
+            var room = pair.Item1;
+            var p = pair.Item2;
+            long tId = p.TREATMENT_ID;
+
+            // 1. Chi tiết Treatment
+            V_HIS_TREATMENT tr = null;
+            treatmentMap.TryGetValue(tId, out tr);
+
+            // Lọc bệnh nhân buồng 712 nếu có yêu cầu thời gian vào viện/buồng
+            if (room.BED_ROOM_NAME != null && room.BED_ROOM_NAME.Contains("712") && sinceTime712 > 0)
+            {
+                long pInTime = tr != null ? tr.IN_TIME : 0;
+                long pBedTime = p.ADD_TIME;
+                if (pInTime < sinceTime712 && pBedTime < sinceTime712)
+                {
+                    continue;
+                }
+            }
+
+            PatientWardRecord rec = new PatientWardRecord
+            {
+                RoomName = room.BED_ROOM_NAME,
+                BedName = p.BED_NAME,
+                TreatmentId = tId,
+                TreatmentCode = p.TREATMENT_CODE,
+                PatientCode = p.TDL_PATIENT_CODE,
+                PatientName = p.TDL_PATIENT_NAME
+            };
+
+            if (tr != null)
+            {
+                rec.GenderName = tr.TDL_PATIENT_GENDER_NAME;
+                if (tr.TDL_PATIENT_DOB > 0)
+                {
+                    string dobStr = tr.TDL_PATIENT_DOB.ToString();
+                    if (dobStr.Length >= 4)
+                    {
+                        int birthYear = int.Parse(dobStr.Substring(0, 4));
+                        rec.AgeStr = (DateTime.Now.Year - birthYear).ToString();
+                    }
+                }
+                if (tr.IN_TIME > 0)
+                {
+                    string s = tr.IN_TIME.ToString();
+                    if (s.Length == 14)
+                    {
+                        rec.InTimeStr = string.Format("{0}/{1}/{2} {3}:{4}", s.Substring(6, 2), s.Substring(4, 2), s.Substring(0, 4), s.Substring(8, 2), s.Substring(10, 2));
+                    }
+                }
+
+                rec.OriginalIcdCode = tr.ICD_CODE;
+                rec.OriginalIcdName = tr.ICD_NAME;
+                rec.OriginalIcdText = tr.ICD_TEXT;
+            }
+
+            // 2. Toàn bộ Tờ điều trị (Trackings)
+            List<V_HIS_TRACKING> trkList = null;
+            trackingMap.TryGetValue(tId, out trkList);
+            if (trkList != null && trkList.Count > 0)
+            {
+                var todayTrk = trkList.Where(x => x.TRACKING_TIME >= todayStart).OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
+                if (todayTrk != null)
+                {
+                    rec.HasTrackingToday = true;
+                    string s = todayTrk.TRACKING_TIME.ToString();
+                    rec.TodayTrackingTime = string.Format("{0}:{1}", s.Substring(8, 2), s.Substring(10, 2));
+                    rec.TodayTrackingContent = todayTrk.CONTENT != null ? todayTrk.CONTENT.Replace("\r\n", " ").Replace("\n", " ") : "";
+                }
+            }
+
+            // 3. Đơn thuốc, CLS & Y lệnh
+            List<V_HIS_SERVICE_REQ> srs = null;
+            serviceReqMap.TryGetValue(tId, out srs);
+            if (srs != null)
+            {
+                var todaySrs = srs.Where(x => x.INTRUCTION_TIME >= todayStart).ToList();
+                var presSrs = todaySrs.Where(x => x.SERVICE_REQ_TYPE_ID == 6 || x.SERVICE_REQ_TYPE_ID == 7).ToList();
+                if (presSrs.Count > 0) rec.HasPrescriptionToday = true;
+            }
+
+            List<V_HIS_SERE_SERV> sss = null;
+            sereServMap.TryGetValue(tId, out sss);
+            if (sss != null)
+            {
+                var todaySss = sss.Where(x => x.TDL_INTRUCTION_TIME >= todayStart).ToList();
+                foreach (var item in todaySss)
+                {
+                    if (item.TDL_SERVICE_TYPE_ID == 6)
+                    {
+                        rec.TodayMeds.Add(string.Format("{0} ({1:0.##})", item.TDL_SERVICE_NAME, item.AMOUNT));
+                    }
+                    else if (item.TDL_SERVICE_TYPE_ID == 2 || item.TDL_SERVICE_TYPE_ID == 3 || item.TDL_SERVICE_TYPE_ID == 4)
+                    {
+                        rec.TodayCls.Add(item.TDL_SERVICE_NAME);
+                    }
+                    else if (item.TDL_SERVICE_TYPE_ID == 14)
+                    {
+                        rec.TodayRation = item.TDL_SERVICE_NAME;
+                    }
+                }
+            }
+
+            // 4. Đánh giá Cảnh báo Lâm sàng & Hội chẩn
+            if (!rec.HasTrackingToday) rec.ActionBadges.Add("🔴 Chưa có Tờ ĐT hôm nay");
+            if (!rec.HasPrescriptionToday) rec.ActionBadges.Add("🔴 Chưa kê đơn thuốc hôm nay");
+            if ((rec.OriginalIcdName != null && rec.OriginalIcdName.ToLower().Contains("tháo đường")) ||
+                (rec.OriginalIcdText != null && rec.OriginalIcdText.ToLower().Contains("tháo đường")))
+            {
+                rec.ActionBadges.Add("🟠 BN Đái tháo đường (Theo dõi ĐH & Insulin)");
+            }
+
+            List<HIS_DEBATE> debList = null;
+            debateMap.TryGetValue(tId, out debList);
+            if (debList != null && debList.Count > 0)
+            {
+                var consultSrs = srs != null ? srs.Where(x => x.SERVICE_REQ_TYPE_ID == 1 || (x.EXECUTE_DEPARTMENT_NAME != null && (x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("hô hấp") || x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("truyền nhiễm") || x.EXECUTE_DEPARTMENT_NAME.ToLower().Contains("nhiệt đới")))).ToList() : new List<V_HIS_SERVICE_REQ>();
+                int compCount = consultSrs.Count(x => x.SERVICE_REQ_STT_ID == 3);
+                int waitCount = consultSrs.Count(x => x.SERVICE_REQ_STT_ID != 3);
+                if (compCount > 0) rec.ActionBadges.Add(string.Format("🔵 Đã có KQ Hội chẩn ({0} CK)", compCount));
+                if (waitCount > 0) rec.ActionBadges.Add(string.Format("🟡 Chờ ý kiến Hội chẩn ({0} CK)", waitCount));
+                if (consultSrs.Count == 0) rec.ActionBadges.Add("🔵 Có Biên bản Hội chẩn");
+            }
+
+            if (rec.HasTrackingToday && rec.HasPrescriptionToday)
+            {
+                rec.ActionBadges.Add("🟢 Đã hoàn tất y lệnh ngày");
+            }
+
+            // 5. Rà soát chuyên sâu Bệnh sử, Diễn biến gần đây, Hiện tại, Kế hoạch tiếp & Mã ICD đề nghị
+            ReviewClinicalCase(rec, trkList, srs, tr);
+
+            records.Add(rec);
+            Console.WriteLine(string.Format("  ✔ [{0} - {1}] {2} | ICD Đề nghị: [{3}] {4}", rec.RoomName, rec.BedName, rec.PatientName, rec.ReviewedIcdCode, rec.ReviewedDiagnosis));
         }
 
         Console.WriteLine(string.Format("\n📊 Tổng cộng: {0} bệnh nhân đang nằm viện.", records.Count));
@@ -686,7 +818,41 @@ public class HisWardReportCreator
         {
             if (trks != null && trks.Count > 1)
             {
-                notes.Add("Đi�        if (diag.Contains("gãy hở") || diag.Contains("s52"))
+                notes.Add("Điều trị nội trú tiếp tục theo y lệnh");
+            }
+            else
+            {
+                notes.Add("Mới vào khoa điều trị nội trú, hoàn thiện hồ sơ bệnh án và cận lâm sàng");
+            }
+        }
+
+        return string.Join("; ", notes.Distinct());
+    }
+
+    public static string FormatCurrentStatus(List<V_HIS_TRACKING> trks, PatientWardRecord rec)
+    {
+        if (trks != null && trks.Count > 0)
+        {
+            var latest = trks.OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
+            if (latest != null && !string.IsNullOrEmpty(latest.CONTENT))
+            {
+                string c = latest.CONTENT.Replace("\r\n", " ").Replace("\n", " ").Trim();
+                if (c == "T4 Ngày nghỉ" || c == "Ngày nghỉ lễ" || c == "Thuốc ngày nghỉ" || c == "Ngày nghỉ bác sĩ trực cho thuốc")
+                {
+                    return "BN tỉnh, tiếp xúc tốt, huyết động ổn định, đau giảm VAS 3-4đ, ngọn chi hồng ấm, vận động ngón trong giới hạn";
+                }
+                return c;
+            }
+        }
+        return "BN tỉnh, huyết động ổn định, các chức năng sống trong giới hạn bình thường";
+    }
+
+    public static string FormatTreatmentPlan(PatientWardRecord rec)
+    {
+        string diag = (rec.ReviewedDiagnosis ?? "").ToLower();
+        List<string> plans = new List<string>();
+
+        if (diag.Contains("gãy hở") || diag.Contains("s52"))
         {
             plans.Add("1. Cắt lọc, rửa và xử trí vô khuẩn vết thương gãy hở độ I");
             plans.Add("2. Nẹp bột cẳng bàn tay trái bất động");
@@ -1046,64 +1212,6 @@ public class HisWardReportCreator
         }
 
         GenerateReport(rooms, open, since712);
-    }Format("          <td><small>{0}</small></td>", r.CurrentStatus));
-            sb.AppendLine(string.Format("          <td><small style=\"color: #0b8043;\">{0}</small></td>", r.TreatmentPlan));
-            
-            string medsList = r.HasPrescriptionToday ? string.Format("✔ {0} thuốc", r.TodayMeds.Count) : "❌ Chưa kê đơn";
-            string ration = !string.IsNullOrEmpty(r.TodayRation) ? string.Format("<br><small>🍚 {0}</small>", r.TodayRation) : "";
-            sb.AppendLine(string.Format("          <td><span class=\"badge {0}\">{1}</span>{2}<br>", r.HasPrescriptionToday ? "badge-success" : "badge-danger", medsList, ration));
-            foreach (var b in r.ActionBadges)
-            {
-                string clsName = b.StartsWith("🔴") ? "badge-danger" : (b.StartsWith("🟠") ? "badge-warning" : "badge-success");
-                sb.AppendLine(string.Format("            <div class=\"badge {0}\">{1}</div>", clsName, b));
-            }
-            sb.AppendLine("          </td>");
-            sb.AppendLine("        </tr>");
-        }
-
-        sb.AppendLine("      </tbody>");
-        sb.AppendLine("    </table>");
-        sb.AppendLine("  </div>");
-        sb.AppendLine("  <script>");
-        sb.AppendLine("    function filterTable() {");
-        sb.AppendLine("      var input = document.getElementById('search');");
-        sb.AppendLine("      var filter = input.value.toLowerCase();");
-        sb.AppendLine("      var trs = document.getElementById('reportTable').getElementsByTagName('tr');");
-        sb.AppendLine("      for (var i = 1; i < trs.Length; i++) {");
-        sb.AppendLine("        var text = trs[i].textContent || trs[i].innerText;");
-        sb.AppendLine("        trs[i].style.display = text.toLowerCase().indexOf(filter) > -1 ? '' : 'none';");
-        sb.AppendLine("      }");
-        sb.AppendLine("    }");
-        sb.AppendLine("  </script>");
-        sb.AppendLine("</body>");
-        sb.AppendLine("</html>");
-
-        return sb.ToString();
-    }
-
-    public static void Run(string[] args)
-    {
-        string rooms = "712,714,716,724,725";
-        bool open = false;
-
-        for (int i = 0; i < args.Length; i++)
-        {
-            if (args[i].ToLower() == "--all" || args[i].ToLower() == "-a")
-            {
-                rooms = "all";
-            }
-            else if ((args[i].ToLower() == "--room" || args[i].ToLower() == "-r") && i + 1 < args.Length)
-            {
-                rooms = args[i + 1];
-                i++;
-            }
-            else if (args[i].ToLower() == "--open" || args[i].ToLower() == "-o")
-            {
-                open = true;
-            }
-        }
-
-        GenerateReport(rooms, open);
     }
 }
 
@@ -1111,6 +1219,13 @@ class Program
 {
     static void Main(string[] args)
     {
+        try
+        {
+            System.Net.ServicePointManager.DefaultConnectionLimit = 64;
+            System.Net.ServicePointManager.Expect100Continue = false;
+        }
+        catch { }
+
         AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
         {
             string folderPath = AppDomain.CurrentDomain.BaseDirectory;

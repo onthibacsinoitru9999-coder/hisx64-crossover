@@ -1,10 +1,16 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $rootDir    = $PSScriptRoot
 $portDir    = Join-Path $rootDir 'HisAutoPrescribe_Portable'
 $scriptDir  = Join-Path $rootDir '.agents\skills\his-clinical-operations\scripts'
 $srcFile    = Join-Path $scriptDir 'HisClinicalCli.cs'
 $outExe     = Join-Path $scriptDir 'HisClinicalCli.exe'
-$cscPath    = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+$cscPath    = if ($env:CSC -and (Test-Path $env:CSC)) {
+    $env:CSC
+} elseif (Test-Path "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe") {
+    "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+} else {
+    'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+}
 $rspFile    = Join-Path $env:TEMP 'his_clinicalcli_build.rsp'
 
 Write-Host "=== Build HisClinicalCli.exe ===" -ForegroundColor Cyan

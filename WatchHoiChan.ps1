@@ -1,11 +1,11 @@
-# Real-time HIS Log Monitor for Consultation / Hoi Chan
+﻿# Real-time HIS Log Monitor for Consultation / Hoi Chan
 $ErrorActionPreference = "Continue"
 
 $targetDirs = @(
     "$PSScriptRoot\Logs",
     "Logs",
-    "D:\his\his-x64-28-11fix GDYK\his-x64\Logs",
-    "E:\his-x64-28-11fix GDYK\his-x64\Logs"
+    (Join-Path $PSScriptRoot "..\Logs"),
+    (Join-Path (Get-Location).Path "Logs")
 )
 
 $logDir = $null

@@ -1,4 +1,4 @@
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host " 1. KIEM TRA TRANG THAI TAILSCALE TAI MAY NAY" -ForegroundColor Cyan

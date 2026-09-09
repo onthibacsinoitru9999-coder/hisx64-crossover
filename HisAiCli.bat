@@ -1,7 +1,9 @@
 @echo off
 setlocal
-set SCRIPT_DIR=%~dp0
-call "%SCRIPT_DIR%set_env.bat"
+chcp 65001 >nul
+set "SCRIPT_DIR=%~dp0"
+cd /d "%SCRIPT_DIR%"
+if not defined HIS_ENV_READY call "%SCRIPT_DIR%set_env.bat"
 
 where python >nul 2>nul
 if %errorlevel% equ 0 (

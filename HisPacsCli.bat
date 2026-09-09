@@ -1,3 +1,8 @@
 @echo off
 setlocal
+chcp 65001 >nul
+cd /d "%~dp0"
+if not defined HIS_ENV_READY call "%~dp0set_env.bat"
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0HisPacsCli.ps1" %*
+exit /b %ERRORLEVEL%

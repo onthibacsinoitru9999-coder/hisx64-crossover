@@ -1,4 +1,4 @@
-# PowerShell script cai dat Git for Windows tu dong
+﻿# PowerShell script cai dat Git for Windows tu dong
 Write-Host "Dang kiem tra Git..." -ForegroundColor Cyan
 if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "Git da duoc cai dat: $(git --version)" -ForegroundColor Green

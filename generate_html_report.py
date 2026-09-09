@@ -1,13 +1,37 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 import re
 import html
 from datetime import datetime
 
-md_path = r"e:\his-x64-28-11fix GDYK\his-x64\Reports\BaoCao_HoiChan_CTCH_NinhBinh.md"
-html_path = r"e:\his-x64-28-11fix GDYK\his-x64\Reports\BaoCao_HoiChan_CTCH_NinhBinh.html"
-drive_dir = r"C:\Users\1995\OneDrive\BaoCaoBuongBenh_Khoa57"
-drive_html_path = os.path.join(drive_dir, "BaoCao_HoiChan_CTCH_NinhBinh.html")
+base_dir = os.path.dirname(os.path.abspath(__file__))
+reports_dir = os.path.join(base_dir, "Reports")
+
+if len(sys.argv) > 1 and sys.argv[1].endswith(".md"):
+    md_path = os.path.abspath(sys.argv[1])
+    html_path = os.path.splitext(md_path)[0] + ".html"
+else:
+    md_path = os.path.join(reports_dir, "BaoCao_HoiChan_CTCH_NinhBinh.md")
+    html_path = os.path.join(reports_dir, "BaoCao_HoiChan_CTCH_NinhBinh.html")
+    if not os.path.exists(md_path):
+        alt_md = os.path.join(reports_dir, "ConsultationReports", "BaoCao_HoiChan_LienKhoa_Khoa57.md")
+        if os.path.exists(alt_md):
+            md_path = alt_md
+            html_path = os.path.join(reports_dir, "ConsultationReports", "BaoCao_HoiChan_LienKhoa_Khoa57.html")
+
+onedrive_base = (
+    os.environ.get("OneDrive")
+    or os.environ.get("OneDriveConsumer")
+    or os.path.expanduser(r"~\OneDrive")
+)
+drive_dir = os.path.join(onedrive_base, "BaoCaoBuongBenh_Khoa57")
+drive_html_path = os.path.join(drive_dir, os.path.basename(html_path))
+
+if not os.path.exists(md_path):
+    print(f"[ERROR] Source markdown file not found: {md_path}")
+    print("Usage: python generate_html_report.py [path_to_report.md]")
+    sys.exit(1)
 
 with open(md_path, "r", encoding="utf-8") as f:
     content = f.read()
@@ -545,6 +569,7 @@ function filterPatients() {
 </html>
 """
 
+os.makedirs(reports_dir, exist_ok=True)
 with open(html_path, "w", encoding="utf-8") as f:
     f.write(html_out)
 

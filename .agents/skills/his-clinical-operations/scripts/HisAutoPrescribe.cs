@@ -1458,8 +1458,43 @@ class Program
         // CSV format: patient_code,dose,medicine,tutorial,time,date
         // VD: HisAutoPrescribe.exe --batch insulin_orders.csv
         // ──────────────────────────────────────────────────────────
-        if (args != null && args.Length >= 2 && (args[0] == "--batch" || args[0] == "-b"))
+        // CHẾ ĐỘ --help / Hướng dẫn sử dụng CLI
+        // ──────────────────────────────────────────────────────────
+        if (args != null && args.Length > 0 && (args[0] == "--help" || args[0] == "-h" || args[0] == "/?" || args[0] == "help"))
         {
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine("  HIS AUTO PRESCRIBE - HUONG DAN SU DUNG (USAGE)");
+            Console.WriteLine("===============================================================================");
+            Console.WriteLine("Usage:");
+            Console.WriteLine("  1. GUI Mode (Khong truyen tham so):");
+            Console.WriteLine("     HisAutoPrescribe.exe");
+            Console.WriteLine("");
+            Console.WriteLine("  2. Batch Mode (Ke don hang loat tu file CSV):");
+            Console.WriteLine("     HisAutoPrescribe.exe --batch <duong_dan_file.csv> [user] [pass]");
+            Console.WriteLine("     HisAutoPrescribe.exe -b <duong_dan_file.csv> [user] [pass]");
+            Console.WriteLine("");
+            Console.WriteLine("  3. Single Mode (Ke don truc tiep tu command line):");
+            Console.WriteLine("     HisAutoPrescribe.exe single <MaBN> <SoLuong> <TenThuoc> [CachDung] [user] [pass]");
+            Console.WriteLine("     HisAutoPrescribe.exe <MaBN> <SoLuong> <TenThuoc> [CachDung] [user] [pass]");
+            Console.WriteLine("===============================================================================");
+            return;
+        }
+
+        // ──────────────────────────────────────────────────────────
+        // CHẾ ĐỘ --batch: Đọc file CSV hàng loạt, kê đơn Insulin
+        // CSV format: patient_code,dose,medicine,tutorial,time,date
+        // VD: HisAutoPrescribe.exe --batch insulin_orders.csv
+        // ──────────────────────────────────────────────────────────
+        if (args != null && args.Length >= 1 && (args[0] == "--batch" || args[0] == "-b"))
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("❌ Thiếu đường dẫn file CSV cho chế độ --batch!");
+                Console.WriteLine("Usage: HisAutoPrescribe.exe --batch <duong_dan_file.csv> [user] [pass]");
+                Environment.ExitCode = 1;
+                return;
+            }
+
             string csvPath = args[1];
             string batchUser = args.Length > 2 ? args[2] : "vmc";
             string batchPass = args.Length > 3 ? args[3] : "789789";
@@ -1473,6 +1508,7 @@ class Program
             if (!File.Exists(csvPath))
             {
                 Console.WriteLine("❌ Không tìm thấy file CSV: " + csvPath);
+                Environment.ExitCode = 1;
                 return;
             }
 
@@ -1485,7 +1521,7 @@ class Program
             Console.WriteLine(string.Format("• Số lệnh: {0}", csvLines.Count));
             Console.WriteLine("-------------------------------------------------------------------------------");
 
-            if (csvLines.Count == 0) { Console.WriteLine("⚠ File CSV không có dữ liệu!"); return; }
+            if (csvLines.Count == 0) { Console.WriteLine("⚠ File CSV không có dữ liệu!"); Environment.ExitCode = 1; return; }
 
             try
             {
@@ -1501,7 +1537,7 @@ class Program
                     if (btok != null) bToken = btok.TokenCode;
                 }
 
-                if (string.IsNullOrEmpty(bToken)) { Console.WriteLine("❌ Không lấy được Token!"); return; }
+                if (string.IsNullOrEmpty(bToken)) { Console.WriteLine("❌ Không lấy được Token!"); Environment.ExitCode = 1; return; }
                 ApiConsumers.SetConsunmer(bToken);
                 MyAdapter bad = new MyAdapter();
 
@@ -1623,23 +1659,40 @@ class Program
                 Console.WriteLine("===============================================================================");
                 Console.WriteLine(string.Format("KẾT THÚC BATCH: ✔ Thành công: {0} | ❌ Lỗi: {1}", bSucc, bFail));
                 Console.WriteLine("===============================================================================");
+                if (bFail > 0 && bSucc == 0)
+                {
+                    Environment.ExitCode = 1;
+                }
             }
             catch (Exception batchEx)
             {
                 Console.WriteLine("❌ Lỗi nghiêm trọng batch mode: " + batchEx.Message);
+                Environment.ExitCode = 1;
             }
             return;
         }
 
-        if (args != null && args.Length >= 3)
+        bool isSingleExplicit = args != null && args.Length > 0 && args[0].Equals("single", StringComparison.OrdinalIgnoreCase);
+        int argOffset = isSingleExplicit ? 1 : 0;
+        int remainingArgs = (args != null) ? args.Length - argOffset : 0;
+
+        if (isSingleExplicit || remainingArgs >= 3)
         {
-            string patKey = args[0];
+            if (remainingArgs < 3)
+            {
+                Console.WriteLine("❌ Thiếu tham số cho chế độ kê đơn đơn lẻ (single)!");
+                Console.WriteLine("Usage: HisAutoPrescribe.exe single <MaBN> <SoLuong> <TenThuoc> [CachDung] [user] [pass]");
+                Environment.ExitCode = 1;
+                return;
+            }
+
+            string patKey = args[argOffset];
             decimal amount = 1;
-            decimal.TryParse(args[1], out amount);
-            string medKw = args[2];
-            string tut = args.Length > 3 ? args[3] : "Theo chỉ dẫn bác sĩ";
-            string user = args.Length > 4 ? args[4] : "vmc";
-            string pass = args.Length > 5 ? args[5] : "789789";
+            decimal.TryParse(args[argOffset + 1], out amount);
+            string medKw = args[argOffset + 2];
+            string tut = remainingArgs > 3 ? args[argOffset + 3] : "Theo chỉ dẫn bác sĩ";
+            string user = remainingArgs > 4 ? args[argOffset + 4] : "vmc";
+            string pass = remainingArgs > 5 ? args[argOffset + 5] : "789789";
 
             Console.WriteLine(string.Format(">>> CLI AUTO PRESCRIBE: BS {0} | BN: {1} | Thuốc: {2} | Liều: {3}", user, patKey, medKw, amount));
             try
@@ -1653,7 +1706,7 @@ class Program
                     var tok = tm.Login(p, user, pass, "2.390.0");
                     if (tok != null) sToken = tok.TokenCode;
                 }
-                if (string.IsNullOrEmpty(sToken)) { Console.WriteLine("❌ Đăng nhập và tìm token thất bại!"); return; }
+                if (string.IsNullOrEmpty(sToken)) { Console.WriteLine("❌ Đăng nhập và tìm token thất bại!"); Environment.ExitCode = 1; return; }
                 ApiConsumers.SetConsunmer(sToken);
                 MyAdapter ad = new MyAdapter();
 
@@ -1677,6 +1730,7 @@ class Program
                 if (string.IsNullOrWhiteSpace(patKey) || (long.TryParse(patKey, out pNum) && pNum <= 0))
                 {
                     Console.WriteLine("❌ Mã bệnh nhân không hợp lệ: " + patKey);
+                    Environment.ExitCode = 1;
                     return;
                 }
 
@@ -1697,7 +1751,7 @@ class Program
                     tf.KEY_WORD = patKey;
                     trs = ad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, tf, p);
                 }
-                if (trs == null || trs.Count == 0) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
+                if (trs == null || trs.Count == 0) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); Environment.ExitCode = 1; return; }
                 var tr = trs.Where(t => t.END_DEPARTMENT_ID == 57 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0)).OrderByDescending(t => t.IN_TIME).FirstOrDefault() 
                          ?? trs.OrderByDescending(t => t.IN_TIME).First();
 
@@ -1718,7 +1772,16 @@ class Program
             catch (Exception ex)
             {
                 Console.WriteLine("❌ Lỗi: " + ex.Message);
+                Environment.ExitCode = 1;
             }
+            return;
+        }
+
+        if (args != null && args.Length > 0)
+        {
+            Console.WriteLine("❌ Tham số không hợp lệ: " + string.Join(" ", args));
+            Console.WriteLine("Sử dụng 'HisAutoPrescribe.exe --help' để xem hướng dẫn cú pháp.");
+            Environment.ExitCode = 1;
             return;
         }
 

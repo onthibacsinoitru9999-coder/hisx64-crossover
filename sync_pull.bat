@@ -4,7 +4,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 :: Nạp môi trường tự động (Git, Python, C++, C#)
-call "%~dp0set_env.bat"
+if not defined HIS_ENV_READY call "%~dp0set_env.bat"
 
 echo ===================================================
 echo [HIS AI AGENT] DANG DONG BO DU LIEU TU GIT (PULL)...

@@ -40,6 +40,18 @@ public class HisLeanproAssigner
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         List<string> candidates = new List<string>();
+
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
+            if (procs != null && procs.Length > 0)
+            {
+                string hisDir = Path.GetDirectoryName(procs[0].MainModule.FileName);
+                candidates.Add(Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+            }
+        }
+        catch { }
+
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {

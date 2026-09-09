@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     HisPacsCli - Tra cứu ca chụp RIS/PACS và tự động tạo link mở Web Viewer 1-Click
 .DESCRIPTION
@@ -121,7 +121,7 @@ try {
         $pIdStr = if ($s.patient) { $s.patient.pid } else { "" }
 
         # Resolve direct 302 location from RIS
-        $headRespRaw = curl.exe -s -i -b $cookieFile "$risUrl/viewer?study=$iuid"
+        $headRespRaw = curl.exe -m 5 -s -i -b $cookieFile "$risUrl/viewer?study=$iuid"
         $directViewer = ""
         foreach ($line in $headRespRaw) {
             if ($line -match "location:\s*(.+)") {

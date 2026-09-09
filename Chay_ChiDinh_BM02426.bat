@@ -1,6 +1,8 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+if not defined HIS_ENV_READY call "%~dp0set_env.bat"
+
 title Ứng Dụng Chỉ Định Đường Máu Mao Mạch Tại Giường (BM02426) - Bệnh Viện Bạch Mai
 echo ==============================================================================
 echo  HỆ THỐNG TỰ ĐỘNG CHỈ ĐỊNH ĐƯỜNG MÁU MAO MẠCH TẠI GIƯỜNG (BM02426)
