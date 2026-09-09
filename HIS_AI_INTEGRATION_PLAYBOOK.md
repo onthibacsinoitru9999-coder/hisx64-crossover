@@ -1284,5 +1284,33 @@ using (var destZip = new ZipArchive(destFile, ZipArchiveMode.Create))
 ```
 
 ---
+
+## 24. QUY CHUẨN TỰ ĐỘNG HÓA TRA CỨU & MỞ ẢNH PACS / RIS (WEB VIEWER 1-CLICK)
+
+### 24.1. Kiến Trúc & Cấu Hình Mạng:
+- **RIS Minerva:** `http://192.168.200.110/ris` (Tài khoản: `ctch` / Mật khẩu: `ctchCS2026!`)
+- **Modern Web DICOM Viewer (OHIF):** `http://192.168.200.111:8081`
+- **Máy chủ Lưu trữ PACS:**
+  - `CS2`: `192.168.200.107:8080` (WADO: `http://192.168.200.107:8080/pacs/CS2/wado`)
+  - `VRPACS / IMPORT2`: `192.168.200.111:8080`
+
+### 24.2. Bẫy Lỗi (Gotchas) & Bài Học Xương Máu:
+1. **Tiền tố Mã Bệnh nhân RIS (`VS.`):**
+   - Trên HIS mã BN là 10 chữ số (VD: `0004009330`).
+   - Trên RIS Minerva, mã BN bắt buộc phải có tiền tố `VS.` (thành `VS.0004009330`). Nếu truyền thiếu `VS.` API sẽ trả về 0 bản ghi.
+2. **Biến môi trường `$PID` của PowerShell:**
+   - Trong PowerShell, `$PID` là biến tự động lưu Process ID (Read-only). Không được đặt tên biến `$pid = ...`, phải dùng `$pIdStr` hoặc `$patientCode`.
+3. **PowerShell Array vs String khi dùng `-match`:**
+   - Khi chạy `curl.exe`, kết quả trả về là mảng `[Object[]]`.
+   - Toán tử `-match` trên mảng lọc phần tử chứ KHÔNG gán `$matches`. Bắt buộc dùng `($res -join "`n") -match ...`.
+4. **Không cần đăng nhập lại tại Web Viewer:**
+   - Link `http://192.168.200.111:8081/viewer?session=...` đã chứa sẵn session token được sinh bởi RIS. Trình duyệt mở trực tiếp không bị chặn xác thực.
+
+### 24.3. Công Cụ CLI Thực Thi:
+- `.\HisPacsCli.bat <MãBN>`: Liệt kê toàn bộ ca chụp (MRI, CT, X-quang, Siêu âm) và in link Web Viewer 1-click.
+- `.\HisPacsCli.bat <MãBN> -Open`: Tự động đẩy thẳng các tab xem ảnh lên Google Chrome / Edge trên màn hình bác sĩ.
+
+---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
+
 
