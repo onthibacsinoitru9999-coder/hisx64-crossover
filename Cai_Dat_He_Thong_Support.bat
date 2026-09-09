@@ -7,8 +7,9 @@ echo ===========================================================================
 
 set SCRIPT_DIR=%~dp0
 cd /d %SCRIPT_DIR%
+call "%SCRIPT_DIR%set_env.bat"
 
-echo [1/4] Kiểm tra môi trường HIS...
+echo [1/5] Kiểm tra môi trường HIS...
 if exist "ReferencedAssemblies\Inventec.Core.dll" (
     echo   ✔ Đã tìm thấy thư mục ReferencedAssemblies chuẩn.
 ) else if exist "Inventec.Core.dll" (
@@ -19,7 +20,7 @@ if exist "ReferencedAssemblies\Inventec.Core.dll" (
 )
 
 echo.
-echo [2/4] Kiểm tra và thiết lập Git đồng bộ tri thức cho Agent...
+echo [2/5] Kiểm tra và thiết lập Git đồng bộ tri thức cho Agent...
 if not exist ".git" (
     where git >nul 2>nul
     if !errorlevel! equ 0 (
@@ -38,11 +39,17 @@ if not exist ".git" (
 )
 
 echo.
-echo [3/4] Kiểm tra kết nối máy chủ và phiên đăng nhập (Health Check)...
+echo [3/5] Kiểm tra bộ công cụ phát triển (Python, C++, C#)...
+where python >nul 2>nul && (echo   ✔ Python: Đã nhận diện) || (echo   ⚠ Python: Chưa tìm thấy)
+where g++ >nul 2>nul && (echo   ✔ C++ Compiler: Đã nhận diện [g++]) || (echo   ⚠ C++: Chưa tìm thấy)
+where csc >nul 2>nul && (echo   ✔ C# Compiler: Đã nhận diện [csc]) || (echo   ⚠ C#: Chưa tìm thấy)
+
+echo.
+echo [4/5] Kiểm tra kết nối máy chủ và phiên đăng nhập (Health Check)...
 call "%SCRIPT_DIR%HisDiagnosticDoctor.bat" health
 
 echo.
-echo [4/4] Thử nghiệm tra cứu nhanh thông tin bệnh nhân...
+echo [5/5] Thử nghiệm tra cứu nhanh thông tin bệnh nhân...
 if exist %SCRIPT_DIR%HisClinicalCli.exe (
     %SCRIPT_DIR%HisClinicalCli.exe lookup 0003985947
 )

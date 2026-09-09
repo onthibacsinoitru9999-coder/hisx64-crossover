@@ -1,6 +1,7 @@
 @echo off
 setlocal
 set SCRIPT_DIR=%~dp0
+call "%SCRIPT_DIR%set_env.bat"
 
 where python >nul 2>nul
 if %errorlevel% equ 0 (

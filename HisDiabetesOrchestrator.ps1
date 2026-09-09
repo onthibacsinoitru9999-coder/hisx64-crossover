@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     HisDiabetesOrchestrator.ps1 - Điều phối tự động luồng theo dõi đường huyết ĐTĐ
     
@@ -72,6 +72,9 @@ param(
 # ==============================================================================
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + $env:Path
+}
 # Tự dò tìm thư mục scripts dù chạy từ ổ D: hay E:
 $ScriptsDir = Join-Path $ScriptDir ".agents\skills\his-clinical-operations\scripts"
 if (-not (Test-Path $ScriptsDir)) {
@@ -145,7 +148,7 @@ function Run-Tool {
 }
 
 function Format-TrackingContent {
-    param([hashtable]$Session, [string]$PatientCode)
+    param([psobject]$Session, [string]$PatientCode)
     $timeLabel = switch ($Session.time) {
         "17:00" { "17h" }
         "21:00" { "21h" }
@@ -166,15 +169,15 @@ function Format-TrackingContent {
 }
 
 function Format-MedInstruction {
-    param([hashtable]$Session)
+    param([psobject]$Session)
     if ($Session.inject -and $Session.insulin_dose_ui -gt 0) {
         $timeLabel = switch ($Session.time) {
             "17:00" { "trước ăn chiều 17h" }
-            "21:00" { "trước ngủ 21h" }
-            "06:00" { "sáng 6h" }
+            "21:00" { "21h trước ngủ" }
+            "06:00" { "trước ăn sáng 6h" }
             default  { $Session.time }
         }
-        return "$($Session.insulin_name) $($Session.insulin_dose_ui) đv tiêm dưới da $timeLabel"
+        return "Tiêm dưới da $($Session.insulin_dose_ui) đơn vị $timeLabel."
     }
     return ""
 }
@@ -487,7 +490,7 @@ if (-not $SkipBedside -and $bedsideOrders.Count -gt 0) {
         $dateStr  = $group.Date
         
         if (-not $patList) {
-            Write-Info "Bỏ qua nhóm $key: không có mã BN hợp lệ"
+            Write-Info "Bỏ qua nhóm $($key): không có mã BN hợp lệ"
             continue
         }
         
@@ -532,11 +535,11 @@ $totalFail = $stats.TrackingFail + $stats.BedsideFail + $stats.InsulinFail
 Write-Host ""
 Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "Tác vụ", "Thành công", "Lỗi") -ForegroundColor White
 Write-Host "  " + "-" * 56 -ForegroundColor Gray
-Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "📝 Tờ điều trị", $stats.TrackingOk, $stats.TrackingFail) -ForegroundColor (if($stats.TrackingFail -eq 0){"Green"}else{"Yellow"})
-Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "🩸 Chỉ định BM02426", $stats.BedsideOk, $stats.BedsideFail)  -ForegroundColor (if($stats.BedsideFail -eq 0){"Green"}else{"Yellow"})
-Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "💉 Kê đơn Insulin", $stats.InsulinOk, $stats.InsulinFail)   -ForegroundColor (if($stats.InsulinFail -eq 0){"Green"}else{"Yellow"})
+Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "📝 Tờ điều trị", $stats.TrackingOk, $stats.TrackingFail) -ForegroundColor $(if($stats.TrackingFail -eq 0){"Green"}else{"Yellow"})
+Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "🩸 Chỉ định BM02426", $stats.BedsideOk, $stats.BedsideFail)  -ForegroundColor $(if($stats.BedsideFail -eq 0){"Green"}else{"Yellow"})
+Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "💉 Kê đơn Insulin", $stats.InsulinOk, $stats.InsulinFail)   -ForegroundColor $(if($stats.InsulinFail -eq 0){"Green"}else{"Yellow"})
 Write-Host "  " + "-" * 56 -ForegroundColor Gray
-Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "TỔNG", $totalOk, $totalFail) -ForegroundColor (if($totalFail -eq 0){"Green"}else{"Red"})
+Write-Host ("  {0,-30} {1,-12} {2,-12}" -f "TỔNG", $totalOk, $totalFail) -ForegroundColor $(if($totalFail -eq 0){"Green"}else{"Red"})
 Write-Host ""
 
 if ($totalFail -eq 0) {

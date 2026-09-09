@@ -3,8 +3,8 @@ chcp 65001 >nul
 :: Chuyển thư mục làm việc về chính xác vị trí file .bat này
 cd /d "%~dp0"
 
-:: Đảm bảo Git có trong PATH
-set "PATH=C:\Program Files\Git\cmd;%PATH%"
+:: Nạp môi trường tự động (Git, Python, C++, C#)
+call "%~dp0set_env.bat"
 
 echo ===================================================
 echo [HIS AI AGENT] DANG DAY CAP NHAT LEN GIT (PUSH)...
