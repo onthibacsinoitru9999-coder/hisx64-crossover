@@ -28,11 +28,11 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Batch Files & Toolchain Links | F1, F2, F3: Modernize `set_env.bat`/`.ps1`, fix hardcoded paths & quoting across all 27 `.bat` files | none | IN_PROGRESS |
-| M2 | C# Syntax Repair & Compilation | F4, F5, F6: Repair `HisWardReportCreator.cs`, update `refs.rsp`, build master compiler script, generate missing `HisLeanproAssigner.exe` and sync all 14 `.exe` tools | M1 | PLANNED |
-| M3 | Clinical Query Latency & Batching | F7, F8, F9: Batch HTTP requests in `HisClinicalCli.cs` and `HisWardReportCreator.cs`, standardize tail-seek token reading, bring latency < 1.5s | M2 | PLANNED |
-| M4 | Script Encoding & Workspace Cleanup | F10, F11, F12: Add UTF-8 BOM to all `.ps1`, convert `FetchPatient.cs` to UTF-8, purge garbage/temp files, protect core configs | M1, M2 | PLANNED |
-| M5 | System-wide E2E Testing & Git Sync | F13, F14: Validate 100% health, 0 AST errors, < 2s AI CLI, dry run execution, commit & push to Git | M1, M2, M3, M4 | PLANNED |
+| M1 | Batch Files & Toolchain Links | F1, F2, F3: Modernize `set_env.bat`/`.ps1`, fix hardcoded paths & quoting across all 27 `.bat` files | none | DONE |
+| M2 | C# Syntax Repair & Compilation | F4, F5, F6: Repair `HisWardReportCreator.cs`, update `refs.rsp`, build master compiler script, generate missing `HisLeanproAssigner.exe` and sync all 14 `.exe` tools | M1 | DONE |
+| M3 | Clinical Query Latency & Batching | F7, F8, F9: Batch HTTP requests in `HisClinicalCli.cs` and `HisWardReportCreator.cs`, standardize tail-seek token reading, bring latency < 1.5s | M2 | DONE |
+| M4 | Script Encoding & Workspace Cleanup | F10, F11, F12: Add UTF-8 BOM to all `.ps1`, convert `FetchPatient.cs` to UTF-8, purge garbage/temp files, protect core configs | M1, M2 | DONE |
+| M5 | System-wide E2E Testing & Git Sync | F13, F14: Validate 100% health, 0 AST errors, < 2s AI CLI, dry run execution, commit & push to Git | M1, M2, M3, M4 | DONE |
 
 ## Code Layout
 - Root directory: `f:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB`
