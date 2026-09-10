@@ -7,10 +7,31 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 ## 1. QUY TẮC ĐẦU PHIÊN CHO MỌI KHUNG CHAT MỚI (PRE-FLIGHT SYNC - BẮT BUỘC 100%)
 * **Bất kỳ khung chat nào khi bắt đầu phiên làm việc**, trước khi xử lý yêu cầu của bác sĩ (kê đơn, tờ điều trị, chỉ định CLS, tra cứu, sửa code...), Agent PHẢI **CHỦ ĐỘNG CHẠY LỆNH PULL** bằng terminal để đồng bộ tri thức và công cụ mới nhất từ Git:
   ```powershell
-  git pull origin main
+  . .\set_env.ps1 ; git pull origin main
   ```
   *(Trường hợp thư mục mới chưa có `.git`, Agent tự động chạy lệnh tự phục hồi sau để liên kết ngay với repository: `git init ; git remote add origin https://github.com/onthibacsinoitru9999-coder/hisx64-crossover.git ; git fetch origin main ; git branch -M main ; git reset origin/main`)*
-* **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///d:/his/his-x64-28-11fix%20GDYK/his-x64/HIS_AI_INTEGRATION_PLAYBOOK.md) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
+* **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///f:/NB/LBP2900_R150_V330_W64_uk_EN_2/x64/MISC/ANIMIMG/his/HIS%20CSNB/HIS_AI_INTEGRATION_PLAYBOOK.md) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
+
+### 🌟 QUY TẮC CỨNG: BẮT BUỘC KHAI BÁO & NHẬN DIỆN CƠ SỞ ĐẦU PHIÊN (FACILITY PRE-FLIGHT DECLARATION)
+* **BẮT BUỘC 100%**: Ngay khi khởi động phiên làm việc mới (hoặc trước khi thực hiện bất kỳ y lệnh lâm sàng nào), Agent PHẢI **XÁC ĐỊNH & KHAI BÁO RÕ RÀNG** đang làm việc tại cơ sở nào:
+  - 🏥 **Cơ sở Hà Nội (`ha-noi` / `HN`)**:
+    * **Khoa**: Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 - `DEPARTMENT_ID = 57`)
+    * **Branch**: Bệnh viện Bạch Mai - Hà Nội (`BRANCH_ID = 1`)
+    * **Buồng bệnh**: P712, P714, P716, P724, P725...
+    * **Phòng làm việc / Tiểu phẫu**: P734 (`RoomId = 5248`) hoặc Tiểu phẫu Nhà Q (`ExecuteRoomId = 931`)
+    * **Tủ trực thuốc**: **`810` (`TT_KCTCHCS`)**
+    * **Dịch vụ ĐMMM tại giường**: **`BM02426`** (Service ID: **`6217`**)
+  - 🏥 **Cơ sở Ninh Bình (`ninh-binh` / `NB`)**:
+    * **Khoa**: Khoa Ngoại tổng hợp - Tầng 3 Nhà E (Khoa 915 - `DEPARTMENT_ID = 915`)
+    * **Branch**: Bệnh viện Bạch Mai Cơ sở 2 - Ninh Bình (`BRANCH_ID = 81`)
+    * **Buồng bệnh**: Khu 3E (Phòng 3E-01 đến 3E-33), Khu 3D
+    * **Phòng làm việc / Thực hiện CLS**: P3E-05 (`18679` - Phòng TT Khoa CTCH & CS) hoặc P3D-05 (`18681` - Phòng TT Khoa PT tiêu hóa)
+    * **Tủ trực thuốc**: **`5142` (`TTT_NBKP05.02` - Tủ trực khu 3E)** hoặc **`5141` (`TTT_NBKP05.01` - Tủ trực khu 3D)**
+    * **Dịch vụ ĐMMM tại giường**: **`NB260620.6231`** (Service ID: **`74281`** - "Định lượng Glucose [Máu] mao mạch")
+* **Cơ chế nhận diện & Điều phối tự động:**
+  1. Nếu Bác sĩ khai báo cụ thể ("ở Ninh Bình", "3E-24", "tủ trực NB", "ở Hà Nội", "phòng 714"): Kích hoạt ngay cấu hình cơ sở tương ứng.
+  2. Nếu Bác sĩ chưa khai báo: Agent kiểm tra branch Git hiện tại (`git branch --show-current`). Nếu ở `ninh-binh` thì chạy cấu hình Ninh Bình; nếu ở `ha-noi` thì chạy cấu hình Hà Nội.
+  3. TUYỆT ĐỐI CẤM tự ý áp dụng catalog Hà Nội cho bệnh nhân Ninh Bình (sẽ gây lỗi `Success: false` do mã `BM02426` không có trong hợp đồng BHYT Ninh Bình) hoặc ngược lại.
 
 ## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC PHẦN MỀM CON (SINGLE RESPONSIBILITY CLI MATRIX)
 Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục đích chuyên biệt. **TUYỆT ĐỐI KHÔNG GỌI NHẦM CÔNG CỤ (Đặc biệt: Khi tra cứu thông tin CẤM gọi `HisAutoPrescribe.exe`)**:
@@ -62,20 +83,29 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
        * **`R`** (VD: **`6R`**, **`8R`**, **`4R`**): là **Actrapid** (Insulin Regular tác dụng nhanh). Ví dụ `6R` = `6 đơn vị Actrapid`.
        * **`L`** (VD: **`10L`**, **`12L`**, **`14L`**): là **Lantus** (Insulin Glargine nền kéo dài). Ví dụ `10L` = `10 đơn vị Lantus`.
        * **`M`** (VD: **`8M`**, **`10M`**, **`12M`**): là **Mixtard** (Insulin hỗn hợp / Mix). Ví dụ `8M` = `8 đơn vị Mixtard`.
-     - 🔍 **Mặc định đối chiếu Bệnh nhân tại Khoa CTCH & Cột sống (Khoa 57):**
-       * Trừ khi có chỉ định khác, luôn tìm kiếm và đối chiếu hồ sơ bệnh nhân đang điều trị nội trú tại **Khoa 57 (`DEPARTMENT_ID = 57`)**.
-       * Trường hợp không tìm thấy bệnh nhân tại Khoa 57, Agent PHẢI báo lại ngay cho Bác sĩ.
+     - 🔍 **Đối chiếu Bệnh nhân theo Cơ sở Đã Khai Báo / Nhận Diện:**
+       * **Tại Hà Nội**: Tìm kiếm và đối chiếu hồ sơ tại **Khoa CTCH & Cột sống (`DEPARTMENT_ID = 57`)**.
+       * **Tại Ninh Bình**: Tìm kiếm và đối chiếu hồ sơ tại **Khoa Ngoại tổng hợp - Tầng 3 Nhà E (`DEPARTMENT_ID = 915`)**.
+       * Trường hợp không tìm thấy bệnh nhân tại khoa tương ứng, Agent PHẢI báo lại ngay cho Bác sĩ.
   2. **Thực thi đồng thời 3 tác vụ y lệnh cho 100% bệnh nhân:**
      - **Tác vụ 1 - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
-     - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):** Chỉ định xét nghiệm đường máu mao mạch tại giường **`BM02426`** cho các mốc giờ (mốc 06:00 tự động tính ngày hôm sau).
+     - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):**
+       * **Tại Hà Nội**: Chỉ định mã **`BM02426`** (Service ID: `6217`), Phòng thực hiện `5248` (P734) hoặc `931` (Tiểu phẫu nhà Q).
+       * **Tại Ninh Bình**: Chỉ định mã **`NB260620.6231`** (Service ID: `74281` - "Định lượng Glucose [Máu] mao mạch"), Phòng thực hiện `18679` (P3E-05) hoặc `18681` (P3D-05).
      - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
-       * ⚠️ **BẮT BUỘC chỉ định từ Kho Tủ Trực Khoa 57 (`MediStockId = 810` - `TT_KCTCHCS`)**, **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
+       * ⚠️ **Kho Tủ Trực Bắt Buộc**:
+         - **Tại Hà Nội**: Kê từ Tủ trực Khoa 57 (**`MediStockId = 810` - `TT_KCTCHCS`**).
+         - **Tại Ninh Bình**: Kê từ Tủ trực Khu 3E (**`MediStockId = 5142` - `TTT_NBKP05.02`**) hoặc Khu 3D (**`5141`**).
+         - **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
        * **Quy chuẩn tỷ lệ quy đổi:** `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), `MedicineUseFormId = 15` (*Tiêm*), cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD: `"08"`), `IsExpend = false`.
        * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
-  3. **Quy tắc Kiểm soát thời gian xử lý (Max 2 Attempts - Tuyệt đối không loop lâu):**
+  3. **Quy chuẩn Báo cáo Y Lệnh & Hiển Thị UI (BẮT BUỘC):**
+     * **MÃ PHIẾU Y LỆNH LÂM SÀNG (`ServiceReqCode`)**: Bắt buộc in đậm `ServiceReqCode` (VD: `000090054138`) trên bảng kết quả. TUYỆT ĐỐI KHÔNG báo mã xuất kho dược `ExpMestCode` (VD: `000028492583`) làm bác sĩ hoang mang không tìm thấy trên EMR.
+     * **BỘ LỌC HIS UI**: Luôn nhắc Bác sĩ kiểm tra bộ lọc trên giao diện HIS là **"Tất cả bác sĩ"** (thay vì "Bác sĩ hiện tại") để xem trọn vẹn y lệnh do tài khoản liên thông (`vmc` / `034727`) tạo.
+  4. **Quy tắc Kiểm soát thời gian xử lý (Max 2 Attempts - Tuyệt đối không loop lâu):**
      * Trong mọi tác vụ lâm sàng (đặc biệt khi bác sĩ đang trực tiếp xử lý bệnh nhân), nếu API backend từ chối hoặc trả `Success: false` quá 2 lần, Agent **PHẢI DỪNG VÒNG LẶP NGAY LẬP TỨC**.
      * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
-  4. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
+  5. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
 
 ## 6. QUY TẮC MA TRẬN MÔ HÌNH OPENROUTER: ĐIỀU PHỐI ĐA TẦNG MIỄN PHÍ 100% (MULTI-TIER SMART FALLBACK)
 * **Khóa xác thực**: Tự động nạp từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).

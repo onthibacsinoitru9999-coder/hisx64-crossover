@@ -55,6 +55,9 @@ public class PatientItemDto
     public string ServiceReqCodes { get; set; }
     public string ExecutionStatus { get; set; }
     public int StatusCode { get; set; } // 0: Pending, 1: Success, 2: Error
+    public long DepartmentId { get; set; }
+    public long BranchId { get; set; }
+    public bool IsNinhBinh { get; set; }
 
     public PatientItemDto()
     {
@@ -63,6 +66,9 @@ public class PatientItemDto
         ExecutionStatus = "⚪ Sẵn sàng";
         PatientTypeId = 1;
         PatientTypeName = "BHYT";
+        DepartmentId = 57;
+        BranchId = 1;
+        IsNinhBinh = false;
     }
 }
 
@@ -95,6 +101,12 @@ public class MainForm : Form
     public const long SERVICE_ID_BM02426 = 6217;
     public const string SERVICE_CODE_BM02426 = "BM02426";
     public const string SERVICE_NAME_BM02426 = "Xét nghiệm đường máu mao mạch tại giường (một lần)";
+
+    public const long SERVICE_ID_NB_GLUCOSE = 74281;
+    public const string SERVICE_CODE_NB_GLUCOSE = "NB260620.6231";
+    public const string SERVICE_NAME_NB_GLUCOSE = "Định lượng Glucose [Máu] mao mạch";
+    public const long EXECUTE_ROOM_ID_NB_3E = 18679; // P3E-05 Khoa CTCH & CS
+    public const long EXECUTE_ROOM_ID_NB_3D = 18681; // P3D-05 Khoa PT Tiêu hóa
 
     // Data lists
     private List<PatientItemDto> allPatients = new List<PatientItemDto>();
@@ -1272,6 +1284,8 @@ public class MainForm : Form
             BedFull = "Nội trú Khoa CTCH"
         };
 
+        item.BranchId = tr.BRANCH_ID;
+
         // Query bed room info
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
         tbrf.TREATMENT_IDs = new List<long> { tr.ID };
@@ -1280,9 +1294,11 @@ public class MainForm : Form
         if (beds != null && beds.Count > 0)
         {
             var b = beds[0];
+            item.DepartmentId = b.DEPARTMENT_ID;
             item.BedRoomName = b.BED_ROOM_NAME;
             item.BedName = b.BED_NAME;
             item.BedFull = string.Format("{0} - {1}", b.BED_ROOM_NAME, b.BED_NAME);
+            item.IsNinhBinh = (b.DEPARTMENT_ID == 915 || tr.BRANCH_ID == 81 || (b.BED_ROOM_NAME != null && (b.BED_ROOM_NAME.Contains("3E") || b.BED_ROOM_NAME.Contains("3D"))));
 
             // Lookup room id from BedRoom
             HisBedRoomViewFilter brf = new HisBedRoomViewFilter();
@@ -1292,6 +1308,10 @@ public class MainForm : Form
             {
                 item.WorkingRoomId = bRooms[0].ROOM_ID;
             }
+        }
+        else
+        {
+            item.IsNinhBinh = (tr.BRANCH_ID == 81);
         }
 
         return item;
@@ -1415,6 +1435,11 @@ public class MainForm : Form
             }
         }
 
+        bool isNB = patient.IsNinhBinh;
+        long targetDeptId = isNB ? 915 : 57;
+        long defaultWorkingRoom = isNB ? (patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 17416) : 5248;
+        string defaultInstructionName = isNB ? "Xét nghiệm đường máu mao mạch tại giường (NB260620.6231)" : "Xét nghiệm đường máu mao mạch tại giường (BM02426)";
+
         // If no tracking exists at all and autoCreate is enabled, create one
         if (trackingId == 0 && autoCreateTracking)
         {
@@ -1424,11 +1449,11 @@ public class MainForm : Form
             var newTracking = new HIS_TRACKING
             {
                 TREATMENT_ID = patient.TreatmentId,
-                DEPARTMENT_ID = 57,
-                ROOM_ID = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 5248,
+                DEPARTMENT_ID = targetDeptId,
+                ROOM_ID = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : defaultWorkingRoom,
                 TRACKING_TIME = createTrackingTime,
                 CONTENT = "Bệnh nhân tỉnh táo, tiếp xúc tốt. Theo dõi chỉ số đường máu mao mạch.",
-                MEDICAL_INSTRUCTION = "Xét nghiệm đường máu mao mạch tại giường (BM02426)",
+                MEDICAL_INSTRUCTION = defaultInstructionName,
                 CARE_INSTRUCTION = "Chăm sóc cấp II. Theo dõi đường huyết.",
                 ICD_CODE = patient.IcdCode,
                 ICD_NAME = patient.IcdName,
@@ -1439,7 +1464,7 @@ public class MainForm : Form
             var sdo = new HisTrackingSDO
             {
                 Tracking = newTracking,
-                WorkingRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 5248
+                WorkingRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : defaultWorkingRoom
             };
 
             var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, param);
@@ -1457,23 +1482,42 @@ public class MainForm : Form
         }
 
         // 2. Prepare AssignServiceSDO
-        long[] validRoomIds = new long[] {
-            931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
-            5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-            5267, 6622, 6623
-        };
+        long requestRoomId;
+        long targetServiceId;
+        string targetSampleTypeCode;
+        long actualExecuteRoomId;
 
-        long requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 5248;
-        if (targetTracking != null && targetTracking.ROOM_ID.HasValue && targetTracking.ROOM_ID.Value > 0)
+        if (isNB)
         {
-            if (validRoomIds.Contains(targetTracking.ROOM_ID.Value))
-            {
-                requestRoomId = targetTracking.ROOM_ID.Value;
-            }
+            targetServiceId = SERVICE_ID_NB_GLUCOSE;
+            targetSampleTypeCode = null; // CSNB không bắt buộc mã loại bệnh phẩm BP0042
+            requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : (targetTracking != null && targetTracking.ROOM_ID.HasValue && targetTracking.ROOM_ID.Value > 0 ? targetTracking.ROOM_ID.Value : 17416);
+            actualExecuteRoomId = (executeRoomId == 931 || executeRoomId == 5248) ? EXECUTE_ROOM_ID_NB_3E : executeRoomId;
         }
-        if (!validRoomIds.Contains(requestRoomId))
+        else
         {
-            requestRoomId = 5248;
+            targetServiceId = SERVICE_ID_BM02426;
+            targetSampleTypeCode = "BP0042"; // Bắt buộc cho dịch vụ xét nghiệm BM02426 tại Hà Nội
+            actualExecuteRoomId = executeRoomId;
+
+            long[] validRoomIds = new long[] {
+                931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
+                5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
+                5267, 6622, 6623
+            };
+
+            requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 5248;
+            if (targetTracking != null && targetTracking.ROOM_ID.HasValue && targetTracking.ROOM_ID.Value > 0)
+            {
+                if (validRoomIds.Contains(targetTracking.ROOM_ID.Value))
+                {
+                    requestRoomId = targetTracking.ROOM_ID.Value;
+                }
+            }
+            if (!validRoomIds.Contains(requestRoomId))
+            {
+                requestRoomId = 5248;
+            }
         }
 
         string instructionNote = string.Format("Đo ĐMMM lúc {0}{1}", slotTimeStr, !string.IsNullOrEmpty(note) ? " - " + note : "").Trim();
@@ -1501,12 +1545,12 @@ public class MainForm : Form
             {
                 new ServiceReqDetailSDO
                 {
-                    ServiceId = SERVICE_ID_BM02426,
+                    ServiceId = targetServiceId,
                     Amount = 1.0m,
                     PatientTypeId = patient.PatientTypeId > 0 ? patient.PatientTypeId : 1,
                     PrimaryPatientTypeId = (patient.PatientTypeId == 1 ? (long?)null : patient.PatientTypeId),
-                    RoomId = executeRoomId,
-                    SampleTypeCode = "BP0042", // Bắt buộc cho dịch vụ xét nghiệm BM02426
+                    RoomId = actualExecuteRoomId,
+                    SampleTypeCode = targetSampleTypeCode,
                     InstructionNote = instructionNote,
                     MultipleExecute = 1,
                     IsNotUseBhyt = false,
@@ -1644,6 +1688,11 @@ class Program
                     rawPatients = File.ReadAllText(args[i + 1]);
                 }
             }
+            if ((args[i] == "-fac" || args[i] == "--facility") && i + 1 < args.Length)
+            {
+                string fac = args[i + 1].ToLower();
+                if (fac == "nb" || fac == "ninhbinh") executeRoomId = 18679;
+            }
         }
 
         var codes = rawPatients.Split(new char[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
@@ -1675,7 +1724,8 @@ class Program
                     continue;
                 }
 
-                Console.WriteLine(string.Format("\n👤 [{0}] {1} ({2}) - {3}:", patient.PatientCode, patient.PatientName, patient.GenderName, patient.BedFull));
+                string facName = patient.IsNinhBinh ? "Cơ sở Ninh Bình (NB260620.6231)" : "Cơ sở Hà Nội (BM02426)";
+                Console.WriteLine(string.Format("\n👤 [{0}] {1} ({2}) - {3} | {4}:", patient.PatientCode, patient.PatientName, patient.GenderName, patient.BedFull, facName));
 
                 foreach (var t in times)
                 {
@@ -1694,7 +1744,7 @@ class Program
                     try
                     {
                         string reqCode = MainForm.AssignSinglePatientService(patient, instructionTime, t, executeRoomId, note, true);
-                        Console.WriteLine(string.Format("   ✔ [{0} - {1:dd/MM}] Chỉ định thành công! Mã Y Lệnh: {2}", t, dt, reqCode));
+                        Console.WriteLine(string.Format("   ✔ [{0} - {1:dd/MM}] Chỉ định thành công! Mã Y Lệnh: {2} ({3})", t, dt, reqCode, patient.IsNinhBinh ? "CSNB" : "Hà Nội"));
                         totalSuccess++;
                     }
                     catch (Exception ex)

@@ -355,7 +355,11 @@ public class MainForm : Form
                 string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Kê đơn tủ trực thất bại (API trả về null)";
                 throw new Exception(errMsg);
             }
-            return (outRes.ExpMests != null && outRes.ExpMests.Count > 0) ? outRes.ExpMests[0].EXP_MEST_CODE : (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0 ? outRes.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
+            string sReqCode = (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0) ? outRes.ServiceReqs[0].SERVICE_REQ_CODE : null;
+            string sExpCode = (outRes.ExpMests != null && outRes.ExpMests.Count > 0) ? outRes.ExpMests[0].EXP_MEST_CODE : null;
+            if (!string.IsNullOrEmpty(sReqCode)) return sReqCode;
+            if (!string.IsNullOrEmpty(sExpCode)) return sExpCode;
+            return "OK";
         }
         else
         {
@@ -397,17 +401,24 @@ public class MainForm : Form
                 string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Kê đơn nội trú thất bại (API trả về null)";
                 throw new Exception(errMsg);
             }
-            return (res.ExpMests != null && res.ExpMests.Count > 0) ? res.ExpMests[0].EXP_MEST_CODE : (res.ServiceReqs != null && res.ServiceReqs.Count > 0 ? res.ServiceReqs[0].SERVICE_REQ_CODE : "OK");
+            string inReqCode = (res.ServiceReqs != null && res.ServiceReqs.Count > 0) ? res.ServiceReqs[0].SERVICE_REQ_CODE : null;
+            string inExpCode = (res.ExpMests != null && res.ExpMests.Count > 0) ? res.ExpMests[0].EXP_MEST_CODE : null;
+            if (!string.IsNullOrEmpty(inReqCode)) return inReqCode;
+            if (!string.IsNullOrEmpty(inExpCode)) return inExpCode;
+            return "OK";
         }
     }
 
     public static readonly List<MedicineStockInfo> CommonStocks = new List<MedicineStockInfo>
     {
-        new MedicineStockInfo(810, "TT_KCTCHCS", "Tủ trực Khoa CTCH & Cột sống", true),
-        new MedicineStockInfo(4210, "KT_KD15", "Kho thuốc viên", false),
-        new MedicineStockInfo(4209, "KT_KD14", "Kho thuốc ống", false),
-        new MedicineStockInfo(4208, "KT_KD13", "Kho thuốc Hướng thần", false),
-        new MedicineStockInfo(4207, "KT_KD12", "Kho thuốc Gây nghiện", false),
+        new MedicineStockInfo(810, "TT_KCTCHCS", "Tủ trực Khoa CTCH & Cột sống (Khoa 57 - HN)", true),
+        new MedicineStockInfo(5142, "TTT_NBKP05.02", "Tủ trực thuốc Khu 3E (Ngoại TH - CSNB)", true),
+        new MedicineStockInfo(5141, "TTT_NBKP05.01", "Tủ trực thuốc Khu 3D (Ngoại TH - CSNB)", true),
+        new MedicineStockInfo(4854, "KTD_NBKP22.01", "Kho Dược chính (Cơ sở Ninh Bình)", false),
+        new MedicineStockInfo(4210, "KT_KD15", "Kho thuốc viên (Hà Nội)", false),
+        new MedicineStockInfo(4209, "KT_KD14", "Kho thuốc ống (Hà Nội)", false),
+        new MedicineStockInfo(4208, "KT_KD13", "Kho thuốc Hướng thần (Hà Nội)", false),
+        new MedicineStockInfo(4207, "KT_KD12", "Kho thuốc Gây nghiện (Hà Nội)", false),
         new MedicineStockInfo(753, "LA_TTDDLS", "Kho SP Dinh dưỡng điều trị", false),
         new MedicineStockInfo(7787, "TTSPDD_9", "Tủ trực SP Dinh dưỡng Khoa 57", true),
         new MedicineStockInfo(796, "KVT_KCTCGCS", "Kho Vật tư Khoa CTCH & Cột sống", false),
@@ -1611,40 +1622,47 @@ class Program
                             var btrs = bad.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", ApiConsumers.MosConsumer, btf, bp);
                             if (btrs == null || btrs.Count == 0) throw new Exception("Không tìm thấy BN: " + bPatKey);
 
-                            // Ưu tiên hồ sơ bệnh nhân đang điều trị nội trú tại Khoa 57
-                            var dept57Tr = btrs.Where(t => t.END_DEPARTMENT_ID == 57 && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0))
-                                               .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
-                            if (dept57Tr == null)
+                            // Ưu tiên hồ sơ bệnh nhân đang điều trị nội trú tại Khoa 57 hoặc Khoa 915 (CSNB)
+                            var deptTr = btrs.Where(t => (t.END_DEPARTMENT_ID == 57 || t.END_DEPARTMENT_ID == 915 || t.BRANCH_ID == 81) && (!t.OUT_TIME.HasValue || t.OUT_TIME == 0))
+                                             .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
+                            if (deptTr == null)
                             {
-                                dept57Tr = btrs.Where(t => !t.OUT_TIME.HasValue || t.OUT_TIME == 0)
-                                               .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
+                                deptTr = btrs.Where(t => !t.OUT_TIME.HasValue || t.OUT_TIME == 0)
+                                             .OrderByDescending(t => t.IN_TIME).FirstOrDefault();
                             }
-                            if (dept57Tr == null)
+                            if (deptTr == null)
                             {
-                                dept57Tr = btrs.OrderByDescending(t => t.IN_TIME).First();
+                                deptTr = btrs.OrderByDescending(t => t.IN_TIME).First();
                             }
 
-                            treatmentCache[bPatKey] = dept57Tr;
+                            treatmentCache[bPatKey] = deptTr;
                         }
                         var btr = treatmentCache[bPatKey];
 
+                        bool isNB = (btr.BRANCH_ID == 81 || btr.END_DEPARTMENT_ID == 915);
+                        long targetDeptId = isNB ? 915 : 57;
+                        long targetRoomId = isNB ? 18679 : 5248;
+                        MedicineStockInfo targetStock = isNB ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == 5142) ?? MainForm.CommonStocks[0]) : MainForm.CommonStocks[0];
+
                         // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
-                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, 57, batchUser, batchUser.ToUpper(), instructionTime);
+                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, targetDeptId, batchUser, batchUser.ToUpper(), instructionTime);
                         long bTkId   = tkResult.TrackingId;
                         long bTkTime = tkResult.TrackingTime;
 
                         // 3. Tra cứu thuốc tồn thực tế trong kho/tủ trực (Stock-Aware)
-                        if (!medicineCache.ContainsKey(bMedKw))
+                        string medKey = bMedKw + "_" + targetStock.MediStockId;
+                        if (!medicineCache.ContainsKey(medKey))
                         {
-                            medicineCache[bMedKw] = MainForm.FindMedicineWithStock(bad, bp, bMedKw, MainForm.CommonStocks[0]);
+                            medicineCache[medKey] = MainForm.FindMedicineWithStock(bad, bp, bMedKw, targetStock);
                         }
-                        var bMed = medicineCache[bMedKw];
+                        var bMed = medicineCache[medKey];
 
-                        // 4. Tạo đơn thuốc nội trú từ Kho Tủ Trực Khoa 57 (810 - TT_KCTCHCS)
-                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUser.ToUpper(), 5248, btr, bMed, MainForm.CommonStocks[0], bAmount, bTut, bTkTime, bTkId);
+                        // 4. Tạo đơn thuốc nội trú từ Kho Tủ Trực (810 cho HN hoặc 5142 cho NB)
+                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUser.ToUpper(), targetRoomId, btr, bMed, targetStock, bAmount, bTut, bTkTime, bTkId);
 
-                        Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã: {5}",
-                            bPatKey, btr.TDL_PATIENT_NAME, bMed.MEDICINE_TYPE_NAME, bAmount, bTime, bCode));
+                        string facTag = isNB ? "CS Ninh Bình" : "Khoa 57 HN";
+                        Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã Y Lệnh: {5} [{6} - {7}]",
+                            bPatKey, btr.TDL_PATIENT_NAME, bMed.MEDICINE_TYPE_NAME, bAmount, bTime, bCode, facTag, targetStock.MediStockName));
                         bSucc++;
                     }
                     catch (Exception bex)

@@ -31,4 +31,5 @@ tmp/
 !*.py
 !.agents/
 !.agents/**
+!*.rsp
 

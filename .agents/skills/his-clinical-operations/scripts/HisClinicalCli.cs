@@ -87,7 +87,8 @@ public class HisClinicalCli
         { "US_VASCULAR", new ServiceTarget(5571, 17547, "BM00203", "Siêu âm Doppler mạch máu chi", "điều dưỡng đưa bằng cáng - cs ii") },
         { "DEXA_2POS", new ServiceTarget(161, 6462, "BM08085", "Đo mật độ xương DEXA [2 vị trí]", "điều dưỡng đưa bằng cáng - cs ii") },
         { "XRAY_CHEST", new ServiceTarget(58112, 17552, "BM21074", "X-quang ngực thẳng số hóa") },
-        { "GLUCOSE_BEDSIDE", new ServiceTarget(6217, 5248, "BM02426", "Xét nghiệm đường máu mao mạch tại giường (một lần)") }
+        { "GLUCOSE_BEDSIDE", new ServiceTarget(6217, 5248, "BM02426", "Xét nghiệm đường máu mao mạch tại giường (một lần)") },
+        { "GLUCOSE_BEDSIDE_NB", new ServiceTarget(74281, 18679, "NB260620.6231", "Định lượng Glucose [Máu] mao mạch (CSNB)") }
     };
 
     public static string ReadLiveTokenFast()

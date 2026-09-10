@@ -1022,6 +1022,39 @@ Khoa Ngoại tổng hợp Cơ sở Ninh Bình (`DEPARTMENT_ID = 915`) được c
   - **Thời gian vào viện**: `29/08/2026 14:48`
   - **Vị trí điều trị**: Buồng `BB 3D - 13` (Mã buồng: `NBKP05.B05`, RoomId: `17387`, BedRoomId: `3269`) - Giường: `Cáng số 3 (Ngoại 2)`.
   - **Chẩn đoán**: `[K56.7] Tắc ruột non`.
+* **Bệnh nhân**: **NGUYỄN THỊ THÚ** (`Mã BN: 0003715231`, `Mã ĐT: 000007171331` - ID: `7171147`) - Buồng `3E-24` (RoomId: `17416`, Giường 61). Chẩn đoán: `S32.00` Xẹp cấp L1, L2.
+* **Bệnh nhân**: **NGUYỄN THỊ PHƯỢNG** (`Mã BN: 0004029566`, `Mã ĐT: 000007202248` - ID: `7202064`) - Buồng `3E-22` (RoomId: `17414`, Giường 57). Đã tiêm 10R Actrapid (`000090054138`).
+* **Bệnh nhân**: **HÀ ĐÌNH XUYÊN** (`Mã BN: 0003650710`, `Mã ĐT: 000007202146` - ID: `7201962`) - Buồng `3E-33` (RoomId: `17425`, Giường 73). Đã tiêm 6R Actrapid (`000090054227`).
+
+### 19.5. Ma Trận Đối Chiếu Toàn Diện Khác Biệt Giữa Cơ Sở Hà Nội & Cơ Sở Ninh Bình
+| Danh Mục / Thông Số | 🏥 Cơ Sở Hà Nội (`ha-noi`) | 🏥 Cơ Sở Ninh Bình (`ninh-binh`) | Lưu Ý Sống Còn |
+| :--- | :--- | :--- | :--- |
+| **Mã Chi Nhánh (`BRANCH_ID`)** | `1` (Bạch Mai Phương Mai) | **`81`** (Bạch Mai CS2 Ninh Bình) | Bộ lọc dữ liệu viện phí |
+| **Khoa Lâm Sàng Mặc Định** | Khoa CTCH & Cột Sống (**`57`**) | Khoa Ngoại tổng hợp (**`915`**) | Lọc buồng bệnh và danh sách BN |
+| **Dãy Buồng Bệnh** | `P712, P714, P716, P724, P725...` | `Khu 3E (3E-01..3E-33), Khu 3D` | Room IDs hoàn toàn khác nhau |
+| **Phòng Chỉ Định (Request Room)** | P734 (`RoomId = 5248`) / Buồng nằm | Buồng bệnh nhân nằm (`17414, 17416, 17425...`) | Ninh Bình bắt buộc RequestRoomId là phòng BN |
+| **Phòng Thủ Thuật / Thực Hiện** | P734 (`5248`) hoặc Tiểu phẫu Q (`931`)| P3E-05 (`18679` - CTCH&CS) hoặc P3D-05 (`18681` - TH) | ExecuteRoomId cho CLS và Tiểu phẫu |
+| **Mã Dịch Vụ ĐMMM Tại Giường** | **`BM02426`** (Service ID: **`6217`**) | **`NB260620.6231`** (Service ID: **`74281`**) | **LỆCH MÃ SẼ LỖI 100% (Success: false)** |
+| **Tên Dịch Vụ ĐMMM** | Xét nghiệm đường máu mao mạch tại giường | Định lượng Glucose [Máu] mao mạch | Tên theo danh mục BHYT địa phương |
+| **Kho Tủ Trực Thuốc Mặc Định** | **`810`** (`TT_KCTCHCS`) | **`5142`** (`TTT_NBKP05.02`) / **`5141`** (`3D`) | Kê sai kho sẽ không xuất được thuốc |
+| **Kho Thuốc Chính Ra Viện/Nội Trú** | `4209` / `4210` (Kho Dược Hà Nội) | **`4854`** (`KTD_NBKP22.01` - Dược CSNB) | Kê đơn tủ trực hay kho dược tùy y lệnh |
+| **Tài Khoản Ký / Tạo Y Lệnh** | `034727` / `vmc` / `hdc` | `vmc` / `034727` | Liên thông tài khoản toàn viện |
+| **Bộ Lọc Bác Sĩ Trên Giao Diện HIS** | Mặc định | Bắt buộc chọn **"Tất cả bác sĩ"** | Tránh ẩn y lệnh do user liên thông tạo |
+
+### 19.6. Bẫy Lỗi Xương Máu Về ĐMMM & Thuốc Tại Ninh Bình (Root Causes & Solutions)
+1. **Bẫy Lỗi Lệch Mã Dịch Vụ ĐMMM (`BM02426` vs `NB260620.6231`)**:
+   - *Nguyên nhân*: Mã `BM02426` (ID `6217`) chỉ có hiệu lực tại hợp đồng BHYT Hà Nội. Khi gửi request chỉ định `BM02426` cho bệnh nhân tại Ninh Bình (Khoa 915), máy chủ MOS từ chối ngầm với phản hồi `Success: false` vì phòng thực hiện và bệnh nhân thuộc cơ sở 81 (CSNB).
+   - *Giải pháp triệt để*: Tại Ninh Bình, BẮT BUỘC dùng mã **`NB260620.6231`** (Service ID **`74281`** - *Định lượng Glucose [Máu] mao mạch*), phòng thực hiện `18679` (P3E-05) hoặc `18681` (P3D-05).
+2. **Bẫy Lỗi Báo Sai Mã Phiếu: `ExpMestCode` (Kho) vs `ServiceReqCode` (Lâm Sàng)**:
+   - *Nguyên nhân*: Khi kê đơn thuốc thành công qua API `PrescribeExpMest`, hệ thống sinh ra 2 mã:
+     * `ExpMestCode` (Mã phiếu xuất kho dược, VD `000028492583`): Dành cho thủ kho dược xuất thuốc.
+     * `ServiceReqCode` (Mã phiếu y lệnh lâm sàng, VD `000090054138`): Hiển thị trực tiếp trên EMR và tờ điều trị của Bác sĩ.
+   - *Hậu quả*: Agent báo `ExpMestCode` khiến Bác sĩ tìm kiếm trên giao diện lâm sàng không thấy, gây hiểu nhầm là hệ thống chưa kê hoặc kê lỗi!
+   - *Quy tắc bất khả xâm phạm*: 100% báo cáo y lệnh cho Bác sĩ PHẢI lấy **`ServiceReqCode`** từ đối tượng `HisServiceReq` tương ứng.
+3. **Bẫy Lỗi Bộ Lọc Bác Sĩ Trên Giao Diện HIS Desktop**:
+   - *Hiện tượng*: Y lệnh đã tạo thành công 100% trên Backend và DB, nhưng Bác sĩ mở giao diện HIS không thấy xuất hiện.
+   - *Nguyên nhân*: Bác sĩ đang đăng nhập bằng tài khoản cá nhân (VD `034727` hoặc `hdc`) và ô lọc bác sĩ trên UI đang để ở chế độ "Bác sĩ hiện tại", trong khi script tạo y lệnh bằng tài khoản `vmc`.
+   - *Khắc phục*: Nhắc Bác sĩ đổi bộ lọc sang **"Tất cả bác sĩ"** để hiển thị đầy đủ mọi y lệnh trong ngày.
 
 ---
 
