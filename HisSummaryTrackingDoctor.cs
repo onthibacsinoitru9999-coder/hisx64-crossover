@@ -22,10 +22,33 @@ public class MyAdapter : AdapterBase
 
 public class HisSummaryTrackingDoctor
 {
+    static readonly string _preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+
     public static string ReadLiveToken()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        // 1. Cache
+        foreach (var cf in new[] { Path.Combine(baseDir, "doctor_standalone.token"), Path.Combine(_preferredDir, "doctor_standalone.token") })
+        {
+            try
+            {
+                if (File.Exists(cf))
+                {
+                    var parts = File.ReadAllText(cf, Encoding.UTF8).Trim().Split('|');
+                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]))
+                    {
+                        long ticks = long.Parse(parts[1]);
+                        if ((DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(6).Ticks)
+                            return parts[0];
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 2. Preferred log + parent chain
         List<string> candidates = new List<string>();
+        candidates.Add(Path.Combine(_preferredDir, "Logs", "LogSystem.txt"));
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -49,14 +72,14 @@ public class HisSummaryTrackingDoctor
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
                     string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true")) continue;
+                    if (!chunk.Contains("034727") && !chunk.Contains("vmc")) continue;
                     int idx = chunk.LastIndexOf("TokenCode|");
                     if (idx >= 0)
                     {
                         int start = idx + 10;
                         if (chunk.Length >= start + 64)
-                        {
                             return chunk.Substring(start, 64);
-                        }
                     }
                 }
             }
@@ -82,6 +105,10 @@ public class HisSummaryTrackingDoctor
                 {
                     tok = tokenManager.Login(p, "vmc", "789789", "2.390.0");
                     if (tok != null) token = tok.TokenCode;
+                }
+                if (!string.IsNullOrEmpty(token))
+                {
+                    try { File.WriteAllText(Path.Combine(_preferredDir, "doctor_standalone.token"), token + "|" + DateTime.UtcNow.Ticks + "|034727", Encoding.UTF8); } catch { }
                 }
             }
             catch { }

@@ -336,40 +336,76 @@ public class HisDressingOrder
 
     static string GetLiveToken()
     {
-        string[] searchDirs = new string[]
-        {
-            @"D:\New folder (3)\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"Logs\LogSystem.txt",
-            @"D:\his\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt",
-            @"E:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt"
-        };
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
 
-        foreach (var path in searchDirs)
+        // 1. Cache
+        foreach (var cf in new[] { Path.Combine(baseDir, "doctor_standalone.token"), Path.Combine(preferredDir, "doctor_standalone.token") })
         {
-            if (File.Exists(path))
+            try
             {
-                try
+                if (File.Exists(cf))
                 {
-                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var sr = new StreamReader(fs, Encoding.UTF8))
+                    var parts = File.ReadAllText(cf, Encoding.UTF8).Trim().Split('|');
+                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]))
                     {
-                        string text = sr.ReadToEnd();
-                        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-                        for (int i = lines.Length - 1; i >= 0; i--)
-                        {
-                            if (lines[i].Contains("TokenCode|"))
-                            {
-                                int idx = lines[i].IndexOf("TokenCode|") + 10;
-                                if (lines[i].Length >= idx + 64)
-                                {
-                                    return lines[i].Substring(idx, 64);
-                                }
-                            }
-                        }
+                        long ticks = long.Parse(parts[1]);
+                        if ((DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(6).Ticks)
+                            return parts[0];
                     }
                 }
-                catch { }
             }
+            catch { }
+        }
+
+        // 2. Preferred log + parent chain with identity guard
+        List<string> candidates = new List<string>();
+        candidates.Add(Path.Combine(preferredDir, "Logs", "LogSystem.txt"));
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
+            if (procs != null && procs.Length > 0)
+            {
+                string hisPath = procs[0].MainModule.FileName;
+                if (hisPath.Contains("LBP2900_R150_V330_W64_uk_EN_2"))
+                    candidates.Add(Path.Combine(Path.GetDirectoryName(hisPath), "Logs", "LogSystem.txt"));
+            }
+        }
+        catch { }
+        DirectoryInfo cur = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++)
+        {
+            if (cur == null) break;
+            candidates.Add(Path.Combine(cur.FullName, "Logs", "LogSystem.txt"));
+            cur = cur.Parent;
+        }
+
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long length = fs.Length;
+                    if (length == 0) continue;
+                    int bufferSize = (int)Math.Min(131072L, length);
+                    fs.Seek(length - bufferSize, SeekOrigin.Begin);
+                    byte[] buffer = new byte[bufferSize];
+                    int read = fs.Read(buffer, 0, bufferSize);
+                    string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true")) continue;
+                    if (!chunk.Contains("034727") && !chunk.Contains("vmc")) continue;
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0)
+                    {
+                        int start = idx + 10;
+                        if (chunk.Length >= start + 64)
+                            return chunk.Substring(start, 64);
+                    }
+                }
+            }
+            catch { }
         }
         return "";
     }

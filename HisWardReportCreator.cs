@@ -74,22 +74,50 @@ public class HisWardReportCreator
 {
     public static List<V_HIS_BED_ROOM> cachedRooms = null;
 
+    static readonly string _preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+    static readonly string _cacheFile1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+    static readonly string _cacheFile2 = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB\doctor_standalone.token";
+
     public static string ReadLiveToken()
     {
+        // 1. Try cache file first
+        foreach (var cf in new[] { _cacheFile1, _cacheFile2 })
+        {
+            try
+            {
+                if (File.Exists(cf))
+                {
+                    var parts = File.ReadAllText(cf, Encoding.UTF8).Trim().Split('|');
+                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]))
+                    {
+                        long ticks = parts.Length >= 2 ? long.Parse(parts[1]) : 0;
+                        if ((DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(6).Ticks)
+                            return parts[0];
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 2. Preferred HIS log first
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         List<string> candidates = new List<string>();
+        candidates.Add(Path.Combine(_preferredDir, "Logs", "LogSystem.txt"));
 
+        // 3. Running HIS process (only if from preferredDir)
         try
         {
             var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
             if (procs != null && procs.Length > 0)
             {
-                string hisDir = Path.GetDirectoryName(procs[0].MainModule.FileName);
-                candidates.Add(Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+                string hisPath = procs[0].MainModule.FileName;
+                if (hisPath.Contains("LBP2900_R150_V330_W64_uk_EN_2"))
+                    candidates.Add(Path.Combine(Path.GetDirectoryName(hisPath), "Logs", "LogSystem.txt"));
             }
         }
         catch { }
 
+        // 4. Parent directory chain
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -113,14 +141,14 @@ public class HisWardReportCreator
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
                     string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true")) continue;
+                    if (!chunk.Contains("034727") && !chunk.Contains("vmc")) continue;
                     int idx = chunk.LastIndexOf("TokenCode|");
                     if (idx >= 0)
                     {
                         int start = idx + 10;
                         if (chunk.Length >= start + 64)
-                        {
                             return chunk.Substring(start, 64);
-                        }
                     }
                 }
             }

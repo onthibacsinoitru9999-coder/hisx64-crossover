@@ -825,20 +825,90 @@ public class MainForm : Form
     {
         if (!string.IsNullOrEmpty(currentToken)) return;
 
+        string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        // 1. Cache
+        foreach (var cf in new[] { Path.Combine(baseDir, "doctor_standalone.token"), Path.Combine(preferredDir, "doctor_standalone.token") })
+        {
+            try
+            {
+                if (File.Exists(cf))
+                {
+                    var parts = File.ReadAllText(cf, Encoding.UTF8).Trim().Split('|');
+                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]))
+                    {
+                        long ticks = long.Parse(parts[1]);
+                        if ((DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(6).Ticks)
+                        { currentToken = parts[0]; ApiConsumers.SetConsunmer(currentToken); adapter = new BackendAdapter(param); return; }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 2. Live log with identity guard
+        List<string> candidates = new List<string>();
+        candidates.Add(Path.Combine(preferredDir, "Logs", "LogSystem.txt"));
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
+            if (procs != null && procs.Length > 0)
+            {
+                string hp = procs[0].MainModule.FileName;
+                if (hp.Contains("LBP2900_R150_V330_W64_uk_EN_2"))
+                    candidates.Add(Path.Combine(Path.GetDirectoryName(hp), "Logs", "LogSystem.txt"));
+            }
+        }
+        catch { }
+        DirectoryInfo cur2 = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5; i++) { if (cur2 == null) break; candidates.Add(Path.Combine(cur2.FullName, "Logs", "LogSystem.txt")); cur2 = cur2.Parent; }
+
+        foreach (var lp in candidates)
+        {
+            if (!File.Exists(lp)) continue;
+            try
+            {
+                using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    long len = fs.Length; if (len == 0) continue;
+                    int bsz = (int)Math.Min(131072L, len);
+                    fs.Seek(len - bsz, SeekOrigin.Begin);
+                    byte[] buf = new byte[bsz]; int r = fs.Read(buf, 0, bsz);
+                    string chunk = Encoding.UTF8.GetString(buf, 0, r);
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true")) continue;
+                    if (!chunk.Contains("034727") && !chunk.Contains("vmc")) continue;
+                    int idx = chunk.LastIndexOf("TokenCode|");
+                    if (idx >= 0 && chunk.Length >= idx + 74)
+                    { currentToken = chunk.Substring(idx + 10, 64); ApiConsumers.SetConsunmer(currentToken); adapter = new BackendAdapter(param); return; }
+                }
+            }
+            catch { }
+        }
+
+        // 3. Standalone login
         HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
         ClientTokenManager tokenManager = new ClientTokenManager("HIS");
         param = new CommonParam();
-        var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-        if (token != null)
+        var token034 = tokenManager.Login(param, "034727", "9981", "2.390.0");
+        if (token034 != null)
         {
-            currentToken = token.TokenCode;
+            currentToken = token034.TokenCode;
             ApiConsumers.SetConsunmer(currentToken);
             adapter = new BackendAdapter(param);
+            try { File.WriteAllText(Path.Combine(preferredDir, "doctor_standalone.token"), currentToken + "|" + DateTime.UtcNow.Ticks + "|034727", Encoding.UTF8); } catch { }
+            return;
         }
-        else
+        var tokenVmc = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+        if (tokenVmc != null)
         {
-            throw new Exception("Không thể xác thực tài khoản BS 'vmc' trên hệ thống HIS!");
+            currentToken = tokenVmc.TokenCode;
+            ApiConsumers.SetConsunmer(currentToken);
+            adapter = new BackendAdapter(param);
+            try { File.WriteAllText(Path.Combine(preferredDir, "doctor_standalone.token"), currentToken + "|" + DateTime.UtcNow.Ticks + "|034727", Encoding.UTF8); } catch { }
+            return;
         }
+        throw new Exception("Không thể xác thực tài khoản (034727 / vmc) trên hệ thống HIS!");
     }
 }
 
