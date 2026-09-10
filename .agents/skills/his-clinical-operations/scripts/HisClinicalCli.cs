@@ -96,17 +96,14 @@ public class HisClinicalCli
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         List<string> candidates = new List<string>();
 
-        try
+        // 1. Thư mục HIS chuẩn theo chỉ định của Bác sĩ
+        string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+        if (Directory.Exists(preferredDir))
         {
-            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
-            if (procs != null && procs.Length > 0)
-            {
-                string hisDir = Path.GetDirectoryName(procs[0].MainModule.FileName);
-                candidates.Add(Path.Combine(hisDir, "Logs", "LogSystem.txt"));
-            }
+            candidates.Add(Path.Combine(preferredDir, "Logs", "LogSystem.txt"));
         }
-        catch { }
 
+        // 2. Thư mục hiện tại và các thư mục cha
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -115,6 +112,29 @@ public class HisClinicalCli
             candidates.Add(Path.Combine(cur.FullName, "Logs", "HLSLogSystem.txt"));
             cur = cur.Parent;
         }
+
+        // 3. Chỉ nhận tiến trình HIS nếu nó chạy đúng từ preferredDir (TUYỆT ĐỐI không đọc từ thư mục HIS khác trên máy)
+        try
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
+            if (procs != null && procs.Length > 0)
+            {
+                foreach (var p in procs)
+                {
+                    try
+                    {
+                        string exePath = p.MainModule.FileName;
+                        if (exePath.IndexOf("LBP2900_R150_V330_W64_uk_EN_2", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            string hisDir = Path.GetDirectoryName(exePath);
+                            candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
 
         foreach (var lp in candidates)
         {
@@ -130,13 +150,36 @@ public class HisClinicalCli
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
                     string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true"))
+                    {
+                        continue;
+                    }
+
+                    // BẢO VỆ DANH TÍNH (Identity Guard):
+                    // Bắt buộc xác thực token live này phải thuộc về Bác sĩ (034727 hoặc vmc).
+                    // Nếu người khác đang đăng nhập (như điều dưỡng, bác sĩ khác), bỏ qua để ép đăng nhập độc lập!
                     int idx = chunk.LastIndexOf("TokenCode|");
                     if (idx >= 0)
                     {
                         int start = idx + 10;
                         if (chunk.Length >= start + 64)
                         {
-                            return chunk.Substring(start, 64);
+                            string candidateToken = chunk.Substring(start, 64);
+                            if (chunk.Contains("034727") || chunk.Contains("vmc"))
+                            {
+                                if (chunk.Contains("vmc"))
+                                {
+                                    currentDoctorLogin = "vmc";
+                                    currentDoctorName = "BS Vũ Minh Cường";
+                                }
+                                else
+                                {
+                                    currentDoctorLogin = "034727";
+                                    currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
+                                }
+                                return candidateToken;
+                            }
                         }
                     }
                 }
@@ -151,8 +194,46 @@ public class HisClinicalCli
         if (!forceRefresh && !string.IsNullOrEmpty(currentToken)) return;
 
         param = new CommonParam();
-        string tokenCode = ReadLiveTokenFast();
+        string tokenCode = null;
 
+        // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
+        string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+        if (!File.Exists(cacheFile))
+        {
+            string altCache = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
+            if (File.Exists(altCache)) cacheFile = altCache;
+        }
+
+        try
+        {
+            if (File.Exists(cacheFile))
+            {
+                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                if (parts.Length >= 2)
+                {
+                    long savedTime;
+                    if (long.TryParse(parts[1], out savedTime))
+                    {
+                        DateTime savedDt = new DateTime(savedTime);
+                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        {
+                            tokenCode = parts[0];
+                            currentDoctorLogin = parts.Length >= 3 ? parts[2] : "034727";
+                            currentDoctorName = currentDoctorLogin == "vmc" ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // 2. Thử đọc Live Token từ HIS chuẩn (chỉ nhận nick 034727/vmc)
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            tokenCode = ReadLiveTokenFast();
+        }
+
+        // 3. Tự động ĐĂNG NHẬP ĐỘC LẬP qua ACS bằng nick 034727
         if (string.IsNullOrEmpty(tokenCode))
         {
             try
@@ -175,6 +256,15 @@ public class HisClinicalCli
                         currentDoctorLogin = "vmc";
                         currentDoctorName = "BS Vũ Minh Cường";
                     }
+                }
+
+                if (!string.IsNullOrEmpty(tokenCode))
+                {
+                    try
+                    {
+                        File.WriteAllText(cacheFile, tokenCode + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin, Encoding.UTF8);
+                    }
+                    catch { }
                 }
             }
             catch { }
@@ -206,7 +296,11 @@ public class HisClinicalCli
                     new RoomSDO { RoomId = 5252 },
                     new RoomSDO { RoomId = 5251 },
                     new RoomSDO { RoomId = 5257 },
-                    new RoomSDO { RoomId = 5264 }
+                    new RoomSDO { RoomId = 5264 },
+                    new RoomSDO { RoomId = 18679 },
+                    new RoomSDO { RoomId = 18681 },
+                    new RoomSDO { RoomId = 14759 },
+                    new RoomSDO { RoomId = 14787 }
                 }
             };
             var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);

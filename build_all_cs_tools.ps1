@@ -99,7 +99,7 @@ foreach ($r in $stdRefs) { $buildRspLines.Add($r) }
 foreach ($dll in $validDlls) {
     $buildRspLines.Add("/reference:`"$($dll.FullName)`"")
 }
-[System.IO.File]::WriteAllLines($buildRsp, $buildRspLines, [System.Text.Encoding]::UTF8)
+[System.IO.File]::WriteAllLines($buildRsp, $buildRspLines, [System.Text.Encoding]::ASCII)
 
 # b. Portable root refs.rsp (relative to project root)
 $rootRsp = Join-Path $rootDir "refs.rsp"
@@ -113,7 +113,7 @@ foreach ($dll in $validDlls) {
     }
     $rootRspLines.Add("/reference:`"$rel`"")
 }
-[System.IO.File]::WriteAllLines($rootRsp, $rootRspLines, [System.Text.Encoding]::UTF8)
+[System.IO.File]::WriteAllLines($rootRsp, $rootRspLines, [System.Text.Encoding]::ASCII)
 Write-Host "  Updated Root refs.rsp -> $rootRsp" -ForegroundColor Green
 
 # c. Portable scripts refs.rsp (relative to scripts directory)
@@ -129,7 +129,7 @@ if (Test-Path $scriptDir) {
         }
         $scriptsRspLines.Add("/reference:`"$rel`"")
     }
-    [System.IO.File]::WriteAllLines($scriptsRsp, $scriptsRspLines, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllLines($scriptsRsp, $scriptsRspLines, [System.Text.Encoding]::ASCII)
     Write-Host "  Updated Scripts refs.rsp -> $scriptsRsp" -ForegroundColor Green
 }
 
@@ -152,8 +152,8 @@ $toolList = @(
 )
 
 if ($TargetTool) {
-    $toolList = $toolList | Where-Object { $_.Name -like "*$TargetTool*" }
-    if (-not $toolList) {
+    $toolList = @($toolList | Where-Object { $_.Name -like "*$TargetTool*" })
+    if (-not $toolList -or $toolList.Count -eq 0) {
         throw "Target tool '$TargetTool' not found in clinical tools matrix!"
     }
 }

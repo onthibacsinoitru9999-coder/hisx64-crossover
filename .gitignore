@@ -21,6 +21,7 @@ tmp/
 *.ldf
 *.sqlite
 *.pdb
+*.token
 
 # 3. CHỈ THEO DÕI CÁC THÀNH PHẦN TRI THỨC, SKILLS & CODE AI
 !.gitignore

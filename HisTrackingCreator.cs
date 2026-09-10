@@ -1234,7 +1234,42 @@ public class MainForm : Form
     public static string ReadLiveTokenFast()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
+        try
+        {
+            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
+            if (!File.Exists(cacheFile))
+            {
+                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
+                if (File.Exists(alt)) cacheFile = alt;
+            }
+            if (File.Exists(cacheFile))
+            {
+                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                if (parts.Length >= 2)
+                {
+                    long savedTime;
+                    if (long.TryParse(parts[1], out savedTime))
+                    {
+                        DateTime savedDt = new DateTime(savedTime);
+                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        {
+                            return parts[0];
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
         List<string> candidates = new List<string>();
+        string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+        if (Directory.Exists(preferredDir))
+        {
+            candidates.Add(Path.Combine(preferredDir, "Logs", "LogSystem.txt"));
+        }
+
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -1258,13 +1293,24 @@ public class MainForm : Form
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
                     string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true"))
+                    {
+                        continue;
+                    }
+
+                    // BẢO VỆ DANH TÍNH: Phải thuộc 034727 hoặc vmc
                     int idx = chunk.LastIndexOf("TokenCode|");
                     if (idx >= 0)
                     {
                         int start = idx + 10;
                         if (chunk.Length >= start + 64)
                         {
-                            return chunk.Substring(start, 64);
+                            string tok = chunk.Substring(start, 64);
+                            if (chunk.Contains("034727") || chunk.Contains("vmc"))
+                            {
+                                return tok;
+                            }
                         }
                     }
                 }
@@ -1290,10 +1336,12 @@ public class MainForm : Form
                 try
                 {
                     ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                    var token = tokenManager.Login(param, CurrentLoginName, "789789", "2.390.0");
+                    var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                    if (token == null) token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
                     if (token != null)
                     {
                         currentToken = token.TokenCode;
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), currentToken + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8); } catch { }
                     }
                 }
                 catch { }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Collections.Generic;
@@ -58,26 +58,45 @@ class InspectRealOrder
         var mosConsumer = new ApiConsumer("http://192.168.7.236:1608/", tokenCode, "HIS");
         MyAdapter adapter = new MyAdapter();
 
-        // Query Order 90038241
-        HisServiceReqViewFilter srf = new HisServiceReqViewFilter { ID = 90038241L };
-        var reqs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
-        if (reqs != null && reqs.Count > 0)
+        Console.WriteLine("=== CHI TIẾT REQ 90049969 (HÀ ĐÌNH XUYÊN LÚC 06:20) ===");
+        HisServiceReqViewFilter srf620 = new HisServiceReqViewFilter { ID = 90049969L };
+        var reqs620 = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf620, param);
+        if (reqs620 != null && reqs620.Count > 0)
         {
-            var r = reqs[0];
-            Console.WriteLine("=== SERVICE REQ 90038241 ===");
-            Console.WriteLine(string.Format("ID: {0} | Code: {1} | Type: {2} | Time: {3}", r.ID, r.SERVICE_REQ_CODE, r.SERVICE_REQ_TYPE_ID, r.INTRUCTION_TIME));
-            Console.WriteLine(string.Format("RequestRoomId: {0} ({1}) | ExecuteRoomId: {2} ({3})", r.REQUEST_ROOM_ID, r.REQUEST_ROOM_NAME, r.EXECUTE_ROOM_ID, r.EXECUTE_ROOM_NAME));
-            Console.WriteLine(string.Format("TrackingId: {0} | TreatmentId: {1}", r.TRACKING_ID, r.TREATMENT_ID));
-
-            // Query SereServ
-            HisSereServViewFilter ssf = new HisSereServViewFilter { SERVICE_REQ_ID = 90038241L };
-            var sss = adapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssf, param);
-            if (sss != null)
+            var r = reqs620[0];
+            Console.WriteLine(string.Format("REQ: ID={0} | Code={1} | Type={2} | Time={3} | ReqRoom={4} | ExRoom={5} | TrackingId={6}",
+                r.ID, r.SERVICE_REQ_CODE, r.SERVICE_REQ_TYPE_ID, r.INTRUCTION_TIME, r.REQUEST_ROOM_ID, r.EXECUTE_ROOM_ID, r.TRACKING_ID));
+        }
+        HisExpMestMedicineViewFilter emf620 = new HisExpMestMedicineViewFilter { TDL_SERVICE_REQ_ID = 90049969L };
+        var meds620 = adapter.FetchList<V_HIS_EXP_MEST_MEDICINE>("api/HisExpMestMedicine/GetView", mosConsumer, emf620, param);
+        if (meds620 != null)
+        {
+            foreach (var m in meds620)
             {
-                foreach (var ss in sss)
+                Console.WriteLine(string.Format("  MED: {0} | TypeId={1} | StockId={2} | Amount={3} | Tutorial={4} | UseFormId={5}",
+                    m.MEDICINE_TYPE_NAME, m.MEDICINE_TYPE_ID, m.MEDI_STOCK_ID, m.AMOUNT, m.TUTORIAL, m.MEDICINE_USE_FORM_ID));
+            }
+        }
+
+        Console.WriteLine("=== TẤT CẢ Y LỆNH HÔM NAY CỦA NGUYỄN THỊ PHƯỢNG (7202064) ===");
+        HisServiceReqViewFilter srfPAll = new HisServiceReqViewFilter { TREATMENT_ID = 7202064L };
+        var reqsPAll = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srfPAll, param);
+        if (reqsPAll != null)
+        {
+            foreach (var r in reqsPAll.OrderByDescending(x => x.INTRUCTION_TIME))
+            {
+                Console.WriteLine(string.Format("REQ P: ID={0} | Code={1} | Type={2} | Time={3} | ReqRoom={4} | ExRoom={5} | TrackingId={6}",
+                    r.ID, r.SERVICE_REQ_CODE, r.SERVICE_REQ_TYPE_ID, r.INTRUCTION_TIME, r.REQUEST_ROOM_ID, r.EXECUTE_ROOM_ID, r.TRACKING_ID));
+
+                HisExpMestMedicineViewFilter emf = new HisExpMestMedicineViewFilter { TDL_SERVICE_REQ_ID = r.ID };
+                var meds = adapter.FetchList<V_HIS_EXP_MEST_MEDICINE>("api/HisExpMestMedicine/GetView", mosConsumer, emf, param);
+                if (meds != null && meds.Count > 0)
                 {
-                    Console.WriteLine(string.Format("  SS ID: {0} | Service: {1} ({2}) | RoomId: {3} | PatientType: {4}",
-                        ss.ID, ss.TDL_SERVICE_NAME, ss.TDL_SERVICE_CODE, ss.TDL_EXECUTE_ROOM_ID, ss.PATIENT_TYPE_ID));
+                    foreach (var m in meds)
+                    {
+                        Console.WriteLine(string.Format("   -> MED: {0} | TypeId={1} | StockId={2} | Amount={3} | Tutorial={4}",
+                            m.MEDICINE_TYPE_NAME, m.MEDICINE_TYPE_ID, m.MEDI_STOCK_ID, m.AMOUNT, m.TUTORIAL));
+                    }
                 }
             }
         }

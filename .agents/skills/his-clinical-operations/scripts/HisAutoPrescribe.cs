@@ -1364,7 +1364,42 @@ class Program
     public static string ReadLiveTokenFast()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
+        try
+        {
+            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
+            if (!File.Exists(cacheFile))
+            {
+                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
+                if (File.Exists(alt)) cacheFile = alt;
+            }
+            if (File.Exists(cacheFile))
+            {
+                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                if (parts.Length >= 2)
+                {
+                    long savedTime;
+                    if (long.TryParse(parts[1], out savedTime))
+                    {
+                        DateTime savedDt = new DateTime(savedTime);
+                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        {
+                            return parts[0];
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
         List<string> candidates = new List<string>();
+        string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+        if (Directory.Exists(preferredDir))
+        {
+            candidates.Add(Path.Combine(preferredDir, "Logs", "LogSystem.txt"));
+        }
+
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -1388,13 +1423,24 @@ class Program
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
                     string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true"))
+                    {
+                        continue;
+                    }
+
+                    // BẢO VỆ DANH TÍNH: Phải thuộc 034727 hoặc vmc
                     int idx = chunk.LastIndexOf("TokenCode|");
                     if (idx >= 0)
                     {
                         int start = idx + 10;
                         if (chunk.Length >= start + 64)
                         {
-                            return chunk.Substring(start, 64);
+                            string tok = chunk.Substring(start, 64);
+                            if (chunk.Contains("034727") || chunk.Contains("vmc"))
+                            {
+                                return tok;
+                            }
                         }
                     }
                 }
@@ -1544,8 +1590,13 @@ class Program
                 if (string.IsNullOrEmpty(bToken))
                 {
                     ClientTokenManager btm = new ClientTokenManager("HIS");
-                    var btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
-                    if (btok != null) bToken = btok.TokenCode;
+                    var btok = btm.Login(bp, "034727", "9981", "2.390.0");
+                    if (btok == null) btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
+                    if (btok != null)
+                    {
+                        bToken = btok.TokenCode;
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), bToken + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8); } catch { }
+                    }
                 }
 
                 if (string.IsNullOrEmpty(bToken)) { Console.WriteLine("❌ Không lấy được Token!"); Environment.ExitCode = 1; return; }
@@ -1709,8 +1760,8 @@ class Program
             decimal.TryParse(args[argOffset + 1], out amount);
             string medKw = args[argOffset + 2];
             string tut = remainingArgs > 3 ? args[argOffset + 3] : "Theo chỉ dẫn bác sĩ";
-            string user = remainingArgs > 4 ? args[argOffset + 4] : "vmc";
-            string pass = remainingArgs > 5 ? args[argOffset + 5] : "789789";
+            string user = remainingArgs > 4 ? args[argOffset + 4] : "034727";
+            string pass = remainingArgs > 5 ? args[argOffset + 5] : "9981";
 
             Console.WriteLine(string.Format(">>> CLI AUTO PRESCRIBE: BS {0} | BN: {1} | Thuốc: {2} | Liều: {3}", user, patKey, medKw, amount));
             try
@@ -1722,7 +1773,12 @@ class Program
                 {
                     ClientTokenManager tm = new ClientTokenManager("HIS");
                     var tok = tm.Login(p, user, pass, "2.390.0");
-                    if (tok != null) sToken = tok.TokenCode;
+                    if (tok == null && user == "034727") tok = tm.Login(p, "vmc", "789789", "2.390.0");
+                    if (tok != null)
+                    {
+                        sToken = tok.TokenCode;
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), sToken + "|" + DateTime.Now.Ticks + "|" + user, Encoding.UTF8); } catch { }
+                    }
                 }
                 if (string.IsNullOrEmpty(sToken)) { Console.WriteLine("❌ Đăng nhập và tìm token thất bại!"); Environment.ExitCode = 1; return; }
                 ApiConsumers.SetConsunmer(sToken);
