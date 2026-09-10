@@ -1060,6 +1060,62 @@ Khoa Ngoại tổng hợp Cơ sở Ninh Bình (`DEPARTMENT_ID = 915`) được c
 
 ---
 
+## 19. CƠ SỞ 2 (BỆNH VIỆN BẠCH MAI CƠ SỞ NINH BÌNH) - BẢN ĐỒ CẤU HÌNH & QUY TẮC LÂM SÀNG
+
+### 19.1. Định Danh Khoa Phòng & Chi Nhánh Lõi:
+* **Chi nhánh (Branch)**: `BRANCH_ID = 81` (Bệnh viện Bạch Mai Cơ sở 2 - Ninh Bình).
+* **Khoa Lâm sàng Điều trị**: `DEPARTMENT_ID = 915` (Khoa Ngoại tổng hợp - Tầng 3 Nhà E).
+* **Phòng làm việc Bác sĩ / Thực hiện thủ thuật**:
+  - `RoomId = 18679` (Mã: `NBKP05.K06`): **Phòng thủ thuật Khoa Chấn thương chỉnh hình và phẫu thuật cột sống (3E-05)**.
+  - `RoomId = 18681` (Mã: `NBKP05.K08`): **Phòng thủ thuật Khoa Phẫu thuật tiêu hóa - gan mật tụy (3D-05)**.
+  - `RoomId = 15722` (Mã: `NBKP05.K03`): **Phòng thủ thuật Khoa Phẫu thuật thần kinh (3E-05)**.
+* **Buồng bệnh Nội trú**:
+  - **Khu 3E**: Phòng `3E-01` đến `3E-40` (`RoomId = 15271` đến `17430`).
+  - **Khu 3D**: Phòng `3D-01` đến `3D-38` (`RoomId = 17408` đến `17410`,...).
+
+### 19.2. Bản Đồ Kho Dược & Tủ Trực Thuốc Ninh Bình:
+* **Tủ trực thuốc Khu 3E (Dùng cho BN nằm Khu 3E - Tiêm Insulin Actrapid, thuốc tủ trực)**:
+  - **`MediStockId = 5142`** (`RoomId = 15322` | Mã: `TTT_NBKP05.02`): **Tủ trực thuốc khu 3E - khoa Ngoại tổng hợp**.
+* **Tủ trực thuốc Khu 3D**:
+  - **`MediStockId = 5141`** (`RoomId = 15321` | Mã: `TTT_NBKP05.01`): **Tủ trực thuốc khu 3D - khoa Ngoại tổng hợp**.
+* **Tủ thuốc phòng tiểu phẫu**:
+  - **`MediStockId = 7722`** (`RoomId = 19207` | Mã: `TTT_NBKP05.03`): **Tủ thuốc phòng tiểu phẫu**.
+* **Tủ thuốc cấp cứu / Hộp chống sốc**:
+  - **`MediStockId = 8348`** (Khu 3E) / **`8347`** (Khu 3D).
+* **Kho Dược Tổng Cơ sở Ninh Bình (`DEPARTMENT_ID = 951`)**:
+  - **`MediStockId = 4854`** (`RoomId = 14607` | Mã: `KTD_NBKP22.01`): **KHO THUỐC CHÍNH**.
+  - **`MediStockId = 4860`** (`RoomId = 14613` | Mã: `KTD_NBKP22.07`): **Kho cấp phát thuốc BHYT**.
+  - **`MediStockId = 4855`** (`RoomId = 14608` | Mã: `KTD_NBKP22.02`): **Kho thuốc Gây nghiện**.
+  - **`MediStockId = 4856`** (`RoomId = 14609` | Mã: `KTD_NBKP22.03`): **Kho thuốc Hướng thần**.
+  - **`MediStockId = 4859`** (`RoomId = 14612` | Mã: `KTD_NBKP22.06`): **Kho dịch truyền**.
+
+### 19.3. Bản Đồ Mã Chỉ Định & Phòng Thực Hiện Cận Lâm Sàng:
+* **Đường máu mao mạch tại giường (ĐMMM)**:
+  - Service ID: **`74281`** | Mã dịch vụ: **`NB260620.6231`**
+  - Tên: *"Xét nghiệm đường máu mao mạch tại giường (một lần)"*
+  - Phòng thực hiện: `RoomId = 18679` (P3E-05) hoặc `18681` (P3D-05).
+* **Xét nghiệm Hóa Sinh (`RoomId = 15231` - Phòng Xét Nghiệm Hóa Sinh CSNB)**:
+  - Đo hoạt độ CK: Service ID **`74014`** (Mã: `NB260620.5964`)
+  - Đo hoạt độ CK-MB: Service ID **`74059`** (Mã: `NB260620.6009`)
+  - Định lượng Glucose máu: Service ID **`74042`** (Mã: `NB260620.5992`)
+  - Định lượng Creatinin máu: Service ID **`73983`** (Mã: `NB260620.5933`)
+  - Đo hoạt độ AST (GOT): Service ID **`73980`** (Mã: `NB260620.5930`)
+  - Đo hoạt độ ALT (GPT): Service ID **`73979`** (Mã: `NB260620.5929`)
+  - Điện giải đồ (Na, K, Cl): Service ID **`73975`** (Mã: `NB260620.5925`)
+  - Tổng phân tích nước tiểu: Service ID **`74069`** (Mã: `NB260620.6019`)
+* **Xét nghiệm Huyết học & Đông Máu (`RoomId = 15712` - Phòng XN Huyết học Đông Máu CSNB)**:
+  - Tổng phân tích tế bào máu ngoại vi (CTM): Service ID **`74202`** (Mã: `NB260620.6152`)
+  - Định lượng D-Dimer: Service ID **`74236`** (Mã: `NB260620.6186`)
+  - Thời gian Prothrombin (PT): Service ID **`74229`** (Mã: `NB260620.6179`)
+  - Thời gian APTT: Service ID **`74262`** (Mã: `NB260620.6212`)
+  - Định lượng Fibrinogen: Service ID **`74231`** (Mã: `NB260620.6181`)
+* **Điện tim & Thăm dò chức năng**:
+  - Ghi điện tim tại giường: Service ID **`72522`** (Mã: `NB260620.4472`)
+* **Chẩn đoán hình ảnh**:
+  - Siêu âm tại giường: Service ID **`68771`** (Mã: `NB260620.721`)
+
+---
+
 ## 20. CƠ CHẾ XÁC THỰC ĐA TẦNG & FALLBACK TỰ ĐỘNG CHO CÔNG CỤ ĐỘC LẬP (STANDALONE AUTH PROTOCOL)
 
 Khi chạy các công cụ CLI độc lập (`.exe`, `.bat`) mà không có giao diện HIS chính đang mở hoặc khi TokenCode trong `Logs\LogSystem.txt` đã hết hạn (`401 Unauthorized` / `IsLostToken: true`), quy trình khởi tạo phiên làm việc BẮT BUỘC tuân thủ cơ chế Fallback sau:
