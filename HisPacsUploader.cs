@@ -519,7 +519,7 @@ namespace HisPacsUploader
     {
         public static void PackageViewer(string folderPath, List<string> dicomFiles, string patientName, string maBn, string studyDate, string modality, string studyUid)
         {
-            Console.Error.WriteLine("[ViewerPackager] Dong goi Web Viewer va manifest.json...");
+            Console.Error.WriteLine("[ViewerPackager] Dong goi Web Viewer va nhung du lieu DICOM (Base64)...");
 
             // 1. Build manifest.json
             var manifest = new JObject();
@@ -530,24 +530,52 @@ namespace HisPacsUploader
             manifest["studyUid"] = studyUid ?? "";
 
             var slices = new JArray();
+            var base64Slices = new JArray();
             foreach (var file in dicomFiles)
             {
                 string rel = file.Substring(folderPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Replace('\\', '/');
                 slices.Add(rel);
+
+                byte[] fileBytes = File.ReadAllBytes(file);
+                base64Slices.Add(Convert.ToBase64String(fileBytes));
             }
             manifest["slices"] = slices;
 
             string manifestPath = Path.Combine(folderPath, "manifest.json");
             File.WriteAllText(manifestPath, manifest.ToString(), Encoding.UTF8);
 
-            // 2. Write index.html
-            string indexPath = Path.Combine(folderPath, "index.html");
+            // 2. Build self-contained index.html with EMBEDDED_STUDY
+            var embeddedStudy = new JObject();
+            embeddedStudy["patientName"] = patientName ?? "";
+            embeddedStudy["patientId"] = maBn ?? "";
+            embeddedStudy["studyDate"] = studyDate ?? "";
+            embeddedStudy["modality"] = modality ?? "";
+            embeddedStudy["studyUid"] = studyUid ?? "";
+            embeddedStudy["slices"] = base64Slices;
+
+            string dataScript = "\n<script id=\"embedded-study-data\">\nwindow.EMBEDDED_STUDY = " + embeddedStudy.ToString(Newtonsoft.Json.Formatting.None) + ";\n</script>\n";
+
             string htmlContent = GetViewerHtml();
+            if (htmlContent.Contains("</head>"))
+            {
+                htmlContent = htmlContent.Replace("</head>", dataScript + "</head>");
+            }
+            else
+            {
+                htmlContent = dataScript + htmlContent;
+            }
+
+            string indexPath = Path.Combine(folderPath, "index.html");
             File.WriteAllText(indexPath, htmlContent, Encoding.UTF8);
 
-            Console.Error.WriteLine(string.Format("[ViewerPackager] Da tao index.html ({0:N0} bytes) va manifest.json ({1} slices).",
-                new FileInfo(indexPath).Length, slices.Count));
+            string cleanBn = (maBn ?? "PACS").Replace("VS.", "").Trim();
+            string namedHtmlPath = Path.Combine(folderPath, string.Format("Xem_Anh_PACS_{0}.html", cleanBn));
+            File.WriteAllText(namedHtmlPath, htmlContent, Encoding.UTF8);
+
+            Console.Error.WriteLine(string.Format("[ViewerPackager] Da tao index.html ({0:N0} bytes) chua du lieu nhung 100% cua {1} lat cat.",
+                new FileInfo(indexPath).Length, dicomFiles.Count));
         }
+
 
         private static string GetViewerHtml()
         {
@@ -644,7 +672,32 @@ namespace HisPacsUploader
             }
         }
 
-        private static string UploadAsset(long releaseId, string filePath, string token)
+        private static void DeleteExistingAsset(long releaseId, string fileName, string token)
+        {
+            try
+            {
+                string listUrl = string.Format("{0}/repos/{1}/{2}/releases/{3}/assets", ApiBase, Owner, Repo, releaseId);
+                string listJson = ApiRequest("GET", listUrl, null, token);
+                var jArr = JArray.Parse(listJson);
+                foreach (var item in jArr)
+                {
+                    if (string.Equals((string)item["name"], fileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        long assetId = (long)item["id"];
+                        string delUrl = string.Format("{0}/repos/{1}/{2}/releases/assets/{3}", ApiBase, Owner, Repo, assetId);
+                        ApiRequest("DELETE", delUrl, null, token);
+                        Console.Error.WriteLine(string.Format("[GitHubUploader] Da xoa asset cu '{0}' (ID {1}) de ghi de.", fileName, assetId));
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(string.Format("[GitHubUploader] Canh bao khi kiem tra asset cu: {0}", ex.Message));
+            }
+        }
+
+        private static string UploadAsset(long releaseId, string filePath, string token, bool allowRetry = true)
         {
             string fileName = Path.GetFileName(filePath);
             byte[] fileBytes = File.ReadAllBytes(filePath);
@@ -669,7 +722,6 @@ namespace HisPacsUploader
                 using (var sr = new StreamReader(resp.GetResponseStream()))
                 {
                     string json = sr.ReadToEnd();
-                    // Extract browser_download_url
                     var m = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"");
                     return m.Success ? m.Groups[1].Value : null;
                 }
@@ -680,13 +732,18 @@ namespace HisPacsUploader
                     using (var sr = new StreamReader(ex.Response.GetResponseStream()))
                     {
                         string err = sr.ReadToEnd();
-                        // Asset name conflict -> skip (already uploaded)
-                        if (err.Contains("already_exists")) return null;
+                        if (err.Contains("already_exists") && allowRetry)
+                        {
+                            Console.Error.WriteLine(string.Format("[GitHubUploader] Asset '{0}' da co. Dang xoa ban cu de cap nhat...", fileName));
+                            DeleteExistingAsset(releaseId, fileName, token);
+                            return UploadAsset(releaseId, filePath, token, false);
+                        }
                         throw new Exception("Asset upload error: " + err);
                     }
                 throw;
             }
         }
+
 
         public static DriveUploadResult UploadAndShare(string folderPath, string maBn, string studyDate, string studyUid, TimeSpan ttl)
         {
@@ -748,7 +805,6 @@ namespace HisPacsUploader
                     Console.Error.WriteLine(string.Format("[GitHubUploader] Reuse Release ID: {0}", releaseId));
                 }
 
-                // 3. Upload index.html first (viewer entry point)
                 string viewerHtml = Path.Combine(folderPath, "index.html");
                 string viewerUrl = null;
                 if (File.Exists(viewerHtml))
@@ -757,6 +813,15 @@ namespace HisPacsUploader
                     viewerUrl = UploadAsset(releaseId, viewerHtml, token);
                     Console.Error.WriteLine(string.Format("[GitHubUploader] Viewer URL: {0}", viewerUrl ?? "(reuse existing)"));
                 }
+
+                string cleanBn = (maBn ?? "PACS").Replace("VS.", "").Trim();
+                string namedHtml = Path.Combine(folderPath, string.Format("Xem_Anh_PACS_{0}.html", cleanBn));
+                if (File.Exists(namedHtml))
+                {
+                    Console.Error.WriteLine(string.Format("[GitHubUploader] Upload {0}...", Path.GetFileName(namedHtml)));
+                    UploadAsset(releaseId, namedHtml, token);
+                }
+
 
                 // 4. Upload all .dcm files
                 var dcmFiles = Directory.GetFiles(folderPath, "*.dcm", SearchOption.AllDirectories);
