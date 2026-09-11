@@ -579,76 +579,113 @@ namespace HisPacsUploader
         }
     }
 
-    public static class SignedLinkService
+    public static class GitHubUploader
     {
-        public const string SecretKey = "BachMai_Pacs_Uploader_Secret_Salt_2026";
+        private const string Owner = "onthibacsinoitru9999-coder";
+        private const string Repo  = "hisx64-crossover";
+        private const string ApiBase = "https://api.github.com";
+        private const string UploadBase = "https://uploads.github.com";
 
-        public static string ComputeHmacSha256(string data, string key)
+        private static string GetToken()
         {
-            using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(key)))
+            // 1. Process env (set by set_env.ps1 or shell)
+            string t = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+            if (!string.IsNullOrEmpty(t)) return t;
+            // 2. User-level Registry (persisted across sessions)
+            try
             {
-                byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
-                var sb = new StringBuilder();
-                for (int i = 0; i < hash.Length; i++)
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Environment"))
                 {
-                    sb.Append(hash[i].ToString("x2"));
-                }
-                return sb.ToString();
-            }
-        }
-
-        public static string GenerateSignedDriveUrl(string driveFolderUrl, string folderIdOrName, TimeSpan ttl)
-        {
-            long expUnix = (long)(DateTime.UtcNow.Add(ttl) - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-            string ttlStr = ttl.TotalDays >= 1 ? ((int)ttl.TotalDays) + "d" : ((int)ttl.TotalHours) + "h";
-            string payload = string.Format("id={0}&exp={1}", folderIdOrName, expUnix);
-            string sig = ComputeHmacSha256(payload, SecretKey);
-
-            string sep = driveFolderUrl.Contains("?") ? "&" : "?";
-            return string.Format("{0}{1}ttl={2}&exp={3}&sig={4}", driveFolderUrl, sep, ttlStr, expUnix, sig);
-        }
-    }
-
-    public static class DriveUploader
-    {
-        public static string LocateRclone()
-        {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            if (File.Exists(Path.Combine(baseDir, "rclone.exe")))
-                return Path.Combine(baseDir, "rclone.exe");
-
-            string curDir = Directory.GetCurrentDirectory();
-            if (File.Exists(Path.Combine(curDir, "rclone.exe")))
-                return Path.Combine(curDir, "rclone.exe");
-
-            string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string winGetDir = Path.Combine(localApp, @"Microsoft\WinGet\Packages");
-            if (Directory.Exists(winGetDir))
-            {
-                try
-                {
-                    foreach (var d in Directory.GetDirectories(winGetDir, "Rclone.Rclone*"))
+                    if (key != null)
                     {
-                        foreach (var sub in Directory.GetDirectories(d))
-                        {
-                            string cand = Path.Combine(sub, "rclone.exe");
-                            if (File.Exists(cand)) return cand;
-                        }
-                        string direct = Path.Combine(d, "rclone.exe");
-                        if (File.Exists(direct)) return direct;
+                        object val = key.GetValue("GITHUB_TOKEN");
+                        if (val != null && !string.IsNullOrEmpty(val.ToString())) return val.ToString();
                     }
                 }
-                catch { }
+            }
+            catch { }
+            return null;
+        }
+
+        private static string ApiRequest(string method, string url, string body, string token, string contentType = "application/json")
+        {
+            var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
+            req.Method = method;
+            req.ContentType = contentType;
+            req.Accept = "application/vnd.github+json";
+            req.Headers.Add("Authorization", "Bearer " + token);
+            req.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
+            req.UserAgent = "HisPacsUploader/2.0";
+            req.Timeout = 120000;
+
+            if (body != null)
+            {
+                byte[] data = Encoding.UTF8.GetBytes(body);
+                req.ContentLength = data.Length;
+                using (var s = req.GetRequestStream()) s.Write(data, 0, data.Length);
+            }
+            else
+            {
+                req.ContentLength = 0;
             }
 
-            string p1 = Path.Combine(localApp, @"Programs\rclone\rclone.exe");
-            if (File.Exists(p1)) return p1;
+            try
+            {
+                using (var resp = (System.Net.HttpWebResponse)req.GetResponse())
+                using (var sr = new StreamReader(resp.GetResponseStream()))
+                    return sr.ReadToEnd();
+            }
+            catch (System.Net.WebException ex)
+            {
+                if (ex.Response != null)
+                    using (var sr = new StreamReader(ex.Response.GetResponseStream()))
+                        throw new Exception("GitHub API error: " + sr.ReadToEnd());
+                throw;
+            }
+        }
 
-            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string p2 = Path.Combine(pf, @"rclone\rclone.exe");
-            if (File.Exists(p2)) return p2;
+        private static string UploadAsset(long releaseId, string filePath, string token)
+        {
+            string fileName = Path.GetFileName(filePath);
+            byte[] fileBytes = File.ReadAllBytes(filePath);
+            string url = string.Format("{0}/repos/{1}/{2}/releases/{3}/assets?name={4}",
+                UploadBase, Owner, Repo, releaseId, Uri.EscapeDataString(fileName));
 
-            return "rclone.exe";
+            var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
+            req.Method = "POST";
+            req.ContentType = fileName.EndsWith(".html") ? "text/html" : "application/octet-stream";
+            req.Accept = "application/vnd.github+json";
+            req.Headers.Add("Authorization", "Bearer " + token);
+            req.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
+            req.UserAgent = "HisPacsUploader/2.0";
+            req.ContentLength = fileBytes.Length;
+            req.Timeout = 300000;
+
+            using (var s = req.GetRequestStream()) s.Write(fileBytes, 0, fileBytes.Length);
+
+            try
+            {
+                using (var resp = (System.Net.HttpWebResponse)req.GetResponse())
+                using (var sr = new StreamReader(resp.GetResponseStream()))
+                {
+                    string json = sr.ReadToEnd();
+                    // Extract browser_download_url
+                    var m = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"");
+                    return m.Success ? m.Groups[1].Value : null;
+                }
+            }
+            catch (System.Net.WebException ex)
+            {
+                if (ex.Response != null)
+                    using (var sr = new StreamReader(ex.Response.GetResponseStream()))
+                    {
+                        string err = sr.ReadToEnd();
+                        // Asset name conflict -> skip (already uploaded)
+                        if (err.Contains("already_exists")) return null;
+                        throw new Exception("Asset upload error: " + err);
+                    }
+                throw;
+            }
         }
 
         public static DriveUploadResult UploadAndShare(string folderPath, string maBn, string studyDate, string studyUid, TimeSpan ttl)
@@ -656,83 +693,108 @@ namespace HisPacsUploader
             var res = new DriveUploadResult();
             res.ExpirationTime = DateTime.UtcNow.Add(ttl);
 
-            string rcloneExe = LocateRclone();
-            Console.Error.WriteLine(string.Format("[DriveUploader] Phat hien cong cu rclone tai: {0}", rcloneExe));
-
-            string cleanDate = (studyDate ?? DateTime.Now.ToString("yyyyMMdd")).Replace("-", "").Replace(" ", "_").Replace(":", "");
-            if (cleanDate.Length > 8) cleanDate = cleanDate.Substring(0, 8);
-            string remoteFolderName = string.Format("{0}_{1}", maBn, cleanDate);
-            string remoteTarget = string.Format("gdrive:PACS/{0}", remoteFolderName);
-
-            Console.Error.WriteLine(string.Format("[DriveUploader] Dong bo len Google Drive (muc tieu: {0})...", remoteTarget));
-
-            bool rcloneCopied = false;
-            string rcloneLink = null;
-            string errorOutput = string.Empty;
-
-            try
+            string token = GetToken();
+            if (string.IsNullOrEmpty(token))
             {
-                var psiCopy = new ProcessStartInfo
-                {
-                    FileName = rcloneExe,
-                    Arguments = string.Format("copy \"{0}\" \"{1}\" --quiet", folderPath, remoteTarget),
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true
-                };
-
-                using (var proc = Process.Start(psiCopy))
-                {
-                    errorOutput = proc.StandardError.ReadToEnd();
-                    proc.WaitForExit();
-                    rcloneCopied = (proc.ExitCode == 0);
-                }
-
-                if (rcloneCopied)
-                {
-                    Console.Error.WriteLine("[DriveUploader] Upload thanh cong! Dang tao Public Shareable Link...");
-                    var psiLink = new ProcessStartInfo
-                    {
-                        FileName = rcloneExe,
-                        Arguments = string.Format("link \"{0}\"", remoteTarget),
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true
-                    };
-
-                    using (var proc = Process.Start(psiLink))
-                    {
-                        rcloneLink = proc.StandardOutput.ReadToEnd().Trim();
-                        proc.WaitForExit();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                errorOutput = ex.Message;
-            }
-
-            if (rcloneCopied && !string.IsNullOrEmpty(rcloneLink) && rcloneLink.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                res.Success = true;
-                res.IsCloud = true;
-                res.ShareableUrl = SignedLinkService.GenerateSignedDriveUrl(rcloneLink, remoteFolderName, ttl);
-                Console.Error.WriteLine(string.Format("[DriveUploader] Da tao Google Drive signed link qua rclone."));
+                res.Success = false;
+                res.IsCloud = false;
+                res.ErrorMessage = "GITHUB_TOKEN chua duoc cau hinh. Vui long luu token vao bien moi truong GITHUB_TOKEN.";
                 return res;
             }
 
-            // If rclone failed or gdrive remote is not configured
-            string rcloneDetail = string.IsNullOrEmpty(errorOutput) ? "gdrive remote chua khai bao hoac chua cai dat rclone" : errorOutput.Trim();
-            Console.Error.WriteLine(string.Format("[DriveUploader] Thong bao: rclone chua ket noi Google Drive ({0}).", rcloneDetail));
+            string cleanDate = (studyDate ?? DateTime.Now.ToString("yyyyMMdd")).Replace("-", "").Replace(" ", "").Replace(":", "");
+            if (cleanDate.Length > 8) cleanDate = cleanDate.Substring(0, 8);
 
-            res.Success = false;
-            res.IsCloud = false;
-            res.ErrorMessage = "Chua cau hinh hoac loi upload Google Drive: " + rcloneDetail;
-            return res;
+            bool isTemp = ttl.TotalDays < 2;
+            string tagName = isTemp
+                ? string.Format("pacs-{0}-{1}-temp", maBn.Replace("VS.", "").Trim(), cleanDate)
+                : string.Format("pacs-{0}-{1}-7d",   maBn.Replace("VS.", "").Trim(), cleanDate);
+
+            string ttlLabel = isTemp ? "24h (tu dong xoa)" : "7 ngay";
+
+            try
+            {
+                // 1. Check if release already exists for this tag
+                long releaseId = 0;
+                Console.Error.WriteLine(string.Format("[GitHubUploader] Kiem tra Release hien co tag: {0}...", tagName));
+                try
+                {
+                    string existing = ApiRequest("GET",
+                        string.Format("{0}/repos/{1}/{2}/releases/tags/{3}", ApiBase, Owner, Repo, tagName),
+                        null, token);
+                    var mId = Regex.Match(existing, "\"id\"\\s*:\\s*(\\d+)");
+                    if (mId.Success) releaseId = long.Parse(mId.Groups[1].Value);
+                }
+                catch { }
+
+                // 2. Create release if not found
+                if (releaseId == 0)
+                {
+                    Console.Error.WriteLine("[GitHubUploader] Tao GitHub Release moi...");
+                    string body = string.Format(
+                        "{{\"tag_name\":\"{0}\",\"name\":\"PACS {1} - {2}\",\"body\":\"Anh DICOM tu he thong HIS Bach Mai.\\nBN: {1} | Ngay: {2} | TTL: {3}\\n\\n> Auto-uploaded by HisPacsUploader\",\"draft\":false,\"prerelease\":{4}}}",
+                        tagName, maBn, cleanDate, ttlLabel, isTemp ? "true" : "false");
+
+                    string createResp = ApiRequest("POST",
+                        string.Format("{0}/repos/{1}/{2}/releases", ApiBase, Owner, Repo),
+                        body, token);
+                    var mId = Regex.Match(createResp, "\"id\"\\s*:\\s*(\\d+)");
+                    if (!mId.Success) throw new Exception("Khong lay duoc release ID tu GitHub.");
+                    releaseId = long.Parse(mId.Groups[1].Value);
+                    Console.Error.WriteLine(string.Format("[GitHubUploader] Da tao Release ID: {0}", releaseId));
+                }
+                else
+                {
+                    Console.Error.WriteLine(string.Format("[GitHubUploader] Reuse Release ID: {0}", releaseId));
+                }
+
+                // 3. Upload index.html first (viewer entry point)
+                string viewerHtml = Path.Combine(folderPath, "index.html");
+                string viewerUrl = null;
+                if (File.Exists(viewerHtml))
+                {
+                    Console.Error.WriteLine("[GitHubUploader] Upload index.html (DICOM viewer)...");
+                    viewerUrl = UploadAsset(releaseId, viewerHtml, token);
+                    Console.Error.WriteLine(string.Format("[GitHubUploader] Viewer URL: {0}", viewerUrl ?? "(reuse existing)"));
+                }
+
+                // 4. Upload all .dcm files
+                var dcmFiles = Directory.GetFiles(folderPath, "*.dcm", SearchOption.AllDirectories);
+                int uploaded = 0;
+                foreach (var dcm in dcmFiles)
+                {
+                    Console.Error.WriteLine(string.Format("[GitHubUploader] Upload {0} ({1:F2} MB)...",
+                        Path.GetFileName(dcm), new FileInfo(dcm).Length / 1048576.0));
+                    UploadAsset(releaseId, dcm, token);
+                    uploaded++;
+                }
+                Console.Error.WriteLine(string.Format("[GitHubUploader] Da upload {0} file DICOM.", uploaded));
+
+                // 5. Build final viewer URL
+                string finalUrl = viewerUrl;
+                if (string.IsNullOrEmpty(finalUrl))
+                {
+                    // Construct URL if asset already existed
+                    finalUrl = string.Format("https://github.com/{0}/{1}/releases/download/{2}/index.html",
+                        Owner, Repo, tagName);
+                }
+
+                res.Success = true;
+                res.IsCloud = true;
+                res.ShareableUrl = finalUrl;
+                Console.Error.WriteLine(string.Format("[GitHubUploader] Thanh cong! Link: {0}", finalUrl));
+                return res;
+            }
+            catch (Exception ex)
+            {
+                res.Success = false;
+                res.IsCloud = false;
+                res.ErrorMessage = "Loi GitHub upload: " + ex.Message;
+                return res;
+            }
         }
     }
+
 
     public static class LocalViewerServer
     {
@@ -963,6 +1025,10 @@ namespace HisPacsUploader
     {
         static int Main(string[] args)
         {
+            // Force TLS 1.2 for GitHub API compatibility on .NET Framework 4.x
+            System.Net.ServicePointManager.SecurityProtocol =
+                System.Net.SecurityProtocolType.Tls12 | System.Net.SecurityProtocolType.Tls11;
+
             AppDomain.CurrentDomain.AssemblyResolve += delegate(object sender, ResolveEventArgs resolveArgs)
             {
                 try
@@ -1120,12 +1186,12 @@ namespace HisPacsUploader
                 ViewerPackager.PackageViewer(sessionFolder, downloadResult.DicomFiles,
                     downloadResult.PatientName, maBn, downloadResult.StudyDate, downloadResult.Modality, downloadResult.StudyInstanceUid);
 
-                // M3: Upload to Google Drive & Generate Signed Link with TTL
-                var uploadResult = DriveUploader.UploadAndShare(sessionFolder, maBn, downloadResult.StudyDate, downloadResult.StudyInstanceUid, ttl);
+                // M3: Upload to GitHub Releases & Get Public Link
+                var uploadResult = GitHubUploader.UploadAndShare(sessionFolder, maBn, downloadResult.StudyDate, downloadResult.StudyInstanceUid, ttl);
 
                 string finalUrl = null;
 
-                // Case 1: Upload to Google Drive SUCCEEDED
+                // Case 1: Upload to GitHub SUCCEEDED
                 if (uploadResult.Success && uploadResult.IsCloud)
                 {
                     finalUrl = uploadResult.ShareableUrl;
@@ -1134,12 +1200,12 @@ namespace HisPacsUploader
                     Console.Error.WriteLine("--------------------------------------------------------------------------------");
                     Console.Error.WriteLine(string.Format("[SUCCESS] Hoan tat xu ly ca chup BN: {0} ({1})", downloadResult.PatientName, maBn));
                     Console.Error.WriteLine(string.Format("[SUCCESS] Ca chup: {0} | So luong anh: {1} lat cat", downloadResult.Modality, downloadResult.DicomFiles.Count));
-                    Console.Error.WriteLine(string.Format("[SUCCESS] Signed Shareable Link (TTL {0}):", ttlDesc));
+                    Console.Error.WriteLine(string.Format("[SUCCESS] GitHub Release Link (TTL {0}):", ttlDesc));
                     Console.Error.WriteLine("--------------------------------------------------------------------------------");
 
                     if (isOpen)
                     {
-                        Console.Error.WriteLine(string.Format("[BROWSER] Dang mo lien ket Google Drive tren trinh duyet: {0}", finalUrl));
+                        Console.Error.WriteLine(string.Format("[BROWSER] Dang mo link GitHub tren trinh duyet: {0}", finalUrl));
                         try
                         {
                             Process.Start(new ProcessStartInfo
@@ -1154,13 +1220,13 @@ namespace HisPacsUploader
                         }
                     }
 
-                    // Output signed URL as final line of stdout for script piping
+                    // Output URL as final line of stdout for script piping
                     Console.WriteLine(finalUrl);
                     return 0;
                 }
 
-                // Case 2 & 3: Upload Google Drive FAILED or UNCONFIGURED
-                string strict = Environment.GetEnvironmentVariable("STRICT_DRIVE_UPLOAD");
+                // Case 2: Upload GitHub FAILED - check if --open fallback to local viewer
+                string strict = Environment.GetEnvironmentVariable("STRICT_GITHUB_UPLOAD");
                 bool isStrict = !string.IsNullOrEmpty(strict) && string.Equals(strict.Trim(), "1", StringComparison.OrdinalIgnoreCase);
 
                 if (isStrict || !isOpen)
@@ -1168,15 +1234,16 @@ namespace HisPacsUploader
                     Console.Error.WriteLine(string.Format("[ERROR] {0}", uploadResult.ErrorMessage));
                     if (!isOpen)
                     {
-                        Console.Error.WriteLine("[GOI Y] Google Drive chua ket noi. De xem anh DICOM cuc bo ngay tren trinh duyet, vui long truyen co --open:");
+                        Console.Error.WriteLine("[GOI Y] Upload GitHub that bai. De xem anh DICOM cuc bo ngay tren trinh duyet, vui long truyen co --open:");
                         Console.Error.WriteLine(string.Format("       HisPacsUploader.exe {0} --open", maBn));
                     }
                     Logger.Log(maBn, downloadResult.StudyInstanceUid, "N/A", "FAILED: " + uploadResult.ErrorMessage);
                     return 3;
                 }
 
-                // Case 4: Upload Drive failed/unconfigured, BUT --open was specified -> Fallback Local Viewer
-                Console.Error.WriteLine("[FALLBACK] Google Drive chua duoc cau hinh. Chuyen sang Trinh xem DICOM cuc bo (Local Viewer)...");
+                // Case 3: Upload failed BUT --open -> Fallback Local Viewer
+                Console.Error.WriteLine("[FALLBACK] GitHub upload that bai. Chuyen sang Trinh xem DICOM cuc bo (Local Viewer)...");
+
                 int localPort = LocalViewerServer.ServeAndOpen(sessionFolder);
                 if (localPort <= 0)
                 {
