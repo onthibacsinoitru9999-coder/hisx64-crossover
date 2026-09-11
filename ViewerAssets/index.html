@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bach Mai PACS Web Viewer - Khoa Chấn Thương Chỉnh Hình & Cột Sống</title>
+    <style>
+        :root {
+            --bg-color: #0d0f12;
+            --panel-bg: #16191f;
+            --accent-color: #00bcd4;
+            --text-color: #e0e6ed;
+            --text-muted: #8a99a8;
+            --border-color: #262c36;
+            --btn-hover: #1f2530;
+            --active-color: #00e5ff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        /* Top Navigation Bar */
+        header {
+            height: 48px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 10;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .brand span { color: var(--accent-color); }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        button, label.btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        button:hover, label.btn:hover {
+            background: var(--btn-hover);
+            border-color: var(--accent-color);
+            color: #fff;
+        }
+        button.active {
+            background: var(--accent-color);
+            color: #000;
+            font-weight: 600;
+            border-color: var(--accent-color);
+        }
+        /* Main Layout */
+        main {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+        /* Sidebar Series/Thumbnails */
+        aside {
+            width: 140px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 8px;
+        }
+        @media (max-width: 600px) {
+            aside { display: none; }
+            header { overflow-x: auto; padding: 0 4px; }
+            .brand { display: none; }
+            #mobileSliceControls { display: flex !important; }
+        }
+        .thumb-card {
+            background: #090a0d;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 4px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
+        }
+        .thumb-card:hover, .thumb-card.active {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 8px rgba(0, 188, 212, 0.4);
+        }
+        .thumb-card canvas {
+            width: 100%;
+            height: 90px;
+            object-fit: contain;
+            background: #000;
+        }
+        .thumb-card .title {
+            font-size: 11px;
+            margin-top: 4px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* Viewport Container */
+        .viewport-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: crosshair;
+        }
+        canvas#viewportCanvas {
+            position: absolute;
+            background: #000;
+        }
+        /* Medical Overlays (HUD) */
+        .hud {
+            position: absolute;
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--accent-color);
+            text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+            pointer-events: none;
+            line-height: 1.4;
+            z-index: 5;
+        }
+        .hud-tl { top: 12px; left: 12px; }
+        .hud-tr { top: 12px; right: 12px; text-align: right; }
+        .hud-bl { bottom: 12px; left: 12px; }
+        .hud-br { bottom: 12px; right: 12px; text-align: right; }
+        /* Dropzone Modal / Local File Load */
+        #dropzone {
+            position: absolute;
+            inset: 0;
+            background: rgba(13, 15, 18, 0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 20;
+            border: 2px dashed #3a4454;
+            margin: 20px;
+            border-radius: 8px;
+        }
+        #dropzone.hidden { display: none; }
+        #dropzone h2 { font-size: 20px; font-weight: 600; }
+        #dropzone p { color: var(--text-muted); font-size: 14px; text-align: center; max-width: 500px; }
+        /* Loading Spinner */
+        #spinner {
+            position: absolute;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            z-index: 30;
+        }
+        .loader {
+            border: 4px solid #222;
+            border-top: 4px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span>BẠCH MAI PACS</span>
+            <small style="color: var(--text-muted); font-weight: normal; font-size: 12px;">| CTCH & CỘT SỐNG</small>
+        </div>
+        <div class="toolbar">
+            <button id="btnPresetBone" onclick="applyPreset(2000, 450)">🦴 Xương (Bone)</button>
+            <button id="btnPresetSoft" onclick="applyPreset(350, 40)">🥩 Phần mềm</button>
+            <button id="btnPresetSpine" onclick="applyPreset(100, 35)">🧠 Tủy / Não</button>
+            <button id="btnPresetLung" onclick="applyPreset(1500, -600)">🫁 Phổi (Lung)</button>
+            <button id="btnInvert" onclick="toggleInvert()">🔄 Đảo màu</button>
+            <button id="btnReset" onclick="resetView()">⚡ Mặc định</button>
+            <label class="btn" for="folderInput" style="margin-left: 8px; border-color: var(--accent-color);">
+                📂 Chọn thư mục DICOM
+            </label>
+            <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;" onchange="handleFileSelect(event)">
+        </div>
+    </header>
+
+    <main>
+        <aside id="sidebarThumbnails"></aside>
+
+        <div class="viewport-container" id="viewportBox">
+            <canvas id="viewportCanvas"></canvas>
+
+            <!-- Head-Up Display (HUD) Overlays -->
+            <div class="hud hud-tl" id="hudPatient">
+                <div id="hudName">BN: ĐANG TẢI...</div>
+                <div id="hudId">Mã BN: ---</div>
+                <div id="hudAgeSex">Tuổi / Giới: ---</div>
+            </div>
+            <div class="hud hud-tr" id="hudStudy">
+                <div>BV BẠCH MAI - KHOA 57 / 915</div>
+                <div id="hudModality">MOD: ---</div>
+                <div id="hudDate">Ngày: ---</div>
+            </div>
+            <div class="hud hud-bl" id="hudSlice">
+                <div id="hudSliceIndex">Lát cắt: 0 / 0</div>
+                <div id="hudSlicePos">Vị trí: --- mm</div>
+                <div id="hudFps" style="font-size: 10px; color: #555;">60 FPS</div>
+            </div>
+            <div class="hud hud-br" id="hudWindow">
+                <div id="hudWl">W: 2000 L: 450</div>
+                <div id="hudZoom">Zoom: 100%</div>
+            </div>
+
+            <!-- Drag & Drop Zone -->
+            <div id="dropzone">
+                <h2>Trình Xem Ảnh DICOM Trực Tuyến - Bệnh Viện Bạch Mai</h2>
+                <p>Kéo & thả thư mục ảnh DICOM hoặc bấm nút bên dưới để xem tức thì không cần cài đặt phần mềm.</p>
+                <button onclick="document.getElementById('folderInput').click()" style="padding: 10px 20px; font-size: 14px; background: var(--accent-color); color: #000; font-weight: bold; border: none;">
+                    📂 Chọn Thư Mục Chứa Ảnh DICOM (.dcm)
+                </button>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="spinner">
+                <div class="loader"></div>
+                <div id="spinnerText" style="font-size: 13px; color: var(--accent-color);">Đang giải mã dữ liệu DICOM...</div>
+            </div>
+
+            <!-- Mobile Slice Navigation Controls -->
+            <div id="mobileSliceControls" style="display:none; position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:15; gap:12px; align-items:center;">
+                <button onclick="prevSlice()" style="background:rgba(22,25,31,0.9); border:1px solid var(--accent-color); padding:8px 16px; font-size:13px; border-radius:20px;">◀ Trước</button>
+                <span id="mobileSliceText" style="color:var(--accent-color); font-family:monospace; font-weight:bold; font-size:13px; min-width:50px; text-align:center;">1 / 1</span>
+                <button onclick="nextSlice()" style="background:rgba(22,25,31,0.9); border:1px solid var(--accent-color); padding:8px 16px; font-size:13px; border-radius:20px;">Sau ▶</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // State Management
+        let dicomSlices = [];
+        let currentSliceIndex = 0;
+        let windowWidth = 2000;
+        let windowCenter = 450;
+        let defaultWw = 2000;
+        let defaultWc = 450;
+        let isInverted = false;
+        let zoom = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let isInteracting = false;
+        let dragMode = null; // 'wwc', 'pan', 'zoom'
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        const viewportBox = document.getElementById('viewportBox');
+        const canvas = document.getElementById('viewportCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        let offscreenCanvas = document.createElement('canvas');
+        let offscreenCtx = offscreenCanvas.getContext('2d');
+
+        // Resize Canvas to fit container
+        function resizeCanvas() {
+            canvas.width = viewportBox.clientWidth;
+            canvas.height = viewportBox.clientHeight;
+            renderSlice();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // 1. DICOM P10 Minimal High-Performance Parser
+        function parseDicomP10(buffer) {
+            const dataView = new DataView(buffer);
+            // Check DICM prefix at offset 128
+            if (buffer.byteLength < 132) throw new Error("File quá ngắn, không phải DICOM");
+            const magic = String.fromCharCode(dataView.getUint8(128), dataView.getUint8(129), dataView.getUint8(130), dataView.getUint8(131));
+            if (magic !== "DICM") throw new Error("Không tìm thấy header DICM");
+
+            let offset = 132;
+            const meta = {
+                rows: 512, cols: 512,
+                bitsAllocated: 16, bitsStored: 16, highBit: 15,
+                pixelRepresentation: 0, // 0 = unsigned, 1 = 2's complement signed
+                rescaleIntercept: 0, rescaleSlope: 1,
+                windowCenter: 450, windowWidth: 2000,
+                photometricInterpretation: "MONOCHROME2",
+                modality: "CT", patientName: "", patientId: "", studyDate: "",
+                instanceNumber: 1, sliceLocation: 0,
+                pixelDataOffset: 0, pixelDataLength: 0
+            };
+
+            const len = buffer.byteLength;
+            while (offset < len - 8) {
+                const group = dataView.getUint16(offset, true);
+                const elem = dataView.getUint16(offset + 2, true);
+                offset += 4;
+
+                let vr = "";
+                let elemLen = 0;
+
+                // Detect Explicit VR (ASCII 2 chars)
+                const c1 = dataView.getUint8(offset);
+                const c2 = dataView.getUint8(offset + 1);
+                const isExplicit = (c1 >= 65 && c1 <= 90 && c2 >= 65 && c2 <= 90);
+
+                if (isExplicit) {
+                    vr = String.fromCharCode(c1, c2);
+                    offset += 2;
+                    if (["OB", "OW", "OF", "SQ", "UT", "UN"].includes(vr)) {
+                        offset += 2; // skip 2 reserved bytes
+                        elemLen = dataView.getUint32(offset, true);
+                        offset += 4;
+                    } else {
+                        elemLen = dataView.getUint16(offset, true);
+                        offset += 2;
+                    }
+                } else {
+                    // Implicit VR: 4 bytes length
+                    elemLen = dataView.getUint32(offset, true);
+                    offset += 4;
+                }
+
+                if (elemLen === 0xFFFFFFFF) elemLen = 0; // undefined length
+
+                // Match Tags
+                if (group === 0x0028 && elem === 0x0010) meta.rows = dataView.getUint16(offset, true);
+                else if (group === 0x0028 && elem === 0x0011) meta.cols = dataView.getUint16(offset, true);
+                else if (group === 0x0028 && elem === 0x0100) meta.bitsAllocated = dataView.getUint16(offset, true);
+                else if (group === 0x0028 && elem === 0x0101) meta.bitsStored = dataView.getUint16(offset, true);
+                else if (group === 0x0028 && elem === 0x0103) meta.pixelRepresentation = dataView.getUint16(offset, true);
+                else if (group === 0x0028 && elem === 0x0004) meta.photometricInterpretation = readAscii(buffer, offset, elemLen).trim();
+                else if (group === 0x0028 && elem === 0x1050) meta.windowCenter = parseFloat(readAscii(buffer, offset, elemLen)) || meta.windowCenter;
+                else if (group === 0x0028 && elem === 0x1051) meta.windowWidth = parseFloat(readAscii(buffer, offset, elemLen)) || meta.windowWidth;
+                else if (group === 0x0028 && elem === 0x1052) meta.rescaleIntercept = parseFloat(readAscii(buffer, offset, elemLen)) || 0;
+                else if (group === 0x0028 && elem === 0x1053) meta.rescaleSlope = parseFloat(readAscii(buffer, offset, elemLen)) || 1;
+                else if (group === 0x0008 && elem === 0x0060) meta.modality = readAscii(buffer, offset, elemLen).trim();
+                else if (group === 0x0010 && elem === 0x0010) meta.patientName = readAscii(buffer, offset, elemLen).replace(/\^/g, ' ').trim();
+                else if (group === 0x0010 && elem === 0x0020) meta.patientId = readAscii(buffer, offset, elemLen).trim();
+                else if (group === 0x0008 && elem === 0x0020) meta.studyDate = readAscii(buffer, offset, elemLen).trim();
+                else if (group === 0x0020 && elem === 0x0013) meta.instanceNumber = parseInt(readAscii(buffer, offset, elemLen)) || 1;
+                else if (group === 0x0020 && elem === 0x1041) meta.sliceLocation = parseFloat(readAscii(buffer, offset, elemLen)) || 0;
+                else if (group === 0x7FE0 && elem === 0x0010) {
+                    meta.pixelDataOffset = offset;
+                    meta.pixelDataLength = elemLen > 0 ? elemLen : (len - offset);
+                    break; // Pixel Data reached
+                }
+
+                offset += elemLen;
+            }
+
+            // Extract Pixel Array
+            const numPixels = meta.rows * meta.cols;
+            let rawPixels = null;
+            if (meta.bitsAllocated === 16) {
+                let pixelBuffer = buffer;
+                let pixelOffset = meta.pixelDataOffset;
+                // TypedArray byte alignment: Int16Array / Uint16Array require start offset to be 2-byte aligned.
+                // In DICOM files with odd-length preceding tags, pixelDataOffset may be odd, causing RangeError.
+                if (pixelOffset % 2 !== 0) {
+                    const byteLen = numPixels * 2;
+                    pixelBuffer = buffer.slice(pixelOffset, Math.min(buffer.byteLength, pixelOffset + byteLen));
+                    pixelOffset = 0;
+                }
+                rawPixels = meta.pixelRepresentation === 1
+                    ? new Int16Array(pixelBuffer, pixelOffset, numPixels)
+                    : new Uint16Array(pixelBuffer, pixelOffset, numPixels);
+            } else {
+                rawPixels = new Uint8Array(buffer, meta.pixelDataOffset, numPixels);
+            }
+
+            return { meta, rawPixels };
+        }
+
+        function readAscii(buffer, offset, length) {
+            let str = "";
+            const view = new Uint8Array(buffer, offset, length);
+            for (let i = 0; i < length; i++) {
+                if (view[i] === 0) break;
+                str += String.fromCharCode(view[i]);
+            }
+            return str;
+        }
+
+        // 2. High Performance Slice Rendering Pipeline
+        function renderSlice() {
+            if (dicomSlices.length === 0) return;
+            const slice = dicomSlices[currentSliceIndex];
+            const { meta, rawPixels } = slice;
+
+            // Setup Offscreen Canvas
+            if (offscreenCanvas.width !== meta.cols || offscreenCanvas.height !== meta.rows) {
+                offscreenCanvas.width = meta.cols;
+                offscreenCanvas.height = meta.rows;
+            }
+
+            const imgData = offscreenCtx.createImageData(meta.cols, meta.rows);
+            const data32 = new Uint32Array(imgData.data.buffer);
+            const numPixels = meta.rows * meta.cols;
+
+            const slope = meta.rescaleSlope;
+            const intercept = meta.rescaleIntercept;
+            const minVal = windowCenter - (windowWidth / 2);
+            const maxVal = windowCenter + (windowWidth / 2);
+            const range = (maxVal - minVal) || 1;
+            const isMono1 = (meta.photometricInterpretation === "MONOCHROME1");
+
+            for (let i = 0; i < numPixels; i++) {
+                const hu = rawPixels[i] * slope + intercept;
+                let val = ((hu - minVal) / range) * 255;
+                if (val < 0) val = 0; else if (val > 255) val = 255;
+                let g = val | 0;
+                if (isMono1 ^ isInverted) g = 255 - g;
+
+                // ABGR 32-bit fast write (Alpha = 255)
+                data32[i] = (255 << 24) | (g << 16) | (g << 8) | g;
+            }
+
+            offscreenCtx.putImageData(imgData, 0, 0);
+
+            // Draw to Main Viewport Canvas with Zoom & Pan
+            ctx.fillStyle = "#000000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.imageSmoothingEnabled = zoom > 1.5;
+            ctx.translate(canvas.width / 2 + panX, canvas.height / 2 + panY);
+            ctx.scale(zoom, zoom);
+
+            // Calculate Fit scale
+            const fitScale = Math.min((canvas.width * 0.95) / meta.cols, (canvas.height * 0.95) / meta.rows);
+            const drawW = meta.cols * fitScale;
+            const drawH = meta.rows * fitScale;
+
+            ctx.drawImage(offscreenCanvas, -drawW / 2, -drawH / 2, drawW, drawH);
+            ctx.restore();
+
+            updateHUD(meta);
+        }
+
+        // 3. Update HUD Display
+        function updateHUD(meta) {
+            document.getElementById('hudName').innerText = "BN: " + (meta.patientName || "KHÔNG CÓ TÊN");
+            document.getElementById('hudId').innerText = "Mã BN: " + (meta.patientId || "---");
+            document.getElementById('hudModality').innerText = "MOD: " + meta.modality;
+            document.getElementById('hudDate').innerText = "Ngày: " + (meta.studyDate || "---");
+            document.getElementById('hudSliceIndex').innerText = `Lát cắt: ${currentSliceIndex + 1} / ${dicomSlices.length}`;
+            document.getElementById('hudSlicePos').innerText = `Vị trí: ${meta.sliceLocation ? meta.sliceLocation.toFixed(1) : meta.instanceNumber} mm`;
+            document.getElementById('hudWl').innerText = `W: ${windowWidth | 0} L: ${windowCenter | 0}`;
+            document.getElementById('hudZoom').innerText = `Zoom: ${(zoom * 100) | 0}%`;
+            const mobText = document.getElementById('mobileSliceText');
+            if (mobText) mobText.innerText = `${currentSliceIndex + 1} / ${dicomSlices.length}`;
+        }
+
+        // 4. Clinical Window/Level Presets
+        function applyPreset(w, c) {
+            windowWidth = w;
+            windowCenter = c;
+            renderSlice();
+        }
+
+        function toggleInvert() {
+            isInverted = !isInverted;
+            renderSlice();
+        }
+
+        function resetView() {
+            windowWidth = defaultWw;
+            windowCenter = defaultWc;
+            zoom = 1.0;
+            panX = 0;
+            panY = 0;
+            isInverted = false;
+            renderSlice();
+        }
+
+        function prevSlice() {
+            if (dicomSlices.length <= 1) return;
+            currentSliceIndex = (currentSliceIndex - 1 + dicomSlices.length) % dicomSlices.length;
+            renderSlice();
+        }
+
+        function nextSlice() {
+            if (dicomSlices.length <= 1) return;
+            currentSliceIndex = (currentSliceIndex + 1) % dicomSlices.length;
+            renderSlice();
+        }
+
+        // 5. Slice Navigation & Mouse/Touch Interactions
+        viewportBox.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (dicomSlices.length <= 1) return;
+            if (e.deltaY > 0) {
+                currentSliceIndex = (currentSliceIndex + 1) % dicomSlices.length;
+            } else {
+                currentSliceIndex = (currentSliceIndex - 1 + dicomSlices.length) % dicomSlices.length;
+            }
+            renderSlice();
+        }, { passive: false });
+
+        viewportBox.addEventListener('contextmenu', e => e.preventDefault());
+
+        viewportBox.addEventListener('mousedown', (e) => {
+            isInteracting = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
+            if (e.button === 0) dragMode = 'wwc';       // Left click: Window/Level
+            else if (e.button === 1) dragMode = 'pan';  // Middle click: Pan
+            else if (e.button === 2) dragMode = 'zoom'; // Right click: Zoom
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isInteracting) return;
+            const deltaX = e.clientX - lastMouseX;
+            const deltaY = e.clientY - lastMouseY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
+            if (dragMode === 'wwc') {
+                windowWidth = Math.max(1, windowWidth + deltaX * 4);
+                windowCenter += deltaY * 4;
+                renderSlice();
+            } else if (dragMode === 'pan') {
+                panX += deltaX;
+                panY += deltaY;
+                renderSlice();
+            } else if (dragMode === 'zoom') {
+                const zoomFactor = 1 - deltaY * 0.01;
+                zoom = Math.max(0.2, Math.min(10.0, zoom * zoomFactor));
+                renderSlice();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isInteracting = false;
+            dragMode = null;
+        });
+
+        viewportBox.addEventListener('dblclick', resetView);
+
+        // Touch events for Mobile / iPad
+        let touchStartDist = 0;
+        let touchStartX = 0, touchStartY = 0;
+        let touchMode = null;
+
+        viewportBox.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                touchMode = 'wwc';
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                touchMode = 'pinch';
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                touchStartDist = Math.sqrt(dx * dx + dy * dy);
+                touchStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                touchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            }
+        }, { passive: true });
+
+        viewportBox.addEventListener('touchmove', (e) => {
+            if (dicomSlices.length === 0) return;
+            if (touchMode === 'wwc' && e.touches.length === 1) {
+                const deltaX = e.touches[0].clientX - touchStartX;
+                const deltaY = e.touches[0].clientY - touchStartY;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+
+                windowWidth = Math.max(1, windowWidth + deltaX * 4);
+                windowCenter += deltaY * 4;
+                renderSlice();
+            } else if (touchMode === 'pinch' && e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (touchStartDist > 0) {
+                    const factor = dist / touchStartDist;
+                    zoom = Math.max(0.2, Math.min(10.0, zoom * factor));
+                }
+                touchStartDist = dist;
+
+                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                panX += midX - touchStartX;
+                panY += midY - touchStartY;
+                touchStartX = midX;
+                touchStartY = midY;
+
+                renderSlice();
+            }
+        }, { passive: true });
+
+        viewportBox.addEventListener('touchend', () => {
+            touchMode = null;
+            touchStartDist = 0;
+        }, { passive: true });
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (dicomSlices.length <= 1) return;
+            if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+                currentSliceIndex = (currentSliceIndex + 1) % dicomSlices.length;
+                renderSlice();
+            } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+                currentSliceIndex = (currentSliceIndex - 1 + dicomSlices.length) % dicomSlices.length;
+                renderSlice();
+            } else if (e.key.toLowerCase() === "r") resetView();
+            else if (e.key.toLowerCase() === "i") toggleInvert();
+        });
+
+        // 6. File & Folder Loading Pipeline
+        async function handleFileSelect(e) {
+            const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith('.dcm') || !f.name.includes('.'));
+            if (files.length === 0) {
+                alert("Không tìm thấy file DICOM (.dcm) nào trong thư mục đã chọn!");
+                return;
+            }
+            loadFiles(files);
+        }
+
+        async function loadFiles(fileList) {
+            document.getElementById('dropzone').classList.add('hidden');
+            const spinner = document.getElementById('spinner');
+            spinner.style.display = 'flex';
+            document.getElementById('spinnerText').innerText = `Đang nạp ${fileList.length} lát cắt DICOM...`;
+
+            dicomSlices = [];
+            for (let i = 0; i < fileList.length; i++) {
+                try {
+                    const buf = await fileList[i].arrayBuffer();
+                    const parsed = parseDicomP10(buf);
+                    dicomSlices.push(parsed);
+                } catch (err) {
+                    console.warn(`Bỏ qua file không hợp lệ ${fileList[i].name}:`, err);
+                }
+            }
+
+            if (dicomSlices.length === 0) {
+                alert("Không thể giải mã được lát cắt DICOM hợp lệ nào!");
+                spinner.style.display = 'none';
+                document.getElementById('dropzone').classList.remove('hidden');
+                return;
+            }
+
+            dicomSlices.sort((a, b) => {
+                if (a.meta.sliceLocation !== undefined && b.meta.sliceLocation !== undefined) {
+                    return a.meta.sliceLocation - b.meta.sliceLocation;
+                }
+                return a.meta.instanceNumber - b.meta.instanceNumber;
+            });
+
+            defaultWw = dicomSlices[0].meta.windowWidth || 2000;
+            defaultWc = dicomSlices[0].meta.windowCenter || 450;
+            windowWidth = defaultWw;
+            windowCenter = defaultWc;
+
+            currentSliceIndex = 0;
+            spinner.style.display = 'none';
+            resizeCanvas();
+            buildThumbnails();
+        }
+
+        // Drag and drop onto Viewport
+        viewportBox.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+        viewportBox.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                loadFiles(Array.from(e.dataTransfer.files));
+            }
+        });
+
+        // Helper: Base64 to ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Helper: Nạp dữ liệu nhúng sẵn (Base64)
+        async function loadEmbeddedStudy() {
+            if (!window.EMBEDDED_STUDY || !window.EMBEDDED_STUDY.slices || window.EMBEDDED_STUDY.slices.length === 0) {
+                return false;
+            }
+
+            const study = window.EMBEDDED_STUDY;
+            if (study.patientName) document.getElementById('hudName').innerText = "BN: " + study.patientName;
+            if (study.patientId) document.getElementById('hudId').innerText = "Mã BN: " + study.patientId;
+            if (study.modality) document.getElementById('hudModality').innerText = "MOD: " + study.modality;
+            if (study.studyDate) document.getElementById('hudDate').innerText = "Ngày: " + study.studyDate;
+
+            document.getElementById('dropzone').classList.add('hidden');
+            const spinner = document.getElementById('spinner');
+            spinner.style.display = 'flex';
+            document.getElementById('spinnerText').innerText = `Đang nạp ${study.slices.length} lát cắt DICOM nhúng sẵn...`;
+
+            await new Promise(r => setTimeout(r, 20));
+
+            dicomSlices = [];
+            for (let i = 0; i < study.slices.length; i++) {
+                try {
+                    const buf = base64ToArrayBuffer(study.slices[i]);
+                    dicomSlices.push(parseDicomP10(buf));
+                } catch (e) {
+                    console.warn("Lỗi giải mã lát cắt #" + (i + 1), e);
+                }
+            }
+
+            if (dicomSlices.length === 0) {
+                spinner.style.display = 'none';
+                document.getElementById('dropzone').classList.remove('hidden');
+                return false;
+            }
+
+            dicomSlices.sort((a, b) => {
+                if (a.meta.sliceLocation !== undefined && b.meta.sliceLocation !== undefined) {
+                    return a.meta.sliceLocation - b.meta.sliceLocation;
+                }
+                return a.meta.instanceNumber - b.meta.instanceNumber;
+            });
+
+            defaultWw = dicomSlices[0].meta.windowWidth || 2000;
+            defaultWc = dicomSlices[0].meta.windowCenter || 450;
+            windowWidth = defaultWw;
+            windowCenter = defaultWc;
+            currentSliceIndex = 0;
+
+            spinner.style.display = 'none';
+            resizeCanvas();
+            buildThumbnails();
+            renderSlice();
+            return true;
+        }
+
+        // 7. Auto-load Pipeline (Ưu tiên Base64 nhúng -> dự phòng manifest.json)
+        async function tryAutoLoadManifest() {
+            // Check TTL expiration if 'exp' param is present in URL
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const expVal = urlParams.get('exp');
+                if (expVal) {
+                    const expSec = parseInt(expVal, 10);
+                    const nowSec = Math.floor(Date.now() / 1000);
+                    if (nowSec > expSec) {
+                        const dropzone = document.getElementById('dropzone');
+                        dropzone.classList.remove('hidden');
+                        dropzone.innerHTML = `<h2 style="color:#ff5252">⚠️ LIÊN KẾT ĐÃ HẾT HẠN (EXPIRED LINK)</h2>
+                            <p style="color:#ffb4b4; margin-top:10px;">Thời hạn hiệu lực của liên kết chia sẻ ca chụp PACS đã kết thúc theo chính sách bảo mật TTL.<br>Vui lòng liên hệ bác sĩ điều trị để nhận liên kết mới.</p>`;
+                        return;
+                    }
+                }
+            } catch (e) { console.warn("Lỗi kiểm tra TTL:", e); }
+
+            // Ưu tiên 1: Nạp từ EMBEDDED_STUDY
+            try {
+                if (await loadEmbeddedStudy()) {
+                    console.log("Đã nạp thành công dữ liệu ca chụp nhúng sẵn trong HTML.");
+                    return;
+                }
+            } catch (errEmbed) {
+                console.warn("Lỗi nạp embedded study:", errEmbed);
+            }
+
+            // Ưu tiên 2: Nạp qua manifest.json khi chạy từ Local Web Server
+            try {
+                const resp = await fetch('manifest.json');
+                if (resp.ok) {
+                    const manifest = await resp.json();
+                    if (manifest) {
+                        if (manifest.patientName) document.getElementById('hudName').innerText = "BN: " + manifest.patientName;
+                        if (manifest.patientId) document.getElementById('hudId').innerText = "Mã BN: " + manifest.patientId;
+                        if (manifest.modality) document.getElementById('hudModality').innerText = "MOD: " + manifest.modality;
+                        if (manifest.studyDate) document.getElementById('hudDate').innerText = "Ngày: " + manifest.studyDate;
+                    }
+                    if (manifest && manifest.slices && manifest.slices.length > 0) {
+                        document.getElementById('dropzone').classList.add('hidden');
+                        const spinner = document.getElementById('spinner');
+                        spinner.style.display = 'flex';
+                        document.getElementById('spinnerText').innerText = `Đang tự động nạp ${manifest.slices.length} lát cắt...`;
+
+                        dicomSlices = [];
+                        for (const slicePath of manifest.slices) {
+                            try {
+                                const fileResp = await fetch(slicePath);
+                                const buf = await fileResp.arrayBuffer();
+                                dicomSlices.push(parseDicomP10(buf));
+                            } catch (e) { console.warn("Lỗi tải lát cắt:", slicePath, e); }
+                        }
+                        if (dicomSlices.length > 0) {
+                            defaultWw = dicomSlices[0].meta.windowWidth || 2000;
+                            defaultWc = dicomSlices[0].meta.windowCenter || 450;
+                            windowWidth = defaultWw;
+                            windowCenter = defaultWc;
+                            currentSliceIndex = 0;
+                            spinner.style.display = 'none';
+                            resizeCanvas();
+                            buildThumbnails();
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log("Không tìm thấy manifest.json hoặc mở qua file://. Sẵn sàng nhận kéo thả.");
+            }
+        }
+
+        function buildThumbnails() {
+            const container = document.getElementById('sidebarThumbnails');
+            container.innerHTML = "";
+            const step = Math.max(1, Math.floor(dicomSlices.length / 8));
+            for (let i = 0; i < dicomSlices.length; i += step) {
+                const card = document.createElement('div');
+                card.className = "thumb-card" + (i === currentSliceIndex ? " active" : "");
+                card.innerHTML = `<canvas width="100" height="90"></canvas><div class="title">Lát #${i + 1}</div>`;
+                card.onclick = () => {
+                    currentSliceIndex = i;
+                    renderSlice();
+                    document.querySelectorAll('.thumb-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                };
+                container.appendChild(card);
+            }
+        }
+
+        // Khởi động
+        resizeCanvas();
+        tryAutoLoadManifest();
+    </script>
+</body>
+</html>
+
