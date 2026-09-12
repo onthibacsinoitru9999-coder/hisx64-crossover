@@ -1462,3 +1462,52 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
 
 
+
+---
+
+## ❌ BẪY LỖI #26: QUÉT Y LỆNH 32 BN TUẦN TỰ — CHẬM 100 GIÂY, SAI LOGIC NGÀY
+
+**Ngày phát hiện:** 12/09/2026  
+**Tình huống:** Agent quét đơn thuốc + suất ăn ngày mai cho 32 BN buồng bệnh Hà Nội.
+
+### Nguyên nhân gốc rễ (3 lỗi cùng lúc):
+
+| # | Lỗi | Hậu quả |
+|---|---|---|
+| 1 | Gọi HisClinicalCli.exe orders <MaBN> **tuần tự** trong vòng lặp PowerShell | 32 BN × ~3s = **~100 giây** thay vì song song |
+| 2 | Dùng **TreatmentId** thay vì **MaBN** làm tham số orders | CLI trả Không tìm thấy → phải chạy lại lần 2 |
+| 3 | Logic lọc ngày sai: tìm chuỗi "ngay mai"/"tomorrow" trong output | CLI không bao giờ in chuỗi đó → báo cáo 31/32 BN "chưa có thuốc" (sai hoàn toàn) |
+
+### Giải pháp đúng — áp dụng vĩnh viễn:
+
+**✅ Dùng Start-Job để song song hóa:**
+`powershell
+# ĐÚNG: Song song, ~3-5 giây cho 32 BN
+ =  | ForEach-Object {
+     = 
+    Start-Job -ScriptBlock {
+        param(, , )
+         = &  orders  2>&1 | Out-String
+         =  -split "---+"
+            = [bool]( | Where-Object {  -match  -and  -match "đơn điều trị|đơn kho|tủ trực" })
+         = [bool]( | Where-Object {  -match  -and  -match "suất ăn|BT0|DD0|TM0" })
+        [PSCustomObject]@{ Code=; HasMed=; HasRation= }
+    } -ArgumentList .Code, , 
+}
+ =  | Wait-Job | Receive-Job
+ | Remove-Job
+`
+
+**✅ Tham số đúng cho orders:** Luôn dùng **MaBN** (VD:  003440380), không dùng TreatmentId.
+
+**✅ Logic lọc ngày đúng:** Lọc theo chuỗi dd/MM thực tế trong output (VD: "13/09"), không tìm từ khóa ngôn ngữ tự nhiên.
+
+`powershell
+# ĐÚNG:
+ = (Get-Date).AddDays(1).ToString("dd/MM")   # → "13/09"
+ = ( | Where-Object {  -match [regex]::Escape() -and  -match "đơn điều trị|đơn kho|tủ trực" })
+`
+
+### Kết quả thực tế sau khi sửa đúng (13/09/2026):
+- **Chưa có thuốc:** 7 BN (712: QUÁCH ĐẠI VƯỢNG, VI TRUNG HIẾU, PHẠM NGỌC HÒA | 716: NGUYỄN NGỌC HIỂN | 724: NGUYỄN THỊ KHỞI | 712A: TẠ THỊ NGUYỆT, ĐẶNG THỊ BÍCH)
+- **Chưa có suất ăn:** 3 BN (712: LÊ QUÝ ĐẶNG, NGUYỄN HỮU CƯỜNG | 712A: ĐẶNG THỊ BÍCH)
