@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Globalization;
@@ -188,7 +188,7 @@ public class HisDebateCreator
             try
             {
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(commonParam, "034727", "9981", "2.390.0");
+                var token = tokenManager.Login(commonParam, "034727", "998199", "2.390.0");
                 if (token == null) token = tokenManager.Login(commonParam, "vmc", "789789", "2.390.0");
                 if (token != null)
                 {

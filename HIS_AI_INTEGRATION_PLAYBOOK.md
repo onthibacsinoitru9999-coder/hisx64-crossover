@@ -1,4 +1,4 @@
-# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
 > **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
 > **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
@@ -50,7 +50,7 @@ Mọi giao tiếp đều đi qua mạng nội bộ bệnh viện (hoặc qua VPN
 
 Khi gửi request hoặc xây dựng kịch bản y lệnh, sử dụng thông tin định danh của phiên làm việc bác sĩ:
 
-* **Bác sĩ điều trị chính**: `034727` - **Ths.BS NGUYỄN HỮU SÂM** (Pass mặc định hệ thống: `9981`)
+* **Bác sĩ điều trị chính**: `034727` - **Ths.BS NGUYỄN HỮU SÂM** (Pass: `998199`)
 * **Bác sĩ phối hợp / Mời ký**: `ndh2` - **BS NGUYỄN ĐỨC HOÀNG**
 * **Tài khoản bác sĩ phụ trợ**: `vmc` - **BS VŨ MINH CƯỜNG** (Pass: `789789`)
 * **Bác sĩ Khoa 57 / PTV**: 
@@ -117,7 +117,7 @@ HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
 // 2. Đăng nhập lấy Token
 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
 CommonParam param = new CommonParam();
-var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
 ApiConsumers.SetConsunmer(token.TokenCode);
 
 // 3. [BẮT BUỘC] Kích hoạt thông tin phòng làm việc
@@ -1126,7 +1126,7 @@ Khi chạy các công cụ CLI độc lập (`.exe`, `.bat`) mà không có giao
    - Nếu token log hết hạn hoặc lỗi: Nạp cấu hình `Load.Init()`.
    - Gán tĩnh `Constants.BASE_URI = "http://192.168.7.200:1401/"` và `Constants.LOGIN_URI = "api/Token/Login"`.
    - Khởi tạo: `new ClientTokenManager("HIS", "http://192.168.7.200:1401/")`.
-   - Đăng nhập với tài khoản bác sĩ: `tokenManager.Login(param, "vmc", "789789", "2.390.0")` (hoặc `034727 / 9981`).
+   - Đăng nhập với tài khoản bác sĩ: `tokenManager.Login(param, "vmc", "789789", "2.390.0")` (hoặc `034727 / 998199`).
    - Kích hoạt phòng làm việc: Gửi `POST api/Token/UpdateWorkInfo` với danh sách phòng Khoa 57 (`5248, 5252, 5251, 5257`).
 3. **Mã Nguồn Mẫu (Đã Chuẩn Hóa 100% trong `HisWardReportCreator.cs` & `HisClinicalCli.cs`)**:
 ```csharp
@@ -1146,7 +1146,7 @@ var loginToken = tokenManager.Login(param, "vmc", "789789", "2.390.0");
 if (loginToken == null)
 {
     param = new CommonParam();
-    loginToken = tokenManager.Login(param, "034727", "9981", "2.390.0");
+    loginToken = tokenManager.Login(param, "034727", "998199", "2.390.0");
 }
 if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
 {
@@ -1200,7 +1200,7 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
    - *Nguyên nhân & Giải pháp*:
      * **Thiếu `.exe.config`**: Mọi file `.exe` độc lập (`HisDiagnosticDoctor.exe`, `HisSummaryTrackingDoctor.exe`, `HisSummaryTrackingCreator.exe`, `HisRationAssigner.exe`, `HisWardReportCreator.exe`) bắt buộc phải có file `.exe.config` đi kèm (sao chép từ `HisClinicalCli.exe.config`) để khởi tạo cấu hình `log4net` và WCF client kết nối ACS/MOS.
      * **Vị trí `MOS.EFMODEL.dll` & `LIS.EFMODEL.dll`**: Một số bản cài HIS chỉ đặt các DLL này ở thư mục gốc. Khi biên dịch lại công cụ, cần đảm bảo các DLL này có mặt trong `ReferencedAssemblies\` và đường dẫn trong `refs.rsp` được cập nhật chính xác theo thư mục mới.
-     * **Cơ chế Fallback Auto-Login**: Khi phần mềm HIS chính chưa mở hoặc vừa tắt (`IsLostToken: true`), các công cụ không được chỉ đọc thụ động từ log `LogSystem.txt` mà phải có cơ chế nạp `Load.Init()` và tự động đăng nhập qua `ClientTokenManager.Login("034727", "9981", ...)` kèm kích hoạt phòng làm việc `UpdateWorkInfo`.
+     * **Cơ chế Fallback Auto-Login**: Khi phần mềm HIS chính chưa mở hoặc vừa tắt (`IsLostToken: true`), các công cụ không được chỉ đọc thụ động từ log `LogSystem.txt` mà phải có cơ chế nạp `Load.Init()` và tự động đăng nhập qua `ClientTokenManager.Login("034727", "998199", ...)` kèm kích hoạt phòng làm việc `UpdateWorkInfo`.
 4. **Nguyên Tắc "Bảo Gì Làm Nấy" - Phản Hồi Trực Diện & Siêu Tốc**:
    - *Bản chất*: Khi Bác sĩ hỏi tình hình của 1 buồng cụ thể (VD: `Phòng 714`), Agent CHỈ kiểm tra và trả lời đúng buồng đó.
    - *Quy tắc phản hồi*: Nếu buồng rỗng (`0 bệnh nhân`), báo ngay lập tức trong 5-10 giây: **"Phòng 714 hiện đang trống (0 bệnh nhân)"**.

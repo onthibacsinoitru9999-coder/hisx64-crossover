@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using Inventec.Core;
@@ -30,7 +30,7 @@ class Program
         ClientTokenManager tm = new ClientTokenManager("HIS", "http://192.168.7.200:1401/");
         
         Console.WriteLine("Logging in with 034727...");
-        var token = tm.Login(param, "034727", "9981", "2.390.0");
+        var token = tm.Login(param, "034727", "998199", "2.390.0");
         if (token != null)
         {
             Console.WriteLine("SUCCESS 034727! Token = " + token.TokenCode);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -120,7 +120,7 @@ namespace SearchNinhBinh
             ClientTokenManager tokenManager = new ClientTokenManager("HIS");
             if (string.IsNullOrEmpty(tokenCode))
             {
-                var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
                 if (token != null) tokenCode = token.TokenCode;
                 else
                 {

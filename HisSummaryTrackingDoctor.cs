@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -99,7 +99,7 @@ public class HisSummaryTrackingDoctor
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
                 CommonParam p = new CommonParam();
-                var tok = tokenManager.Login(p, "034727", "9981", "2.390.0");
+                var tok = tokenManager.Login(p, "034727", "998199", "2.390.0");
                 if (tok != null) token = tok.TokenCode;
                 else
                 {

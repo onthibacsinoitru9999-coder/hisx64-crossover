@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -112,7 +112,7 @@ namespace HospitalShiftReporter
             {
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
                 if (token == null) token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
                 if (token == null) { Console.WriteLine("Login failed!"); return; }
                 tokenCode = token.TokenCode;

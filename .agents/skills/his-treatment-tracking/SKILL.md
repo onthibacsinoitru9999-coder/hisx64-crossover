@@ -1,4 +1,4 @@
----
+﻿---
 name: his-treatment-tracking
 description: >-
   Tự động tạo Tờ điều trị (Treatment Tracking), ghi nhận diễn biến bệnh, y lệnh,
@@ -14,7 +14,7 @@ Skill này cung cấp quy trình và kịch bản thực thi tự động tạo 
 - **ACS Auth URL**: `http://192.168.7.200:1401/`
 - **MOS Backend URL**: `http://192.168.7.236:1608/`
 - **EMR Document URL**: `http://192.168.7.239:1415/`
-- **Tài khoản bác sĩ**: `034727` / `9981` (Ths.BS NGUYỄN HỮU SÂM - Khoa CTCH & Cột sống, Mã khoa `9`, Phòng 714 / 716).
+- **Tài khoản bác sĩ**: `034727` / `998199` (Ths.BS NGUYỄN HỮU SÂM - Khoa CTCH & Cột sống, Mã khoa `9`, Phòng 714 / 716).
 
 ## 2. Công cụ thực thi siêu tốc (`HisTrackingCreator.exe` / `QuickTracking.exe`)
 

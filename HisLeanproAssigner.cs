@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using System.Collections.Generic;
@@ -289,7 +289,7 @@ public class HisLeanproAssigner
             {
                 Load.Init();
                 ClientTokenManager tm = new ClientTokenManager("HIS");
-                var tok = tm.Login(param, "034727", "9981", "2.390.0");
+                var tok = tm.Login(param, "034727", "998199", "2.390.0");
                 if (tok != null) token = tok.TokenCode;
                 else
                 {

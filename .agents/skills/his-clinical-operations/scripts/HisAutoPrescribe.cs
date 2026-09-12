@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Drawing;
@@ -1590,7 +1590,7 @@ class Program
                 if (string.IsNullOrEmpty(bToken))
                 {
                     ClientTokenManager btm = new ClientTokenManager("HIS");
-                    var btok = btm.Login(bp, "034727", "9981", "2.390.0");
+                    var btok = btm.Login(bp, "034727", "998199", "2.390.0");
                     if (btok == null) btok = btm.Login(bp, batchUser, batchPass, "2.390.0");
                     if (btok != null)
                     {
@@ -1761,7 +1761,7 @@ class Program
             string medKw = args[argOffset + 2];
             string tut = remainingArgs > 3 ? args[argOffset + 3] : "Theo chỉ dẫn bác sĩ";
             string user = remainingArgs > 4 ? args[argOffset + 4] : "034727";
-            string pass = remainingArgs > 5 ? args[argOffset + 5] : "9981";
+            string pass = remainingArgs > 5 ? args[argOffset + 5] : "998199";
 
             Console.WriteLine(string.Format(">>> CLI AUTO PRESCRIBE: BS {0} | BN: {1} | Thuốc: {2} | Liều: {3}", user, patKey, medKw, amount));
             try

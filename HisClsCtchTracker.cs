@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Drawing;
@@ -890,7 +890,7 @@ public class MainForm : Form
         HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
         ClientTokenManager tokenManager = new ClientTokenManager("HIS");
         param = new CommonParam();
-        var token034 = tokenManager.Login(param, "034727", "9981", "2.390.0");
+        var token034 = tokenManager.Login(param, "034727", "998199", "2.390.0");
         if (token034 != null)
         {
             currentToken = token034.TokenCode;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -178,7 +178,7 @@ public class HisWardReportCreator
             if (loginToken == null)
             {
                 param = new CommonParam();
-                loginToken = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                loginToken = tokenManager.Login(param, "034727", "998199", "2.390.0");
             }
 
             if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))

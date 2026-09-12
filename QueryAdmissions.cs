@@ -71,7 +71,7 @@ class QueryAdmissions
             {
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var t = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                var t = tokenManager.Login(param, "034727", "998199", "2.390.0");
                 if (t != null) token = t.TokenCode;
             }
             catch {}

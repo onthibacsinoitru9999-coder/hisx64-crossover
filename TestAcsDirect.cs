@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -13,7 +13,7 @@ class TestAcsDirect
             client.BaseAddress = new Uri("http://192.168.7.200:1401/");
             client.DefaultRequestHeaders.Add("ClientIpAddress", "100.93.206.93");
 
-            string json = "{\"LoginName\":\"034727\",\"Password\":\"9981\",\"ApplicationCode\":\"HIS\"}";
+            string json = "{\"LoginName\":\"034727\",\"Password\":\"998199\",\"ApplicationCode\":\"HIS\"}";
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             Console.WriteLine("POST api/Token/Login with 034727...");

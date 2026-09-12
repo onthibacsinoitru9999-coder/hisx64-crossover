@@ -41,7 +41,7 @@ class Program
             Load.Init();
             ClientTokenManager tokenManager = new ClientTokenManager("HIS");
             CommonParam param = new CommonParam();
-            var tok = tokenManager.Login(param, "034727", "9981", "2.390.0");
+            var tok = tokenManager.Login(param, "034727", "998199", "2.390.0");
             if (tok != null) tokenCode = tok.TokenCode;
             Console.WriteLine("Token from Login: " + (tokenCode != null ? tokenCode.Substring(0, 10) + "..." : "NULL"));
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Collections.Generic;
@@ -240,7 +240,7 @@ public class HisClinicalCli
             {
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, "034727", "9981", "2.390.0");
+                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
                 if (token != null)
                 {
                     tokenCode = token.TokenCode;
