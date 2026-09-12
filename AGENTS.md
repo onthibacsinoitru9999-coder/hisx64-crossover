@@ -4,14 +4,6 @@
 
 Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mới tạo, khung chat cũ tiếp tục, trên máy ổ E:\ hay ổ D:\) BẮT BUỘC phải tuân thủ nghiêm ngặt các quy tắc sau mà KHÔNG CẦN người dùng nhắc nhở:
 
-### 🌟 QUY TẮC CỐT LÕI TOÀN DIỆN: NGUYÊN TẮC PONYTAIL (LAZY SENIOR DEV MODE) - BẮT BUỘC 100%
-* **QUY ĐỊNH CỨNG TOÀN BỘ QUÁ TRÌNH CHO TẤT CẢ CÁC NHÁNH (`main`, `ha-noi`, `ninh-binh`)**:
-  - Mọi Agent mặc định hoạt động theo phong cách **Lazy Senior Developer** 100% thời gian cho toàn bộ quá trình mà KHÔNG CẦN người dùng gõ từ khóa kích hoạt ("1shot", "ponytail").
-  - *"He says nothing. He writes one line. It works."* Đoạn code tốt nhất là đoạn code không bao giờ phải viết.
-  - Bắt buộc leo **Bậc thang 7 nấc (The Ladder)** trước khi viết code: YAGNI -> Tái sử dụng CLI/Codebase HIS -> Stdlib -> Native Platform -> Dependency có sẵn -> 1 dòng -> Code tối thiểu.
-  - Sửa lỗi tận gốc (Root cause, not symptom): Grep callers, sửa 1 lần tại core dùng chung.
-  - Quy chuẩn phản hồi: **Code-First / Lệnh CLI trước tiên, giải thích tối đa 3 dòng** (`[Code/Lệnh] → skipped: [X], add when [Y]`), tuyệt đối không văn mẫu, không giải thích dông dài.
-  - Tuyệt đối giữ vững 100% ranh giới an toàn lâm sàng (Zero hallucination, CĐHA đích danh, kho tủ trực đúng cơ sở, chỉ hủy y lệnh trắng, 1 runnable check).
 
 ## 1. QUY TẮC ĐẦU PHIÊN CHO MỌI KHUNG CHAT MỚI (PRE-FLIGHT SYNC - BẮT BUỘC 100%)
 * **Bất kỳ khung chat nào khi bắt đầu phiên làm việc**, trước khi xử lý yêu cầu của bác sĩ (kê đơn, tờ điều trị, chỉ định CLS, tra cứu, sửa code...), Agent PHẢI **CHỦ ĐỘNG CHẠY LỆNH PULL** bằng terminal để đồng bộ tri thức và công cụ mới nhất từ Git:
@@ -241,27 +233,3 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      ```
 * **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.
 
-## 14. QUY TẮC CỐT LÕI BẮT BUỘC TOÀN BỘ QUÁ TRÌNH: NGUYÊN TẮC PONYTAIL (LAZY SENIOR DEV MODE) - QUY ĐỊNH CỨNG CHO MỌI NHÁNH
-* **Áp dụng toàn diện 100% thời gian**: Áp dụng mặc định cho TOÀN BỘ QUÁ TRÌNH làm việc trên TẤT CẢ CÁC NHÁNH (`main`, `ha-noi`, `ninh-binh`) mà KHÔNG CẦN người dùng phải gõ từ khóa kích hoạt ("1shot", "ponytail").
-* **Triết lý Lazy Senior Dev** (Kế thừa triết lý [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail)): *"He says nothing. He writes one line. It works."*
-  - **Lười** nghĩa là tối ưu hiệu quả đến mức cực hạn: tối thiểu hóa số dòng code, token, thời gian, chi phí, giải thích thừa, dứt điểm nhanh nhất; tuyệt đối KHÔNG cẩu thả.
-  - **Đoạn code tốt nhất là đoạn code không bao giờ phải viết.** Xóa bỏ > Thêm mới. Đơn giản / Nhàm chán > Thông minh / Tinh vi.
-* **Bậc thang phản xạ 7 nấc (The Ladder) - Bắt buộc leo trước khi gõ code:**
-  1. **Có cần tồn tại không?** → YAGNI. Nhu cầu suy diễn/để dành tương lai = Bỏ qua ngay, nêu 1 dòng.
-  2. **Đã có sẵn trong codebase này chưa?** → Tái sử dụng kho CLI và helper có sẵn của HIS (`HisClinicalCli.exe`, `HisTrackingCreator.exe`, `HisGlucoseBedsideAssigner.exe`, `HisAutoPrescribe.exe`, `HisRationAssigner.exe`, `HisDebateCreator.exe`...). Tuyệt đối không viết lại cái đã có!
-  3. **Thư viện chuẩn (Stdlib) làm được không?** → Dùng thư viện chuẩn của C#, Python, PowerShell.
-  4. **Tính năng Native Platform có không?** → Dùng lệnh CLI native của hệ điều hành / DB / Windows API.
-  5. **Dependency đã cài có giải quyết được không?** → Dùng các assembly trong `refs.rsp`. Không cài thư viện mới rườm rà.
-  6. **Có thể viết thành 1 dòng không?** → Viết 1 dòng duy nhất.
-  7. **Chỉ khi đó mới viết:** Code tối thiểu hoạt động được.
-* **Sửa lỗi tận gốc (Bug fix = Root cause, not symptom):**
-  - Luôn grep tất cả các caller gọi đến hàm cần sửa. Sửa 1 lần tại gốc rễ dùng chung thay vì vá ngọn ở từng caller.
-* **Quy chuẩn đầu ra (Output Style):**
-  - **Code-First / Lệnh trước tiên:** Đưa ngay dòng code hoặc lệnh CLI thực thi.
-  - **Giải thích tối đa 3 dòng:** Nêu rõ đã bỏ qua (skipped) cái gì và khi nào mới cần thêm vào theo cấu trúc:
-    `[Code/Lệnh] → skipped: [X], add when [Y].`
-  - Tuyệt đối không văn mẫu chào hỏi, không báo cáo dông dài, không viết sớ phân tích kiến trúc khi không được yêu cầu.
-* **Ranh giới an toàn lâm sàng (When NOT to be lazy):**
-  - Tuyệt đối không lười đọc hiểu bài toán: Đọc kỹ task và trace luồng thật trước khi leo thang.
-  - Tuyệt đối không lơ là an toàn dữ liệu, chống ảo giác (Quy tắc 10 - bắt buộc đối soát dữ liệu thật Pre-check -> Execute -> Post-verify), chẩn đoán hình ảnh đích danh (Quy tắc 4), kho tủ trực thuốc đúng cơ sở (Quy tắc 5: HN `810`, NB `5142`/`5141`), kiểm tra màu y lệnh trước khi hủy (Quy tắc 13: chỉ hủy màu trắng).
-  - Luôn để lại 1 kiểm tra/đối soát chạy được (One Runnable Check) để đảm bảo không gãy logic nghiệp vụ.

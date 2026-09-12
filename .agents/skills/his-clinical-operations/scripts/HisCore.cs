@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Collections.Generic;
@@ -29,7 +29,7 @@ namespace HisAutomation.Core
     /// </summary>
     public static class HisTokenReader
     {
-        // ponytail: seek last 128KB of LogSystem.txt with FileShare.ReadWrite. ceiling: token within 128KB. upgrade: full file reverse scan if logs rotate faster than 1MB/min.
+        // Seek 128KB cuối của LogSystem.txt với FileShare.ReadWrite để lấy Token nhanh nhất
         public static string ReadLiveTokenFast()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -91,7 +91,7 @@ namespace HisAutomation.Core
     /// </summary>
     public static class HisContext
     {
-        // ponytail: fixed Khoa 57 and Room 5248. ceiling: single ward. upgrade: parse from UserSession if multi-department deployment requested.
+        // Cố định Khoa 57 và Phòng 734 mặc định cho Khoa CTCH & Cột sống
         public const long DepartmentId = 57;
         public const long RoomId = 5248; // P734
         public const string DefaultDoctorLogin = 034727; // Ths.BS Nguyễn Hữu Sâm
