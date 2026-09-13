@@ -1453,6 +1453,111 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void ExportPt01Data(string pCodesArg)
+    {
+        InitSession();
+        string[] rawList = pCodesArg.Split(new char[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries);
+        var pCodes = rawList.Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToList();
+
+        var listOut = new List<string>();
+
+        foreach (var pCode in pCodes)
+        {
+            string cleanCode = pCode;
+            if (cleanCode.All(char.IsDigit) && cleanCode.Length < 10)
+            {
+                cleanCode = cleanCode.PadLeft(10, '0');
+            }
+
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
+            if (cleanCode.Length == 12 && cleanCode.StartsWith("0000"))
+                tf.TREATMENT_CODE__EXACT = cleanCode;
+            else
+                tf.PATIENT_CODE__EXACT = cleanCode;
+
+            var trList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (trList == null || trList.Count == 0) continue;
+            var tr = trList.OrderByDescending(x => x.IN_TIME).First();
+
+            HisSereServTeinViewFilter teinFilter = new HisSereServTeinViewFilter { TDL_TREATMENT_ID = tr.ID };
+            var teinList = myAdapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", mosConsumer, teinFilter, param) ?? new List<V_HIS_SERE_SERV_TEIN>();
+
+            Func<string, string> getTein = (match) => {
+                var item = teinList.LastOrDefault(x => !string.IsNullOrEmpty(x.VALUE) && 
+                    ((x.TEST_INDEX_NAME != null && x.TEST_INDEX_NAME.ToUpper().Contains(match.ToUpper())) ||
+                     (x.TEST_INDEX_CODE != null && x.TEST_INDEX_CODE.ToUpper() == match.ToUpper())));
+                return item != null ? (item.VALUE + " " + (item.TEST_INDEX_UNIT_NAME ?? "")).Trim() : "-";
+            };
+
+            string hb = getTein("Hemoglobin");
+            string wbc = getTein("Bạch cầu");
+            string plt = getTein("Tiểu cầu");
+            string inr = getTein("INR");
+            string fib = getTein("Fibrinogen");
+            string aptt = getTein("APTT");
+            string glu = getTein("Glucose");
+            string ure = getTein("Urê");
+            string cre = getTein("Creatinin");
+            string ast = getTein("AST");
+            string alt = getTein("ALT");
+            string abo = getTein("ABO");
+
+            string dobStr = tr.TDL_PATIENT_DOB.ToString();
+            string dobFormatted = dobStr;
+            if (dobStr.Length == 8)
+            {
+                dobFormatted = dobStr.Substring(6, 2) + "/" + dobStr.Substring(4, 2) + "/" + dobStr.Substring(0, 4);
+            }
+            else if (dobStr.Length == 4)
+            {
+                dobFormatted = "01/01/" + dobStr;
+            }
+
+            string inTimeStr = tr.IN_TIME.ToString();
+            string inTimeFormatted = inTimeStr;
+            if (inTimeStr.Length >= 12)
+            {
+                inTimeFormatted = inTimeStr.Substring(8, 2) + ":" + inTimeStr.Substring(10, 2) + " ngày " + inTimeStr.Substring(6, 2) + "/" + inTimeStr.Substring(4, 2) + "/" + inTimeStr.Substring(0, 4);
+            }
+
+            Func<string, string> cleanJson = (str) => {
+                if (string.IsNullOrEmpty(str)) return "";
+                return str.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", " ");
+            };
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append("{");
+            sb.AppendFormat("\"Ma_Ho_So\":\"{0}\",", cleanJson(tr.TREATMENT_CODE));
+            sb.AppendFormat("\"PatientCode\":\"{0}\",", cleanJson(tr.TDL_PATIENT_CODE));
+            sb.AppendFormat("\"Ho_Va_Ten\":\"{0}\",", cleanJson(tr.TDL_PATIENT_NAME.ToUpper()));
+            sb.AppendFormat("\"Ngay_Sinh\":\"{0}\",", cleanJson(dobFormatted));
+            sb.AppendFormat("\"Gioi_Tinh\":\"{0}\",", cleanJson(tr.TDL_PATIENT_GENDER_NAME));
+            sb.AppendFormat("\"Dia_Chi\":\"{0}\",", cleanJson(tr.TDL_PATIENT_ADDRESS));
+            sb.AppendFormat("\"Ngay_Gio_Vao_Vien\":\"{0}\",", cleanJson(inTimeFormatted));
+            sb.AppendFormat("\"IcdCode\":\"{0}\",", cleanJson(tr.ICD_CODE));
+            sb.AppendFormat("\"IcdName\":\"{0}\",", cleanJson(tr.ICD_NAME));
+            sb.AppendFormat("\"IcdText\":\"{0}\",", cleanJson(tr.ICD_TEXT));
+            sb.AppendFormat("\"Hb\":\"{0}\",", cleanJson(hb));
+            sb.AppendFormat("\"Wbc\":\"{0}\",", cleanJson(wbc));
+            sb.AppendFormat("\"Plt\":\"{0}\",", cleanJson(plt));
+            sb.AppendFormat("\"Inr\":\"{0}\",", cleanJson(inr));
+            sb.AppendFormat("\"Fib\":\"{0}\",", cleanJson(fib));
+            sb.AppendFormat("\"Aptt\":\"{0}\",", cleanJson(aptt));
+            sb.AppendFormat("\"Glu\":\"{0}\",", cleanJson(glu));
+            sb.AppendFormat("\"Ure\":\"{0}\",", cleanJson(ure));
+            sb.AppendFormat("\"Cre\":\"{0}\",", cleanJson(cre));
+            sb.AppendFormat("\"Ast\":\"{0}\",", cleanJson(ast));
+            sb.AppendFormat("\"Alt\":\"{0}\",", cleanJson(alt));
+            sb.AppendFormat("\"Nhom_Mau\":\"{0}\"", cleanJson(abo.Replace("-", "").Trim()));
+            sb.Append("}");
+            listOut.Add(sb.ToString());
+        }
+
+        Directory.CreateDirectory("Reports");
+        File.WriteAllText("Reports/pt01_input.json", "[" + string.Join(",", listOut) + "]", Encoding.UTF8);
+        Console.WriteLine(string.Format("✅ ĐÃ XUẤT THÀNH CÔNG DỮ LIỆU {0} BỆNH NHÂN -> Reports/pt01_input.json", listOut.Count));
+    }
+
     public static void ListOrders(string keyword)
     {
         InitSession();
@@ -1888,6 +1993,11 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu danh sách tên bệnh nhân (phân cách bằng dấu phẩy)!");
                 LocatePatients(args[1]);
+            }
+            else if (cmd == "export-pt01")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu danh sách mã BN!");
+                ExportPt01Data(args[1]);
             }
             else if (cmd == "create-tracking")
             {
