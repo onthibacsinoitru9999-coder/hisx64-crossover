@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Reflection;
 using System.Collections.Generic;
@@ -178,18 +178,18 @@ public class HisLeanproAssigner
         return true;
     }
 
-    public static long CreateTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long departmentId = 57)
+    public static long CreateTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long departmentId, out long trackingTime)
     {
-        long nowTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+        trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
         var tracking = new HIS_TRACKING
         {
             TREATMENT_ID = tr.ID,
-            TRACKING_TIME = nowTime,
+            TRACKING_TIME = trackingTime,
             ICD_CODE = tr.ICD_CODE,
             ICD_NAME = tr.ICD_NAME,
             ICD_SUB_CODE = tr.ICD_SUB_CODE,
             ICD_TEXT = tr.ICD_TEXT,
-            CONTENT = "bổ sung dịch dinh dưỡng trước mổ",
+            CONTENT = "bn lịch mổ mai bổ sung dịch",
             MEDICAL_INSTRUCTION = "Bổ sung dịch dinh dưỡng trước mổ (Leanpro PreSur 12.5% - 6 chai): Uống tối 4 chai lúc 20h, sáng uống 2 chai lúc 6h.",
             DEPARTMENT_ID = departmentId > 0 ? departmentId : 57,
             ROOM_ID = roomId
@@ -210,11 +210,12 @@ public class HisLeanproAssigner
         return 0;
     }
 
-    public static bool Prescribe(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, out string expMestCode, out string error)
+    public static bool Prescribe(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long trackingId, long trackingTime, out string serviceReqCode, out string expMestCode, out string error)
     {
+        serviceReqCode = "";
         expMestCode = "";
         error = "";
-        long nowTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+        long nowTime = trackingTime > 0 ? trackingTime : long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
 
         var presSdo = new InPatientPresSDO
         {
@@ -228,6 +229,9 @@ public class HisLeanproAssigner
             IcdText = tr.ICD_TEXT,
             PrescriptionTypeId = (PrescriptionType)1, // Đơn nội trú
             InstructionTimes = new List<long> { nowTime },
+            UseTimes = new List<long> { nowTime },
+            TrackingId = trackingId > 0 ? (long?)trackingId : null,
+            TrackingInfos = trackingId > 0 ? new List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = nowTime } } : null,
             Medicines = new List<PresMedicineSDO>
             {
                 new PresMedicineSDO
@@ -244,7 +248,22 @@ public class HisLeanproAssigner
         };
 
         CommonParam cp = new CommonParam();
-        consumer.Post<object>("api/HisServiceReq/InPatientPresCreate", cp, presSdo, new object[0]);
+        var presRes = adapter.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", consumer, presSdo, cp);
+        if (presRes != null)
+        {
+            if (presRes.ServiceReqs != null && presRes.ServiceReqs.Count > 0)
+            {
+                serviceReqCode = presRes.ServiceReqs[0].SERVICE_REQ_CODE;
+            }
+            if (presRes.ExpMests != null && presRes.ExpMests.Count > 0)
+            {
+                expMestCode = presRes.ExpMests[0].EXP_MEST_CODE;
+            }
+            if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode))
+            {
+                return true;
+            }
+        }
 
         // Post-verify: Truy vấn DB để lấy chính xác bản ghi vừa tạo
         HisExpMestMedicineViewFilter emmf = new HisExpMestMedicineViewFilter
@@ -420,8 +439,9 @@ public class HisLeanproAssigner
             UpdateWorkInfo(mosConsumer, roomId);
 
             // 1. Tạo Tờ điều trị
-            Console.WriteLine("   📝 Đang tạo Tờ điều trị 'bổ sung dịch dinh dưỡng trước mổ'...");
-            long trackingId = CreateTracking(mosConsumer, tr, roomId, deptId);
+            Console.WriteLine("   📝 Đang tạo Tờ điều trị: 'bn lịch mổ mai bổ sung dịch'...");
+            long trackingTime;
+            long trackingId = CreateTracking(mosConsumer, tr, roomId, deptId, out trackingTime);
             if (trackingId > 0)
             {
                 Console.WriteLine(string.Format("   ✔ Đã tạo Tờ điều trị thành công (Tracking ID: {0})", trackingId));
@@ -433,14 +453,16 @@ public class HisLeanproAssigner
 
             // 2. Kê đơn Leanpro
             Console.WriteLine("   💊 Đang kê đơn Leanpro PreSur 12.5% (6 chai) từ Kho dinh dưỡng (753)...");
-            string expMestCode, err;
-            bool ok = Prescribe(mosConsumer, tr, roomId, out expMestCode, out err);
+            string sReqCode, expMestCode, err;
+            bool ok = Prescribe(mosConsumer, tr, roomId, trackingId, trackingTime, out sReqCode, out expMestCode, out err);
             if (ok)
             {
-                Console.WriteLine(string.Format("   🎉 KÊ ĐƠN THÀNH CÔNG! Mã phiếu xuất: {0}", expMestCode));
-                Console.WriteLine(string.Format("      - Thuốc  : Leanpro PreSur 12.5% (SPBM25651) | SL: 6 Chai"));
-                Console.WriteLine(string.Format("      - HDSD   : {0}", DEFAULT_TUTORIAL));
-                Console.WriteLine(string.Format("      - Kho cấp: Kho sản phẩm dinh dưỡng điều trị (753)"));
+                Console.WriteLine(string.Format("   🎉 KÊ ĐƠN THÀNH CÔNG!"));
+                if (!string.IsNullOrEmpty(sReqCode)) Console.WriteLine(string.Format("      - Mã phiếu y lệnh: {0}", sReqCode));
+                if (!string.IsNullOrEmpty(expMestCode)) Console.WriteLine(string.Format("      - Mã phiếu xuất  : {0}", expMestCode));
+                Console.WriteLine(string.Format("      - Thuốc          : Leanpro PreSur 12.5% (SPBM25651) | SL: 6 Chai"));
+                Console.WriteLine(string.Format("      - HDSD           : {0}", DEFAULT_TUTORIAL));
+                Console.WriteLine(string.Format("      - Kho cấp        : Kho sản phẩm dinh dưỡng điều trị (753)"));
                 successCount++;
             }
             else
