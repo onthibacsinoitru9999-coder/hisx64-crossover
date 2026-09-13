@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Drawing;
@@ -257,9 +257,20 @@ public class MainForm : Form
                          medName.IndexOf("1000IU", StringComparison.OrdinalIgnoreCase) >= 0;
 
         decimal presAmount = amount;
-        long? useFormId = null;
+        long? useFormId = med.MEDICINE_USE_FORM_ID;
         string morning = null, noon = null, afternoon = null, evening = null;
         bool isExpend = false;
+        decimal? speed = null;
+
+        if (!string.IsNullOrEmpty(tutorial))
+        {
+            var matchSpeed = System.Text.RegularExpressions.Regex.Match(tutorial, @"(\d+)\s*(g/p|giọt|g/phút|ml/h)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (matchSpeed.Success)
+            {
+                decimal sVal;
+                if (decimal.TryParse(matchSpeed.Groups[1].Value, out sVal)) speed = sVal;
+            }
+        }
 
         if (isInsulin)
         {
@@ -339,6 +350,7 @@ public class MainForm : Form
                         PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
                         Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ",
                         MedicineUseFormId = useFormId,
+                        Speed = speed,
                         Morning = morning,
                         Noon = noon,
                         Afternoon = afternoon,
@@ -386,6 +398,7 @@ public class MainForm : Form
                         PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
                         Tutorial = !string.IsNullOrEmpty(tutorial) ? tutorial : "Theo chỉ dẫn của bác sĩ",
                         MedicineUseFormId = useFormId,
+                        Speed = speed,
                         Morning = morning,
                         Noon = noon,
                         Afternoon = afternoon,
@@ -542,6 +555,29 @@ public class MainForm : Form
                         else if (kwUpper == "M" || kwUpper.StartsWith("MIXT"))
                         {
                             activeBeans = beans.Where(b => b.AMOUNT > 0 && b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.IndexOf("Mixtard", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                        }
+                        else if (kwUpper.Contains("NACL") || kwUpper.Contains("NATRI") || kwUpper.Contains("MUOI"))
+                        {
+                            bool is500 = kwUpper.Contains("500");
+                            bool is100 = kwUpper.Contains("100");
+                            activeBeans = beans.Where(b => b.AMOUNT > 0 && (
+                                (b.MEDICINE_TYPE_NAME != null && (b.MEDICINE_TYPE_NAME.IndexOf("Sodium Chloride", StringComparison.OrdinalIgnoreCase) >= 0 || b.MEDICINE_TYPE_NAME.IndexOf("Natri clorid", StringComparison.OrdinalIgnoreCase) >= 0)) ||
+                                (b.ACTIVE_INGR_BHYT_NAME != null && b.ACTIVE_INGR_BHYT_NAME.IndexOf("Natri", StringComparison.OrdinalIgnoreCase) >= 0)
+                            )).ToList();
+                            // Ưu tiên đường truyền tĩnh mạch (UseFormId = 20) trước muối rửa (UseFormId = 25)
+                            var ivBeans = activeBeans.Where(b => b.MEDICINE_USE_FORM_ID == 20 || (b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.IndexOf("Injection", StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
+                            if (ivBeans.Count > 0) activeBeans = ivBeans;
+
+                            if (is500)
+                            {
+                                var b500 = activeBeans.Where(b => (b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.Contains("500")) || (b.ACTIVE_INGR_BHYT_NAME != null && b.ACTIVE_INGR_BHYT_NAME.Contains("500"))).ToList();
+                                if (b500.Count > 0) activeBeans = b500;
+                            }
+                            else if (is100)
+                            {
+                                var b100 = activeBeans.Where(b => (b.MEDICINE_TYPE_NAME != null && b.MEDICINE_TYPE_NAME.Contains("100")) || (b.ACTIVE_INGR_BHYT_NAME != null && b.ACTIVE_INGR_BHYT_NAME.Contains("100"))).ToList();
+                                if (b100.Count > 0) activeBeans = b100;
+                            }
                         }
                     }
 
