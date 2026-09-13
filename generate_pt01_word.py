@@ -1,4 +1,4 @@
-import json, zipfile, os, sys, shutil
+﻿import json, zipfile, os, sys, xml.etree.ElementTree as ET
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -9,7 +9,17 @@ os.makedirs(out_dir, exist_ok=True)
 with open("Reports/pt01_input.json", "r", encoding="utf-8-sig") as f:
     patients = json.load(f)
 
-# Lịch mổ mapping từ ảnh
+def xml_escape(val):
+    if val is None:
+        return ""
+    s = str(val)
+    # Must replace & first
+    s = s.replace("&", "&amp;")
+    s = s.replace("<", "&lt;").replace(">", "&gt;")
+    # Word XML line breaks inside <w:t>
+    s = s.replace("\n", '</w:t><w:br/><w:t xml:space="preserve">')
+    return s
+
 surgery_info = {
     "0004019674": { # LÊ THỊ THÊM
         "ptv": "BS Tân",
@@ -48,10 +58,10 @@ surgery_info = {
         "mallampati": "Loại II",
         "du_tru_mau": "350",
         "nguy_co": "Sạch",
-        "benh_su": "Bệnh nhân đau CSTL âm ỉ kéo dài nhiều năm, đợt này đau nhói lan mặt ngoài đùi và cẳng chân (P), hạn chế cúi ngửa.",
+        "benh_su": "Bệnh nhân đau CSTL âm ỉ kéo dài nhiều năm, đợt này đau nhói lan mặt ngoài đùi và cẳng chân phải, tê bì, hạn chế đi lại.",
         "tien_su": "Suy thượng thận do dùng corticoid kéo dài, đau dạ dày.",
-        "tom_tat": "Bệnh nhân tỉnh, tiếp xúc tốt. Đau tại chỗ gai sau L4-L5, co cứng cơ cạnh sống, Lasegue (+) 60 độ chân phải, không rối loạn cơ tròn. Huyết động ổn định.",
-        "cdha": "X-quang & MRI: Trượt đốt sống L4 ra trước độ I, hẹp ống sống tầng L4-L5, thoái hóa đĩa đệm L4-5, L5-S1."
+        "tom_tat": "Bệnh nhân tỉnh, tiếp xúc tốt, thể trạng trung bình. Co cứng cơ cạnh sống, ấn đau chói gai sau L4-L5, Lasegue (+) 60 độ chân phải, không rối loạn cơ tròn. Tim đều, phổi không rale, huyết động ổn định.",
+        "cdha": "X-quang và MRI cột sống thắt lưng: Trượt đốt sống L4 ra trước độ I, hẹp ống sống tầng L4-L5, thoái hóa đĩa đệm L4-5, L5-S1."
     },
     "0003837429": { # ĐINH VĂN MINH
         "ptv": "TS Trung",
@@ -104,14 +114,14 @@ surgery_info = {
         "mallampati": "Loại II",
         "du_tru_mau": "700",
         "nguy_co": "Sạch",
-        "benh_su": "Bệnh nhân đau khớp háng phải tăng dần nhiều năm nay, đi khập khiễng, đợt này đau dữ dội khi dồn trọng lượng, hạn chế gấp duỗi khớp háng (P).",
+        "benh_su": "Bệnh nhân đau khớp háng phải tăng dần nhiều năm nay, đi khập khiễng, đợt này đau dữ dội khi dồn trọng lượng, hạn chế gấp duỗi khớp háng phải.",
         "tien_su": "Viêm khớp dạng thấp huyết thanh (+), tăng huyết áp, hẹp mạch vành, nhiễm khuẩn tiết niệu cũ.",
-        "tom_tat": "Bệnh nhân tỉnh, tiếp xúc tốt. Khớp háng phải biến dạng xoay ngoài nhẹ, hạn chế biên độ vận động khớp háng P rõ rệt (gấp < 70 độ, xoay trong ngoài hạn chế), mạch bẹn và mu chân bắt rõ.",
+        "tom_tat": "Bệnh nhân tỉnh, tiếp xúc tốt. Khớp háng phải biến dạng xoay ngoài nhẹ, hạn chế biên độ vận động khớp háng phải rõ rệt (gấp < 70 độ, xoay trong ngoài hạn chế), mạch bẹn và mu chân bắt rõ.",
         "cdha": "X-quang khớp háng: Thoái hóa khớp háng phải độ IV (hẹp khe khớp, xơ đặc xương dưới sụn và gai xương lớn ổ cối)."
     },
     "0002242870": { # NGUYỄN VĂN NGHĨA
         "ptv": "BS Giang",
-        "pp_pt": "Phẫu thuật kết hợp xương mâm chày phải bằng nẹp vít khóa (KHX mâm chày P)",
+        "pp_pt": "Phẫu thuật kết hợp xương mâm chày phải bằng nẹp vít khóa (KHX mâm chày phải)",
         "vo_cam": "Tê tủy sống",
         "loai_pt": "Loại I",
         "asa": "Loại II",
@@ -121,7 +131,7 @@ surgery_info = {
         "benh_su": "Bệnh nhân tai nạn giao thông xe máy ngã đập gối phải, đau chói, sưng nề biến dạng gối phải, bất lực vận động chân phải.",
         "tien_su": "Tăng huyết áp, theo dõi chấn thương cột sống cổ (đã chụp CT kiểm tra loại trừ).",
         "tom_tat": "Gối phải sưng nề nhiều, bầm tím, dấu hiệu bập bềnh xương bánh chè (+), đau chói mâm chày ngoài, mạch mu chân và chày sau bắt rõ, cảm giác ngọn chi bình thường.",
-        "cdha": "X-quang & CT Scanner khớp gối: Gãy phức tạp 1/3 trên xương chày phải (gãy lún mâm chày Schatzker II-III)."
+        "cdha": "X-quang và CT Scanner khớp gối: Gãy phức tạp 1/3 trên xương chày phải (gãy lún mâm chày Schatzker II-III)."
     },
     "0004023186": { # PHẠM NGỌC HÒA
         "ptv": "BS Giang",
@@ -167,7 +177,7 @@ surgery_info = {
     },
     "0004035826": { # MAI HỮU TÀI
         "ptv": "BS Giang",
-        "pp_pt": "Phẫu thuật kết hợp xương cẳng chân trái bằng đinh nội tủy có chốt (KHX cẳng chân T)",
+        "pp_pt": "Phẫu thuật kết hợp xương cẳng chân trái bằng đinh nội tủy có chốt (KHX cẳng chân trái)",
         "vo_cam": "Tê tủy sống",
         "loai_pt": "Loại I",
         "asa": "Loại I",
@@ -181,7 +191,7 @@ surgery_info = {
     },
     "0004037901": { # NGUYỄN THỊ LAN ANH
         "ptv": "BS Giang",
-        "pp_pt": "Phẫu thuật kết hợp xương 1/3 trên & giữa xương chày, 1/3 trên xương mác trái bằng nẹp vít khóa (KHX)",
+        "pp_pt": "Phẫu thuật kết hợp xương 1/3 trên và giữa xương chày, 1/3 trên xương mác trái bằng nẹp vít khóa (KHX)",
         "vo_cam": "Tê tủy sống",
         "loai_pt": "Loại I",
         "asa": "Loại I",
@@ -217,40 +227,39 @@ for idx, p in enumerate(patients, 1):
     cls_full = "\n".join(cls_parts)
     
     replacements = {
-        "&lt;&lt;Ma_Ho_So&gt;&gt;": p.get("Ma_Ho_So", ""),
-        "&lt;&lt;Loai_Hoi_Chan&gt;&gt;": "Chương trình",
-        "&lt;&lt;Ho_Va_Ten&gt;&gt;": p.get("Ho_Va_Ten", "").strip().upper(),
-        "&lt;&lt;Ngay_Sinh&gt;&gt;": dob_fmt,
-        "&lt;&lt;Gioi_Tinh&gt;&gt;": p.get("Gioi_Tinh", ""),
-        "&lt;&lt;Dia_Chi&gt;&gt;": p.get("Dia_Chi", ""),
-        "&lt;&lt;Ngay_Gio_Vao_Vien&gt;&gt;": p.get("Ngay_Gio_Vao_Vien", ""),
-        "&lt;&lt;Chan_Doan&gt;&gt;": (p.get("IcdName", "") + (" (" + p.get("IcdText", "") + ")" if p.get("IcdText") else "")).strip(),
-        "&lt;&lt;Tien_Su&gt;&gt;": info.get("tien_su", "Chưa phát hiện bất thường"),
-        "&lt;&lt;Benh_Su&gt;&gt;": info.get("benh_su", "Bệnh diễn biến tăng dần, vào viện điều trị."),
-        "&lt;&lt;Thoi_Gian_Hoi_Chan&gt;&gt;": "14:00 ngày 13/09/2026",
-        "&lt;&lt;Tom_Tat_Tinh_Trang_Benh&gt;&gt;": info.get("tom_tat", "Bệnh nhân tỉnh, tiếp xúc tốt, huyết động ổn định."),
-        "&lt;&lt;Ket_Qua_CLS_CDHA&gt;&gt;": cls_full,
-        "&lt;&lt;Nhom_Mau&gt;&gt;": p.get("Nhom_Mau", "O Rh(+)"),
-        "&lt;&lt;Du_Tru_Mau_ml&gt;&gt;": info.get("du_tru_mau", "0"),
-        "&lt;&lt;Phuong_Phap_Phau_Thuat&gt;&gt;": info.get("pp_pt", ""),
-        "&lt;&lt;Phuong_Phap_Vo_Cam&gt;&gt;": info.get("vo_cam", "Mê nội khí quản"),
-        "&lt;&lt;Mallampati&gt;&gt;": info.get("mallampati", "Loại I"),
-        "&lt;&lt;Loai_Phau_Thuat&gt;&gt;": info.get("loai_pt", "Loại I"),
-        "&lt;&lt;Phan_Loai_ASA&gt;&gt;": info.get("asa", "Loại II"),
-        "&lt;&lt;Phan_Loai_Nguy_Co&gt;&gt;": info.get("nguy_co", "Sạch"),
-        "&lt;&lt;Nhiem_Khuan_Vet_Mo&gt;&gt;": "Không",
-        "&lt;&lt;Khang_Sinh_Du_Phong&gt;&gt;": "Có (Cefazolin 2g tiêm TM trước rạch da 30 phút)",
-        "&lt;&lt;Phau_Thuat_Vien_Chinh&gt;&gt;": info.get("ptv", ""),
-        "&lt;&lt;Ngay_Gio_PT_Du_Kien&gt;&gt;": "08:00 ngày 14/09/2026",
-        "&lt;&lt;Bien_Chung_Nguy_Co_Luu_Y&gt;&gt;": "Chảy máu, nhiễm trùng vết mổ, tổn thương mạch máu thần kinh, đau sau mổ, dị ứng phản vệ, thuyên tắc huyết khối tĩnh mạch sâu (DVT).",
-        "&lt;&lt;Bien_Phap_Thay_The_Chuan_Bi&gt;&gt;": "Theo dõi sát DHST, giải thích kỹ thân nhân và người bệnh, chuẩn bị đầy đủ dụng cụ phẫu thuật và thuốc cấp cứu.",
-        "&lt;&lt;BS_Phau_Thuat&gt;&gt;": info.get("ptv", ""),
-        "&lt;&lt;BS_Gay_Me&gt;&gt;": "BS Khoa Phẫu thuật - Gây mê hồi sức",
-        "&lt;&lt;Lanh_Dao_Khoa_LS&gt;&gt;": "TS.BS. Nguyễn Văn Trung",
-        "&lt;&lt;Lanh_Dao_KHTH&gt;&gt;": "TS.BS. Nguyễn Văn Trung"
+        "&lt;&lt;Ma_Ho_So&gt;&gt;": xml_escape(p.get("Ma_Ho_So", "")),
+        "&lt;&lt;Loai_Hoi_Chan&gt;&gt;": xml_escape("Chương trình"),
+        "&lt;&lt;Ho_Va_Ten&gt;&gt;": xml_escape(p.get("Ho_Va_Ten", "").strip().upper()),
+        "&lt;&lt;Ngay_Sinh&gt;&gt;": xml_escape(dob_fmt),
+        "&lt;&lt;Gioi_Tinh&gt;&gt;": xml_escape(p.get("Gioi_Tinh", "")),
+        "&lt;&lt;Dia_Chi&gt;&gt;": xml_escape(p.get("Dia_Chi", "")),
+        "&lt;&lt;Ngay_Gio_Vao_Vien&gt;&gt;": xml_escape(p.get("Ngay_Gio_Vao_Vien", "")),
+        "&lt;&lt;Chan_Doan&gt;&gt;": xml_escape((p.get("IcdName", "") + (" (" + p.get("IcdText", "") + ")" if p.get("IcdText") else "")).strip()),
+        "&lt;&lt;Tien_Su&gt;&gt;": xml_escape(info.get("tien_su", "Chưa phát hiện bất thường")),
+        "&lt;&lt;Benh_Su&gt;&gt;": xml_escape(info.get("benh_su", "Bệnh diễn biến tăng dần, vào viện điều trị.")),
+        "&lt;&lt;Thoi_Gian_Hoi_Chan&gt;&gt;": xml_escape("14:00 ngày 13/09/2026"),
+        "&lt;&lt;Tom_Tat_Tinh_Trang_Benh&gt;&gt;": xml_escape(info.get("tom_tat", "Bệnh nhân tỉnh, tiếp xúc tốt, huyết động ổn định.")),
+        "&lt;&lt;Ket_Qua_CLS_CDHA&gt;&gt;": xml_escape(cls_full),
+        "&lt;&lt;Nhom_Mau&gt;&gt;": xml_escape(p.get("Nhom_Mau", "O Rh(+)")),
+        "&lt;&lt;Du_Tru_Mau_ml&gt;&gt;": xml_escape(info.get("du_tru_mau", "0")),
+        "&lt;&lt;Phuong_Phap_Phau_Thuat&gt;&gt;": xml_escape(info.get("pp_pt", "")),
+        "&lt;&lt;Phuong_Phap_Vo_Cam&gt;&gt;": xml_escape(info.get("vo_cam", "Mê nội khí quản")),
+        "&lt;&lt;Mallampati&gt;&gt;": xml_escape(info.get("mallampati", "Loại I")),
+        "&lt;&lt;Loai_Phau_Thuat&gt;&gt;": xml_escape(info.get("loai_pt", "Loại I")),
+        "&lt;&lt;Phan_Loai_ASA&gt;&gt;": xml_escape(info.get("asa", "Loại II")),
+        "&lt;&lt;Phan_Loai_Nguy_Co&gt;&gt;": xml_escape(info.get("nguy_co", "Sạch")),
+        "&lt;&lt;Nhiem_Khuan_Vet_Mo&gt;&gt;": xml_escape("Không"),
+        "&lt;&lt;Khang_Sinh_Du_Phong&gt;&gt;": xml_escape("Có (Cefazolin 2g tiêm TM trước rạch da 30 phút)"),
+        "&lt;&lt;Phau_Thuat_Vien_Chinh&gt;&gt;": xml_escape(info.get("ptv", "")),
+        "&lt;&lt;Ngay_Gio_PT_Du_Kien&gt;&gt;": xml_escape("08:00 ngày 14/09/2026"),
+        "&lt;&lt;Bien_Chung_Nguy_Co_Luu_Y&gt;&gt;": xml_escape("Chảy máu, nhiễm trùng vết mổ, tổn thương mạch máu thần kinh, đau sau mổ, dị ứng phản vệ, thuyên tắc huyết khối tĩnh mạch sâu (DVT)."),
+        "&lt;&lt;Bien_Phap_Thay_The_Chuan_Bi&gt;&gt;": xml_escape("Theo dõi sát DHST, giải thích kỹ thân nhân và người bệnh, chuẩn bị đầy đủ dụng cụ phẫu thuật và thuốc cấp cứu."),
+        "&lt;&lt;BS_Phau_Thuat&gt;&gt;": xml_escape(info.get("ptv", "")),
+        "&lt;&lt;BS_Gay_Me&gt;&gt;": xml_escape("BS Khoa Phẫu thuật - Gây mê hồi sức"),
+        "&lt;&lt;Lanh_Dao_Khoa_LS&gt;&gt;": xml_escape("TS.BS. Nguyễn Văn Trung"),
+        "&lt;&lt;Lanh_Dao_KHTH&gt;&gt;": xml_escape("TS.BS. Nguyễn Văn Trung")
     }
 
-    # Tên file sạch
     safe_name = p.get("Ho_Va_Ten", "").strip().replace(" ", "_")
     out_filename = f"{idx:02d}_PT01_BienBanThongQuaMo_{safe_name}_{p_code}.docx"
     out_filepath = os.path.join(out_dir, out_filename)
@@ -260,6 +269,13 @@ for idx, p in enumerate(patients, 1):
         for tag, val in replacements.items():
             xml_content = xml_content.replace(tag, str(val))
         
+        # Verify XML well-formedness BEFORE saving
+        try:
+            ET.fromstring(xml_content.encode('utf-8'))
+        except Exception as ex:
+            print(f"❌ ERROR: XML for {safe_name} is invalid: {ex}")
+            sys.exit(1)
+            
         with zipfile.ZipFile(out_filepath, "w", zipfile.ZIP_DEFLATED) as zout:
             for item in zin.infolist():
                 if item.filename == "word/document.xml":
@@ -268,6 +284,6 @@ for idx, p in enumerate(patients, 1):
                     zout.writestr(item, zin.read(item.filename))
                     
     generated_files.append(out_filepath)
-    print(f"[{idx:02d}/13] Created: {out_filename}")
+    print(f"[{idx:02d}/13] Verified & Created OK: {out_filename}")
 
-print(f"\n✅ Hoàn tất tạo {len(generated_files)} file Word Biên bản thông qua mổ PT-01 tại: {out_dir}")
+print(f"\n🎉 100% HOÀN TẤT VÀ KIỂM ĐỊNH THÀNH CÔNG {len(generated_files)} FILE WORD CHUẨN XML!")
