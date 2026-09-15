@@ -569,6 +569,7 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
         Console.WriteLine(string.Format("🏥 THÔNG TIN BỆNH NHÂN: {0} ({1} - {2})", tr.TDL_PATIENT_NAME, ageDisplay, tr.TDL_PATIENT_GENDER_NAME));
         Console.WriteLine(string.Format("Mã BN: {0} | Mã ĐT: {1} | ID Đợt điều trị: {2}", tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, tr.ID));
+        Console.WriteLine(string.Format("DOB_RAW: {0} | ADDRESS: {1} | IN_TIME: {2}", tr.TDL_PATIENT_DOB, tr.TDL_PATIENT_ADDRESS, tr.IN_TIME));
         Console.WriteLine(string.Format("Khoa: {0} | Buồng/Giường: {1} - {2}", tr.END_DEPARTMENT_NAME ?? "Khoa 57", curBed != null ? curBed.BED_ROOM_NAME : "Chưa xếp buồng", curBed != null ? curBed.BED_NAME : "-"));
         Console.WriteLine(string.Format("Chẩn đoán ICD: [{0}] {1} (Chi tiết: {2})", tr.ICD_CODE, tr.ICD_NAME, tr.ICD_TEXT ?? tr.ICD_SUB_CODE));
         Console.WriteLine(string.Format("BHYT: {0} | Trạng thái: {1}", tr.TDL_HEIN_CARD_NUMBER ?? "Không BHYT", tr.IS_PAUSE == 1 ? "ĐÃ RA VIỆN" : "ĐANG NẰM KHOA"));
