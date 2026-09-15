@@ -1092,6 +1092,187 @@ public class HisClinicalCli
         Console.WriteLine("\n===============================================================================");
     }
 
+    public static void ReportCtchAmputations(string yearArg)
+    {
+        InitSession();
+        int year = 2026;
+        if (!string.IsNullOrEmpty(yearArg)) int.TryParse(yearArg, out year);
+        long timeFrom = (long)year * 10000000000L + 101000000L;
+        long timeTo = (long)year * 10000000000L + 1231235959L;
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("👨‍⚕️ TRÍCH XUẤT BÁC SĨ PHẪU THUẬT KHOA CHẤN THƯƠNG CHỈNH HÌNH & CỘT SỐNG (K57) NĂM {0}", year));
+        Console.WriteLine("===============================================================================");
+
+        // 1. Quét danh mục dịch vụ kỹ thuật cắt cụt / tháo khớp
+        var ampKeywords = new string[] { "cắt cụt", "tháo khớp", "mỏm cụt", "sửa mỏm cụt" };
+        var ampServiceIds = new HashSet<long>();
+        foreach (var kw in ampKeywords)
+        {
+            try
+            {
+                var sf = new HisServiceViewFilter { KEY_WORD = kw, IS_ACTIVE = 1 };
+                var svcs = myAdapter.FetchList<V_HIS_SERVICE>("api/HisService/GetView", mosConsumer, sf, param);
+                if (svcs != null)
+                {
+                    foreach (var s in svcs)
+                    {
+                        string sName = (s.SERVICE_NAME ?? "").ToLower();
+                        if (sName.Contains("cắt cụt") || sName.Contains("tháo khớp") || sName.Contains("mỏm cụt"))
+                        {
+                            ampServiceIds.Add(s.ID);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 2. Lấy SERE_SERV thực hiện trong năm 2026
+        var matchedSereServs = new List<V_HIS_SERE_SERV>();
+        var sIdList = ampServiceIds.ToList();
+        for (int i = 0; i < sIdList.Count; i += 30)
+        {
+            var chunk = sIdList.Skip(i).Take(30).ToList();
+            try
+            {
+                var ssFilter = new HisSereServViewFilter
+                {
+                    SERVICE_IDs = chunk,
+                    INTRUCTION_TIME_FROM = timeFrom,
+                    INTRUCTION_TIME_TO = timeTo
+                };
+                var sss = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssFilter, param);
+                if (sss != null) matchedSereServs.AddRange(sss);
+            }
+            catch { }
+        }
+
+        Console.WriteLine(string.Format("✔ Tổng số lượt kỹ thuật cắt cụt tại Phòng mổ năm {0}: {1} lượt.", year, matchedSereServs.Count));
+
+        // 3. Lấy EKIP_USER
+        var ekipIds = matchedSereServs.Where(x => x.EKIP_ID.HasValue && x.EKIP_ID.Value > 0).Select(x => x.EKIP_ID.Value).Distinct().ToList();
+        var ekipUsers = new List<V_HIS_EKIP_USER>();
+        for (int i = 0; i < ekipIds.Count; i += 40)
+        {
+            var chunk = ekipIds.Skip(i).Take(40).ToList();
+            try
+            {
+                var euFilter = new HisEkipUserViewFilter { EKIP_IDs = chunk };
+                var eus = myAdapter.FetchList<V_HIS_EKIP_USER>("api/HisEkipUser/GetView", mosConsumer, euFilter, param);
+                if (eus != null) ekipUsers.AddRange(eus);
+            }
+            catch { }
+        }
+
+        // Lấy danh sách bác sĩ thuộc Khoa 57 hoặc tham gia ca của Khoa 57
+        var ctchSereServs = matchedSereServs.Where(x => x.TDL_REQUEST_DEPARTMENT_ID == 57 || (x.REQUEST_DEPARTMENT_NAME != null && x.REQUEST_DEPARTMENT_NAME.Contains("Chấn thương"))).ToList();
+        Console.WriteLine(string.Format("✔ Số ca mổ chỉ định từ Khoa CTCH & Cột sống (Khoa 57): {0} ca", ctchSereServs.Count));
+
+        // Thống kê bác sĩ xuất hiện trong kíp mổ
+        var ekipMap = ekipUsers.GroupBy(x => x.EKIP_ID).ToDictionary(g => g.Key, g => g.ToList());
+
+        // Lọc tất cả bác sĩ CTCH (Department 57 hoặc tham gia ca mổ Khoa 57)
+        var doctorStats = new Dictionary<string, List<V_HIS_SERE_SERV>>();
+        var doctorRoles = new Dictionary<string, HashSet<string>>();
+
+        foreach (var ss in matchedSereServs)
+        {
+            if (ss.EKIP_ID.HasValue && ekipMap.ContainsKey(ss.EKIP_ID.Value))
+            {
+                var users = ekipMap[ss.EKIP_ID.Value];
+                foreach (var u in users)
+                {
+                    bool isCtchDoc = (u.DEPARTMENT_ID == 57) || 
+                                     (u.DEPARTMENT_NAME != null && u.DEPARTMENT_NAME.Contains("Chấn thương")) ||
+                                     (ss.TDL_REQUEST_DEPARTMENT_ID == 57 && (u.IS_SURG_MAIN == 1 || (u.EXECUTE_ROLE_NAME != null && u.EXECUTE_ROLE_NAME.Contains("Phẫu thuật"))));
+
+                    if (isCtchDoc)
+                    {
+                        string docKey = string.Format("{0} ({1})", u.USERNAME, u.LOGINNAME);
+                        if (!doctorStats.ContainsKey(docKey))
+                        {
+                            doctorStats[docKey] = new List<V_HIS_SERE_SERV>();
+                            doctorRoles[docKey] = new HashSet<string>();
+                        }
+                        doctorStats[docKey].Add(ss);
+                        if (!string.IsNullOrEmpty(u.EXECUTE_ROLE_NAME)) doctorRoles[docKey].Add(u.EXECUTE_ROLE_NAME);
+                    }
+                }
+            }
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine("👨‍⚕️ BẢNG THỐNG KÊ BÁC SĨ PHẪU THUẬT KHOA CTCH & CỘT SỐNG:");
+        Console.WriteLine("===============================================================================");
+        if (doctorStats.Count == 0)
+        {
+            // Nếu DEPARTMENT_ID của ekip_user không điền mã 57, in toàn bộ PTV chính tham gia các ca Khoa 57
+            Console.WriteLine("ℹ️ Phân tích PTV chính & Kíp mổ trực tiếp từ các ca của Khoa 57:");
+            foreach (var ss in ctchSereServs)
+            {
+                string sTime = ss.TDL_INTRUCTION_TIME.ToString();
+                string sTimeFmt = sTime.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", sTime.Substring(6, 2), sTime.Substring(4, 2), sTime.Substring(0, 4), sTime.Substring(8, 2), sTime.Substring(10, 2)) : sTime;
+                Console.WriteLine(string.Format("\n  • BN Mã ĐT: {0} | Mổ lúc: {1} | PM: {2}", ss.TDL_TREATMENT_CODE, sTimeFmt, ss.EXECUTE_ROOM_NAME));
+                Console.WriteLine(string.Format("    Kỹ thuật: {0}", ss.TDL_SERVICE_NAME));
+
+                if (ss.EKIP_ID.HasValue && ekipMap.ContainsKey(ss.EKIP_ID.Value))
+                {
+                    Console.WriteLine("    Kíp phẫu thuật:");
+                    foreach (var u in ekipMap[ss.EKIP_ID.Value])
+                    {
+                        Console.WriteLine(string.Format("      - {0,-25} | Vai trò: {1,-20} | Khoa: {2}", u.USERNAME, u.EXECUTE_ROLE_NAME, u.DEPARTMENT_NAME ?? "Khoa 57"));
+                    }
+                }
+            }
+        }
+        else
+        {
+            int dIdx = 1;
+            var sortedDocs = doctorStats.OrderByDescending(x => x.Value.Count).ToList();
+            foreach (var kvp in sortedDocs)
+            {
+                string roles = string.Join(", ", doctorRoles[kvp.Key]);
+                int distinctSurgeries = kvp.Value.Select(x => string.Format("{0}_{1}", x.TDL_TREATMENT_CODE, x.TDL_INTRUCTION_TIME)).Distinct().Count();
+                Console.WriteLine(string.Format("\n[{0}] BÁC SĨ: {1}", dIdx++, kvp.Key));
+                Console.WriteLine(string.Format("    • Vai trò trong kíp mổ : {0}", roles));
+                Console.WriteLine(string.Format("    • Tổng số cuộc mổ      : {0} cuộc ({1} lượt dịch vụ kỹ thuật)", distinctSurgeries, kvp.Value.Count));
+
+                // Kiểm tra có mổ lại bệnh nhân nào không (dựa trên các ngày mổ khác nhau, tránh đếm nhầm nhiều dòng SERE_SERV trong cùng 1 cuộc mổ)
+                var patGroups = kvp.Value
+                    .GroupBy(x => x.TDL_TREATMENT_CODE)
+                    .Select(g => new {
+                        TreatmentCode = g.Key,
+                        Dates = g.Select(s => s.TDL_INTRUCTION_TIME.ToString().Substring(0, Math.Min(8, s.TDL_INTRUCTION_TIME.ToString().Length))).Distinct().ToList(),
+                        Services = g.ToList()
+                    })
+                    .Where(x => x.Dates.Count > 1)
+                    .ToList();
+
+                if (patGroups.Count > 0)
+                {
+                    Console.WriteLine(string.Format("    ⚠️ SỐ CA MỔ LẠI THỰC SỰ (Khác ngày): {0} bệnh nhân", patGroups.Count));
+                    foreach (var pg in patGroups)
+                    {
+                        Console.WriteLine(string.Format("       - BN Mã ĐT {0} ({1} ngày/đợt mổ khác nhau):", pg.TreatmentCode, pg.Dates.Count));
+                        foreach (var s in pg.Services)
+                        {
+                            string sTime = s.TDL_INTRUCTION_TIME.ToString();
+                            string sTimeFmt = sTime.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", sTime.Substring(6, 2), sTime.Substring(4, 2), sTime.Substring(0, 4), sTime.Substring(8, 2), sTime.Substring(10, 2)) : sTime;
+                            Console.WriteLine(string.Format("         + [{0}] {1} (PM: {2})", sTimeFmt, s.TDL_SERVICE_NAME, s.EXECUTE_ROOM_NAME));
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("    • Không có ca nào mổ lại cùng 1 bệnh nhân ở các ngày khác nhau.");
+                }
+            }
+        }
+
+        Console.WriteLine("\n===============================================================================");
+    }
+
     public static void PrescribeMedication(long treatmentId, long trackingId, long medicineTypeId, long stockId, decimal amount, string tutorial, int patientTypeId = 1)
     {
         InitSession();
@@ -2373,6 +2554,11 @@ public class HisClinicalCli
             {
                 string yr = args.Length > 1 ? args[1] : "2026";
                 ReportAmputations2026(yr);
+            }
+            else if (cmd == "bs-ctch" || cmd == "ctch" || cmd == "ctch-surgeons")
+            {
+                string yr = args.Length > 1 ? args[1] : "2026";
+                ReportCtchAmputations(yr);
             }
             else if (cmd == "debate" || cmd == "hoichan")
             {
