@@ -233,6 +233,27 @@ public class HisClinicalCli
             tokenCode = ReadLiveTokenFast();
         }
 
+        // 2b. Kiểm tra tính sống còn của Token (Healthcheck Guard)
+        bool tokenValid = false;
+        if (!string.IsNullOrEmpty(tokenCode))
+        {
+            try
+            {
+                var testConsumer = new ApiConsumer("http://192.168.7.236:1608/", tokenCode, "HIS");
+                var testDeps = myAdapter.FetchList<V_HIS_DEPARTMENT>("api/HisDepartment/GetView", testConsumer, new HisDepartmentViewFilter { ID = 57 }, param);
+                if (testDeps != null && testDeps.Count > 0)
+                {
+                    tokenValid = true;
+                }
+            }
+            catch { }
+        }
+
+        if (!tokenValid)
+        {
+            tokenCode = null; // Ép đăng nhập mới qua ACS!
+        }
+
         // 3. Tự động ĐĂNG NHẬP ĐỘC LẬP qua ACS bằng nick 034727
         if (string.IsNullOrEmpty(tokenCode))
         {
@@ -634,18 +655,19 @@ public class HisClinicalCli
         InitSession();
         long tId = 0;
         V_HIS_TREATMENT tr = null;
-        if (long.TryParse(keyword, out tId) && tId > 1000000 && tId < 100000000)
+        var tfKw = new HisTreatmentViewFilter { KEY_WORD = keyword.Trim() };
+        var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfKw, param);
+        if (list != null && list.Count > 0)
         {
-            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { ID = tId };
-            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
-            if (list != null && list.Count > 0) tr = list[0];
+            tr = list.OrderByDescending(x => x.IN_TIME).First();
         }
-        if (tr == null)
+        else if (long.TryParse(keyword, out tId))
         {
-            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = keyword.PadLeft(10, '0') };
-            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
-            if (list != null && list.Count > 0) tr = list.Last();
+            var tfId = new HisTreatmentViewFilter { ID = tId };
+            var lId = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfId, param);
+            if (lId != null && lId.Count > 0) tr = lId[0];
         }
+
         if (tr == null)
         {
             Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + keyword);
@@ -715,6 +737,26 @@ public class HisClinicalCli
             }
         }
         Console.WriteLine();
+    }
+
+    public static void SearchMed(string keyword)
+    {
+        InitSession();
+        HisMedicineTypeViewFilter mf = new HisMedicineTypeViewFilter
+        {
+            KEY_WORD = keyword,
+            IS_ACTIVE = 1
+        };
+        var list = myAdapter.FetchList<V_HIS_MEDICINE_TYPE>("api/HisMedicineType/GetView", mosConsumer, mf, param);
+        Console.WriteLine(string.Format("Tìm kiếm thuốc '{0}': {1} kết quả", keyword, list != null ? list.Count : 0));
+        if (list != null)
+        {
+            foreach (var m in list.Take(15))
+            {
+                Console.WriteLine(string.Format("  • ID: {0,6} | Mã: {1,-15} | Tên: {2} | ĐV: {3} | FormID: {4}",
+                    m.ID, m.MEDICINE_TYPE_CODE, m.MEDICINE_TYPE_NAME, m.SERVICE_UNIT_NAME, m.MEDICINE_USE_FORM_ID));
+            }
+        }
     }
 
     public static void PrescribeMedication(long treatmentId, long trackingId, long medicineTypeId, long stockId, decimal amount, string tutorial, int patientTypeId = 1)
@@ -1979,6 +2021,11 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc TreatmentID!");
                 ViewPatientMeds(args[1]);
+            }
+            else if (cmd == "search-med" || cmd == "find-med")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu tên hoặc từ khóa thuốc cần tìm!");
+                SearchMed(args[1]);
             }
             else if (cmd == "debate" || cmd == "hoichan")
             {
