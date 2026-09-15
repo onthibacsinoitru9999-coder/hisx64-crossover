@@ -759,6 +759,339 @@ public class HisClinicalCli
         }
     }
 
+    public static void SearchService(string keyword)
+    {
+        InitSession();
+        HisServiceViewFilter sf = new HisServiceViewFilter
+        {
+            KEY_WORD = keyword,
+            IS_ACTIVE = 1
+        };
+        var list = myAdapter.FetchList<V_HIS_SERVICE>("api/HisService/GetView", mosConsumer, sf, param);
+        Console.WriteLine(string.Format("Tìm kiếm dịch vụ '{0}': {1} kết quả", keyword, list != null ? list.Count : 0));
+        if (list != null)
+        {
+            foreach (var s in list.Take(25))
+            {
+                Console.WriteLine(string.Format("  • ID: {0,6} | Mã: {1,-15} | Loại: {2,2} | Tên: {3}",
+                    s.ID, s.SERVICE_CODE, s.SERVICE_TYPE_ID, s.SERVICE_NAME));
+            }
+        }
+    }
+
+    public static void CheckHanoiConnection()
+    {
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("🏥 KIỂM TRA KẾT NỐI MÁY CHỦ BỆNH VIỆN BẠCH MAI - HÀ NỘI");
+        Console.WriteLine("===============================================================================");
+        InitSession();
+
+        string[] hostPorts = new string[] {
+            "192.168.7.236:1608 (MOS Backend API)",
+            "192.168.7.200:1401 (ACS Auth Service)",
+            "192.168.7.200:1410 (SDA Data Service)",
+            "192.168.7.239:1415 (EMR Document API)"
+        };
+        foreach (var hp in hostPorts)
+        {
+            string[] parts = hp.Split(new char[] { ':', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            string host = parts[0];
+            int port = int.Parse(parts[1]);
+            string name = hp.Substring(hp.IndexOf('('));
+            try
+            {
+                using (var tcp = new System.Net.Sockets.TcpClient())
+                {
+                    var ar = tcp.BeginConnect(host, port, null, null);
+                    bool ok = ar.AsyncWaitHandle.WaitOne(2000);
+                    if (ok && tcp.Connected)
+                    {
+                        Console.WriteLine(string.Format("  [✅ KẾT NỐI TỐT] {0}:{1} {2}", host, port, name));
+                    }
+                    else
+                    {
+                        Console.WriteLine(string.Format("  [❌ MẤT KẾT NỐI] {0}:{1} {2}", host, port, name));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(string.Format("  [❌ LỖI SOCKET] {0}:{1} - {2}", host, port, ex.Message));
+            }
+        }
+
+        Console.WriteLine(string.Format("  • Token xác thực  : {0}...", currentToken != null && currentToken.Length >= 16 ? currentToken.Substring(0, 16) : "N/A"));
+        Console.WriteLine(string.Format("  • Bác sĩ đăng nhập: {0} ({1})", currentDoctorName, currentDoctorLogin));
+
+        try
+        {
+            var branches = myAdapter.FetchList<HIS_BRANCH>("api/HisBranch/Get", mosConsumer, new HisBranchFilter(), param);
+            if (branches != null)
+            {
+                var hanoi = branches.FirstOrDefault(b => b.ID == 1);
+                if (hanoi != null)
+                {
+                    Console.WriteLine(string.Format("  • Cơ sở dữ liệu   : [{0}] {1} (ID: {2})", hanoi.BRANCH_CODE, hanoi.BRANCH_NAME, hanoi.ID));
+                }
+            }
+        }
+        catch { }
+        Console.WriteLine("===============================================================================");
+    }
+
+    public static void ReportAmputations2026(string yearArg)
+    {
+        CheckHanoiConnection();
+        Console.WriteLine();
+        int year = 2026;
+        if (!string.IsNullOrEmpty(yearArg)) int.TryParse(yearArg, out year);
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🔍 TRUY CẬP DỮ LIỆU PHÒNG MỔ & TRÍCH XUẤT BN CẮT CỤT CHI NĂM {0}", year));
+        Console.WriteLine("===============================================================================");
+
+        long timeFrom = (long)year * 10000000000L + 101000000L;
+        long timeTo = (long)year * 10000000000L + 1231235959L;
+
+        // 1. Quét danh mục dịch vụ phẫu thuật cắt cụt / tháo khớp
+        Console.WriteLine("\n[BƯỚC 1] Quét danh mục kỹ thuật phẫu thuật cắt cụt / tháo khớp...");
+        var ampKeywords = new string[] { "cắt cụt", "tháo khớp", "mỏm cụt", "sửa mỏm cụt" };
+        var ampServices = new Dictionary<long, V_HIS_SERVICE>();
+
+        foreach (var kw in ampKeywords)
+        {
+            try
+            {
+                var sf = new HisServiceViewFilter { KEY_WORD = kw, IS_ACTIVE = 1 };
+                var svcs = myAdapter.FetchList<V_HIS_SERVICE>("api/HisService/GetView", mosConsumer, sf, param);
+                if (svcs != null)
+                {
+                    foreach (var s in svcs)
+                    {
+                        if (!ampServices.ContainsKey(s.ID))
+                        {
+                            string sName = (s.SERVICE_NAME ?? "").ToLower();
+                            if (sName.Contains("cắt cụt") || sName.Contains("tháo khớp") || sName.Contains("mỏm cụt"))
+                            {
+                                ampServices[s.ID] = s;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        Console.WriteLine(string.Format("✔ Tìm thấy {0} danh mục kỹ thuật cắt cụt / tháo khớp chuẩn trong hệ thống:", ampServices.Count));
+        foreach (var s in ampServices.Values.Take(8))
+        {
+            Console.WriteLine(string.Format("   • [ID: {0,6}] Mã: {1,-15} | {2}", s.ID, s.SERVICE_CODE, s.SERVICE_NAME));
+        }
+        if (ampServices.Count > 8) Console.WriteLine(string.Format("   ... và {0} danh mục kỹ thuật khác.", ampServices.Count - 8));
+
+        // 2. Quét SERE_SERV thực hiện trong năm 2026
+        Console.WriteLine(string.Format("\n[BƯỚC 2] Truy vấn dữ liệu thực hiện tại Phòng mổ (SERE_SERV) năm {0}...", year));
+        var matchedSereServs = new List<V_HIS_SERE_SERV>();
+        var serviceIdList = ampServices.Keys.ToList();
+
+        for (int i = 0; i < serviceIdList.Count; i += 30)
+        {
+            var chunk = serviceIdList.Skip(i).Take(30).ToList();
+            try
+            {
+                var ssFilter = new HisSereServViewFilter
+                {
+                    SERVICE_IDs = chunk,
+                    INTRUCTION_TIME_FROM = timeFrom,
+                    INTRUCTION_TIME_TO = timeTo
+                };
+                var sss = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssFilter, param);
+                if (sss != null && sss.Count > 0)
+                {
+                    matchedSereServs.AddRange(sss);
+                }
+            }
+            catch { }
+        }
+
+        // 3. Đối soát thêm hồ sơ bệnh án theo mã ICD-10 và từ khóa chẩn đoán cắt cụt
+        Console.WriteLine(string.Format("\n[BƯỚC 3] Đối soát hồ sơ bệnh án qua mã chẩn đoán ICD-10 chấn thương/cắt cụt năm {0}...", year));
+        var icdPrefixes = new string[] { "S48", "S58", "S68", "S78", "S88", "S98", "T05", "Z89" };
+        var matchedTreatments = new Dictionary<long, V_HIS_TREATMENT>();
+
+        foreach (var icd in icdPrefixes)
+        {
+            try
+            {
+                var tf = new HisTreatmentViewFilter
+                {
+                    ICD_CODE_OR_ICD_SUB_CODE = icd,
+                    IN_TIME_FROM = timeFrom,
+                    IN_TIME_TO = timeTo
+                };
+                var trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+                if (trs != null)
+                {
+                    foreach (var tr in trs)
+                    {
+                        if (!matchedTreatments.ContainsKey(tr.ID)) matchedTreatments[tr.ID] = tr;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        try
+        {
+            var tfKw = new HisTreatmentViewFilter
+            {
+                KEY_WORD = "cắt cụt",
+                IN_TIME_FROM = timeFrom,
+                IN_TIME_TO = timeTo
+            };
+            var trsKw = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfKw, param);
+            if (trsKw != null)
+            {
+                foreach (var tr in trsKw)
+                {
+                    if (!matchedTreatments.ContainsKey(tr.ID)) matchedTreatments[tr.ID] = tr;
+                }
+            }
+        }
+        catch { }
+
+        Console.WriteLine(string.Format("✔ Đã thu thập {0} lượt chỉ định dịch vụ phòng mổ và {1} đợt điều trị liên quan.", 
+            matchedSereServs.Count, matchedTreatments.Count));
+
+        // 4. Tổng hợp danh sách bệnh nhân
+        var treatmentIdSet = new HashSet<long>();
+        foreach (var ss in matchedSereServs)
+        {
+            if (ss.TDL_TREATMENT_ID.HasValue) treatmentIdSet.Add(ss.TDL_TREATMENT_ID.Value);
+        }
+        foreach (var tId in matchedTreatments.Keys)
+        {
+            treatmentIdSet.Add(tId);
+        }
+
+        foreach (var tId in treatmentIdSet.ToList())
+        {
+            if (!matchedTreatments.ContainsKey(tId))
+            {
+                try
+                {
+                    var trList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, new HisTreatmentViewFilter { ID = tId }, param);
+                    if (trList != null && trList.Count > 0) matchedTreatments[tId] = trList[0];
+                }
+                catch { }
+            }
+        }
+
+        // Lấy chi tiết SERE_SERV_PTTT cho các ca mổ
+        var ptttMap = new Dictionary<long, V_HIS_SERE_SERV_PTTT>();
+        if (matchedSereServs.Count > 0)
+        {
+            try
+            {
+                var pFilter = new HisSereServPtttViewFilter
+                {
+                    SERE_SERV_IDs = matchedSereServs.Select(x => x.ID).ToList()
+                };
+                var pList = myAdapter.FetchList<V_HIS_SERE_SERV_PTTT>("api/HisSereServPttt/GetView", mosConsumer, pFilter, param);
+                if (pList != null)
+                {
+                    foreach (var p in pList)
+                    {
+                        ptttMap[p.SERE_SERV_ID] = p;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 5. Tách thành 2 nhóm rõ ràng:
+        // Nhóm 1: Bệnh nhân THỰC SỰ ĐƯỢC PHẪU THUẬT CẮT CỤT TẠI PHÒNG MỔ NĂM 2026 (Có chỉ định/thực hiện SERE_SERV)
+        // Nhóm 2: Bệnh nhân có mã chẩn đoán ICD cắt cụt cấp / tiền sử cắt cụt (Z89/S98/ĐTĐ...) nhập viện điều trị nội khoa
+        var surgeryPatients = treatmentIdSet.Where(tId => matchedSereServs.Any(x => x.TDL_TREATMENT_ID == tId)).ToList();
+        var historyPatients = treatmentIdSet.Where(tId => !matchedSereServs.Any(x => x.TDL_TREATMENT_ID == tId)).ToList();
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🏥 BÁO CÁO DỮ LIỆU PHÒNG MỔ: BỆNH NHÂN PHẪU THUẬT CẮT CỤT CHI NĂM {0}", year));
+        Console.WriteLine(string.Format("   • Nhóm 1: Phẫu thuật cắt cụt thực hiện tại Phòng mổ : {0} ca", surgeryPatients.Count));
+        Console.WriteLine(string.Format("   • Nhóm 2: Hồ sơ có mã ICD cắt cụt / Tiền sử thiếu chi: {1} ca", surgeryPatients.Count, historyPatients.Count));
+        Console.WriteLine("===============================================================================");
+
+        StringBuilder md = new StringBuilder();
+        md.AppendLine(string.Format("# BÁO CÁO DANH SÁCH BỆNH NHÂN CẮT CỤT CHI NĂM {0}", year));
+        md.AppendLine(string.Format("*Ngày trích xuất dữ liệu: {0:dd/MM/yyyy HH:mm:ss} | Máy chủ HIS: Bệnh viện Bạch Mai - Hà Nội*\n", DateTime.Now));
+        md.AppendLine(string.Format("### 📊 TỔNG QUAN THỐNG KÊ"));
+        md.AppendLine(string.Format("- **Số ca phẫu thuật cắt cụt chi tại Phòng mổ năm {0}**: **`{1}` ca**", year, surgeryPatients.Count));
+        md.AppendLine(string.Format("- **Số ca có chẩn đoán / tiền sử cắt cụt chi điều trị nội trú**: **`{0}` ca**", historyPatients.Count));
+        md.AppendLine(string.Format("- **Tổng số hồ sơ phát hiện**: **`{0}` bệnh nhân**\n", treatmentIdSet.Count));
+
+        md.AppendLine(string.Format("## 🔪 PHẦN 1: DANH SÁCH {0} CA PHẪU THUẬT CẮT CỤT CHI TẠI PHÒNG MỔ NĂM {1}\n", surgeryPatients.Count, year));
+        md.AppendLine("| STT | Mã BN | Họ và Tên | Tuổi | Giới | Ngày Phẫu Thuật | Tên Kỹ Thuật Phẫu Thuật | Phòng Mổ | PTV / Trưởng Kíp | Khoa Điều Trị | Chẩn Đoán |");
+        md.AppendLine("|:---:|:---:|:---|:---:|:---:|:---:|:---|:---|:---|:---|:---|");
+
+        Console.WriteLine(string.Format("\n🔪 [PHẦN 1] CHI TIẾT {0} CA PHẪU THUẬT CẮT CỤT TẠI PHÒNG MỔ:", surgeryPatients.Count));
+        int sIdx = 1;
+        foreach (var tId in surgeryPatients)
+        {
+            var tr = matchedTreatments.ContainsKey(tId) ? matchedTreatments[tId] : null;
+            var patSereServs = matchedSereServs.Where(x => x.TDL_TREATMENT_ID == tId).OrderBy(x => x.TDL_INTRUCTION_TIME).ToList();
+
+            string pName = tr != null ? tr.TDL_PATIENT_NAME : "BN ID " + tId;
+            string pCode = tr != null ? tr.TDL_PATIENT_CODE : "N/A";
+            string tCode = tr != null ? tr.TREATMENT_CODE : "N/A";
+            string gender = tr != null ? tr.TDL_PATIENT_GENDER_NAME : "";
+            
+            int birthYear = 0;
+            string sDob = tr != null ? tr.TDL_PATIENT_DOB.ToString() : "";
+            if (sDob.Length >= 4) int.TryParse(sDob.Substring(0, 4), out birthYear);
+            string age = birthYear > 0 ? (year - birthYear).ToString() : "-";
+
+            string inTimeStr = tr != null ? tr.IN_TIME.ToString() : "";
+            string inTimeFmt = inTimeStr.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", inTimeStr.Substring(6, 2), inTimeStr.Substring(4, 2), inTimeStr.Substring(0, 4), inTimeStr.Substring(8, 2), inTimeStr.Substring(10, 2)) : inTimeStr;
+            string outTimeStr = tr != null && tr.OUT_TIME.HasValue ? tr.OUT_TIME.Value.ToString() : "";
+            string status = !string.IsNullOrEmpty(outTimeStr) ? "Đã ra viện (" + (outTimeStr.Length >= 8 ? string.Format("{0}/{1}/{2}", outTimeStr.Substring(6, 2), outTimeStr.Substring(4, 2), outTimeStr.Substring(0, 4)) : outTimeStr) + ")" : "Đang điều trị";
+
+            Console.WriteLine(string.Format("\n[{0}] BỆNH NHÂN: {1} ({2} tuổi - {3})", sIdx++, pName, age, gender));
+            Console.WriteLine(string.Format("    • Mã BN: {0} | Mã ĐT: {1} | Trạng thái: {2}", pCode, tCode, status));
+            Console.WriteLine(string.Format("    • Khoa điều trị: {0}", tr != null ? tr.END_DEPARTMENT_NAME : "-"));
+            Console.WriteLine(string.Format("    • Chẩn đoán    : [{0}] {1}", tr != null ? tr.ICD_CODE : "-", tr != null ? (tr.ICD_NAME + " (" + (tr.ICD_TEXT ?? tr.ICD_SUB_CODE) + ")") : "-"));
+
+            foreach (var ss in patSereServs)
+            {
+                string ssTime = ss.TDL_INTRUCTION_TIME.ToString();
+                string ssTimeFmt = ssTime.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", ssTime.Substring(6, 2), ssTime.Substring(4, 2), ssTime.Substring(0, 4), ssTime.Substring(8, 2), ssTime.Substring(10, 2)) : ssTime;
+                var pttt = ptttMap.ContainsKey(ss.ID) ? ptttMap[ss.ID] : null;
+                string ptv = pttt != null ? (pttt.HEAD_USERNAME ?? pttt.HEAD_LOGINNAME ?? "-") : "-";
+
+                Console.WriteLine(string.Format("    👉 Phẫu thuật: {0} (Mã: {1})", ss.TDL_SERVICE_NAME, ss.TDL_SERVICE_CODE));
+                Console.WriteLine(string.Format("       - Thời gian: {0} | Phòng mổ: {1}", ssTimeFmt, ss.EXECUTE_ROOM_NAME ?? ss.TDL_EXECUTE_ROOM_ID.ToString()));
+                if (pttt != null && (!string.IsNullOrEmpty(pttt.HEAD_USERNAME) || !string.IsNullOrEmpty(pttt.HEAD_LOGINNAME)))
+                {
+                    Console.WriteLine(string.Format("       - PTV chính: {0}", ptv));
+                }
+
+                md.AppendLine(string.Format("| {0} | {1} | **{2}** | {3} | {4} | {5} | {6} | {7} | {8} | {9} | [{10}] {11} |",
+                    sIdx - 1, pCode, pName, age, gender, ssTimeFmt, ss.TDL_SERVICE_NAME, ss.EXECUTE_ROOM_NAME, ptv, tr != null ? tr.END_DEPARTMENT_NAME : "-", tr != null ? tr.ICD_CODE : "", tr != null ? tr.ICD_NAME : ""));
+            }
+        }
+
+        // Lưu báo cáo
+        try
+        {
+            string outDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports");
+            Directory.CreateDirectory(outDir);
+            string mdPath = Path.Combine(outDir, string.Format("BaoCao_CatCutChi_{0}.md", year));
+            File.WriteAllText(mdPath, md.ToString(), Encoding.UTF8);
+            Console.WriteLine(string.Format("\n📄 Đã xuất báo cáo chi tiết ra file: {0}", mdPath));
+        }
+        catch { }
+        Console.WriteLine("\n===============================================================================");
+    }
+
     public static void PrescribeMedication(long treatmentId, long trackingId, long medicineTypeId, long stockId, decimal amount, string tutorial, int patientTypeId = 1)
     {
         InitSession();
@@ -2026,6 +2359,20 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu tên hoặc từ khóa thuốc cần tìm!");
                 SearchMed(args[1]);
+            }
+            else if (cmd == "search-service" || cmd == "find-service" || cmd == "search-dv")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu tên hoặc từ khóa dịch vụ cần tìm!");
+                SearchService(args[1]);
+            }
+            else if (cmd == "check-hanoi" || cmd == "ping-hanoi" || cmd == "check-hn")
+            {
+                CheckHanoiConnection();
+            }
+            else if (cmd == "amputations" || cmd == "cat-cut" || cmd == "phong-mo" || cmd == "mo-cat-cut")
+            {
+                string yr = args.Length > 1 ? args[1] : "2026";
+                ReportAmputations2026(yr);
             }
             else if (cmd == "debate" || cmd == "hoichan")
             {
