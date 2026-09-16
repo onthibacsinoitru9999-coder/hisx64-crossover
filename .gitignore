@@ -33,6 +33,9 @@ tmp/
 !.agents/
 !.agents/**
 !*.rsp
+!mau pt01.docx
+!Templates/
+!Templates/**
 
 
 Data/Cache/
