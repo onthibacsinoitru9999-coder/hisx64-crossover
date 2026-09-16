@@ -29,6 +29,9 @@
 22. [Bẫy Lỗi Xuất Biểu Mẫu Word/Docx Biên Bản PT-01 (Strict Fresh Zip Pattern)](#22-bẫy-lỗi-xuất-biểu-mẫu-worddocx-biên-bản-pt-01-lỗi-corrupt-trên-libreoffice--word)
 23. [Quy Trình & Kỹ Thuật Chỉ Định CLS Trực Tiếp Bypass UI (Headless API) & Cơ Chế Gom Ống 1-Barcode](#23-quy-trình--kỹ-thuật-chỉ-định-cls-trực-tiếp-bypass-ui-headless-api--cơ-chế-gom-ống-bệnh-phẩm-1-barcode)
 24. [Quy Chuẩn Tự Động Hóa Tra Cứu & Mở Ảnh PACS / RIS (Web Viewer 1-Click)](#24-quy-chuẩn-tự-động-hóa-tra-cứu--mở-ảnh-pacs--ris-web-viewer-1-click)
+25. [Quy Chuẩn Cốt Lõi: Nguyên Tắc Ponytail (Lazy Senior Dev Mode)](#25-quy-chuẩn-cốt-lõi-nguyên-tắc-ponytail-lazy-senior-dev-mode-toàn-diện-cho-mọi-nhánh)
+26. [Bẫy Lỗi Quét Y Lệnh BN Tuần Tự & Logic Lọc Ngày](#-bẫy-lỗi-26-quét-y-lệnh-32-bn-tuần-tự--chậm-100-giây-sai-logic-ngày)
+27. [Quy Chuẩn Tạo Biên Bản Hội Chẩn Thông Qua Mổ (MS: PT-01) Với Aspose.Words](#27-quy-chuẩn-tạo-biên-bản-hội-chẩn-thông-qua-mổ-ms-pt-01-với-asposewords-hispt01creatorexe)
 
 ---
 
@@ -1510,3 +1513,42 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 ### Kết quả thực tế sau khi sửa đúng (13/09/2026):
 - **Chưa có thuốc:** 7 BN (712: QUÁCH ĐẠI VƯỢNG, VI TRUNG HIẾU, PHẠM NGỌC HÒA | 716: NGUYỄN NGỌC HIỂN | 724: NGUYỄN THỊ KHỞI | 712A: TẠ THỊ NGUYỆT, ĐẶNG THỊ BÍCH)
 - **Chưa có suất ăn:** 3 BN (712: LÊ QUÝ ĐẶNG, NGUYỄN HỮU CƯỜNG | 712A: ĐẶNG THỊ BÍCH)
+
+---
+
+## 27. QUY CHUẨN TẠO BIÊN BẢN HỘI CHẨN THÔNG QUA MỔ (MS: PT-01) VỚI ASPOSE.WORDS (`HisPt01Creator.exe`)
+
+### 27.1. Bối Cảnh Lâm Sàng & Yêu Cầu
+- **Mục tiêu**: Tự động trích xuất toàn bộ bệnh sử, tiền sử, diễn biến khám mới nhất và bilan cận lâm sàng tiền phẫu của bệnh nhân có chỉ định mổ để điền vào biểu mẫu chuẩn Bộ Y Tế / Bệnh viện Bạch Mai `mau pt01.docx`.
+- **Nguyên tắc cốt lõi**:
+  1. Giữ nguyên 100% định dạng file Word (`.docx`), bảng biểu, căn lề, font chữ, các ô checkbox `[ ]` và chữ ký mẫu.
+  2. Tuyệt đối chỉ thay thế nội dung tại **9 vị trí thẻ `<thay>`** và các placeholder thông tin hành chính của bệnh nhân mẫu.
+  3. Dùng `Aspose.Words.dll` nạp qua cơ chế `AppDomain.CurrentDomain.AssemblyResolve` từ `ReferencedAssemblies/`.
+
+### 27.2. Quy Tắc 2 Tầng Nạp Cận Lâm Sàng & CĐHA (Inpatient + Outpatient Fallback)
+- **Bẫy lâm sàng thực tế**: Nhiều bệnh nhân mổ phiên chỉ được làm thủ tục nhập viện nội trú vào sáng ngày mổ (hoặc trước mổ vài giờ). Lúc này hồ sơ nội trú (`V_HIS_TREATMENT`) hoàn toàn chưa có kết quả xét nghiệm.
+- **Giải pháp chuẩn hóa**:
+  1. Kiểm tra kết quả trong đợt điều trị nội trú hiện tại.
+  2. Nếu thiếu (hoặc trống), tool tự động truy vấn ngược về các đợt khám ngoại trú trước đó (`HIS_TREATMENT` có cùng `PATIENT_CODE`) để lấy trọn vẹn kết quả:
+     * **Huyết học & Đông máu**: CTM (Hồng cầu, Bạch cầu, Tiểu cầu, Hb), PT-INR, APTT, Fibrinogen, Nhóm máu ABO/Rh.
+     * **Sinh hóa**: Glucose, Ure, Creatinin, AST, ALT, Điện giải đồ (Na, K, Cl).
+     * **Vi sinh**: HBsAg, Anti-HCV, HIV.
+     * **Nước tiểu**: 10 thông số nước tiểu.
+     * **Chẩn đoán hình ảnh**: X-quang, CT Scanner, MRI (bắt buộc trích xuất đích danh từng tầng xẹp/thoát vị/gãy xương theo Quy tắc 4 của `AGENTS.md`).
+
+### 27.3. Ma Trận 9 Thẻ `<thay>` Chuẩn Hóa
+1. `<thay>` lần 1: Bệnh sử (Lý do vào viện, diễn biến bệnh, triệu chứng cơ năng/thực thể).
+2. `<thay>` lần 2: Thời gian hội chẩn (Định dạng: `HH giờ mm, ngày DD tháng MM năm YYYY`).
+3. `<thay>` lần 3: Tóm tắt tình trạng bệnh (Toàn trạng, DHST, triệu chứng lâm sàng trọng điểm).
+4. `<thay>` lần 4: Các xét nghiệm & CĐHA (Bilan đầy đủ các nhóm xét nghiệm và đích danh CĐHA).
+5. `<thay>` lần 5: Phương pháp phẫu thuật (Tên kỹ thuật phẫu thuật dự kiến).
+6. `<thay>` lần 6: Phương pháp vô cảm dự kiến (Mê NKQ, Tê tủy sống, Tê ngoài màng cứng...).
+7. `<thay>` lần 7: Phẫu thuật viên chính (Bác sĩ phẫu thuật chính).
+8. `<thay>` lần 8: Ngày giờ phẫu thuật dự kiến.
+9. `<thay>` lần 9: Biến chứng nguy cơ cần lưu ý (Dự trù máu, nguy cơ mất máu, tổn thương mạch thần kinh, nhiễm trùng, dị ứng thuốc...).
+
+### 27.4. Lệnh CLI Thực Thi
+```powershell
+# Chạy tạo biên bản PT-01 cho 1 hoặc nhiều bệnh nhân:
+.\.agents\skills\his-clinical-operations\scripts\HisPt01Creator.exe <MãBN1> [MãBN2 ...] [--out <ThưMụcXuất>]
+```

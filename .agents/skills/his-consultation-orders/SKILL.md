@@ -109,3 +109,33 @@ Khi cần soạn thảo nhanh tóm tắt bệnh án và câu hỏi hội chẩn 
   - Bác sĩ chuyên khoa khám, chức danh và số điện thoại liên hệ (VD: `BS Hiếu B - 0344300246`).
   - Toàn văn ý kiến điều trị, đề xuất kháng sinh, chỉ định cận lâm sàng bổ sung (AFB, cấy đờm, KMĐM...) và lời dặn chăm sóc.
 
+---
+
+## 7. BIÊN BẢN HỘI CHẨN THÔNG QUA MỔ (BIỂU MẪU MS: PT-01 - `mau pt01.docx`)
+
+### 1. Mục đích:
+Chuẩn hóa và tự động hóa 100% việc tạo file Word Biên bản Hội chẩn thông qua mổ (MS: PT-01) phục vụ phẫu thuật phiên và duyệt mổ tại Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 - Hà Nội) hoặc Khoa Ngoại Tổng hợp (Ninh Bình).
+
+### 2. Nguyên tắc bảo tồn format mẫu (`mau pt01.docx`):
+* **Bảo tồn cấu trúc 100%**: Tuyệt đối không xóa hay thay đổi định dạng bảng biểu, căn lề, font chữ của biểu mẫu gốc.
+* **Quy tắc thẻ `<thay>`**: Chỉ thay thế đúng các vị trí đánh dấu `<thay>` theo thứ tự:
+  1. `Bệnh sử: <thay>`: Lý do vào viện, khởi phát triệu chứng đau/chấn thương, diễn biến đến khi vào viện.
+  2. `Thời gian hội chẩn: ..<thay>`: Thời gian diễn ra hội chẩn thông qua mổ.
+  3. `Tóm tắt tình trạng bệnh: <thay>`: Tri giác, DHST, triệu chứng khu trú chuyên khoa (cột sống, khớp, chi), không rối loạn cơ tròn, mạch ngoại vi.
+  4. `Các xét nghiệm, CĐHA: <thay>`: Tổng hợp trích xuất đích danh từng tầng tổn thương (X-quang, CT, MRI) kèm Bilan xét nghiệm đầy đủ (CTM, đông máu, sinh hóa, điện giải đồ, miễn dịch truyền nhiễm).
+  5. `Phương pháp phẫu thuật: <thay>`: Tên phẫu thuật chuẩn theo lịch mổ (TLIF, BXM, thay khớp háng, nội soi tái tạo DCCT, cắt DC vòng ống cổ tay, KHX...).
+  6. `Phương pháp vô cảm dự kiến: <thay>`: Mê nội khí quản / Tê tủy sống / Tê tại chỗ.
+  7. `Phẫu thuật viên chính: <thay>`: Bác sĩ phẫu thuật chính theo phân công.
+  8. `Ngày, giờ phẫu thuật dự kiến: <thay>`: Ngày giờ mổ theo lịch.
+  9. `Các biến chứng, nguy cơ: <thay>`: Các nguy cơ phẫu thuật đặc thù (chảy máu, tổn thương thần kinh/mạch máu, rách màng cứng rò DNT, tràn xi măng, thuyên tắc mạch, sốt chu phẫu, suy thượng thận cấp, lây nhiễm viêm gan B...).
+* **Cập nhật thông tin hành chính**: Tự động thay thế Họ tên bệnh nhân (IN HOA), Ngày sinh, Giới tính, Địa chỉ, Thời gian vào viện, Chẩn đoán chi tiết và Tiền sử bệnh nền.
+* **Cập nhật Nhóm máu & Dự trù máu**: Điền rõ hệ ABO, Rh và số lượng máu dự trù (ml).
+
+### 3. Công cụ CLI 1-Click:
+* Chạy công cụ:
+  ```powershell
+  .\HisPt01Creator.exe <MãBN1,MãBN2,...>
+  ```
+* File xuất ra: `Reports\BienBanHoiChan_PT01\PT01_XX_<TÊN_BN>_<MãBN>.docx`.
+
+

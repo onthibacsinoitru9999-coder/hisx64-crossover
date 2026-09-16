@@ -55,6 +55,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
 | 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
+| 📑 **Tạo Biên bản Hội chẩn thông qua mổ (MS: PT-01)** | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN1,MãBN2,...>` | ❌ Không phá vỡ format mẫu docx |
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
@@ -232,4 +233,25 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
      ```
 * **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.
+
+## 14. QUY TẮC TẠO BIÊN BẢN HỘI CHẨN THÔNG QUA MỔ (SURGICAL APPROVAL PROTOCOL - MS: PT-01)
+* **Bản chất nghiệp vụ**:
+  - Mọi bệnh nhân có chỉ định phẫu thuật phiên hoặc bán cấp tại Khoa CTCH & Cột sống (Khoa 57) hoặc Khoa Ngoại TH (Ninh Bình) bắt buộc phải có Biên bản Hội chẩn thông qua mổ theo mẫu chuẩn Bộ Y Tế / Bệnh viện Bạch Mai (**Biểu mẫu MS: PT-01**).
+* **Quy tắc bảo tồn định dạng mẫu (`mau pt01.docx`)**:
+  1. **TUYỆT ĐỐI CẤM phá vỡ layout, căn lề, bảng biểu hay kiểu chữ**: Chỉ được điền nội dung vào đúng các vị trí đánh dấu `<thay>` và cập nhật thông tin hành chính của bệnh nhân (Họ tên, Ngày sinh, Giới tính, Địa chỉ, Giờ vào viện, Chẩn đoán, Tiền sử).
+  2. **Trích xuất cận lâm sàng 2 tầng (2-Tier Clinical Fetch)**:
+     - Đối với bệnh nhân mới nhập viện trong ngày (vào sáng ngày mổ): Thường chưa có kết quả xét nghiệm/CĐHA trong đợt điều trị nội trú mới. Agent **BẮT BUỘC** phải tự động quét các đợt khám ngoại trú / phòng khám trước đó của bệnh nhân để lấy trọn vẹn Bilan phẫu thuật:
+       * Huyết học (WBC, RBC, HGB, HCT, PLT).
+       * Đông máu (PT-INR, APTT, Fibrinogen).
+       * Sinh hóa máu (Glucose, Ure, Creatinin, AST, ALT) & Điện giải đồ (Na, K, Cl).
+       * Nhóm máu (ABO, Rh) & Miễn dịch truyền nhiễm (HBsAg, HCV, HIV).
+       * CĐHA (X-quang, CT Scanner, MRI, Siêu âm): Trích xuất đích danh từng tầng tổn thương theo Quy tắc 4.
+  3. **Công cụ thực thi chuẩn**:
+     - Lệnh chạy 1-Click:
+       ```powershell
+       .\HisPt01Creator.exe <MãBN1,MãBN2,...>
+       ```
+     - Tự động nạp dữ liệu từ backend MOS, điền mẫu `mau pt01.docx`, và xuất file docx tại thư mục `Reports\BienBanHoiChan_PT01\PT01_XX_TENBN_MaBN.docx`.
+     - File sau khi sinh phải được kiểm tra đối soát, đảm bảo 0% còn sót lại thẻ `<thay>`.
+
 
