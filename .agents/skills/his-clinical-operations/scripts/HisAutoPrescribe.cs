@@ -353,8 +353,10 @@ public class MainForm : Form
                 RequestRoomId = roomId > 0 ? roomId : 5248,
                 RequestLoginName = loginName,
                 RequestUserName = userName,
-                IcdCode = (tr.ICD_CODE ?? "") + (string.IsNullOrEmpty(tr.ICD_SUB_CODE) ? "" : "," + tr.ICD_SUB_CODE),
-                IcdName = (tr.ICD_NAME ?? "") + (string.IsNullOrEmpty(tr.ICD_TEXT) ? "" : " - " + tr.ICD_TEXT),
+                IcdCode = tr.ICD_CODE,
+                IcdName = tr.ICD_NAME,
+                IcdSubCode = tr.ICD_SUB_CODE,
+                IcdText = tr.ICD_TEXT,
                 IsCabinet = true,
                 ClientSessionKey = sessionKey,
                 Medicines = new System.Collections.Generic.List<PresMedicineSDO>
@@ -383,6 +385,7 @@ public class MainForm : Form
             if (outRes == null)
             {
                 string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Kê đơn tủ trực thất bại (API trả về null)";
+                if (prm != null && prm.BugCodes != null && prm.BugCodes.Count > 0) errMsg += " | BugCodes: " + string.Join("; ", prm.BugCodes);
                 throw new Exception(errMsg);
             }
             string sReqCode = (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0) ? outRes.ServiceReqs[0].SERVICE_REQ_CODE : null;
@@ -1675,10 +1678,22 @@ class Program
                     long[] dept57Rooms = new long[] {
                         931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                         5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                        5267, 6622, 6623
+                        5267, 5539, 6622, 6623
                     };
                     var workInfo = new WorkInfoSDO { Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList() };
                     bad.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, bp);
+                }
+                catch { }
+
+                string batchUserName = batchUser.ToUpper();
+                try
+                {
+                    HisEmployeeFilter ef = new HisEmployeeFilter { LOGINNAME__EXACT = batchUser };
+                    var emps = bad.FetchList<HIS_EMPLOYEE>("api/HisEmployee/Get", ApiConsumers.MosConsumer, ef, bp);
+                    if (emps != null && emps.Count > 0 && !string.IsNullOrEmpty(emps[0].TDL_USERNAME))
+                    {
+                        batchUserName = emps[0].TDL_USERNAME;
+                    }
                 }
                 catch { }
 
@@ -1765,14 +1780,19 @@ class Program
                             var brs = bad.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, brf, bp);
                             if (brs != null && brs.Count > 0)
                             {
-                                targetRoomId = brs.Last().BED_ROOM_ID;
+                                HisBedRoomViewFilter brf2 = new HisBedRoomViewFilter { ID = brs.Last().BED_ROOM_ID };
+                                var brms = bad.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", ApiConsumers.MosConsumer, brf2, bp);
+                                if (brms != null && brms.Count > 0 && brms[0].ROOM_ID > 0)
+                                {
+                                    targetRoomId = brms[0].ROOM_ID;
+                                }
                             }
                         }
                         catch { }
                         MedicineStockInfo targetStock = isNB ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == 5142) ?? MainForm.CommonStocks[0]) : MainForm.CommonStocks[0];
 
                         // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
-                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, targetDeptId, batchUser, batchUser.ToUpper(), instructionTime);
+                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, targetDeptId, batchUser, batchUserName, instructionTime);
                         long bTkId   = tkResult.TrackingId;
                         long bTkTime = tkResult.TrackingTime;
 
@@ -1785,7 +1805,7 @@ class Program
                         var bMed = medicineCache[medKey];
 
                         // 4. Tạo đơn thuốc nội trú từ Kho Tủ Trực (810 cho HN hoặc 5142 cho NB)
-                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUser.ToUpper(), targetRoomId, btr, bMed, targetStock, bAmount, bTut, bTkTime, bTkId);
+                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUserName, targetRoomId, btr, bMed, targetStock, bAmount, bTut, bTkTime, bTkId);
 
                         string facTag = isNB ? "CS Ninh Bình" : "Khoa 57 HN";
                         Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã Y Lệnh: {5} [{6} - {7}]",
