@@ -5,6 +5,32 @@
 Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mới tạo, khung chat cũ tiếp tục, trên máy ổ E:\ hay ổ D:\) BẮT BUỘC phải tuân thủ nghiêm ngặt các quy tắc sau mà KHÔNG CẦN người dùng nhắc nhở:
 
 
+
+## 0. CAM FREESTYLE SCRIPT (BAT BUOC 100% — DOC TRUOC MOI THU)
+
+**Van de thuc te 2026-09-16:** Agent tu viet `Prescribe*.cs` / compile `csc` moi viec ke thuoc tu truc → TakeBean OK nhung `OutPatientPresCreateList` fail Messages rong; DLL Inventec mat; de ke nham kho 4210.
+
+### CAM TUYET DOI
+1. **CAM** tao file C# one-off (`PrescribeXxx.cs`, `CheckStock*.cs`, ad-hoc `Program.Main`) cho ke don / CLS / to dieu tri neu tool trong bang muc 2 da co.
+2. **CAM** compile bang `csc` cho nghiep vu lam sang hang ngay.
+3. **CAM** hardcode `TrackingId`.
+4. **CAM** ke y lenh tu truc tu kho `4209` / `4210` (Kho duoc). Ha Noi Khoa 57 = **`MediStockId 810`**.
+5. **CAM** bao thanh cong khi API tra null / Messages rong.
+
+### BAT BUOC
+1. Ke thuoc / tu truc / Insulin → **chi** `HisAutoPrescribe.exe` (single/batch/GUI) hoac `HisClinicalCli.exe prescribe`.
+2. Tra cuu / orders / cancel → **chi** `HisClinicalCli.exe`.
+3. Chay exe **tu thu muc goc project** (sau `. .\set_env.ps1`), khong tu `.agents/...` neu playbook cam.
+4. Neu tool fail ≤ 2 lan: dung, in Messages+BugCodes, bao bac si — **khong** viet script thu-sai keo dai.
+5. Neu can sua bug tool: sua `HisAutoPrescribe.cs` / CLI san co, build lai exe, ghi playbook — **khong** fork sang file PrescribeTam.cs.
+
+### Checklist truoc khi goi API ghi
+- [ ] Login `034727` (tru khi user chi dinh khac)
+- [ ] `UpdateWorkInfo` (phong truc 5248 + buong BN)
+- [ ] Tu truc HN: stock **810** + flow TakeBean → OutPatientPresCreateList + IsCabinet
+- [ ] TrackingId lay tu EnsureTracking / tracking ngay — khong hardcode
+
+---
 ## 1. QUY TẮC ĐẦU PHIÊN CHO MỌI KHUNG CHAT MỚI (PRE-FLIGHT SYNC - BẮT BUỘC 100%)
 * **Bất kỳ khung chat nào khi bắt đầu phiên làm việc**, trước khi xử lý yêu cầu của bác sĩ (kê đơn, tờ điều trị, chỉ định CLS, tra cứu, sửa code...), Agent PHẢI **CHỦ ĐỘNG CHẠY LỆNH PULL** bằng terminal để đồng bộ tri thức và công cụ mới nhất từ Git:
   ```powershell
@@ -89,18 +115,22 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
        * **Tại Hà Nội**: Tìm kiếm và đối chiếu hồ sơ tại **Khoa CTCH & Cột sống (`DEPARTMENT_ID = 57`)**.
        * **Tại Ninh Bình**: Tìm kiếm và đối chiếu hồ sơ tại **Khoa Ngoại tổng hợp - Tầng 3 Nhà E (`DEPARTMENT_ID = 915`)**.
        * Trường hợp không tìm thấy bệnh nhân tại khoa tương ứng, Agent PHẢI báo lại ngay cho Bác sĩ.
-  2. **Thực thi đồng thời 3 tác vụ y lệnh cho 100% bệnh nhân:**
-     - **Tác vụ 1 - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
-     - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):**
-       * **Tại Hà Nội**: Chỉ định mã **`BM02426`** (Service ID: `6217`), Phòng thực hiện `5248` (P734) hoặc `931` (Tiểu phẫu nhà Q).
-       * **Tại Ninh Bình**: Chỉ định mã **`NB260620.6231`** (Service ID: `74281` - "Định lượng Glucose [Máu] mao mạch"), Phòng thực hiện `18679` (P3E-05) hoặc `18681` (P3D-05).
-     - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
-       * ⚠️ **Kho Tủ Trực Bắt Buộc**:
-         - **Tại Hà Nội**: Kê từ Tủ trực Khoa 57 (**`MediStockId = 810` - `TT_KCTCHCS`**).
-         - **Tại Ninh Bình**: Kê từ Tủ trực Khu 3E (**`MediStockId = 5142` - `TTT_NBKP05.02`**) hoặc Khu 3D (**`5141`**).
-         - **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
-       * **Quy chuẩn tỷ lệ quy đổi:** `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), `MedicineUseFormId = 15` (*Tiêm*), cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD: `"08"`), `IsExpend = false`.
-       * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
+  2. **Thực thi tuần tự 3 tác vụ y lệnh cho 100% bệnh nhân (Sequential Pipeline - BẮT BUỘC ĐÚNG THỨ TỰ):**
+      - 📝 **Bước 1 (BẮT BUỘC CHẠY TRƯỚC NHẤT) - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
+      - 🩸 **Bước 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):**
+        * **Tại Hà Nội**: Chỉ định mã **`BM02426`** (Service ID: `6217`), Phòng thực hiện `5248` (P734) hoặc `931` (Tiểu phẫu nhà Q).
+        * **Tại Ninh Bình**: Chỉ định mã **`NB260620.6231`** (Service ID: `74281` - "Định lượng Glucose [Máu] mao mạch"), Phòng thực hiện `18679` (P3E-05) hoặc `18681` (P3D-05).
+      - 💊 **Bước 3 (BẮT BUỘC CHẠY SAU CÙNG) - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
+        * ⚠️ **Kho Tủ Trực Bắt Buộc**:
+          - **Tại Hà Nội**: Kê từ Tủ trực Khoa 57 (**`MediStockId = 810` - `TT_KCTCHCS`**).
+          - **Tại Ninh Bình**: Kê từ Tủ trực Khu 3E (**`MediStockId = 5142` - `TTT_NBKP05.02`**) hoặc Khu 3D (**`5141`**).
+          - **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
+        * 🕒 **Quy tắc lùi 5 phút sau Tờ điều trị (5-Minute Timing Offset Rule - CHỐNG NHẢY TỜ ĐIỀU TRỊ PHÍA TRƯỚC):**
+          - Kê đơn Insulin BẮT BUỘC thực hiện **SAU KHI ĐÃ CÓ TỜ ĐIỀU TRỊ** ở Bước 1.
+          - Thời gian y lệnh thuốc (`InstructionTime`) tự động **lùi +5 phút sau thời điểm Tờ điều trị** (`InstructionTime = TrackingTime + 5 phút`, ví dụ: Tờ điều trị lúc 17:00 $\rightarrow$ Y lệnh thuốc lúc 17:05).
+          - `EnsureTrackingForPrescription` kiểm tra độ lệch thời gian $\le 3$ giờ; tuyệt đối không để đơn 17h nhảy ngược vào tờ điều trị buổi sáng (10h).
+        * **Quy chuẩn tỷ lệ quy đổi:** `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), `MedicineUseFormId = 15` (*Tiêm*), cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD: `"08"`), `IsExpend = false`.
+        * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
   3. **Quy chuẩn Báo cáo Y Lệnh & Hiển Thị UI (BẮT BUỘC):**
      * **MÃ PHIẾU Y LỆNH LÂM SÀNG (`ServiceReqCode`)**: Bắt buộc in đậm `ServiceReqCode` (VD: `000090054138`) trên bảng kết quả. TUYỆT ĐỐI KHÔNG báo mã xuất kho dược `ExpMestCode` (VD: `000028492583`) làm bác sĩ hoang mang không tìm thấy trên EMR.
      * **BỘ LỌC HIS UI**: Luôn nhắc Bác sĩ kiểm tra bộ lọc trên giao diện HIS là **"Tất cả bác sĩ"** (thay vì "Bác sĩ hiện tại") để xem trọn vẹn y lệnh do tài khoản liên thông (`vmc` / `034727`) tạo.

@@ -139,10 +139,11 @@
 
 ## ⚡ 5. ĐẶC QUYỀN PROTOCOL: "THỢ CHO ĐƯỜNG HUYẾT"
 
-Khi Bác sĩ gửi ảnh/bảng báo cáo đường huyết và nhắc **"thợ cho đường huyết"**, Agent kích hoạt tự động 3 tác vụ cho 100% bệnh nhân:
-1. **Tác vụ 1 - Tờ điều trị (`HisTrackingCreator.exe`)**: Ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
-2. **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`)**: Chỉ định xét nghiệm ĐMMM tại giường **`BM02426`** cho các mốc giờ (mốc 06:00 tự động tính ngày hôm sau).
-3. **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe`)**: Kê đơn tiêm Insulin từ Kho Tủ Trực Khoa 57 (`MediStockId = 810`).
+Khi Bác sĩ gửi ảnh/bảng báo cáo đường huyết và nhắc **"thợ cho đường huyết"**, Agent kích hoạt tự động 3 tác vụ theo đúng **Thứ tự Tuần tự (Sequential Pipeline)**:
+1. **Bước 1 (Bắt buộc chạy trước) - Tờ điều trị (`HisTrackingCreator.exe`)**: Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
+2. **Bước 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`)**: Chỉ định xét nghiệm ĐMMM tại giường **`BM02426`** cho các mốc giờ (mốc 06:00 tự động tính ngày hôm sau).
+3. **Bước 3 (Bắt buộc chạy sau cùng) - Kê đơn Insulin (`HisAutoPrescribe.exe`)**: Kê đơn tiêm Insulin từ Kho Tủ Trực Khoa 57 (`MediStockId = 810`).
+   * **Quy tắc lùi 5 phút (Timing Offset Rule)**: Kê đơn Insulin thực hiện SAU KHI ĐÃ CÓ TỜ ĐIỀU TRỊ. Thời gian y lệnh thuốc (`InstructionTime`) tự động **lùi +5 phút sau thời điểm Tờ điều trị** (`InstructionTime = TrackingTime + 5 phút`, vd: Tờ điều trị 17:00 $\rightarrow$ Đơn thuốc 17:05) để chống nhảy ngược vào tờ điều trị buổi sáng.
    * Ký hiệu viết tắt: `R` (Actrapid), `L` (Lantus), `M` (Mixtard).
    * Ví dụ: `8R` = 8 UI Actrapid, `12L` = 12 UI Lantus.
 
