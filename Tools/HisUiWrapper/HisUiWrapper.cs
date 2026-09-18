@@ -62,14 +62,13 @@ namespace HisUiWrapper
             }
 
             Console.WriteLine("=============================================================================");
-            Console.WriteLine(" ⚡ HIS UI INTERACTION WRAPPER & RECORDER (LEARN CLINICAL UI WORKFLOW)        ");
+            Console.WriteLine(" ⚡ HIS & EMR UI INTERACTION WRAPPER (LEARN CLINICAL UI WORKFLOW)            ");
             Console.WriteLine("=============================================================================");
 
             // 3. Check / Launch HIS
             string hisPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HIS.exe");
             if (!File.Exists(hisPath))
             {
-                // check parent or current directory
                 hisPath = Path.GetFullPath("HIS.exe");
             }
 
@@ -105,6 +104,7 @@ namespace HisUiWrapper
 
             if (recordAll)
             {
+                engine.RecordAllApps = true;
                 Console.WriteLine("[*] Chế độ: Ghi nhận TẤT CẢ ứng dụng trên màn hình (--all)");
             }
             else if (explicitPid > 0)
@@ -117,16 +117,23 @@ namespace HisUiWrapper
                 engine.RefreshHisPids();
                 if (engine.TargetPids.Count > 0)
                 {
-                    Console.WriteLine("[+] Đã tự động kết nối vào các tiến trình HIS/EMR: " + 
-                        string.Join(", ", new List<uint>(engine.TargetPids).ConvertAll(p => p.ToString()).ToArray()));
+                    var pList = new List<string>();
+                    foreach (uint pid in engine.TargetPids)
+                    {
+                        string pName = HisUiaInspector.GetProcessNameByPid(pid);
+                        pList.Add(string.Format("{0} (PID: {1})", pName, pid));
+                    }
+                    Console.WriteLine("[+] Đã tự động kết nối vào các tiến trình HIS / EMR: " + string.Join(", ", pList.ToArray()));
                 }
                 else
                 {
-                    Console.WriteLine("[?] Chưa thấy tiến trình HIS.exe đang chạy. Đang ở chế độ lắng nghe sẵn sàng...");
+                    Console.WriteLine("[?] Chưa thấy HIS hoặc EMR đang chạy. Đang ở chế độ lắng nghe sẵn sàng (khi mở HIS/EMR sẽ tự bắt)...");
                 }
             }
 
             Console.WriteLine("[+] Tệp nhật ký JSONL: " + writer.JsonlPath);
+            Console.WriteLine("[+] Hỗ trợ ghi nhận liền mạch từ HIS sang EMR:");
+            Console.WriteLine("    - Khi mở EMR từ HIS: Bộ ghi tự động nhận diện và ghi nhận tiếp tục");
             Console.WriteLine("[+] Phím tắt điều khiển:");
             Console.WriteLine("    - F9 : Tạm dừng / Tiếp tục ghi (Pause / Resume)");
             Console.WriteLine("    - F10: Đánh dấu mốc thao tác (Add Checkpoint Note)");
@@ -134,6 +141,11 @@ namespace HisUiWrapper
             Console.WriteLine("=============================================================================");
 
             engine.Start();
+
+            engine.OnProcessDiscovered += (pName, pId) =>
+            {
+                Console.WriteLine(string.Format("[*] TỰ ĐỘNG PHÁT HIỆN TIẾN TRÌNH MỚI: {0} (PID: {1})", pName, pId));
+            };
 
             // Print real-time console feed
             engine.OnActionRecorded += ev =>
@@ -174,12 +186,12 @@ namespace HisUiWrapper
 
         private static void PrintHelp()
         {
-            Console.WriteLine("Cú pháp sử dụng HisUiWrapper:");
-            Console.WriteLine("  HisUiWrapper.exe               : Chạy bộ ghi với giao diện HUD nổi, tự động dò tìm HIS.exe");
+            Console.WriteLine("Cú pháp sử dụng HisUiWrapper (HIS & EMR):");
+            Console.WriteLine("  HisUiWrapper.exe               : Chạy bộ ghi với giao diện HUD nổi, tự động dò tìm HIS & EMR");
             Console.WriteLine("  HisUiWrapper.exe --launch      : Khởi chạy HIS.exe và tự động bắt đầu ghi thao tác");
             Console.WriteLine("  HisUiWrapper.exe --console     : Chạy chế độ Console dòng lệnh (không hiện HUD)");
             Console.WriteLine("  HisUiWrapper.exe --pid <PID>   : Gắn trực tiếp vào tiến trình có mã PID cụ thể");
-            Console.WriteLine("  HisUiWrapper.exe --all         : Ghi nhận toàn bộ thao tác màn hình (không giới hạn HIS)");
+            Console.WriteLine("  HisUiWrapper.exe --all         : Ghi nhận toàn bộ thao tác màn hình (không giới hạn HIS/EMR)");
             Console.WriteLine("  HisUiWrapper.exe --help        : Hiển thị hướng dẫn này");
         }
     }

@@ -9,6 +9,9 @@ namespace HisUiWrapper
 {
     public class UiElementInfo
     {
+        public string AppBadge { get; set; } // "HIS", "EMR", etc.
+        public string ProcessName { get; set; }
+        public uint ProcessId { get; set; }
         public string AutomationId { get; set; }
         public string Name { get; set; }
         public string ControlType { get; set; }
@@ -30,9 +33,10 @@ namespace HisUiWrapper
 
         public override string ToString()
         {
+            string appPart = !string.IsNullOrEmpty(AppBadge) ? "[" + AppBadge + "]" : "";
             string idPart = !string.IsNullOrEmpty(AutomationId) ? "[" + AutomationId + "]" : "";
             string namePart = !string.IsNullOrEmpty(Name) ? "\"" + Name + "\"" : "";
-            return string.Format("{0} {1} {2}", ControlType, idPart, namePart).Trim();
+            return string.Format("{0} {1} {2} {3}", appPart, ControlType, idPart, namePart).Trim();
         }
     }
 
@@ -63,6 +67,48 @@ namespace HisUiWrapper
             public int x;
             public int y;
             public POINT(int x, int y) { this.x = x; this.y = y; }
+        }
+
+        private static readonly Dictionary<uint, string> _procNameCache = new Dictionary<uint, string>();
+
+        public static string GetProcessNameByPid(uint pid)
+        {
+            if (pid == 0) return string.Empty;
+            lock (_procNameCache)
+            {
+                string name;
+                if (_procNameCache.TryGetValue(pid, out name)) return name;
+
+                try
+                {
+                    using (var p = Process.GetProcessById((int)pid))
+                    {
+                        name = p.ProcessName;
+                        _procNameCache[pid] = name;
+                        return name;
+                    }
+                }
+                catch
+                {
+                    _procNameCache[pid] = string.Empty;
+                    return string.Empty;
+                }
+            }
+        }
+
+        public static string DetermineAppBadge(string procName)
+        {
+            if (string.IsNullOrEmpty(procName)) return "HIS";
+            if (procName.IndexOf("EMR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                procName.IndexOf("EHR", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "EMR";
+            }
+            if (procName.IndexOf("HIS", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "HIS";
+            }
+            return procName;
         }
 
         public static string GetHwndTitle(IntPtr hWnd)
@@ -106,6 +152,11 @@ namespace HisUiWrapper
             // 1. Win32 Native HWND Info
             IntPtr rawHwnd = WindowFromPoint(new POINT(screenX, screenY));
             info.ElementHwnd = rawHwnd;
+
+            uint pid = GetHwndPid(rawHwnd);
+            info.ProcessId = pid;
+            info.ProcessName = GetProcessNameByPid(pid);
+            info.AppBadge = DetermineAppBadge(info.ProcessName);
 
             IntPtr rootHwnd = GetAncestor(rawHwnd, GA_ROOT);
             if (rootHwnd == IntPtr.Zero) rootHwnd = rawHwnd;
@@ -170,6 +221,10 @@ namespace HisUiWrapper
                         info.TopWindowHwnd = rootHwnd;
                         info.TopWindowText = GetHwndTitle(rootHwnd);
                         info.TopWindowClass = GetHwndClass(rootHwnd);
+                        uint pid = GetHwndPid(rootHwnd);
+                        info.ProcessId = pid;
+                        info.ProcessName = GetProcessNameByPid(pid);
+                        info.AppBadge = DetermineAppBadge(info.ProcessName);
                     }
                 }
             }
@@ -192,6 +247,13 @@ namespace HisUiWrapper
                 try
                 {
                     info.ElementHwnd = new IntPtr(el.Current.NativeWindowHandle);
+                    if (info.ProcessId == 0 && info.ElementHwnd != IntPtr.Zero)
+                    {
+                        uint pid = GetHwndPid(info.ElementHwnd);
+                        info.ProcessId = pid;
+                        info.ProcessName = GetProcessNameByPid(pid);
+                        info.AppBadge = DetermineAppBadge(info.ProcessName);
+                    }
                 }
                 catch {}
 

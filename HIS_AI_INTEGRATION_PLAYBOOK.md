@@ -1559,34 +1559,41 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 
 ---
 
-## 28. QUY CHUẨN HIS UI WRAPPER & ACTION RECORDER (BỘ GHI & HỌC THAO TÁC UI LÂM SÀNG)
+## 28. QUY CHUẨN HIS & EMR UI WRAPPER (BỘ GHI & HỌC THAO TÁC UI LIÊN ỨNG DỤNG)
 
 ### 28.1. Bối Cảnh & Mục Tiêu
-- **Mục tiêu**: Bọc lấy phần mềm `HIS.exe` (WinForms + DevExpress v15.2) để ghi nhận toàn bộ thao tác click chuột, gõ phím, nhập liệu văn bản của Bác sĩ / Điều dưỡng nhằm giúp AI Agent học được chính xác quy trình thao tác lâm sàng trên giao diện thật.
+- **Mục tiêu**: Bọc lấy cả phần mềm chính `HIS.exe` (WinForms + DevExpress v15.2) và phần mềm con Bệnh án điện tử `ConnectToEMR.exe` / `EMR.exe` / `EHR.exe` (WPF) để ghi nhận toàn bộ thao tác click chuột, gõ phím, nhập liệu văn bản của Bác sĩ / Điều dưỡng.
+- **Quy trình thực tế**: Thường Bác sĩ mở bệnh nhân trên HIS, sau đó bấm nút mở EMR để ký số, làm biên bản hội chẩn hoặc hoàn thiện hồ sơ bệnh án. Wrapper theo vết liền mạch giữa 2 ứng dụng mà không bị đứt đoạn.
 - **Vị trí công cụ**:
   - Mã nguồn: `Tools\HisUiWrapper\`
   - Thực thi: `HisUiWrapper.exe` (hoặc khởi động nhanh qua `HisUiWrapper.bat`).
   - Dữ liệu xuất: `logs\ui_recordings\session_YYYYMMDD_HHmmss.*`.
 
 ### 28.2. Các Đặc Tính Cốt Lõi (Core Features)
-1. **Lọc Bảo Mật Tuyệt Đối (Zero Privacy Leak)**:
+1. **Tự Động Bắt Tiến Trình Động (Dynamic Process Auto-Enrollment)**:
+   - Khi EMR được bật lên từ HIS (hoặc bất kỳ lúc nào trong phiên), hệ thống hook kiểm tra tên tiến trình trên mỗi lần click/phím.
+   - Nếu tiến trình thuộc họ `HIS`, `ConnectToEMR`, `EMR`, `EHR`, `Inventec.*`, hệ thống tự động ghi nhận ngay lập tức mà không cần khởi động lại.
+2. **Lọc Bảo Mật Tuyệt Đối (Zero Privacy Leak)**:
    - Dùng hook cấp thấp `WH_MOUSE_LL` (14) và `WH_KEYBOARD_LL` (13).
-   - Kiểm tra `PID` của cửa sổ/control mục tiêu; chỉ ghi nhận khi thao tác rơi vào tiến trình `HIS.exe` hoặc `ConnectToEMR.exe`. Mọi ứng dụng ngoài (Zalo, Trình duyệt, Word, Excel...) bị bỏ qua ngay lập tức.
-2. **Trích Xuất Sâu UI Automation (.NET UIA)**:
-   - Thay vì tọa độ tuyệt đối dễ vỡ khi đổi độ phân giải màn hình, công cụ trích xuất:
-     * `AutomationId`: Định danh điều khiển (e.g. `btnSave`, `btnKeDonThuoc`, `txtContent`, `btnTuTruc`).
+   - Chỉ ghi nhận khi thao tác rơi vào tiến trình `HIS.exe` hoặc `ConnectToEMR.exe`. Mọi ứng dụng ngoài (Zalo, Trình duyệt, Word, Excel...) bị bỏ qua ngay lập tức.
+3. **Trích Xuất Sâu UI Automation (.NET UIA)**:
+   - Hỗ trợ cả control DevExpress WinForms (`HIS`) và control WPF XAML (`EMR`):
+     * `AutomationId`: Định danh điều khiển (e.g. `btnSave`, `btnKeDonThuoc`, `txtContent` trên HIS; `0` [HÀNH CHÍNH], `1` [HỎI BỆNH], `butMauPhieu` trên EMR).
      * `ControlType`: Phân loại UI (`Button`, `Edit`, `CheckBox`, `Pane`...).
      * `Name`: Nhãn text của điều khiển (e.g. `Lưu (Ctrl S)`, `Mới (Ctrl N)`).
      * `RelPctX% / RelPctY%`: Tọa độ click tương đối bên trong phần tử.
      * `HierarchyPath`: Đường dẫn phả hệ cửa sổ cha.
-3. **Gom Cụm Gõ Phím Thông Minh (Smart Typing Accumulator)**:
+4. **Phân Định Ứng Dụng Nguồn (`AppBadge`)**:
+   - Gắn nhãn rõ ràng 🏥 `[HIS]` hay 📋 `[EMR]` trong bảng Markdown và file JSONL để AI hiểu chính xác bước nào thực hiện trên phần mềm nào.
+5. **Gom Cụm Gõ Phím Thông Minh (Smart Typing Accumulator)**:
    - Tự động gom các phím gõ liên tiếp vào ô nhập liệu thành một thao tác `TextInput` hoàn chỉnh khi chuyển control hoặc sau 1000ms không gõ.
    - Nhận diện phím tắt hệ thống (`F1` - `F12`, `Ctrl+S`, `Ctrl+N`, `Enter`, `Tab`).
-4. **Giao Diện Nổi Floating HUD & Phím Tắt**:
+6. **Giao Diện Nổi Floating HUD & Phím Tắt**:
    - HUD bán trong suốt góc trên màn hình (`TopMost`, không chiếm focus).
    - Phím tắt: **`F9`** (Tạm dừng / Tiếp tục), **`F10`** (Đánh dấu mốc ghi chú), **`F11`** (Hoàn tất phiên và xuất báo cáo).
-5. **Đầu Ra 3 Tầng**:
+7. **Đầu Ra 3 Tầng**:
    - `session_YYYYMMDD_HHmmss.jsonl`: Dữ liệu máy cho AI ingest.
-   - `session_YYYYMMDD_HHmmss_workflow.md`: Quy trình diễn giải tiếng Việt có cấu trúc.
+   - `session_YYYYMMDD_HHmmss_workflow.md`: Quy trình diễn giải tiếng Việt có cấu trúc (gắn nhãn `[HIS]` / `[EMR]`).
    - `session_YYYYMMDD_HHmmss_replay.cs`: Mã C# tự động phát lại (UIA Replay Recipe).
+
 

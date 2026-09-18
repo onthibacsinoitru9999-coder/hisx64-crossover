@@ -11,14 +11,14 @@ namespace HisUiWrapper
         private Label _lblTitle;
         private Label _lblStatus;
         private Label _lblStepCount;
-        private Label _lblLastAction;
+        private Label _lblTargetApp;
         private Label _lblTargetWindow;
+        private Label _lblLastAction;
         private Button _btnToggle;
         private Button _btnCheckpoint;
         private Button _btnFinish;
         private Button _btnClose;
         private Panel _headerPanel;
-        private Panel _contentPanel;
 
         private readonly HisUiHookEngine _engine;
         private readonly HisUiSessionWriter _writer;
@@ -62,11 +62,12 @@ namespace HisUiWrapper
             _engine.OnRecordingStateChanged += Engine_OnRecordingStateChanged;
             _engine.OnStopRequested += Engine_OnStopRequested;
             _engine.OnNoteRequested += Engine_OnNoteRequested;
+            _engine.OnProcessDiscovered += Engine_OnProcessDiscovered;
         }
 
         private void InitializeComponents()
         {
-            this.Size = new Size(380, 160);
+            this.Size = new Size(400, 165);
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.Manual;
             this.TopMost = true;
@@ -74,9 +75,9 @@ namespace HisUiWrapper
             this.ForeColor = Color.White;
             this.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
             this.ShowInTaskbar = true;
-            this.Text = "HIS UI Interaction Recorder";
+            this.Text = "HIS & EMR UI Interaction Recorder";
 
-            // Position at top-right corner with 20px padding
+            // Position at top-right corner with 25px padding
             Rectangle screen = Screen.PrimaryScreen.WorkingArea;
             this.Location = new Point(screen.Right - this.Width - 25, 25);
 
@@ -91,7 +92,7 @@ namespace HisUiWrapper
 
             _lblTitle = new Label
             {
-                Text = "⚡ HIS UI RECORDER (AI LEARN)",
+                Text = "⚡ HIS & EMR UI RECORDER (AI LEARN)",
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 210, 255),
                 AutoSize = true,
@@ -114,13 +115,6 @@ namespace HisUiWrapper
             _headerPanel.Controls.Add(_lblTitle);
             _headerPanel.Controls.Add(_btnClose);
 
-            // Content Panel
-            _contentPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(10)
-            };
-
             _lblStatus = new Label
             {
                 Text = "🔴 ĐANG GHI (REC)",
@@ -136,26 +130,35 @@ namespace HisUiWrapper
                 ForeColor = Color.FromArgb(180, 180, 180),
                 Font = new Font("Segoe UI", 9F),
                 AutoSize = true,
-                Location = new Point(160, 38)
+                Location = new Point(155, 38)
+            };
+
+            _lblTargetApp = new Label
+            {
+                Text = "[HIS + EMR]",
+                ForeColor = Color.FromArgb(150, 220, 100),
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(250, 38)
             };
 
             _lblTargetWindow = new Label
             {
-                Text = "Cửa sổ: (Đang chờ thao tác...)",
-                ForeColor = Color.FromArgb(160, 160, 160),
+                Text = "Cửa sổ: (Đang chờ thao tác trên HIS/EMR...)",
+                ForeColor = Color.FromArgb(170, 170, 170),
                 Font = new Font("Segoe UI", 8F),
                 Location = new Point(10, 60),
-                Size = new Size(355, 18),
+                Size = new Size(380, 18),
                 AutoEllipsis = true
             };
 
             _lblLastAction = new Label
             {
-                Text = "Lệnh: Sẵn sàng ghi nhận click / phím trong HIS",
+                Text = "Sẵn sàng ghi nhận click / phím trong HIS & EMR",
                 ForeColor = Color.FromArgb(240, 240, 240),
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
                 Location = new Point(10, 80),
-                Size = new Size(355, 34),
+                Size = new Size(380, 36),
                 AutoEllipsis = true
             };
 
@@ -163,8 +166,8 @@ namespace HisUiWrapper
             _btnToggle = new Button
             {
                 Text = "⏸ Tạm dừng (F9)",
-                Size = new Size(115, 28),
-                Location = new Point(10, 120),
+                Size = new Size(120, 28),
+                Location = new Point(10, 124),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(50, 50, 56),
                 ForeColor = Color.White,
@@ -177,8 +180,8 @@ namespace HisUiWrapper
             _btnCheckpoint = new Button
             {
                 Text = "📌 Đánh dấu (F10)",
-                Size = new Size(115, 28),
-                Location = new Point(130, 120),
+                Size = new Size(120, 28),
+                Location = new Point(140, 124),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(50, 50, 56),
                 ForeColor = Color.White,
@@ -191,8 +194,8 @@ namespace HisUiWrapper
             _btnFinish = new Button
             {
                 Text = "💾 Hoàn tất (F11)",
-                Size = new Size(115, 28),
-                Location = new Point(250, 120),
+                Size = new Size(120, 28),
+                Location = new Point(270, 124),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 122, 204),
                 ForeColor = Color.White,
@@ -205,6 +208,7 @@ namespace HisUiWrapper
             this.Controls.Add(_headerPanel);
             this.Controls.Add(_lblStatus);
             this.Controls.Add(_lblStepCount);
+            this.Controls.Add(_lblTargetApp);
             this.Controls.Add(_lblTargetWindow);
             this.Controls.Add(_lblLastAction);
             this.Controls.Add(_btnToggle);
@@ -230,11 +234,35 @@ namespace HisUiWrapper
                 this.BeginInvoke((MethodInvoker)delegate
                 {
                     _lblStepCount.Text = string.Format("{0} thao tác", ev.StepIndex);
+
+                    string app = ev.AppBadge;
+                    if (app == "EMR")
+                    {
+                        _lblTargetApp.Text = "📋 EMR";
+                        _lblTargetApp.ForeColor = Color.FromArgb(220, 140, 255);
+                    }
+                    else
+                    {
+                        _lblTargetApp.Text = "🏥 HIS";
+                        _lblTargetApp.ForeColor = Color.FromArgb(0, 210, 255);
+                    }
+
                     if (ev.Element != null && !string.IsNullOrEmpty(ev.Element.TopWindowText))
                     {
-                        _lblTargetWindow.Text = "Cửa sổ: " + ev.Element.TopWindowText;
+                        _lblTargetWindow.Text = string.Format("[{0}] Cửa sổ: {1}", app, ev.Element.TopWindowText);
                     }
                     _lblLastAction.Text = ev.ToString();
+                });
+            }
+        }
+
+        private void Engine_OnProcessDiscovered(string procName, uint pid)
+        {
+            if (this.IsHandleCreated)
+            {
+                this.BeginInvoke((MethodInvoker)delegate
+                {
+                    _lblLastAction.Text = string.Format("[+] Tự động phát hiện & gắn kết: {0} (PID: {1})", procName, pid);
                 });
             }
         }
@@ -280,9 +308,9 @@ namespace HisUiWrapper
         private void PromptCheckpointNote()
         {
             string note = ShowCustomInputBox(
-                "Nhập nội dung ghi chú cho bước này (ví dụ: 'Bắt đầu chọn đơn thuốc mẫu'):",
+                "Nhập nội dung ghi chú cho bước này (ví dụ: 'Mở EMR từ HIS và chọn mẫu biên bản'):",
                 "Ghi Chú Mốc Thao Tác (F10)",
-                "Mốc: Thao tác quan trọng");
+                "Mốc: Chuyển sang thao tác EMR");
 
             if (!string.IsNullOrEmpty(note))
             {
@@ -323,7 +351,7 @@ namespace HisUiWrapper
             _writer.FinalizeSession();
 
             MessageBox.Show(
-                string.Format("Đã hoàn tất phiên ghi thao tác giao diện HIS!\n\n" +
+                string.Format("Đã hoàn tất phiên ghi thao tác giao diện HIS & EMR!\n\n" +
                               "- Tệp JSONL: {0}\n" +
                               "- Tệp Quy trình MD: {1}\n" +
                               "- Tệp Mã Replay: {2}\n\n" +
@@ -331,7 +359,7 @@ namespace HisUiWrapper
                     System.IO.Path.GetFileName(_writer.JsonlPath),
                     System.IO.Path.GetFileName(_writer.MarkdownPath),
                     System.IO.Path.GetFileName(_writer.ReplayCodePath)),
-                "HIS UI Recorder - Hoàn Tất",
+                "HIS & EMR UI Recorder - Hoàn Tất",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
 

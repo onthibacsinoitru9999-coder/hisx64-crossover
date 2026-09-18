@@ -28,24 +28,30 @@ namespace HisUiWrapper
         public string Note { get; set; }
         public UiElementInfo Element { get; set; }
 
+        public string AppBadge
+        {
+            get { return Element != null && !string.IsNullOrEmpty(Element.AppBadge) ? Element.AppBadge : "HIS"; }
+        }
+
         public override string ToString()
         {
+            string appPart = "[" + AppBadge + "]";
             switch (Type)
             {
                 case ActionType.Click:
                 case ActionType.DoubleClick:
                 case ActionType.RightClick:
-                    return string.Format("[{0}] {1} on '{2}' ({3}) in '{4}'",
-                        Type, Button, Element.Name, Element.AutomationId, Element.TopWindowText);
+                    return string.Format("{0} [{1}] {2} on '{3}' ({4}) in '{5}'",
+                        appPart, Type, Button, Element.Name, Element.AutomationId, Element.TopWindowText);
                 case ActionType.TextInput:
-                    return string.Format("[Type] \"{0}\" into '{1}' ({2})",
-                        TextValue, Element.Name, Element.AutomationId);
+                    return string.Format("{0} [Type] \"{1}\" into '{2}' ({3})",
+                        appPart, TextValue, Element.Name, Element.AutomationId);
                 case ActionType.KeyPress:
-                    return string.Format("[Key] {0} in '{1}'", KeyText, Element.TopWindowText);
+                    return string.Format("{0} [Key] {1} in '{2}'", appPart, KeyText, Element.TopWindowText);
                 case ActionType.CheckpointNote:
                     return string.Format("[Note] {0}", Note);
                 default:
-                    return string.Format("[{0}]", Type);
+                    return string.Format("{0} [{1}]", appPart, Type);
             }
         }
     }
@@ -104,9 +110,6 @@ namespace HisUiWrapper
         [DllImport("user32.dll")]
         private static extern bool GetKeyboardState(byte[] lpKeyState);
 
-        [DllImport("user32.dll")]
-        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
-
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT
         {
@@ -136,6 +139,7 @@ namespace HisUiWrapper
 
         // State & Configuration
         public HashSet<uint> TargetPids { get; private set; }
+        public bool RecordAllApps { get; set; }
         public bool IsRecording { get; set; }
         private int _stepCounter = 0;
 
@@ -160,6 +164,7 @@ namespace HisUiWrapper
         public event Action<bool> OnRecordingStateChanged;
         public event Action OnStopRequested;
         public event Action OnNoteRequested;
+        public event Action<string, uint> OnProcessDiscovered;
 
         public HisUiHookEngine()
         {
@@ -179,13 +184,23 @@ namespace HisUiWrapper
         {
             try
             {
-                foreach (var p in Process.GetProcessesByName("HIS"))
+                // Scan all processes with HIS, EMR, EHR, or Inventec
+                foreach (var p in Process.GetProcesses())
                 {
-                    TargetPids.Add((uint)p.Id);
-                }
-                foreach (var p in Process.GetProcessesByName("ConnectToEMR"))
-                {
-                    TargetPids.Add((uint)p.Id);
+                    try
+                    {
+                        string name = p.ProcessName;
+                        if (name.Equals("HIS", StringComparison.OrdinalIgnoreCase) ||
+                            name.IndexOf("EMR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            name.IndexOf("ConnectToEMR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            name.IndexOf("EHR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            name.StartsWith("HIS.Desktop", StringComparison.OrdinalIgnoreCase) ||
+                            name.StartsWith("Inventec.", StringComparison.OrdinalIgnoreCase))
+                        {
+                            TargetPids.Add((uint)p.Id);
+                        }
+                    }
+                    catch {}
                 }
             }
             catch {}
@@ -239,15 +254,38 @@ namespace HisUiWrapper
                 Timestamp = DateTime.Now,
                 Type = ActionType.CheckpointNote,
                 Note = note,
-                Element = new UiElementInfo { TopWindowText = "Ghi chú thủ công" }
+                Element = new UiElementInfo { TopWindowText = "Ghi chú thủ công", AppBadge = "NOTE" }
             };
             FireActionRecorded(ev);
         }
 
         private bool IsPidAllowed(uint pid)
         {
-            if (TargetPids.Count == 0) return true; // allow all if no target specified
-            return TargetPids.Contains(pid);
+            if (pid == 0) return false;
+            if (RecordAllApps) return true;
+            if (TargetPids.Contains(pid)) return true;
+
+            // Dynamic check: Did user just open EMR or a new HIS child window?
+            string procName = HisUiaInspector.GetProcessNameByPid(pid);
+            if (!string.IsNullOrEmpty(procName))
+            {
+                if (procName.Equals("HIS", StringComparison.OrdinalIgnoreCase) ||
+                    procName.IndexOf("EMR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    procName.IndexOf("ConnectToEMR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    procName.IndexOf("EHR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    procName.StartsWith("HIS.Desktop", StringComparison.OrdinalIgnoreCase) ||
+                    procName.StartsWith("Inventec.", StringComparison.OrdinalIgnoreCase))
+                {
+                    TargetPids.Add(pid);
+                    if (OnProcessDiscovered != null)
+                    {
+                        OnProcessDiscovered(procName, pid);
+                    }
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -263,7 +301,7 @@ namespace HisUiWrapper
                     IntPtr hwnd = HisUiaInspector.WindowFromPoint(new HisUiaInspector.POINT(pt.x, pt.y));
                     uint pid = HisUiaInspector.GetHwndPid(hwnd);
 
-                    // Privacy check: only process if inside HIS
+                    // Privacy check: only process if inside HIS or EMR
                     if (IsPidAllowed(pid))
                     {
                         FlushTypingBuffer();
@@ -284,7 +322,7 @@ namespace HisUiWrapper
                             }
                             else
                             {
-                                // Detect double click manually within 400ms & 4px
+                                // Detect double click manually within 400ms & 5px
                                 double elapsed = (DateTime.Now - _lastLeftDown).TotalMilliseconds;
                                 if (elapsed < 400 && Math.Abs(pt.x - _lastLeftDownPt.x) < 5 && Math.Abs(pt.y - _lastLeftDownPt.y) < 5)
                                 {
@@ -330,7 +368,7 @@ namespace HisUiWrapper
                     var kb = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
                     int vk = (int)kb.vkCode;
 
-                    // Global hotkeys (always active even outside HIS)
+                    // Global hotkeys (always active even outside HIS/EMR)
                     if (vk == VK_F9)
                     {
                         ToggleRecording();

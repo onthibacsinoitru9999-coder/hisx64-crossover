@@ -67,7 +67,7 @@ namespace HisUiWrapper
         private void GenerateMarkdownSummary()
         {
             var sb = new StringBuilder();
-            sb.AppendLine("# Nhật Ký Thao Tác Giao Diện HIS (Learned UI Workflow)");
+            sb.AppendLine("# Nhật Ký Thao Tác Giao Diện HIS & EMR (Learned UI Workflow)");
             sb.AppendLine();
             sb.AppendLine(string.Format("- **Phiên ghi (Session ID)**: `{0}`", SessionId));
             sb.AppendLine(string.Format("- **Bắt đầu**: `{0:yyyy-MM-dd HH:mm:ss}`", StartTime));
@@ -83,33 +83,36 @@ namespace HisUiWrapper
             int stepNo = 1;
             foreach (var ev in _events)
             {
-                string win = !string.IsNullOrEmpty(ev.Element.TopWindowText) ? ev.Element.TopWindowText : "Cửa sổ HIS";
+                string badge = ev.AppBadge == "EMR" ? "📋 **[EMR]**" : "🏥 **[HIS]**";
+                if (ev.Type == ActionType.CheckpointNote) badge = "📌 **[NOTE]**";
+
+                string win = !string.IsNullOrEmpty(ev.Element.TopWindowText) ? ev.Element.TopWindowText : "Cửa sổ làm việc";
                 string targetDesc = FormatTargetDescription(ev.Element);
 
                 switch (ev.Type)
                 {
                     case ActionType.Click:
-                        sb.AppendLine(string.Format("{0}. **Click** `{1}` trên *\"{2}\"* {3}",
-                            stepNo++, targetDesc, win, FormatOffset(ev.Element)));
+                        sb.AppendLine(string.Format("{0}. {1} **Click** `{2}` trên *\"{3}\"* {4}",
+                            stepNo++, badge, targetDesc, win, FormatOffset(ev.Element)));
                         break;
                     case ActionType.DoubleClick:
-                        sb.AppendLine(string.Format("{0}. **Double Click** `{1}` trên *\"{2}\"*",
-                            stepNo++, targetDesc, win));
+                        sb.AppendLine(string.Format("{0}. {1} **Double Click** `{2}` trên *\"{3}\"*",
+                            stepNo++, badge, targetDesc, win));
                         break;
                     case ActionType.RightClick:
-                        sb.AppendLine(string.Format("{0}. **Click Phải** vào `{1}` trên *\"{2}\"*",
-                            stepNo++, targetDesc, win));
+                        sb.AppendLine(string.Format("{0}. {1} **Click Phải** vào `{2}` trên *\"{3}\"*",
+                            stepNo++, badge, targetDesc, win));
                         break;
                     case ActionType.TextInput:
-                        sb.AppendLine(string.Format("{0}. **Nhập văn bản** `\"{1}\"` vào ô `{2}` trên *\"{3}\"*",
-                            stepNo++, ev.TextValue, targetDesc, win));
+                        sb.AppendLine(string.Format("{0}. {1} **Nhập văn bản** `\"{2}\"` vào ô `{3}` trên *\"{4}\"*",
+                            stepNo++, badge, ev.TextValue, targetDesc, win));
                         break;
                     case ActionType.KeyPress:
-                        sb.AppendLine(string.Format("{0}. **Nhấn phím** `{1}` khi đang ở *\"{2}\"*",
-                            stepNo++, ev.KeyText, win));
+                        sb.AppendLine(string.Format("{0}. {1} **Nhấn phím** `{2}` khi đang ở *\"{3}\"*",
+                            stepNo++, badge, ev.KeyText, win));
                         break;
                     case ActionType.CheckpointNote:
-                        sb.AppendLine(string.Format("> 📌 **Ghi chú mốc**: *{0}*", ev.Note));
+                        sb.AppendLine(string.Format("> {0} *{1}*", badge, ev.Note));
                         break;
                 }
             }
@@ -119,11 +122,12 @@ namespace HisUiWrapper
             sb.AppendLine();
             sb.AppendLine("## 2. Bảng Đối Soát Chi Tiết Từng Phần Tử (UI Automation Elements)");
             sb.AppendLine();
-            sb.AppendLine("| Bước | Thời Gian | Cửa Sổ Cha | Thao Tác | Control Type | AutomationId | Tên Hiển Thị | Tọa Độ Tương Đối |");
-            sb.AppendLine("| :---: | :---: | :--- | :--- | :---: | :--- | :--- | :---: |");
+            sb.AppendLine("| Bước | Ứng Dụng | Thời Gian | Cửa Sổ Cha | Thao Tác | Control Type | AutomationId | Tên Hiển Thị | Tọa Độ Tương Đối |");
+            sb.AppendLine("| :---: | :---: | :---: | :--- | :--- | :---: | :--- | :--- | :---: |");
 
             foreach (var ev in _events)
             {
+                string appStr = ev.AppBadge == "EMR" ? "📋 EMR" : "🏥 HIS";
                 string timeStr = ev.Timestamp.ToString("HH:mm:ss.fff");
                 string winStr = EscapeMd(ev.Element.TopWindowText);
                 string actStr = ev.Type.ToString();
@@ -135,8 +139,8 @@ namespace HisUiWrapper
                 string name = !string.IsNullOrEmpty(ev.Element.Name) ? EscapeMd(Truncate(ev.Element.Name, 30)) : "-";
                 string relCoords = string.Format("{0}%, {1}%", ev.Element.RelPctX, ev.Element.RelPctY);
 
-                sb.AppendLine(string.Format("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |",
-                    ev.StepIndex, timeStr, winStr, actStr, cType, autoId, name, relCoords));
+                sb.AppendLine(string.Format("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |",
+                    ev.StepIndex, appStr, timeStr, winStr, actStr, cType, autoId, name, relCoords));
             }
 
             try
@@ -150,7 +154,7 @@ namespace HisUiWrapper
         {
             var sb = new StringBuilder();
             sb.AppendLine("// =============================================================================");
-            sb.AppendLine("// HIS UI AUTOMATION REPLAY RECIPE - AUTO GENERATED BY HIS UI WRAPPER");
+            sb.AppendLine("// HIS & EMR UI AUTOMATION REPLAY RECIPE - AUTO GENERATED BY HIS UI WRAPPER");
             sb.AppendLine(string.Format("// Session: {0} | Created: {1:yyyy-MM-dd HH:mm:ss}", SessionId, DateTime.Now));
             sb.AppendLine("// =============================================================================");
             sb.AppendLine("using System;");
@@ -266,6 +270,7 @@ namespace HisUiWrapper
             sb.Append("{");
             sb.AppendFormat("\"step\":{0},", ev.StepIndex);
             sb.AppendFormat("\"timestamp\":\"{0:yyyy-MM-ddTHH:mm:ss.fff}\",", ev.Timestamp);
+            sb.AppendFormat("\"app\":\"{0}\",", ev.AppBadge);
             sb.AppendFormat("\"type\":\"{0}\",", ev.Type);
             sb.AppendFormat("\"button\":\"{0}\",", ev.Button ?? "");
             sb.AppendFormat("\"keyText\":\"{0}\",", EscapeJson(ev.KeyText));
@@ -275,6 +280,9 @@ namespace HisUiWrapper
             sb.Append("\"element\":{");
             if (ev.Element != null)
             {
+                sb.AppendFormat("\"appBadge\":\"{0}\",", EscapeJson(ev.Element.AppBadge));
+                sb.AppendFormat("\"processName\":\"{0}\",", EscapeJson(ev.Element.ProcessName));
+                sb.AppendFormat("\"processId\":{0},", ev.Element.ProcessId);
                 sb.AppendFormat("\"automationId\":\"{0}\",", EscapeJson(ev.Element.AutomationId));
                 sb.AppendFormat("\"name\":\"{0}\",", EscapeJson(ev.Element.Name));
                 sb.AppendFormat("\"controlType\":\"{0}\",", EscapeJson(ev.Element.ControlType));
