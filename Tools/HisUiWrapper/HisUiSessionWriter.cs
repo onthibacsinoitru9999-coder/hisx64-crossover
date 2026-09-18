@@ -86,30 +86,37 @@ namespace HisUiWrapper
                 string badge = ev.AppBadge == "EMR" ? "📋 **[EMR]**" : "🏥 **[HIS]**";
                 if (ev.Type == ActionType.CheckpointNote) badge = "📌 **[NOTE]**";
 
+                string delayTag = string.Empty;
+                if (ev.DelayMs > 800)
+                {
+                    delayTag = string.Format("⏱️ *(Chờ: {0})* ", ev.DelayFormatted);
+                }
+
                 string win = !string.IsNullOrEmpty(ev.Element.TopWindowText) ? ev.Element.TopWindowText : "Cửa sổ làm việc";
                 string targetDesc = FormatTargetDescription(ev.Element);
+                string coordsDesc = FormatCoordinates(ev.Element);
 
                 switch (ev.Type)
                 {
                     case ActionType.Click:
-                        sb.AppendLine(string.Format("{0}. {1} **Click** `{2}` trên *\"{3}\"* {4}",
-                            stepNo++, badge, targetDesc, win, FormatOffset(ev.Element)));
+                        sb.AppendLine(string.Format("{0}. {1} {2}**Click** `{3}` trên *\"{4}\"* {5}",
+                            stepNo++, badge, delayTag, targetDesc, win, coordsDesc));
                         break;
                     case ActionType.DoubleClick:
-                        sb.AppendLine(string.Format("{0}. {1} **Double Click** `{2}` trên *\"{3}\"*",
-                            stepNo++, badge, targetDesc, win));
+                        sb.AppendLine(string.Format("{0}. {1} {2}**Double Click** `{3}` trên *\"{4}\"* {5}",
+                            stepNo++, badge, delayTag, targetDesc, win, coordsDesc));
                         break;
                     case ActionType.RightClick:
-                        sb.AppendLine(string.Format("{0}. {1} **Click Phải** vào `{2}` trên *\"{3}\"*",
-                            stepNo++, badge, targetDesc, win));
+                        sb.AppendLine(string.Format("{0}. {1} {2}**Click Phải** vào `{3}` trên *\"{4}\"* {5}",
+                            stepNo++, badge, delayTag, targetDesc, win, coordsDesc));
                         break;
                     case ActionType.TextInput:
-                        sb.AppendLine(string.Format("{0}. {1} **Nhập văn bản** `\"{2}\"` vào ô `{3}` trên *\"{4}\"*",
-                            stepNo++, badge, ev.TextValue, targetDesc, win));
+                        sb.AppendLine(string.Format("{0}. {1} {2}**Nhập văn bản** `\"{3}\"` vào ô `{4}` trên *\"{5}\"*",
+                            stepNo++, badge, delayTag, ev.TextValue, targetDesc, win));
                         break;
                     case ActionType.KeyPress:
-                        sb.AppendLine(string.Format("{0}. {1} **Nhấn phím** `{2}` khi đang ở *\"{3}\"*",
-                            stepNo++, badge, ev.KeyText, win));
+                        sb.AppendLine(string.Format("{0}. {1} {2}**Nhấn phím** `{3}` khi đang ở *\"{4}\"*",
+                            stepNo++, badge, delayTag, ev.KeyText, win));
                         break;
                     case ActionType.CheckpointNote:
                         sb.AppendLine(string.Format("> {0} *{1}*", badge, ev.Note));
@@ -120,15 +127,18 @@ namespace HisUiWrapper
             sb.AppendLine();
             sb.AppendLine("---");
             sb.AppendLine();
-            sb.AppendLine("## 2. Bảng Đối Soát Chi Tiết Từng Phần Tử (UI Automation Elements)");
+            sb.AppendLine("## 2. Bảng Đối Soát Toàn Diện: Tọa Độ, Thời Gian Chờ & UI Elements");
             sb.AppendLine();
-            sb.AppendLine("| Bước | Ứng Dụng | Thời Gian | Cửa Sổ Cha | Thao Tác | Control Type | AutomationId | Tên Hiển Thị | Tọa Độ Tương Đối |");
-            sb.AppendLine("| :---: | :---: | :---: | :--- | :--- | :---: | :--- | :--- | :---: |");
+            sb.AppendLine("| Bước | Ứng Dụng | Thời Điểm | Chờ (Delay) | Cửa Sổ Cha | Thao Tác | Control Type | AutomationId | Tên Hiển Thị | Tọa Độ Màn Hình | Tọa Độ Cửa Sổ | Tỷ Lệ Control |");
+            sb.AppendLine("| :---: | :---: | :---: | :---: | :--- | :--- | :---: | :--- | :--- | :---: | :---: | :---: |");
 
             foreach (var ev in _events)
             {
                 string appStr = ev.AppBadge == "EMR" ? "📋 EMR" : "🏥 HIS";
                 string timeStr = ev.Timestamp.ToString("HH:mm:ss.fff");
+                string delayStr = ev.DelayFormatted;
+                if (ev.IsNewWindow) delayStr += " 🚀 [Cửa sổ mới]";
+
                 string winStr = EscapeMd(ev.Element.TopWindowText);
                 string actStr = ev.Type.ToString();
                 if (ev.Type == ActionType.KeyPress) actStr += " (" + ev.KeyText + ")";
@@ -136,11 +146,14 @@ namespace HisUiWrapper
 
                 string cType = ev.Element.ControlType ?? "-";
                 string autoId = !string.IsNullOrEmpty(ev.Element.AutomationId) ? "`" + ev.Element.AutomationId + "`" : "-";
-                string name = !string.IsNullOrEmpty(ev.Element.Name) ? EscapeMd(Truncate(ev.Element.Name, 30)) : "-";
-                string relCoords = string.Format("{0}%, {1}%", ev.Element.RelPctX, ev.Element.RelPctY);
+                string name = !string.IsNullOrEmpty(ev.Element.Name) ? EscapeMd(Truncate(ev.Element.Name, 25)) : "-";
+                
+                string screenCoord = string.Format("({0}, {1})", ev.Element.ScreenClickX, ev.Element.ScreenClickY);
+                string winCoord = string.Format("({0}, {1})", ev.Element.WindowClickX, ev.Element.WindowClickY);
+                string relPct = string.Format("{0}%, {1}%", ev.Element.RelPctX, ev.Element.RelPctY);
 
-                sb.AppendLine(string.Format("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |",
-                    ev.StepIndex, appStr, timeStr, winStr, actStr, cType, autoId, name, relCoords));
+                sb.AppendLine(string.Format("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} |",
+                    ev.StepIndex, appStr, timeStr, delayStr, winStr, actStr, cType, autoId, name, screenCoord, winCoord, relPct));
             }
 
             try
@@ -158,6 +171,7 @@ namespace HisUiWrapper
             sb.AppendLine(string.Format("// Session: {0} | Created: {1:yyyy-MM-dd HH:mm:ss}", SessionId, DateTime.Now));
             sb.AppendLine("// =============================================================================");
             sb.AppendLine("using System;");
+            sb.AppendLine("using System.Diagnostics;");
             sb.AppendLine("using System.Threading;");
             sb.AppendLine("using System.Windows.Automation;");
             sb.AppendLine();
@@ -167,7 +181,7 @@ namespace HisUiWrapper
             sb.AppendLine("    {");
             sb.AppendLine("        public static void Main(string[] args)");
             sb.AppendLine("        {");
-            sb.AppendLine("            Console.WriteLine(\"Starting Replay Session...\");");
+            sb.AppendLine("            Console.WriteLine(\"Khởi động kịch bản Replay tự động...\");");
             sb.AppendLine("            AutomationElement root = AutomationElement.RootElement;");
             sb.AppendLine();
 
@@ -176,17 +190,30 @@ namespace HisUiWrapper
             {
                 if (ev.Type == ActionType.CheckpointNote) continue;
 
-                sb.AppendLine(string.Format("            // Step {0}: {1}", step++, ev.ToString()));
+                int waitSleep = Math.Max(ev.DelayMs, 300);
+                // Capped sleep to avoid extremely long pauses in replay
+                if (waitSleep > 5000) waitSleep = 5000;
+
+                sb.AppendLine(string.Format("            // -------------------------------------------------------------"));
+                sb.AppendLine(string.Format("            // Bước {0}: {1}", step++, ev.ToString()));
+                sb.AppendLine(string.Format("            // Thời gian chờ tải thực tế: {0}ms | Tọa độ màn hình: ({1}, {2})",
+                    ev.DelayMs, ev.Element.ScreenClickX, ev.Element.ScreenClickY));
+                sb.AppendLine(string.Format("            // -------------------------------------------------------------"));
                 sb.AppendLine("            try");
                 sb.AppendLine("            {");
 
+                if (ev.DelayMs > 500)
+                {
+                    sb.AppendLine(string.Format("                Console.WriteLine(\"Chờ tải dữ liệu ({0}ms)...\");", waitSleep));
+                    sb.AppendLine(string.Format("                Thread.Sleep({0});", waitSleep));
+                }
+
                 if (!string.IsNullOrEmpty(ev.Element.AutomationId))
                 {
-                    sb.AppendLine(string.Format("                var cond = new PropertyCondition(AutomationElement.AutomationIdProperty, \"{0}\");", ev.Element.AutomationId));
-                    sb.AppendLine("                var target = root.FindFirst(TreeScope.Descendants, cond);");
+                    sb.AppendLine(string.Format("                var target = FindElementWithWait(root, AutomationElement.AutomationIdProperty, \"{0}\", 5000);", ev.Element.AutomationId));
                     sb.AppendLine("                if (target != null)");
                     sb.AppendLine("                {");
-                    if (ev.Type == ActionType.Click)
+                    if (ev.Type == ActionType.Click || ev.Type == ActionType.DoubleClick)
                     {
                         sb.AppendLine("                    object invPattern;");
                         sb.AppendLine("                    if (target.TryGetCurrentPattern(InvokePattern.Pattern, out invPattern))");
@@ -202,17 +229,29 @@ namespace HisUiWrapper
                 }
                 else if (!string.IsNullOrEmpty(ev.Element.Name))
                 {
-                    sb.AppendLine(string.Format("                var cond = new PropertyCondition(AutomationElement.NameProperty, \"{0}\");", EscapeCSharpString(ev.Element.Name)));
-                    sb.AppendLine("                var target = root.FindFirst(TreeScope.Descendants, cond);");
+                    sb.AppendLine(string.Format("                var target = FindElementWithWait(root, AutomationElement.NameProperty, \"{0}\", 5000);", EscapeCSharpString(ev.Element.Name)));
                 }
 
-                sb.AppendLine("                Thread.Sleep(500);");
+                sb.AppendLine("                Thread.Sleep(300);");
                 sb.AppendLine("            }");
-                sb.AppendLine("            catch (Exception ex) { Console.WriteLine(\"Step failed: \" + ex.Message); }");
+                sb.AppendLine("            catch (Exception ex) { Console.WriteLine(\"Lỗi bước: \" + ex.Message); }");
                 sb.AppendLine();
             }
 
-            sb.AppendLine("            Console.WriteLine(\"Replay Finished.\");");
+            sb.AppendLine("            Console.WriteLine(\"Replay Hoàn Tất Thành Công.\");");
+            sb.AppendLine("        }");
+            sb.AppendLine();
+            sb.AppendLine("        private static AutomationElement FindElementWithWait(AutomationElement root, AutomationProperty prop, string val, int timeoutMs)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var cond = new PropertyCondition(prop, val);");
+            sb.AppendLine("            var sw = Stopwatch.StartNew();");
+            sb.AppendLine("            while (sw.ElapsedMilliseconds < timeoutMs)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                var el = root.FindFirst(TreeScope.Descendants, cond);");
+            sb.AppendLine("                if (el != null) return el;");
+            sb.AppendLine("                Thread.Sleep(200);");
+            sb.AppendLine("            }");
+            sb.AppendLine("            return null;");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
@@ -236,13 +275,18 @@ namespace HisUiWrapper
             return "[Element]";
         }
 
-        private string FormatOffset(UiElementInfo el)
+        private string FormatCoordinates(UiElementInfo el)
         {
+            var sb = new StringBuilder();
+            sb.Append(string.Format("(Màn hình: [{0}, {1}] | Cửa sổ: [{2}, {3}]",
+                el.ScreenClickX, el.ScreenClickY, el.WindowClickX, el.WindowClickY));
+
             if (el.Width > 0 && el.Height > 0)
             {
-                return string.Format("(vị trí {0}%, {1}%)", el.RelPctX, el.RelPctY);
+                sb.Append(string.Format(" | Tỷ lệ control: {0}%, {1}%", el.RelPctX, el.RelPctY));
             }
-            return string.Empty;
+            sb.Append(")");
+            return sb.ToString();
         }
 
         private string EscapeMd(string s)
@@ -271,6 +315,9 @@ namespace HisUiWrapper
             sb.AppendFormat("\"step\":{0},", ev.StepIndex);
             sb.AppendFormat("\"timestamp\":\"{0:yyyy-MM-ddTHH:mm:ss.fff}\",", ev.Timestamp);
             sb.AppendFormat("\"app\":\"{0}\",", ev.AppBadge);
+            sb.AppendFormat("\"delayMs\":{0},", ev.DelayMs);
+            sb.AppendFormat("\"isNewWindow\":{0},", ev.IsNewWindow ? "true" : "false");
+            sb.AppendFormat("\"waitReason\":\"{0}\",", EscapeJson(ev.WaitReason));
             sb.AppendFormat("\"type\":\"{0}\",", ev.Type);
             sb.AppendFormat("\"button\":\"{0}\",", ev.Button ?? "");
             sb.AppendFormat("\"keyText\":\"{0}\",", EscapeJson(ev.KeyText));
@@ -287,10 +334,14 @@ namespace HisUiWrapper
                 sb.AppendFormat("\"name\":\"{0}\",", EscapeJson(ev.Element.Name));
                 sb.AppendFormat("\"controlType\":\"{0}\",", EscapeJson(ev.Element.ControlType));
                 sb.AppendFormat("\"className\":\"{0}\",", EscapeJson(ev.Element.ClassName));
-                sb.AppendFormat("\"x\":{0},", ev.Element.X);
-                sb.AppendFormat("\"y\":{0},", ev.Element.Y);
-                sb.AppendFormat("\"width\":{0},", ev.Element.Width);
-                sb.AppendFormat("\"height\":{0},", ev.Element.Height);
+                sb.AppendFormat("\"screenClickX\":{0},", ev.Element.ScreenClickX);
+                sb.AppendFormat("\"screenClickY\":{0},", ev.Element.ScreenClickY);
+                sb.AppendFormat("\"windowClickX\":{0},", ev.Element.WindowClickX);
+                sb.AppendFormat("\"windowClickY\":{0},", ev.Element.WindowClickY);
+                sb.AppendFormat("\"boundsX\":{0},", ev.Element.X);
+                sb.AppendFormat("\"boundsY\":{0},", ev.Element.Y);
+                sb.AppendFormat("\"boundsW\":{0},", ev.Element.Width);
+                sb.AppendFormat("\"boundsH\":{0},", ev.Element.Height);
                 sb.AppendFormat("\"relX\":{0},", ev.Element.RelX);
                 sb.AppendFormat("\"relY\":{0},", ev.Element.RelY);
                 sb.AppendFormat("\"relPctX\":{0},", ev.Element.RelPctX);

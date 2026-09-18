@@ -16,14 +16,27 @@ namespace HisUiWrapper
         public string Name { get; set; }
         public string ControlType { get; set; }
         public string ClassName { get; set; }
+
+        // 1. Tọa độ màn hình thực tế (Absolute Screen Coordinates)
+        public int ScreenClickX { get; set; }
+        public int ScreenClickY { get; set; }
+
+        // 2. Tọa độ tương đối so với góc trên-trái của cửa sổ cha (Window-relative Coordinates)
+        public int WindowClickX { get; set; }
+        public int WindowClickY { get; set; }
+
+        // 3. Khung bao phần tử (Element Bounding Rectangle)
         public double X { get; set; }
         public double Y { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
+
+        // 4. Tọa độ tương đối và tỷ lệ % bên trong phần tử (Element-relative & Percent Coordinates)
         public double RelX { get; set; }
         public double RelY { get; set; }
         public double RelPctX { get; set; }
         public double RelPctY { get; set; }
+
         public string CurrentValue { get; set; }
         public string TopWindowText { get; set; }
         public string TopWindowClass { get; set; }
@@ -57,6 +70,10 @@ namespace HisUiWrapper
         [DllImport("user32.dll")]
         public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
         public const uint GA_PARENT = 1;
         public const uint GA_ROOT = 2;
         public const uint GA_ROOTOWNER = 3;
@@ -67,6 +84,15 @@ namespace HisUiWrapper
             public int x;
             public int y;
             public POINT(int x, int y) { this.x = x; this.y = y; }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
         }
 
         private static readonly Dictionary<uint, string> _procNameCache = new Dictionary<uint, string>();
@@ -139,6 +165,8 @@ namespace HisUiWrapper
         {
             var info = new UiElementInfo
             {
+                ScreenClickX = screenX,
+                ScreenClickY = screenY,
                 X = screenX,
                 Y = screenY,
                 AutomationId = string.Empty,
@@ -163,6 +191,17 @@ namespace HisUiWrapper
             info.TopWindowHwnd = rootHwnd;
             info.TopWindowText = GetHwndTitle(rootHwnd);
             info.TopWindowClass = GetHwndClass(rootHwnd);
+
+            // Tính toán tọa độ tương đối theo cửa sổ cha
+            if (rootHwnd != IntPtr.Zero)
+            {
+                RECT winRect;
+                if (GetWindowRect(rootHwnd, out winRect))
+                {
+                    info.WindowClickX = screenX - winRect.Left;
+                    info.WindowClickY = screenY - winRect.Top;
+                }
+            }
 
             // 2. UI Automation Deep Inspection
             try
@@ -213,6 +252,9 @@ namespace HisUiWrapper
                     System.Windows.Rect rect = el.Current.BoundingRectangle;
                     int midX = (int)(rect.Left + rect.Width / 2);
                     int midY = (int)(rect.Top + rect.Height / 2);
+                    info.ScreenClickX = midX;
+                    info.ScreenClickY = midY;
+
                     PopulateFromAutomationElement(el, info, midX, midY);
 
                     IntPtr rootHwnd = GetAncestor(info.ElementHwnd, GA_ROOT);
@@ -225,6 +267,13 @@ namespace HisUiWrapper
                         info.ProcessId = pid;
                         info.ProcessName = GetProcessNameByPid(pid);
                         info.AppBadge = DetermineAppBadge(info.ProcessName);
+
+                        RECT winRect;
+                        if (GetWindowRect(rootHwnd, out winRect))
+                        {
+                            info.WindowClickX = midX - winRect.Left;
+                            info.WindowClickY = midY - winRect.Top;
+                        }
                     }
                 }
             }

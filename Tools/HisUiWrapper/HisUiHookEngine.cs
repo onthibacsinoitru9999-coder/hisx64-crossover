@@ -21,6 +21,9 @@ namespace HisUiWrapper
     {
         public int StepIndex { get; set; }
         public DateTime Timestamp { get; set; }
+        public int DelayMs { get; set; } // Thời gian chờ (delay) tính bằng mili-giây kể từ thao tác trước
+        public bool IsNewWindow { get; set; }
+        public string WaitReason { get; set; }
         public ActionType Type { get; set; }
         public string Button { get; set; }
         public string KeyText { get; set; }
@@ -33,25 +36,37 @@ namespace HisUiWrapper
             get { return Element != null && !string.IsNullOrEmpty(Element.AppBadge) ? Element.AppBadge : "HIS"; }
         }
 
+        public string DelayFormatted
+        {
+            get
+            {
+                if (DelayMs <= 0) return "0ms";
+                if (DelayMs < 1000) return DelayMs + "ms";
+                return string.Format("{0:N1}s", DelayMs / 1000.0);
+            }
+        }
+
         public override string ToString()
         {
             string appPart = "[" + AppBadge + "]";
+            string delayPart = DelayMs > 500 ? string.Format("(⏱️ chờ {0}) ", DelayFormatted) : "";
+
             switch (Type)
             {
                 case ActionType.Click:
                 case ActionType.DoubleClick:
                 case ActionType.RightClick:
-                    return string.Format("{0} [{1}] {2} on '{3}' ({4}) in '{5}'",
-                        appPart, Type, Button, Element.Name, Element.AutomationId, Element.TopWindowText);
+                    return string.Format("{0} {1}[{2}] {3} on '{4}' ({5}) in '{6}'",
+                        appPart, delayPart, Type, Button, Element.Name, Element.AutomationId, Element.TopWindowText);
                 case ActionType.TextInput:
-                    return string.Format("{0} [Type] \"{1}\" into '{2}' ({3})",
-                        appPart, TextValue, Element.Name, Element.AutomationId);
+                    return string.Format("{0} {1}[Type] \"{2}\" into '{3}' ({4})",
+                        appPart, delayPart, TextValue, Element.Name, Element.AutomationId);
                 case ActionType.KeyPress:
-                    return string.Format("{0} [Key] {1} in '{2}'", appPart, KeyText, Element.TopWindowText);
+                    return string.Format("{0} {1}[Key] {2} in '{3}'", appPart, delayPart, KeyText, Element.TopWindowText);
                 case ActionType.CheckpointNote:
                     return string.Format("[Note] {0}", Note);
                 default:
-                    return string.Format("{0} [{1}]", appPart, Type);
+                    return string.Format("{0} {1}[{2}]", appPart, delayPart, Type);
             }
         }
     }
@@ -148,11 +163,17 @@ namespace HisUiWrapper
         private LowLevelHookProc _mouseProc;
         private LowLevelHookProc _keyboardProc;
 
+        // Delay & Window tracking
+        private DateTime _lastActionTime = DateTime.MinValue;
+        private IntPtr _lastWindowHwnd = IntPtr.Zero;
+        private string _lastWindowText = string.Empty;
+        private readonly object _actionLock = new object();
+
         // Smart Typing Accumulator
-        private readonly object _lock = new object();
+        private readonly object _typingLock = new object();
         private StringBuilder _typingBuffer = new StringBuilder();
         private UiElementInfo _typingElement = null;
-        private DateTime _lastTypingTime = DateTime.MinValue;
+        private DateTime _typingStartTime = DateTime.MinValue;
         private System.Threading.Timer _typingFlushTimer;
 
         // Mouse double click detection
@@ -248,15 +269,61 @@ namespace HisUiWrapper
         public void RecordCheckpoint(string note)
         {
             FlushTypingBuffer();
-            var ev = new UiActionEvent
+            var ev = CreateActionEvent(ActionType.CheckpointNote, null);
+            ev.Note = note;
+            ev.Element = new UiElementInfo { TopWindowText = "Ghi chú thủ công", AppBadge = "NOTE" };
+            FireActionRecorded(ev);
+        }
+
+        private UiActionEvent CreateActionEvent(ActionType type, UiElementInfo elInfo)
+        {
+            DateTime now = DateTime.Now;
+            int delay = 0;
+            bool isNewWin = false;
+            string waitReason = "Thao tác liên tiếp";
+
+            lock (_actionLock)
+            {
+                if (_lastActionTime != DateTime.MinValue)
+                {
+                    delay = (int)(now - _lastActionTime).TotalMilliseconds;
+                }
+
+                if (elInfo != null && elInfo.TopWindowHwnd != IntPtr.Zero && elInfo.TopWindowHwnd != _lastWindowHwnd)
+                {
+                    isNewWin = true;
+                    if (!string.IsNullOrEmpty(_lastWindowText))
+                    {
+                        waitReason = string.Format("Chờ mở cửa sổ mới: '{0}' ({1}ms)", elInfo.TopWindowText, delay);
+                    }
+                    else
+                    {
+                        waitReason = string.Format("Mở cửa sổ '{0}' ({1}ms)", elInfo.TopWindowText, delay);
+                    }
+                }
+                else if (delay > 2000)
+                {
+                    waitReason = string.Format("Chờ tải dữ liệu / Dừng thao tác ({0:N1}s)", delay / 1000.0);
+                }
+
+                _lastActionTime = now;
+                if (elInfo != null && elInfo.TopWindowHwnd != IntPtr.Zero)
+                {
+                    _lastWindowHwnd = elInfo.TopWindowHwnd;
+                    _lastWindowText = elInfo.TopWindowText;
+                }
+            }
+
+            return new UiActionEvent
             {
                 StepIndex = Interlocked.Increment(ref _stepCounter),
-                Timestamp = DateTime.Now,
-                Type = ActionType.CheckpointNote,
-                Note = note,
-                Element = new UiElementInfo { TopWindowText = "Ghi chú thủ công", AppBadge = "NOTE" }
+                Timestamp = now,
+                DelayMs = delay,
+                IsNewWindow = isNewWin,
+                WaitReason = waitReason,
+                Type = type,
+                Element = elInfo
             };
-            FireActionRecorded(ev);
         }
 
         private bool IsPidAllowed(uint pid)
@@ -338,14 +405,8 @@ namespace HisUiWrapper
                                 try
                                 {
                                     var elInfo = HisUiaInspector.InspectAtPoint(pt.x, pt.y);
-                                    var ev = new UiActionEvent
-                                    {
-                                        StepIndex = Interlocked.Increment(ref _stepCounter),
-                                        Timestamp = DateTime.Now,
-                                        Type = actionType,
-                                        Button = button,
-                                        Element = elInfo
-                                    };
+                                    var ev = CreateActionEvent(actionType, elInfo);
+                                    ev.Button = button;
                                     FireActionRecorded(ev);
                                 }
                                 catch {}
@@ -414,14 +475,8 @@ namespace HisUiWrapper
                                 try
                                 {
                                     var elInfo = HisUiaInspector.InspectFocusedElement();
-                                    var ev = new UiActionEvent
-                                    {
-                                        StepIndex = Interlocked.Increment(ref _stepCounter),
-                                        Timestamp = DateTime.Now,
-                                        Type = ActionType.KeyPress,
-                                        KeyText = keyDesc,
-                                        Element = elInfo
-                                    };
+                                    var ev = CreateActionEvent(ActionType.KeyPress, elInfo);
+                                    ev.KeyText = keyDesc;
                                     FireActionRecorded(ev);
                                 }
                                 catch {}
@@ -449,12 +504,14 @@ namespace HisUiWrapper
 
         private void AppendTyping(string ch)
         {
-            lock (_lock)
+            lock (_typingLock)
             {
-                if (_typingElement == null)
+                if (_typingBuffer.Length == 0)
                 {
+                    _typingStartTime = DateTime.Now;
                     _typingElement = HisUiaInspector.InspectFocusedElement();
                 }
+
                 if (ch == "[Backspace]")
                 {
                     if (_typingBuffer.Length > 0) _typingBuffer.Length--;
@@ -463,7 +520,6 @@ namespace HisUiWrapper
                 {
                     _typingBuffer.Append(ch);
                 }
-                _lastTypingTime = DateTime.Now;
 
                 // Reset timer for 1000ms idle flush
                 if (_typingFlushTimer != null)
@@ -480,7 +536,7 @@ namespace HisUiWrapper
 
         public void FlushTypingBuffer()
         {
-            lock (_lock)
+            lock (_typingLock)
             {
                 if (_typingBuffer.Length > 0)
                 {
@@ -489,14 +545,8 @@ namespace HisUiWrapper
                     _typingBuffer.Length = 0;
                     _typingElement = null;
 
-                    var ev = new UiActionEvent
-                    {
-                        StepIndex = Interlocked.Increment(ref _stepCounter),
-                        Timestamp = DateTime.Now,
-                        Type = ActionType.TextInput,
-                        TextValue = text,
-                        Element = el
-                    };
+                    var ev = CreateActionEvent(ActionType.TextInput, el);
+                    ev.TextValue = text;
                     FireActionRecorded(ev);
                 }
             }
