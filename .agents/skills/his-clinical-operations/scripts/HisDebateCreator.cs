@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Globalization;
@@ -13,6 +13,9 @@ using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
+using EMR.EFMODEL.DataModels;
+using EMR.Filter;
+using EMR.SDO;
 
 public class Program
 {
@@ -606,6 +609,89 @@ public class HisDebateCreator
             Console.WriteLine("   - Biểu mẫu in  : Mps000019 (Trích biên bản hội chẩn) - EMR Type 17");
             Console.WriteLine("==========================================================================");
             Console.ResetColor();
+
+            // 5. BƯỚC 3: TỰ ĐỘNG KÝ ĐIỆN TỬ EMR CHO THƯ KÝ / BÁC SĨ TẠO
+            try
+            {
+                Console.WriteLine("\n[INFO] Đang đồng bộ và kiểm tra chữ ký điện tử EMR...");
+                Inventec.Common.WebApiClient.ApiConsumer emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+                
+                System.Threading.Thread.Sleep(1500);
+
+                var docFilter = new EmrDocumentFilter 
+                { 
+                    TREATMENT_CODE__EXACT = tm.TREATMENT_CODE,
+                    DOCUMENT_TYPE_ID = 17
+                };
+                CommonParam pDoc = new CommonParam();
+                var docs = adapter.FetchList<EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, pDoc);
+                if (docs != null && docs.Count > 0)
+                {
+                    var latestDoc = docs.OrderByDescending(d => d.ID).First();
+                    var signFilter = new EmrSignFilter { DOCUMENT_ID = latestDoc.ID };
+                    CommonParam pSign = new CommonParam();
+                    var signs = adapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
+                    
+                    var mySign = signs != null ? signs.FirstOrDefault(s => 
+                        (string.Equals(s.LOGINNAME, secretaryLogin, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(s.LOGINNAME, latestDoc.NEXT_SIGNER, StringComparison.OrdinalIgnoreCase)) &&
+                        (s.SIGN_TIME == null || s.SIGN_TIME == 0)
+                    ) : null;
+
+                    if (mySign != null)
+                    {
+                        var signSdo = new EmrSignHsmSDO
+                        {
+                            EmrDocumentId = latestDoc.ID,
+                            EmrSignId = mySign.ID,
+                            SignTime = debateTime,
+                            IsFinishSign = true,
+                            IsSignElectronic = true,
+                            Description = "Ký điện tử Thư ký hội chẩn (Auto-Sign)",
+                            RoomCode = "NQCTCHBB734",
+                            RoomTypeCode = "GI"
+                        };
+
+                        var resSign = adapter.PostData<EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSign);
+                        if (resSign != null && resSign.EmrSign != null)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine(string.Format("✅ BƯỚC 3: TỰ ĐỘNG KÝ ĐIỆN TỬ EMR THÀNH CÔNG! (DocID: {0}, SignID: {1})", latestDoc.ID, resSign.EmrSign.ID));
+                            Console.ResetColor();
+                        }
+                        else
+                        {
+                            var updateSdo = new EmrSignUpdateSDO
+                            {
+                                DocumentId = latestDoc.ID,
+                                Updates = new List<EMR_SIGN>
+                                {
+                                    new EMR_SIGN { ID = mySign.ID, SIGN_TIME = debateTime }
+                                }
+                            };
+                            bool okUp = adapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSign);
+                            if (okUp)
+                            {
+                                Console.ForegroundColor = ConsoleColor.Green;
+                                Console.WriteLine(string.Format("✅ BƯỚC 3: TỰ ĐỘNG KÝ ĐIỆN TỬ EMR THÀNH CÔNG (qua UpdateSdo)! (DocID: {0})", latestDoc.ID));
+                                Console.ResetColor();
+                            }
+                            else
+                            {
+                                Console.WriteLine("⚠️ Chưa hoàn tất ký điện tử: " + string.Join("; ", pSign.Messages ?? new List<string>()));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("ℹ️ Không tìm thấy lượt ký chờ của Thư ký trong văn bản EMR.");
+                    }
+                }
+            }
+            catch (Exception exSign)
+            {
+                Console.WriteLine("⚠️ Bỏ qua ký điện tử do ngoại lệ: " + exSign.Message);
+            }
         }
         else
         {

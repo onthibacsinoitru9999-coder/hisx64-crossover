@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Drawing;
@@ -18,6 +18,9 @@ using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
+using EMR.EFMODEL.DataModels;
+using EMR.Filter;
+using EMR.SDO;
 
 public class MyAdapter : AdapterBase
 {
@@ -1057,9 +1060,12 @@ public class MainForm : Form
                         throw new Exception(errMsg);
                     }
 
+                    bool signed = AutoSignTrackingEmr(p.TreatmentCode, CurrentLoginName, created.ID);
+                    string signNote = signed ? " (Đã ký EMR)" : "";
+
                     this.Invoke(new Action(() =>
                     {
-                        row.Cells["Status"].Value = "✔ Thành công";
+                        row.Cells["Status"].Value = "✔ Thành công" + signNote;
                         row.Cells["Result"].Value = "ID: " + created.ID;
                         row.Cells["PatientInfo"].Value = string.Format("{0} ({1}) - {2}", p.TDL_PATIENT_NAME, p.TDL_PATIENT_GENDER_NAME, p.BedFull);
                     }));
@@ -1524,6 +1530,89 @@ public class MainForm : Form
 
         return results.OrderBy(p => p.BedFull).ThenBy(p => p.TDL_PATIENT_NAME).ToList();
     }
+
+    public static bool AutoSignTrackingEmr(string treatmentCode, string doctorLogin, long? trackingId = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(currentToken)) return false;
+            Inventec.Common.WebApiClient.ApiConsumer emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+
+            var docFilter = new EmrDocumentFilter 
+            { 
+                TREATMENT_CODE__EXACT = treatmentCode,
+                DOCUMENT_TYPE_ID = 7
+            };
+            CommonParam pDoc = new CommonParam();
+            var docs = myAdapter.FetchList<EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, pDoc);
+            if (docs == null || docs.Count == 0) return false;
+
+            EMR_DOCUMENT targetDoc = null;
+            if (trackingId.HasValue)
+            {
+                string tag = "HIS_TRACKING:" + trackingId.Value;
+                targetDoc = docs.FirstOrDefault(d => d.HIS_CODE != null && d.HIS_CODE.Contains(tag));
+            }
+            if (targetDoc == null)
+            {
+                targetDoc = docs.OrderByDescending(d => d.ID).FirstOrDefault(d => 
+                    !string.IsNullOrEmpty(d.NEXT_SIGNER) &&
+                    (string.Equals(d.NEXT_SIGNER, doctorLogin, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(d.NEXT_SIGNER, "034727", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(d.NEXT_SIGNER, "vmc", StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (targetDoc == null) return false;
+
+            var signFilter = new EmrSignFilter { DOCUMENT_ID = targetDoc.ID };
+            CommonParam pSign = new CommonParam();
+            var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
+            var mySign = signs != null ? signs.FirstOrDefault(s => 
+                (string.Equals(s.LOGINNAME, doctorLogin, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(s.LOGINNAME, targetDoc.NEXT_SIGNER, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(s.LOGINNAME, "034727", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(s.LOGINNAME, "vmc", StringComparison.OrdinalIgnoreCase)) &&
+                (s.SIGN_TIME == null || s.SIGN_TIME == 0)
+            ) : null;
+
+            if (mySign == null) return false;
+
+            long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+            var signSdo = new EmrSignHsmSDO
+            {
+                EmrDocumentId = targetDoc.ID,
+                EmrSignId = mySign.ID,
+                SignTime = signTime,
+                IsFinishSign = true,
+                IsSignElectronic = true,
+                Description = "Ký điện tử Tờ điều trị Bác sĩ (Auto-Sign)",
+                RoomCode = "NQCTCHBB734",
+                RoomTypeCode = "GI"
+            };
+
+            var resSign = myAdapter.PostData<EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSign);
+            if (resSign != null && resSign.EmrSign != null)
+            {
+                return true;
+            }
+            else
+            {
+                var updateSdo = new EmrSignUpdateSDO
+                {
+                    DocumentId = targetDoc.ID,
+                    Updates = new List<EMR_SIGN>
+                    {
+                        new EMR_SIGN { ID = mySign.ID, SIGN_TIME = signTime }
+                    }
+                };
+                return myAdapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSign);
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 // =========================================================================
@@ -1684,8 +1773,10 @@ class Program
                     throw new Exception(errMsg);
                 }
 
-                Console.WriteLine(string.Format("✔ [{0} - {1}] Tạo Tờ điều trị THÀNH CÔNG! ID: {2} | {3}",
-                    p.TDL_PATIENT_CODE, p.TDL_PATIENT_NAME, created.ID, p.BedFull));
+                bool signed = MainForm.AutoSignTrackingEmr(p.TreatmentCode, MainForm.CurrentLoginName, created.ID);
+                string signText = signed ? " | [EMR ĐÃ KÝ]" : "";
+                Console.WriteLine(string.Format("✔ [{0} - {1}] Tạo Tờ điều trị THÀNH CÔNG! ID: {2} | {3}{4}",
+                    p.TDL_PATIENT_CODE, p.TDL_PATIENT_NAME, created.ID, p.BedFull, signText));
                 successCount++;
             }
             catch (Exception ex)
