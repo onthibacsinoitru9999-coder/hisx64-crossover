@@ -82,6 +82,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
 | 📑 **Tạo Biên bản Hội chẩn thông qua mổ (MS: PT-01)** | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN1,MãBN2,...>` | ❌ Không phá vỡ format mẫu docx |
+| ⚡ **Ghi nhận & học thao tác UI (Click/Phím/Text)** | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` hoặc `.\HisUiWrapper.exe --launch` | ❌ Không ghi ứng dụng ngoài HIS |
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.

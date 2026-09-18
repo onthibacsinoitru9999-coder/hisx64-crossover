@@ -32,6 +32,7 @@
 25. [Quy Chuẩn Cốt Lõi: Nguyên Tắc Ponytail (Lazy Senior Dev Mode)](#25-quy-chuẩn-cốt-lõi-nguyên-tắc-ponytail-lazy-senior-dev-mode-toàn-diện-cho-mọi-nhánh)
 26. [Bẫy Lỗi Quét Y Lệnh BN Tuần Tự & Logic Lọc Ngày](#-bẫy-lỗi-26-quét-y-lệnh-32-bn-tuần-tự--chậm-100-giây-sai-logic-ngày)
 27. [Quy Chuẩn Tạo Biên Bản Hội Chẩn Thông Qua Mổ (MS: PT-01) Với Aspose.Words](#27-quy-chuẩn-tạo-biên-bản-hội-chẩn-thông-qua-mổ-ms-pt-01-với-asposewords-hispt01creatorexe)
+28. [Quy Chuẩn HIS UI Wrapper & Action Recorder (Bộ Ghi & Học Thao Tác UI Lâm Sàng)](#28-quy-chuẩn-his-ui-wrapper--action-recorder-bộ-ghi--học-thao-tác-ui-lâm-sàng)
 
 ---
 
@@ -1555,3 +1556,37 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 # Chạy tạo biên bản PT-01 cho 1 hoặc nhiều bệnh nhân:
 .\.agents\skills\his-clinical-operations\scripts\HisPt01Creator.exe <MãBN1> [MãBN2 ...] [--out <ThưMụcXuất>]
 ```
+
+---
+
+## 28. QUY CHUẨN HIS UI WRAPPER & ACTION RECORDER (BỘ GHI & HỌC THAO TÁC UI LÂM SÀNG)
+
+### 28.1. Bối Cảnh & Mục Tiêu
+- **Mục tiêu**: Bọc lấy phần mềm `HIS.exe` (WinForms + DevExpress v15.2) để ghi nhận toàn bộ thao tác click chuột, gõ phím, nhập liệu văn bản của Bác sĩ / Điều dưỡng nhằm giúp AI Agent học được chính xác quy trình thao tác lâm sàng trên giao diện thật.
+- **Vị trí công cụ**:
+  - Mã nguồn: `Tools\HisUiWrapper\`
+  - Thực thi: `HisUiWrapper.exe` (hoặc khởi động nhanh qua `HisUiWrapper.bat`).
+  - Dữ liệu xuất: `logs\ui_recordings\session_YYYYMMDD_HHmmss.*`.
+
+### 28.2. Các Đặc Tính Cốt Lõi (Core Features)
+1. **Lọc Bảo Mật Tuyệt Đối (Zero Privacy Leak)**:
+   - Dùng hook cấp thấp `WH_MOUSE_LL` (14) và `WH_KEYBOARD_LL` (13).
+   - Kiểm tra `PID` của cửa sổ/control mục tiêu; chỉ ghi nhận khi thao tác rơi vào tiến trình `HIS.exe` hoặc `ConnectToEMR.exe`. Mọi ứng dụng ngoài (Zalo, Trình duyệt, Word, Excel...) bị bỏ qua ngay lập tức.
+2. **Trích Xuất Sâu UI Automation (.NET UIA)**:
+   - Thay vì tọa độ tuyệt đối dễ vỡ khi đổi độ phân giải màn hình, công cụ trích xuất:
+     * `AutomationId`: Định danh điều khiển (e.g. `btnSave`, `btnKeDonThuoc`, `txtContent`, `btnTuTruc`).
+     * `ControlType`: Phân loại UI (`Button`, `Edit`, `CheckBox`, `Pane`...).
+     * `Name`: Nhãn text của điều khiển (e.g. `Lưu (Ctrl S)`, `Mới (Ctrl N)`).
+     * `RelPctX% / RelPctY%`: Tọa độ click tương đối bên trong phần tử.
+     * `HierarchyPath`: Đường dẫn phả hệ cửa sổ cha.
+3. **Gom Cụm Gõ Phím Thông Minh (Smart Typing Accumulator)**:
+   - Tự động gom các phím gõ liên tiếp vào ô nhập liệu thành một thao tác `TextInput` hoàn chỉnh khi chuyển control hoặc sau 1000ms không gõ.
+   - Nhận diện phím tắt hệ thống (`F1` - `F12`, `Ctrl+S`, `Ctrl+N`, `Enter`, `Tab`).
+4. **Giao Diện Nổi Floating HUD & Phím Tắt**:
+   - HUD bán trong suốt góc trên màn hình (`TopMost`, không chiếm focus).
+   - Phím tắt: **`F9`** (Tạm dừng / Tiếp tục), **`F10`** (Đánh dấu mốc ghi chú), **`F11`** (Hoàn tất phiên và xuất báo cáo).
+5. **Đầu Ra 3 Tầng**:
+   - `session_YYYYMMDD_HHmmss.jsonl`: Dữ liệu máy cho AI ingest.
+   - `session_YYYYMMDD_HHmmss_workflow.md`: Quy trình diễn giải tiếng Việt có cấu trúc.
+   - `session_YYYYMMDD_HHmmss_replay.cs`: Mã C# tự động phát lại (UIA Replay Recipe).
+

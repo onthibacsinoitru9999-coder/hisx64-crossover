@@ -36,6 +36,8 @@ tmp/
 !mau pt01.docx
 !Templates/
 !Templates/**
+!Tools/
+!Tools/**
 
 
 Data/Cache/
