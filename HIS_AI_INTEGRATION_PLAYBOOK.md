@@ -947,6 +947,33 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
     - Đái tháo đường (`ICD E10-E14` hoặc từ khóa `đái tháo đường/tiểu đường`): Chống chỉ định nạp Carbohydrate, tự động từ chối.
   * *Hủy đơn thuốc nội trú:* Endpoint chuẩn để hủy phiếu xuất thuốc/dinh dưỡng là `POST api/HisExpMest/Delete` với tham số là `Int64` (`EXP_MEST_ID`). Endpoint `api/HisServiceReq/InPatientPresDelete` không tồn tại (trả về 404 Not Found).
 
+- 📋 **BẪY LỖI & QUY CHUẨN ĐIỀN VỎ BỆNH ÁN NGOẠI KHOA EMR HEADLESS (2026-09-18)**:
+  * *Bản chất hệ thống EMR Oracle:*
+    - Database EMR Bệnh viện Bạch Mai là Oracle 11g/12c tại `192.168.7.248:1521/orclstb` (Schema: `EMR_FINAL`).
+    - Bảng Master quản lý đợt điều trị là `THONGTINDIEUTRI` (1.02M+ hàng). Khóa liên kết: `MAQUANLY` (NUMBER) = `TreatmentId` (HIS).
+    - Bảng Vỏ bệnh án ngoại khoa là `BENHANNGOAIKHOA` (59K+ hàng).
+  * *Các bẫy lỗi runtime (Gotchas) cốt tử:*
+    1. **`NullReferenceException` trong `BenhAnNgoaiKhoaFunc.InsertOrUpdate`**:
+       - *Nguyên nhân:* Hàm SDK nội bộ của Inventec luôn truy cập trực tiếp các thuộc tính của `ba.DacDiemLienQuanBenh` (`DiUng`, `ThuocLa`, `MaTuy`...). Nếu thuộc tính này bằng `null`, hàm sẽ ném `NullReferenceException` ngay lập tức.
+       - *Khắc phục:* BẮT BUỘC khởi tạo `ba.DacDiemLienQuanBenh = new DacDiemLienQuanBenh()` trước khi gọi `InsertOrUpdate`.
+    2. **`Select(con, maQuanLy)` không trả về `null` khi chưa có bản ghi**:
+       - *Nguyên nhân:* SDK trả về một object rỗng với `MaQuanLy = 0`. Kiểm tra `ba != null` là sai!
+       - *Khắc phục:* Kiểm tra `ba != null && ba.MaQuanLy > 0` để phân biệt chính xác giữa INSERT mới và UPDATE.
+    3. **Bệnh nhân mới vào viện chưa có bản ghi trong `THONGTINDIEUTRI`**:
+       - *Nguyên nhân:* Nếu bệnh nhân chưa từng được mở trên giao diện EMR UI, bảng `THONGTINDIEUTRI` sẽ chưa có dòng tương ứng. Nếu chỉ ghi `BENHANNGOAIKHOA` thì EMR UI máy trạm sẽ không mở được hồ sơ.
+       - *Khắc phục:* Gọi `ThongTinDieuTriFunc.checkExistThongTinDieuTri(con, maQuanLy)`. Nếu chưa có, tự động tạo Trang bìa EMR (`ThongTinDieuTri`) với `IDLoaiBenhAn = 11` (Ngoại khoa), `Khoa`, `ChanDoan_KhiVaoKhoaDieuTri`, `MaICD`, `NgayVaoVien` qua `ThongTinDieuTriFunc.InsertOrUpdateThongTinDieuTri`.
+    4. **Tên cột chuẩn xác trong Oracle EMR**:
+       - `BENHANNGOAIKHOA`: `TIENSUBENHBANTHAN` (không phải `TIENSUBENHANHAN`), `THANTIETNIEUSINHDUC` (không phải `THANTIETNIEU`), `NGAYKHAMBENH` (không phải `NgayLamBenhAn`).
+       - `THONGTINDIEUTRI`: `MAICD_KHIVAOKHOADIEUTRI`, `CHANDOAN_KHIVAOKHOADIEUTRI`, `IDLOAIBENHAN`.
+  * *Cơ chế Kế Thừa Mẫu Lâm Sàng Tự Động (Clinical Smart Adaptation):*
+    - Tự động truy vấn từ DB `EMR_FINAL`: Ưu tiên 1: ca cũ của BN; Ưu tiên 2: cùng mã ICD-10 (ví dụ `M23` đứt ACL, `S22/M48` xẹp đốt sống, `S52` gãy xương) do các bác sĩ khác trong khoa đã làm.
+    - Tự động hoán vị tổn thương Trái/Phải (`(P)` $\leftrightarrow$ `(T)`, `gối P` $\leftrightarrow$ `gối T`, `phải` $\leftrightarrow$ `trái`) để khớp hoàn toàn với vị trí tổn thương thực tế của bệnh nhân.
+    - Luôn tích hợp dấu hiệu sinh tồn thực tế (Mạch, HA, Nhiệt độ, SpO2, Cân nặng, Chiều cao) vào `ToanThan` và `ba.DauSinhTon`.
+  * *Công cụ chuẩn hóa:* `HisEmrFiller.exe` (biên dịch bằng `HisEmrFiller.bat`):
+    - `.\HisEmrFiller.exe <MaBN>`: Chế độ `--dry-run` (xem trước toàn văn bệnh án, không ghi DB).
+    - `.\HisEmrFiller.exe <MaBN> --save`: Ghi thật vào Oracle EMR (tự động khởi tạo Trang bìa nếu thiếu + ghi Vỏ bệnh án + xác nhận lại bằng Select).
+    - `.\HisEmrFiller.exe <MaBN> --save --doctor <mã_bs>`: Ghi với bác sĩ cụ thể (`034727` hoặc `vmc`).
+
 
 ## 18. QUY CHUẨN BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ TỰ ĐỘNG LÊN CLOUD DRIVE
 
