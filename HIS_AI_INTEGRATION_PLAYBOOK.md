@@ -965,6 +965,12 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
     4. **Tên cột chuẩn xác trong Oracle EMR**:
        - `BENHANNGOAIKHOA`: `TIENSUBENHBANTHAN` (không phải `TIENSUBENHANHAN`), `THANTIETNIEUSINHDUC` (không phải `THANTIETNIEU`), `NGAYKHAMBENH` (không phải `NgayLamBenhAn`).
        - `THONGTINDIEUTRI`: `MAICD_KHIVAOKHOADIEUTRI`, `CHANDOAN_KHIVAOKHOADIEUTRI`, `IDLOAIBENHAN`.
+    5. **Lỗi C# DLR Binder khi gán property đối tượng `dynamic`**:
+       - *Hiện tượng:* Gán trực tiếp `ba.DacDiemLienQuanBenh = Activator.CreateInstance(ddlqType)` ném lỗi: `Cannot implicitly convert type 'object' to 'EMR_MAIN.DacDiemLienQuanBenh'`.
+       - *Khắc phục:* BẮT BUỘC dùng reflection `PropertyInfo.SetValue((object)ba, instance, null)` để gán property mà không bị phụ thuộc vào dynamic runtime binder conversion.
+    6. **Bộ lọc tương thích mẫu kế thừa (Template Compatibility Gatekeeper)**:
+       - *Vấn đề:* Các ca có cùng 3 ký tự đầu ICD-10 (như `D16` - u xương sụn) trong DB EMR có thể là bệnh nhân ngã chấn thương cột sống. Nếu kế thừa mù quáng sẽ gán nhầm bệnh cảnh chấn thương cho bệnh nhân u phần mềm.
+       - *Khắc phục:* Bổ sung hàm kiểm tra `IsTemplateCompatible`. Nếu ca hiện tại là u phần mềm/nang/u mỡ mà mẫu chứa từ khóa chấn thương/gãy/ngã/xẹp thì tự động từ chối và sinh nội dung chuyên biệt chuẩn mực Ngoại/CTCH.
   * *Cơ chế Kế Thừa Mẫu Lâm Sàng Tự Động (Clinical Smart Adaptation):*
     - Tự động truy vấn từ DB `EMR_FINAL`: Ưu tiên 1: ca cũ của BN; Ưu tiên 2: cùng mã ICD-10 (ví dụ `M23` đứt ACL, `S22/M48` xẹp đốt sống, `S52` gãy xương) do các bác sĩ khác trong khoa đã làm.
     - Tự động hoán vị tổn thương Trái/Phải (`(P)` $\leftrightarrow$ `(T)`, `gối P` $\leftrightarrow$ `gối T`, `phải` $\leftrightarrow$ `trái`) để khớp hoàn toàn với vị trí tổn thương thực tế của bệnh nhân.

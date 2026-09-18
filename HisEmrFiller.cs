@@ -384,11 +384,19 @@ class HisEmrFiller
             dynamic rdr2 = ExecuteReader(con, sqlSameIcd);
             if (rdr2 != null && rdr2.Read())
             {
-                result = ReadTemplateRow(rdr2);
+                var cand = ReadTemplateRow(rdr2);
                 string chandoanGoc = SafeStr(rdr2["CHANDOAN_KHIVAOKHOADIEUTRI"]);
                 rdr2.Close();
-                Console.WriteLine(string.Format("  → Kế thừa mẫu: ICD-10 '{0}' ({1})", icd3, chandoanGoc));
-                return result;
+                if (IsTemplateCompatible(cand, ti))
+                {
+                    result = cand;
+                    Console.WriteLine(string.Format("  → Kế thừa mẫu: ICD-10 '{0}' ({1})", icd3, chandoanGoc));
+                    return result;
+                }
+                else
+                {
+                    Console.WriteLine(string.Format("  [INFO] Mẫu ICD-10 '{0}' ({1}) không phù hợp nhóm bệnh → tự sinh chuẩn.", icd3, chandoanGoc));
+                }
             }
             if (rdr2 != null) rdr2.Close();
 
@@ -406,10 +414,18 @@ class HisEmrFiller
             dynamic rdr3 = ExecuteReader(con, sqlKhoa);
             if (rdr3 != null && rdr3.Read())
             {
-                result = ReadTemplateRow(rdr3);
+                var cand = ReadTemplateRow(rdr3);
                 rdr3.Close();
-                Console.WriteLine("  → Kế thừa mẫu: Khoa CTCH gần nhất (generic)");
-                return result;
+                if (IsTemplateCompatible(cand, ti))
+                {
+                    result = cand;
+                    Console.WriteLine("  → Kế thừa mẫu: Khoa CTCH gần nhất (generic)");
+                    return result;
+                }
+                else
+                {
+                    Console.WriteLine("  [INFO] Mẫu Khoa CTCH gần nhất không phù hợp nhóm bệnh → tự sinh chuẩn.");
+                }
             }
             if (rdr3 != null) rdr3.Close();
         }
@@ -418,8 +434,27 @@ class HisEmrFiller
             Console.WriteLine("  [WARN] Lỗi tìm template: " + ex.Message);
         }
 
-        Console.WriteLine("  → Không tìm được mẫu → dùng nội dung sinh tự động.");
+        Console.WriteLine("  → Không tìm được mẫu phù hợp → dùng nội dung sinh tự động chuẩn chuyên khoa.");
         return result;
+    }
+
+    static bool IsTemplateCompatible(TemplateBA tmpl, TreatmentInfo ti)
+    {
+        if (tmpl == null || string.IsNullOrWhiteSpace(tmpl.QuaTrinhBenhLy)) return false;
+        string cur = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        string past = ((tmpl.QuaTrinhBenhLy ?? "") + " " + (tmpl.CoXuongKhop ?? "")).ToLower();
+
+        bool curIsTumor = cur.Contains(" u ") || cur.StartsWith("u ") || cur.Contains("khối u") || cur.Contains("nang") || cur.Contains("lipoma") || cur.Contains("phần mềm");
+        bool pastIsTrauma = past.Contains("tai nạn") || past.Contains("ngã") || past.Contains("gãy") || past.Contains("chấn thương") || past.Contains("lỏng khớp") || past.Contains("xẹp") || past.Contains("đốt sống");
+
+        if (curIsTumor && pastIsTrauma) return false;
+
+        bool curIsTrauma = cur.Contains("gãy") || cur.Contains("ngã") || cur.Contains("tai nạn") || cur.Contains("chấn thương") || cur.Contains("xẹp") || cur.Contains("acl");
+        bool pastIsTumor = past.Contains("khối u") || past.Contains("u mỡ") || past.Contains("bóc u") || past.Contains("nang");
+
+        if (curIsTrauma && pastIsTumor) return false;
+
+        return true;
     }
 
     static TemplateBA ReadTemplateRow(dynamic rdr)
@@ -562,6 +597,7 @@ class HisEmrFiller
             ba.Mat = "Mắt hai bên nhìn rõ, không sụp mi.";
 
         // Gán DauSinhTon
+        // Gán DauSinhTon
         try
         {
             var dstType = _emrMainLib.GetType("EMR_MAIN.DauSinhTon");
@@ -574,7 +610,8 @@ class HisEmrFiller
                 int sp; if (int.TryParse(dhst.SpO2, out sp)) dst.SPO2 = sp;
                 double w; if (double.TryParse(dhst.Weight, out w)) dst.CanNang = w;
                 double h; if (double.TryParse(dhst.Height, out h)) dst.ChieuCao = h;
-                ba.DauSinhTon = dst;
+                var propDst = ((object)ba).GetType().GetProperty("DauSinhTon");
+                if (propDst != null) propDst.SetValue((object)ba, (object)dst, null);
             }
         }
         catch { }
@@ -582,11 +619,15 @@ class HisEmrFiller
         // Gán DacDiemLienQuanBenh nếu null
         try
         {
-            if (ba.DacDiemLienQuanBenh == null)
+            var propDacDiem = ((object)ba).GetType().GetProperty("DacDiemLienQuanBenh");
+            if (propDacDiem != null && propDacDiem.GetValue((object)ba, null) == null)
             {
                 var ddlqType = _emrMainLib.GetType("EMR_MAIN.DacDiemLienQuanBenh");
                 if (ddlqType != null)
-                    ba.DacDiemLienQuanBenh = Activator.CreateInstance(ddlqType);
+                {
+                    object instance = Activator.CreateInstance(ddlqType);
+                    propDacDiem.SetValue((object)ba, instance, null);
+                }
             }
         }
         catch { }
@@ -604,6 +645,10 @@ class HisEmrFiller
     {
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
+        string viTriLoc = loc.StartsWith("vùng") || loc.StartsWith("khớp") ? loc : ("vùng " + loc);
+
+        if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
+            return string.Format("Phát hiện khối u {0}, đau tức nhẹ khi tì đè/vận động", viTriLoc);
         if (s.Contains("gãy") || s.Contains("gay"))
             return string.Format("Đau, sưng nề, biến dạng, hạn chế vận động {0} sau chấn thương", loc);
         if (s.Contains("acl") || s.Contains("chằng") || s.Contains("chang"))
@@ -619,7 +664,14 @@ class HisEmrFiller
     {
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
-        string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : ("vùng " + loc);
+        string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("vùng " + loc));
+
+        if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
+            return string.Format(
+                "Bệnh nhân tự phát hiện khối bất thường tại {0} cách đây một thời gian. " +
+                "Khối to dần, đau tức nhẹ khi vận động hoặc tì đè, không sốt, không gầy sút cân. " +
+                "Bệnh nhân đến khám tại Bệnh viện Bạch Mai và có chỉ định nhập viện điều trị phẫu thuật bóc u.",
+                viTri);
 
         if (s.Contains("acl") || (s.Contains("chằng") && s.Contains("trước")))
             return string.Format(
@@ -644,7 +696,7 @@ class HisEmrFiller
 
         // Generic CTCH
         return string.Format(
-            "Bệnh nhân vào viện vì đau và hạn chế vận động {0} sau chấn thương. " +
+            "Bệnh nhân vào viện vì đau và hạn chế vận động {0}. " +
             "Đã được khám tại phòng khám chuyên khoa CTCH và chỉ định nhập viện điều trị theo dõi sát.",
             viTri);
     }
@@ -664,8 +716,8 @@ class HisEmrFiller
 
     static string BuildCoXuongKhop(TreatmentInfo ti, TemplateBA tmpl)
     {
-        // Nếu có mẫu cùng ICD từ bác sĩ khác thì điều chỉnh bên Phải/Trái cho khớp và dùng luôn
-        if (!string.IsNullOrWhiteSpace(tmpl.CoXuongKhop))
+        // Nếu có mẫu từ bác sĩ khác và tương thích nhóm bệnh thì điều chỉnh bên Phải/Trái cho khớp và dùng luôn
+        if (!string.IsNullOrWhiteSpace(tmpl.CoXuongKhop) && IsTemplateCompatible(tmpl, ti))
         {
             string cxk = tmpl.CoXuongKhop.Trim();
             string sCur = ti.IcdName.ToLower();
@@ -684,7 +736,14 @@ class HisEmrFiller
 
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
-        string viTri = loc.StartsWith("gối") ? ("Khớp " + loc) : ("Vùng " + loc);
+        string viTri = loc.StartsWith("gối") ? ("Khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("Vùng " + loc));
+
+        // U phần mềm / u mỡ / nang
+        if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
+            return string.Format(
+                "{0}: Khối u gồ lên bề mặt, ranh giới rõ, mật độ chắc vừa, ấn đau tức nhẹ, di động tương đối so với lớp sâu. " +
+                "Da trên bề mặt khối u bình thường, không nóng đỏ, không loét. " +
+                "Vận động các khớp và nhóm cơ lân cận trong giới hạn bình thường. Mạch ngoại vi bắt rõ, cảm giác bình thường.", viTri);
 
         // ACL / đứt dây chằng
         if (s.Contains("acl") || (s.Contains("chằng") && (s.Contains("trước") || s.Contains("chéo"))))
@@ -721,6 +780,11 @@ class HisEmrFiller
         string s = ti.IcdName.ToLower();
         var items = new List<string> { "CTM, đông máu cơ bản, sinh hóa máu (glucose, ure, creatinine, AST, ALT, điện giải đồ, CRP)" };
 
+        if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
+        {
+            items.Add("Siêu âm phần mềm / Chụp cộng hưởng từ (MRI) đánh giá kích thước, vị trí, tính chất khối u");
+            items.Add("Xét nghiệm mô bệnh học (giải phẫu bệnh) sau mổ");
+        }
         if (s.Contains("gãy") || s.Contains("gay") || s.Contains("xẹp") || s.Contains("loãng xương"))
             items.Add("X-quang vị trí tổn thương (thẳng - nghiêng)");
         if (s.Contains("acl") || s.Contains("chằng") || s.Contains("gối") || s.Contains("cột sống"))
@@ -753,6 +817,8 @@ class HisEmrFiller
     static string BuildPhanBiet(TreatmentInfo ti)
     {
         string s = ti.IcdName.ToLower();
+        if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
+            return "U mỡ (Lipoma); U bao hoạt dịch; Nang biểu bì / nang bã đậu; Khối máu tụ mạn tính / u thần kinh phần mềm.";
         if (s.Contains("acl") || (s.Contains("chằng") && s.Contains("trước")))
             return "Đứt bán phần dây chằng chéo trước; Tổn thương dây chằng bên (MCL/LCL); Rách sụn chêm phối hợp.";
         if (s.Contains("gãy") || s.Contains("gay"))
@@ -765,6 +831,8 @@ class HisEmrFiller
     static string BuildHuongDieuTri(TreatmentInfo ti)
     {
         string s = ti.IcdName.ToLower();
+        if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
+            return "Hoàn thiện các bilan xét nghiệm tiền phẫu; Phẫu thuật bóc trọn khối u phần mềm gửi bệnh phẩm làm mô bệnh học (giải phẫu bệnh); Kháng sinh dự phòng, giảm đau, chăm sóc vết mổ; Theo dõi liền thương và kết quả GPB.";
         if (s.Contains("acl") || (s.Contains("chằng") && s.Contains("trước")))
             return "Hoàn thiện các bilan xét nghiệm tiền phẫu; Phẫu thuật nội soi tái tạo dây chằng chéo trước; Kháng sinh dự phòng, giảm đau, giảm nề; Tập phục hồi chức năng sau mổ theo phác đồ.";
         if (s.Contains("gãy") || s.Contains("gay"))
@@ -827,11 +895,20 @@ class HisEmrFiller
     static bool BenhAnNgoaiKhoaInsertOrUpdate(dynamic con, dynamic ba)
     {
         LoadEmrAssemblies();
-        if (ba.DacDiemLienQuanBenh == null)
+        try
         {
-            var ddlqType = _emrMainLib.GetType("EMR_MAIN.DacDiemLienQuanBenh");
-            ba.DacDiemLienQuanBenh = Activator.CreateInstance(ddlqType);
+            var propDacDiem = ((object)ba).GetType().GetProperty("DacDiemLienQuanBenh");
+            if (propDacDiem != null && propDacDiem.GetValue((object)ba, null) == null)
+            {
+                var ddlqType = _emrMainLib.GetType("EMR_MAIN.DacDiemLienQuanBenh");
+                if (ddlqType != null)
+                {
+                    object instance = Activator.CreateInstance(ddlqType);
+                    propDacDiem.SetValue((object)ba, instance, null);
+                }
+            }
         }
+        catch { }
         var m = _baNKFuncType.GetMethod("InsertOrUpdate",
             new Type[] { _mdbConnType, _baNKType });
         object result = m.Invoke(null, new object[] { con, ba });
@@ -1074,6 +1151,7 @@ class HisEmrFiller
         if (s.Contains("cổ tay") || s.Contains("co tay")) return "cổ tay" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("vai") || s.Contains("shoulder")) return "vai" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("háng") || s.Contains("hang")) return "háng" + (side.Length > 0 ? " " + side : "");
+        if (s.Contains("lưng") || s.Contains("lung")) return "lưng" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("cột sống") || s.Contains("dot song") || s.Contains("cot song")) return "cột sống";
         if (s.Contains("l1") || s.Contains("l2") || s.Contains("l3") || s.Contains("l4") || s.Contains("l5")) return "cột sống thắt lưng";
         if (s.Contains("t") && Regex.IsMatch(s, @"t\d+")) return "cột sống ngực";
