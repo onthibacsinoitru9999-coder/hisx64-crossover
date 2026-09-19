@@ -1708,4 +1708,32 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
    - `session_YYYYMMDD_HHmmss_workflow.md`: Quy trình diễn giải tiếng Việt có cấu trúc (gắn nhãn `[HIS]` / `[EMR]`).
    - `session_YYYYMMDD_HHmmss_replay.cs`: Mã C# tự động phát lại (UIA Replay Recipe).
 
+---
+
+## 29. QUY CHUẨN TỰ ĐỘNG ĐIỀN BỆNH ÁN NGOẠI KHOA EMR (`HisEmrFiller`)
+
+### 29.1. Kiến Trúc & Kết Nối:
+- **Oracle DB:** `192.168.7.248:1521/orclstb` (User/Password: `EMR_FINAL / EMR_FINAL`).
+- **Thư viện tích hợp:** `Integrate\EMR\MDB.dll` và `Integrate\EMR\EMR_MAIN.Library.dll`.
+- **Khóa `MAQUANLY` EMR:** EMR Client map khóa `MAQUANLY` theo số của `TREATMENT_CODE` (VD: `000007266477` $\rightarrow$ `7266477`), KHÔNG PHẢI `TreatmentId`. Công cụ thực hiện **Dual-Write** vào cả 2 ID để tương thích 100%.
+
+### 29.2. Quy Chuẩn Lâm Sàng Bắt Buộc:
+1. **Tóm Tắt Bệnh Án Ngoại Khoa (`TomTatBenhAn`)**:
+   - **Vị trí Tiền sử**: Đặt ngay sau Tuổi & Giới tính:
+     `"Bệnh nhân {nam/nữ}, {X} tuổi, tiền sử {tiền sử}, vào viện vì {lý do vào viện}. Qua hỏi bệnh và thăm khám phát hiện các triệu chứng, hội chứng sau:\n{Hội chứng/Triệu chứng}"`
+   - **Xử lý sạch ngắt dòng tiền sử**: Chuyển `\r\n` $\rightarrow$ dấu phẩy `, ` để tạo câu văn liền mạch, tự nhiên.
+   - Nếu tiền sử khỏe mạnh/chưa ghi nhận: Rút gọn thành `"tiền sử khỏe mạnh"`.
+2. **Tách Chẩn Đoán Chính Trước Dấu `/` (`ExtractLocation`)**:
+   - Đối với chẩn đoán kép như `Gãy cổ xương đùi trái/ TBMMN yếu nửa người phải`, bắt buộc chỉ phân tích vị trí tổn thương ở vế đầu trước `/` để tránh bắt nhầm bên `phải` của tai biến mạch máu não.
+3. **Chế Độ Merge (Bảo Lưu Dữ Liệu Gõ Dở)**:
+   - Chỉ điền bù các trường còn trống, tuyệt đối không ghi đè dữ liệu bác sĩ đã gõ dở trên máy trạm (trừ khi dùng `--force` để làm mới tóm tắt).
+   - Ô mục 2 (`ba.BenhNgoaiKhoa`) luôn được điền tương đương `ba.CoXuongKhop` để không bị trống trên UI EMR.
+
+### 29.3. Lệnh Mẫu Chuẩn:
+- Xem trước: `.\HisEmrFiller.bat <MãBN_hoặc_Tên> --preview`
+- Ghi thật vào EMR: `.\HisEmrFiller.bat <MãBN_hoặc_Tên> --save`
+- Cập nhật lại tóm tắt theo chuẩn mới: `.\HisEmrFiller.bat <MãBN_hoặc_Tên> --force --save`
+- Quét nhanh danh sách BN vào viện hôm nay: `.\HisEmrFiller.bat --today`
+
+
 

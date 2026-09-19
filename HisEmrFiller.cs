@@ -167,6 +167,7 @@ class HisEmrFiller
         bool isTodayScan = false;
         string doctorCode = DEFAULT_DOCTOR_CODE;
         string doctorName = DEFAULT_DOCTOR_NAME;
+        bool forceSummary = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -175,6 +176,10 @@ class HisEmrFiller
                 dryRun = false;
             else if (a.Equals("--dry-run", StringComparison.OrdinalIgnoreCase) || a.Equals("--preview", StringComparison.OrdinalIgnoreCase))
                 dryRun = true;
+            else if (a.Equals("--force", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("-f", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--force-summary", StringComparison.OrdinalIgnoreCase))
+                forceSummary = true;
             else if (a.Equals("--doctor", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
                 doctorCode = args[++i];
@@ -223,7 +228,7 @@ class HisEmrFiller
 
         try
         {
-            return Run(input, dryRun, doctorCode, doctorName);
+            return Run(input, dryRun, doctorCode, doctorName, forceSummary);
         }
         catch (Exception ex)
         {
@@ -239,7 +244,7 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // MAIN EXECUTION LOGIC
     // ──────────────────────────────────────────────────────────────
-    static int Run(string input, bool dryRun, string doctorCode, string doctorName)
+    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false)
     {
         string tokenCode = ReadLiveToken();
         var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
@@ -304,7 +309,7 @@ class HisEmrFiller
 
         // Tạo và điền đối tượng bệnh án theo nguyên tắc Merge
         dynamic ba = isUpdate ? existingBA : CreateNewBenhAnNgoaiKhoa();
-        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate);
+        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary);
 
         // Đảm bảo Trang bìa THONGTINDIEUTRI
         EnsureThongTinDieuTri(con, ti, !dryRun);
@@ -378,7 +383,7 @@ class HisEmrFiller
     // QUY TẮC ĐIỀN DỮ LIỆU & BẢO LƯU (MERGE MODE)
     // ──────────────────────────────────────────────────────────────
     static void PopulateBenhAn(dynamic ba, TreatmentInfo ti, DhstInfo dhst, TemplateBA tmpl, LabPacsInfo labs,
-                               string docCode, string docName, bool isUpdate)
+                               string docCode, string docName, bool isUpdate, bool forceSummary = false)
     {
         // 1. Trường định danh & bác sĩ (luôn cập nhật chuẩn)
         ba.MaQuanLy          = ti.MaQuanLy;
@@ -464,8 +469,13 @@ class HisEmrFiller
         if (string.IsNullOrWhiteSpace(SafeStr(ba.CacXetNghiemCanLamSangCanLam)))
             ba.CacXetNghiemCanLamSangCanLam = BuildCanLamSang(ti, labs, tmpl);
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TomTatBenhAn)))
-            ba.TomTatBenhAn = BuildTomTat(ti, dhst);
+        if (string.IsNullOrWhiteSpace(SafeStr(ba.TomTatBenhAn)) ||
+            forceSummary ||
+            SafeStr(ba.TomTatBenhAn).Contains("Bệnh diễn biến qua hỏi bệnh và thăm khám phát hiện") ||
+            SafeStr(ba.TomTatBenhAn).Contains("- Tiền sử: Khỏe mạnh, chưa ghi nhận bệnh lý liên quan."))
+        {
+            ba.TomTatBenhAn = BuildTomTat(ti, dhst, SafeStr(ba.TienSuBenhBanThan));
+        }
 
         // 3.6. Chẩn đoán phân biệt, Tiên lượng, Hướng điều trị
         if (string.IsNullOrWhiteSpace(SafeStr(ba.PhanBiet)))
@@ -675,12 +685,26 @@ class HisEmrFiller
         return sb.ToString().TrimEnd();
     }
 
-    static string BuildTomTat(TreatmentInfo ti, DhstInfo dhst)
+    static string FormatTienSuBrief(string tienSu)
     {
-        string gender = ti.PatientGender;
+        if (string.IsNullOrWhiteSpace(tienSu)) return "khỏe mạnh";
+        string ts = tienSu.Replace("\r\n", ", ").Replace("\n", ", ").Replace("  ", " ").Trim();
+        while (ts.Contains(", ,") || ts.Contains(",,")) ts = ts.Replace(", ,", ",").Replace(",,", ",");
+        if (ts.ToLower().Contains("khỏe mạnh") || ts.ToLower().Contains("khoe manh") || ts.ToLower().Contains("chưa phát hiện") || ts.ToLower().Contains("chưa ghi nhận"))
+            return "khỏe mạnh";
+        if (ts.EndsWith(".")) ts = ts.Substring(0, ts.Length - 1).Trim();
+        return ts;
+    }
+
+    static string BuildTomTat(TreatmentInfo ti, DhstInfo dhst, string tienSu = null)
+    {
+        string gender = (ti.PatientGender ?? "nam").ToLower();
         string age = ti.PatientAge;
         string loc = ExtractLocation(ti.IcdName);
         string s = ti.IcdName.ToLower();
+        string lyDo = BuildLyDoVaoVien(ti);
+        string lyDoLower = string.IsNullOrEmpty(lyDo) ? "đau hạn chế vận động" : (char.ToLower(lyDo[0]) + lyDo.Substring(1));
+        string tsBrief = FormatTienSuBrief(tienSu);
 
         string hoiChung = "";
         if (s.Contains(" u ") || s.Contains("phần mềm") || s.Contains("nang"))
@@ -695,11 +719,10 @@ class HisEmrFiller
             hoiChung = string.Format("- Đau khu trú tại {0}, hạn chế vận động.", loc);
 
         return string.Format(
-            "Bệnh nhân {0}, {1} tuổi, vào viện vì {2}. " +
-            "Bệnh diễn biến qua hỏi bệnh và thăm khám phát hiện các triệu chứng, hội chứng sau:\n" +
-            "{3}\n" +
-            "- Tiền sử: Khỏe mạnh, chưa ghi nhận bệnh lý liên quan.",
-            gender, age, ti.IcdName, hoiChung);
+            "Bệnh nhân {0}, {1} tuổi, tiền sử {2}, vào viện vì {3}. " +
+            "Qua hỏi bệnh và thăm khám phát hiện các triệu chứng, hội chứng sau:\n" +
+            "{4}",
+            gender, age, tsBrief, lyDoLower, hoiChung);
     }
 
     static string BuildPhanBiet(TreatmentInfo ti)
@@ -1438,7 +1461,9 @@ class HisEmrFiller
     static string ExtractLocation(string icdName)
     {
         if (string.IsNullOrEmpty(icdName)) return "vùng tổn thương";
-        string s = icdName.ToLower();
+        // Lấy phần chẩn đoán chính trước dấu '/' để tránh lẫn bên tổn thương với bệnh kèm theo
+        string mainPart = icdName.Split('/')[0].Trim();
+        string s = mainPart.ToLower();
         string side = "";
         if (s.Contains("phải") || s.Contains("phai")) side = "phải";
         else if (s.Contains("trái") || s.Contains("trai")) side = "trái";
@@ -1447,6 +1472,7 @@ class HisEmrFiller
         if (s.Contains("cổ tay")) return "cổ tay" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("vai")) return "khớp vai" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("háng")) return "khớp háng" + (side.Length > 0 ? " " + side : "");
+        if (s.Contains("đùi") || s.Contains("xương đùi")) return "xương đùi" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("lưng")) return "vùng lưng" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("cột sống") || s.Contains("đốt sống")) return "cột sống thắt lưng";
         if (s.Contains("đòn")) return "xương đòn" + (side.Length > 0 ? " " + side : "");
