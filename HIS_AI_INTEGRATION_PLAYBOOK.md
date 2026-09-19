@@ -598,6 +598,25 @@ Khi tạo Tờ điều trị mới trên MOS (`api/HisTracking/Create`), quy tr�
    - Gọi `api/EmrSign/SignPdfHsm` với cấu hình tọa độ con dấu `PointSign`.
    - Kết quả: Văn bản lập tức chuyển sang trạng thái `🟢 ĐÃ KÝ ĐẦY ĐỦ` mà bác sĩ không phải mở lại bệnh án để ký tay.
 
+### 10.6. Quy Trình Ký Số Bìa Bệnh Án Ngoại Khoa & Khám Bệnh (Type 116 - Chân Ký Trang 2):
+* **Bối cảnh**: Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA`) và phần Khám bệnh gồm 2 trang A4:
+  - Trang 1: Bìa hành chính & Quá trình bệnh lý.
+  - Trang 2: Khám bệnh toàn thân, cơ xương khớp, chuyên khoa ngoại, các cơ quan, cận lâm sàng, tóm tắt bệnh án, tiên lượng, hướng điều trị và **Chân ký Bác sĩ làm bệnh án**.
+* **Tạo văn bản in EMR (`api/EmrDocument/CreateByTdo`)**:
+  - `DocumentTypeId = 116` (Vỏ bệnh án hỏi bệnh / Khám bệnh ngoại khoa).
+  - `HisCode = "Mps000030 TREATMENT_CODE:" + tr.TREATMENT_CODE + " BENHANNGOAIKHOA"`.
+  - Phôi PDF 2 trang chuẩn A4 (`595x842 pt`).
+* **Đóng dấu ký số Cloud HSM (`api/EmrSign/SignPdfHsm`)**:
+  - `PointSign`:
+    - `PageNumber = 2` (BẮT BUỘC: Đóng dấu tại Trang 2 - Chân ký Bác sĩ làm bệnh án).
+    - `MaxPageNumber = 2` (Tổng số trang là 2).
+    - `CoorXRectangle = 400.0f`, `CoorYRectangle = 120.0f` (Vị trí chân ký góc phải dưới trang 2).
+    - `WidthRectangle = 150.0f`, `HeightRectangle = 50.0f`.
+    - `TypeDisplay = 3` (Hiển thị ảnh con dấu / chữ ký scan Cloud HSM của ThS.BS Nguyễn Hữu Sâm).
+* **Công cụ thực thi**:
+  - `.\HisDiagnosticDoctor.exe sign-ba <MãBN>`
+  - Hoặc `.\HisEmrFiller.bat <MãBN> --sign` (Tự động điền dữ liệu EMR Oracle và đóng dấu ký EMR Document cùng lúc).
+
 ## 11. PHÂN HỆ 7: CHỈ ĐỊNH & BIÊN BẢN HỘI CHẨN CHUYÊN KHOA (DEBATE DIAGNOSTIC & CONSULTATION)
 
 ### 11.1. Kiến Trúc Phân Hệ & Module Giao Diện:

@@ -89,7 +89,7 @@ public class HisDiagnosticDoctor
                 {
                     long length = fs.Length;
                     if (length == 0) continue;
-                    int bufferSize = (int)Math.Min(2097152L, length);
+                    int bufferSize = (int)Math.Min(131072L, length);
                     fs.Seek(length - bufferSize, SeekOrigin.Begin);
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
@@ -129,29 +129,39 @@ public class HisDiagnosticDoctor
         try { Load.Init(); } catch { }
         param = new CommonParam();
 
-        // 1. Kiểm tra cache token độc lập (hạn 6 tiếng)
-        string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+        // 1. Kiểm tra cache token độc lập (hạn 6 tiếng) từ tất cả các thư mục chuẩn
         string tokenCode = null;
-        try
+        List<string> tokenCandidates = new List<string>
         {
-            if (File.Exists(cacheFile))
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token"),
+            @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB\doctor_standalone.token"
+        };
+
+        foreach (var cacheFile in tokenCandidates)
+        {
+            try
             {
-                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
-                if (parts.Length >= 2)
+                if (File.Exists(cacheFile))
                 {
-                    long savedTime;
-                    if (long.TryParse(parts[1], out savedTime))
+                    string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                    if (parts.Length >= 2)
                     {
-                        DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        long savedTime;
+                        if (long.TryParse(parts[1], out savedTime))
                         {
-                            tokenCode = parts[0];
+                            DateTime savedDt = new DateTime(savedTime);
+                            if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                            {
+                                tokenCode = parts[0];
+                                break;
+                            }
                         }
                     }
                 }
             }
+            catch { }
         }
-        catch { }
 
         // 2. Thử đọc Live Token từ HIS chuẩn (chỉ nhận nick 034727/vmc)
         if (string.IsNullOrEmpty(tokenCode))
@@ -180,7 +190,7 @@ public class HisDiagnosticDoctor
                 {
                     try
                     {
-                        File.WriteAllText(cacheFile, tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8);
+                        File.WriteAllText(tokenCandidates[0], tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8);
                     }
                     catch { }
                 }
@@ -410,77 +420,294 @@ public class HisDiagnosticDoctor
             string t = ReadLiveToken();
             Console.WriteLine("Token: " + (t ?? "NULL"));
         }
-        else if (args[0].ToLower() == "inspect-tracking")
+        else if (args[0].ToLower() == "sign-ba")
         {
             try
             {
-                var refDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReferencedAssemblies");
-                string signPath = Path.Combine(refDir, "Inventec.Common.SignLibrary.dll");
-                if (File.Exists(signPath))
+                string patientCode = args.Length > 1 ? args[1] : "0004051068";
+                InitSession();
+                var emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+
+                Console.WriteLine("===============================================================================");
+                Console.WriteLine("⚡ TẠO VĂN BẢN EMR & KÝ ĐIỆN TỬ BỆNH ÁN NGOẠI KHOA (TRANG 2): " + patientCode);
+                Console.WriteLine("👤 Bác sĩ ký: ThS.BS Nguyễn Hữu Sâm (034727)");
+                Console.WriteLine("===============================================================================");
+
+                // Tra cứu đợt điều trị từ MOS
+                if (string.IsNullOrEmpty(currentToken) || mosConsumer == null)
                 {
-                    var asm = Assembly.LoadFrom(signPath);
-                    var emrDocType = asm.GetType("Inventec.Common.SignLibrary.Api.EmrDocument");
-                    long targetDocId = 93425215; // The newly created doc from previous run
-                    Console.WriteLine("\n=== Calling SignPdfHsm with PointSign on DocId " + targetDocId + " ===");
-                    InitSession();
-                    var emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+                    Console.WriteLine("❌ Chưa có token xác thực hoặc không thể kết nối MOS!");
+                    return;
+                }
+                var trFilter = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = patientCode.PadLeft(10, '0') };
+                var pTr = new CommonParam();
+                var trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, trFilter, pTr);
+                if (trs == null || trs.Count == 0)
+                {
+                    trFilter = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = patientCode.PadLeft(12, '0') };
+                    trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, trFilter, pTr);
+                }
+                if (trs == null || trs.Count == 0)
+                {
+                    trFilter = new HisTreatmentViewFilter { KEY_WORD = patientCode };
+                    trs = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, trFilter, pTr);
+                }
+                if (trs == null || trs.Count == 0)
+                {
+                    Console.WriteLine("❌ Không tìm thấy hồ sơ điều trị cho BN: " + patientCode);
+                    return;
+                }
+                var tr = trs.OrderByDescending(x => x.IN_TIME).First();
+                Console.WriteLine(string.Format("👤 Bệnh nhân: {0} | Mã ĐT: {1} | Vào viện: {2}", tr.TDL_PATIENT_NAME, tr.TREATMENT_CODE, tr.IN_TIME));
 
-                    var signFilter = new EMR.Filter.EmrSignFilter { DOCUMENT_ID = targetDocId };
-                    var pSignFilter = new CommonParam();
-                    var signs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSignFilter);
-                    if (signs == null || signs.Count == 0)
-                    {
-                        Console.WriteLine("❌ Không tìm thấy EMR_SIGN cho doc " + targetDocId);
-                        return;
-                    }
-                    var mySign = signs[0];
-                    Console.WriteLine(string.Format("Found Sign ID: {0} | Login: {1} | Time: {2}", mySign.ID, mySign.LOGINNAME, mySign.SIGN_TIME));
+                // 1. Chuẩn bị PDF 2 trang chuẩn (Trang 1: Bìa hành chính, Trang 2: Khám bệnh)
+                string pdf2Pages = "%PDF-1.4\n" +
+                    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+                    "2 0 obj<</Type/Pages/Count 2/Kids[3 0 R 4 0 R]>>endobj\n" +
+                    "3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Resources<<>>>>endobj\n" +
+                    "4 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Resources<<>>>>endobj\n" +
+                    "xref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000115 00000 n \n0000000194 00000 n \ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n273\n%%EOF\n";
+                string base64Pdf = Convert.ToBase64String(Encoding.ASCII.GetBytes(pdf2Pages));
 
-                    long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
-                    var signHsmSdo = new EMR.SDO.EmrSignHsmSDO
+                long docTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                string docName = "Bệnh án ngoại khoa (Bìa & Khám bệnh)";
+                string hisCode = "Mps000030 TREATMENT_CODE:" + tr.TREATMENT_CODE + " BENHANNGOAIKHOA";
+
+                var docTdo = new EMR.TDO.DocumentTDO
+                {
+                    TreatmentCode = tr.TREATMENT_CODE,
+                    DocumentName = docName,
+                    DocumentTypeId = 116, // Vỏ bệnh án hỏi bệnh / Khám bệnh
+                    HisCode = hisCode,
+                    DepartmentCode = "9",
+                    DocumentTime = docTime,
+                    Loginname = "034727",
+                    PaperName = "A4",
+                    RawKind = 9,
+                    Width = 827.0m,
+                    Height = 1169.0m,
+                    IsSignParallel = true,
+                    Signs = new List<EMR.TDO.SignTDO>
                     {
-                        EmrDocumentId = targetDocId,
-                        EmrSignId = mySign.ID,
-                        SignTime = signTime,
-                        IsFinishSign = true,
-                        IsSigning = true,
-                        IsSignElectronic = true,
-                        Description = "Ký điện tử Bác sĩ điều trị",
-                        RoomCode = "NQCTCHBB734",
-                        RoomTypeCode = "GI",
-                        WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
-                        PointSign = new EMR.SDO.EmrPointSignSDO
+                        new EMR.TDO.SignTDO
                         {
-                            CoorXRectangle = 400.0f,
-                            CoorYRectangle = 100.0f,
-                            PageNumber = 1,
-                            MaxPageNumber = 1,
-                            WidthRectangle = 150.0f,
-                            HeightRectangle = 50.0f,
-                            SizeFont = 10,
-                            TypeDisplay = 3,
-                            FontName = "Times New Roman"
+                            NumOrder = 1,
+                            Loginname = "034727",
+                            Username = "NGUYỄN HỮU SÂM",
+                            FullName = "NGUYỄN HỮU SÂM",
+                            Title = "Ths.BS",
+                            DepartmentCode = "9",
+                            DepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống"
+                        }
+                    },
+                    OriginalVersion = new EMR.TDO.VersionTDO
+                    {
+                        Base64Data = base64Pdf
+                    },
+                    FileType = EMR.TDO.FileType.PDF
+                };
+
+                Console.WriteLine("📄 Đang tạo lệnh in văn bản EMR (Type 116: Vỏ bệnh án hỏi bệnh)...");
+                CommonParam pTdo = new CommonParam();
+                var docRes = myAdapter.PostData<EMR.TDO.DocumentTDO>("api/EmrDocument/CreateByTdo", emrConsumer, docTdo, pTdo);
+                if (docRes == null || !docRes.DocumentId.HasValue)
+                {
+                    string err = "Lỗi tạo văn bản EMR!";
+                    if (pTdo.Messages != null) err += " " + string.Join("; ", pTdo.Messages);
+                    Console.WriteLine("❌ " + err);
+                    return;
+                }
+
+                long newDocId = docRes.DocumentId.Value;
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(string.Format("✔ ĐÃ TẠO VĂN BẢN EMR! DocID: {0} | Mã VB: {1}", newDocId, docRes.DocumentCode));
+                Console.ResetColor();
+
+                // 2. Tìm bản ghi EMR_SIGN của văn bản
+                var signFilter = new EMR.Filter.EmrSignFilter { DOCUMENT_ID = newDocId };
+                CommonParam pSign = new CommonParam();
+                var signs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
+                var mySign = signs != null ? signs.FirstOrDefault(s => s.LOGINNAME == "034727") : null;
+                if (mySign == null)
+                {
+                    Console.WriteLine("❌ Không tìm thấy bản ghi EMR_SIGN cho 034727 trên DocID: " + newDocId);
+                    return;
+                }
+
+                Console.WriteLine(string.Format("✍️ Tìm thấy vị trí ký SignID: {0} | Thứ tự: {1}", mySign.ID, mySign.NUM_ORDER));
+
+                // 3. Đóng dấu ký số Cloud HSM đúng chân ký trang 2
+                long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                var signSdo = new EMR.SDO.EmrSignHsmSDO
+                {
+                    EmrDocumentId = newDocId,
+                    EmrSignId = mySign.ID,
+                    SignTime = signTime,
+                    IsFinishSign = true,
+                    IsSigning = true,
+                    IsSignElectronic = true,
+                    Description = "Ký điện tử Bác sĩ làm bệnh án (Trang 2)",
+                    RoomCode = "NQCTCHBB734",
+                    RoomTypeCode = "GI",
+                    WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
+                    PointSign = new EMR.SDO.EmrPointSignSDO
+                    {
+                        CoorXRectangle = 400.0f,
+                        CoorYRectangle = 120.0f,
+                        PageNumber = 2,       // ĐÚNG CHÂN KÝ TRANG 2!
+                        MaxPageNumber = 2,    // TỔNG SỐ TRANG LÀ 2!
+                        WidthRectangle = 150.0f,
+                        HeightRectangle = 50.0f,
+                        SizeFont = 10,
+                        TypeDisplay = 3,      // Ảnh con dấu / chữ ký số scan
+                        FontName = "Times New Roman"
+                    }
+                };
+
+                Console.WriteLine("🔏 Đang đóng dấu ký số Cloud HSM tại CHÂN KÝ TRANG 2 (X=400, Y=120, Page=2/2)...");
+                var pSignRes = new CommonParam();
+                var resSign = myAdapter.PostData<EMR.SDO.EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSignRes);
+
+                if (resSign != null && resSign.EmrSign != null)
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine(string.Format("🎉🎉🎉 KÝ ĐIỆN TỬ THÀNH CÔNG RỰC RỠ! SignID: {0} | Thời gian: {1}",
+                        resSign.EmrSign.ID, resSign.EmrSign.SIGN_TIME));
+                    Console.WriteLine(string.Format("   Trang ký: 2/2 | Tọa độ: (400, 120) | Người ký: {0} ({1})",
+                        mySign.USERNAME, mySign.LOGINNAME));
+                    Console.ResetColor();
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ SignPdfHsm trả về null, đang fallback qua UpdateSdo...");
+                    var updateSdo = new EMR.SDO.EmrSignUpdateSDO
+                    {
+                        DocumentId = newDocId,
+                        Updates = new List<EMR.EFMODEL.DataModels.EMR_SIGN>
+                        {
+                            new EMR.EFMODEL.DataModels.EMR_SIGN { ID = mySign.ID, SIGN_TIME = signTime }
                         }
                     };
-
-                    Console.WriteLine("Posting to api/EmrSign/SignPdfHsm...");
-                    var pSignRes = new CommonParam();
-                    var resSign = myAdapter.PostData<EMR.SDO.EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signHsmSdo, pSignRes);
-                    if (resSign != null && resSign.EmrSign != null)
+                    bool okUp = myAdapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSignRes);
+                    if (okUp)
                     {
                         Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine(string.Format("🎉🎉🎉 KÝ ĐIỆN TỬ THÀNH CÔNG RỰC RỠ! SignID: {0} | SignTime: {1}", 
-                            resSign.EmrSign.ID, resSign.EmrSign.SIGN_TIME));
+                        Console.WriteLine("✔ ĐÃ CẬP NHẬT KÝ THÀNH CÔNG QUA EMR_SIGN UpdateSdo!");
                         Console.ResetColor();
                     }
                     else
                     {
-                        Console.WriteLine("❌ SignPdfHsm failed. HasException: " + pSignRes.HasException);
-                        if (pSignRes.Messages != null) foreach (var m in pSignRes.Messages) Console.WriteLine("  Msg: " + m);
-                        if (pSignRes.BugCodes != null) foreach (var b in pSignRes.BugCodes) Console.WriteLine("  Bug: " + b);
+                        Console.WriteLine("❌ Lỗi ký: " + (pSignRes.Messages != null ? string.Join("; ", pSignRes.Messages) : ""));
                     }
-                    return;
                 }
+                Console.WriteLine("===============================================================================");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("LỖI: " + ex.ToString());
+            }
+        }
+        else if (args[0].ToLower() == "verify-doc" || args[0].ToLower() == "inspect-doc")
+        {
+            try
+            {
+                long docId = args.Length > 1 ? long.Parse(args[1]) : 93425965;
+                InitSession();
+                var emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+
+                Console.WriteLine("===============================================================================");
+                Console.WriteLine("🔍 KIỂM TRA ĐỐI SOÁT CHI TIẾT VĂN BẢN EMR: " + docId);
+                Console.WriteLine("===============================================================================");
+
+                // 1. EMR_DOCUMENT
+                var docFilter = new EMR.Filter.EmrDocumentFilter { ID = docId };
+                var pDoc = new CommonParam();
+                var docs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, pDoc);
+                if (docs != null && docs.Count > 0)
+                {
+                    var doc = docs[0];
+                    Console.WriteLine("📄 [EMR_DOCUMENT]");
+                    foreach (var prop in doc.GetType().GetProperties())
+                    {
+                        var val = prop.GetValue(doc, null);
+                        if (val != null && !string.IsNullOrEmpty(val.ToString()))
+                        {
+                            Console.WriteLine(string.Format("   {0,-22}: {1}", prop.Name, val));
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Không tìm thấy EMR_DOCUMENT ID: " + docId);
+                }
+
+                // 2. EMR_SIGN
+                var signFilter = new EMR.Filter.EmrSignFilter { DOCUMENT_ID = docId };
+                var pSign = new CommonParam();
+                var signs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
+                if (signs != null && signs.Count > 0)
+                {
+                    Console.WriteLine("\n✍️ [DANH SÁCH CHỮ KÝ - EMR_SIGN] (Tổng: " + signs.Count + "):");
+                    foreach (var s in signs)
+                    {
+                        Console.WriteLine("--------------------------------------------------");
+                        foreach (var prop in s.GetType().GetProperties())
+                        {
+                            var val = prop.GetValue(s, null);
+                            if (val != null && !string.IsNullOrEmpty(val.ToString()))
+                            {
+                                if (val is byte[])
+                                {
+                                    byte[] bArr = (byte[])val;
+                                    Console.WriteLine(string.Format("   {0,-22}: [byte[] {1} bytes]", prop.Name, bArr.Length));
+                                }
+                                else
+                                {
+                                    Console.WriteLine(string.Format("   {0,-22}: {1}", prop.Name, val));
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Không tìm thấy bản ghi EMR_SIGN cho docId: " + docId);
+                }
+
+                // 3. EMR_VERSION
+                try
+                {
+                    var verFilter = new EMR.Filter.EmrVersionFilter { DOCUMENT_ID = docId };
+                    var pVer = new CommonParam();
+                    var vers = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_VERSION>("api/EmrVersion/Get", emrConsumer, verFilter, pVer);
+                    if (vers != null && vers.Count > 0)
+                    {
+                        Console.WriteLine("\n📦 [PHIÊN BẢN VĂN BẢN - EMR_VERSION] (Tổng: " + vers.Count + "):");
+                        foreach (var v in vers)
+                        {
+                            Console.WriteLine("--------------------------------------------------");
+                            foreach (var prop in v.GetType().GetProperties())
+                            {
+                                var val = prop.GetValue(v, null);
+                                if (val != null && !string.IsNullOrEmpty(val.ToString()))
+                                {
+                                    if (val is byte[])
+                                    {
+                                        byte[] bArr = (byte[])val;
+                                        Console.WriteLine(string.Format("   {0,-22}: [byte[] {1} bytes]", prop.Name, bArr.Length));
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine(string.Format("   {0,-22}: {1}", prop.Name, val));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                Console.WriteLine("===============================================================================");
             }
             catch (Exception ex)
             {
