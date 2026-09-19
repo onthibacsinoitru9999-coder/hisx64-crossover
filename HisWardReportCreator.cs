@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -232,7 +232,7 @@ public class HisWardReportCreator
         return FallbackLogin(ref mosConsumer, ref param, ref adapter);
     }
 
-    public static void GenerateReport(string roomFilter = "712,714,716,724,725", bool openBrowser = false, long sinceTime712 = 0)
+    public static void GenerateReport(string roomFilter = "all", bool openBrowser = false, long sinceTime712 = 0)
     {
         Console.OutputEncoding = Encoding.UTF8;
         ApiConsumer mosConsumer = null;
@@ -1205,7 +1205,7 @@ public class HisWardReportCreator
 
     public static void Run(string[] args)
     {
-        string rooms = "712,714,716,724,725";
+        string rooms = "all";
         bool open = false;
         long since712 = 0;
 

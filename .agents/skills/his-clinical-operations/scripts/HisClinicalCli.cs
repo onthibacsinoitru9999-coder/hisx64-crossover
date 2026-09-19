@@ -1946,8 +1946,8 @@ public class HisClinicalCli
     {
         InitSession();
         Console.WriteLine("===============================================================================");
-        Console.WriteLine("🏥 QUÉT DANH SÁCH BỆNH NHÂN CÁC BUỒNG TRỌNG ĐIỂM KHOA 57");
-        Console.WriteLine("Phòng: 712, 714, 716, 724, 725");
+        Console.WriteLine("🏥 QUÉT TOÀN BỘ DANH SÁCH BỆNH NHÂN NỘI TRÚ KHOA 57 (CÁC BUỒNG 710 - 740)");
+        Console.WriteLine("Phòng: Toàn bộ buồng bệnh Khoa 57 (P710 - P740)");
         Console.WriteLine("===============================================================================");
 
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
@@ -1961,12 +1961,10 @@ public class HisClinicalCli
             return;
         }
 
-        var dept57Beds = allBeds.Where(x => x.DEPARTMENT_ID == 57 && (
-            (x.BED_ROOM_NAME != null && (x.BED_ROOM_NAME.Contains("712") || x.BED_ROOM_NAME.Contains("714") || x.BED_ROOM_NAME.Contains("716") || x.BED_ROOM_NAME.Contains("724") || x.BED_ROOM_NAME.Contains("725"))) ||
-            (x.BED_NAME != null && (x.BED_NAME.Contains("712") || x.BED_NAME.Contains("714") || x.BED_NAME.Contains("716") || x.BED_NAME.Contains("724") || x.BED_NAME.Contains("725")))
-        )).OrderBy(x => x.BED_ROOM_NAME).ThenBy(x => x.BED_NAME).ToList();
+        var dept57Beds = allBeds.Where(x => x.DEPARTMENT_ID == 57)
+            .OrderBy(x => x.BED_ROOM_NAME).ThenBy(x => x.BED_NAME).ToList();
 
-        Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân tại các buồng phụ trách:\n", dept57Beds.Count));
+        Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân tại toàn bộ các buồng Khoa 57 (710 - 740):\n", dept57Beds.Count));
 
         // BATCH QUERY: Gom toàn bộ Treatment IDs vào 1 request HTTP duy nhất
         var treatIds = dept57Beds.Select(b => b.TREATMENT_ID).Distinct().ToList();
@@ -2868,7 +2866,7 @@ public class HisClinicalCli
             Console.WriteLine("  orders <patientCode|treatmentCode|name>      : Liệt kê danh sách y lệnh & trạng thái màu");
             Console.WriteLine("  cancel-order <serviceReqId|reqCode> [roomId] : Hủy/Xóa y lệnh chưa thực hiện (Màu trắng)");
             Console.WriteLine("  cancel-service <sereServId>                  : Hủy/Xóa 1 dịch vụ con lẻ trong phiếu");
-            Console.WriteLine("  wardround                                    : Quét danh sách BN buồng 712, 714, 716, 724, 725");
+            Console.WriteLine("  wardround                                    : Quét danh sách BN toàn bộ buồng bệnh Khoa 57 (710 - 740)");
             Console.WriteLine("  locate <name1,name2,...>                     : Định vị buồng/giường hàng loạt BN siêu tốc (1 request)");
             Console.WriteLine("  create-tracking <trId> <content> [dhst..]    : Tạo tờ điều trị và DHST");
             Console.WriteLine("  prescribe <trId> <tkId> <medId> <stId> <amount> <tutorial> : Kê đơn thuốc an toàn");

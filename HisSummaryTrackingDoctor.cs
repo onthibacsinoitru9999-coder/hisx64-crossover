@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -124,7 +124,7 @@ public class HisSummaryTrackingDoctor
         CommonParam param = new CommonParam();
         MyAdapter adapter = new MyAdapter();
 
-        string roomFilter = "712,714";
+        string roomFilter = "all";
         if (args.Length > 0 && !args[0].StartsWith("-"))
         {
             roomFilter = args[0];
@@ -132,8 +132,16 @@ public class HisSummaryTrackingDoctor
 
         HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
         var bList = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
-        var filters = roomFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
-        var targetRooms = bList.Where(r => r.BED_ROOM_NAME != null && filters.Any(f => r.BED_ROOM_NAME.Contains(f))).ToList();
+        List<V_HIS_BED_ROOM> targetRooms;
+        if (string.IsNullOrEmpty(roomFilter) || roomFilter.ToLower() == "all")
+        {
+            targetRooms = bList.OrderBy(x => x.BED_ROOM_NAME).ToList();
+        }
+        else
+        {
+            var filters = roomFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+            targetRooms = bList.Where(r => r.BED_ROOM_NAME != null && filters.Any(f => r.BED_ROOM_NAME.Contains(f))).OrderBy(x => x.BED_ROOM_NAME).ToList();
+        }
 
         DateTime today = DateTime.Today;
 
