@@ -44,7 +44,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   - 🏥 **Cơ sở Hà Nội (`ha-noi` / `HN`)**:
     * **Khoa**: Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 - `DEPARTMENT_ID = 57`)
     * **Branch**: Bệnh viện Bạch Mai - Hà Nội (`BRANCH_ID = 1`)
-    * **Buồng bệnh**: P712, P714, P716, P724, P725...
+    * **Buồng bệnh**: Toàn bộ các buồng từ P710 đến P740 (P710, P711, P712, P712A, P713, P714, P715, P716, P717, P718, P719, P720, P721, P722, P723, P724, P725, P726, P727, P728, P729, P730... P740). TUYỆT ĐỐI KHÔNG hardcode danh sách con vài buồng!
     * **Phòng làm việc / Tiểu phẫu**: P734 (`RoomId = 5248`) hoặc Tiểu phẫu Nhà Q (`ExecuteRoomId = 931`)
     * **Tủ trực thuốc**: **`810` (`TT_KCTCHCS`)**
     * **Dịch vụ ĐMMM tại giường**: **`BM02426`** (Service ID: **`6217`**)
@@ -90,6 +90,8 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 * **Phạm vi áp dụng duy nhất**: Vỏ Bệnh Án Ngoại Khoa CHỈ dành riêng cho bệnh nhân **ĐIỀU TRỊ NỘI TRÚ** (`TDL_TREATMENT_TYPE_ID == 3` và nằm buồng bệnh nội trú Khoa 57 / Khoa 915).
 * **Chốt chặn an toàn trong Code**: `HisEmrFiller.exe` tự động chặn đứng và từ chối nếu bệnh nhân là diện ngoại trú / phòng khám. Khi quét bệnh nhân theo ngày (`--date YYYYMMDD`), công cụ tự động lọc bỏ 100% ca khám ngoại trú.
 * **Lệnh thu hồi khẩn cấp (Reverse)**: `.\HisEmrFiller.bat --reverse-outpatients` để xóa sạch vỏ bệnh án ngoại trú bị tạo nhầm trên DB Oracle EMR và bảo lưu nguyên vẹn 100% bệnh nhân nội trú.
+* **Quy chuẩn Ký số Vỏ bệnh án vs Tờ điều trị**: `HisEmrFiller.exe` tự động hóa 100% việc điền dữ liệu lâm sàng vào Oracle EMR (tiết kiệm thời gian gõ bệnh án). Khâu ký số Vỏ bệnh án Bác sĩ bấm **1-click trực tiếp trên UI EMR Desktop** để phần mềm EMR Client tự đóng gói chữ ký nội bộ. **Ký số tự động 100% qua API & Cloud HSM chỉ áp dụng cho TỜ ĐIỀU TRỊ (`HisTrackingCreator.exe` - Type 7) và BIÊN BẢN HỘI CHẨN (Type 17)**.
+
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
@@ -185,7 +187,7 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
 
 ## 8. QUY TẮC BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ CLOUD DRIVE (WARD REPORT PROTOCOL)
 * **Kích hoạt tự động**: Khi Bác sĩ nhắn tin hoặc yêu cầu "báo cáo buồng", "tình hình buồng bệnh", "đi buồng":
-  1. **Thực thi 1-Click**: Agent chạy ngay công cụ [`HisWardReport.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisWardReport.bat) (mặc định quét các buồng trọng điểm `712, 714, 716, 724, 725, 712A` hoặc thêm `--all` để quét toàn bộ Khoa 57).
+  1. **Thực thi 1-Click**: Agent chạy ngay công cụ [`HisWardReport.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisWardReport.bat) (mặc định quét toàn bộ buồng bệnh Khoa 57 từ P710 đến P740).
   2. **Trích xuất đa chiều**:
      - Buồng - Giường, Mã BN, Mã ĐT, Họ tên, Tuổi, Giới tính.
      - Chẩn đoán chi tiết & mã ICD-10 (Đích danh tầng xẹp đốt sống, loại gãy xương, bệnh nền).

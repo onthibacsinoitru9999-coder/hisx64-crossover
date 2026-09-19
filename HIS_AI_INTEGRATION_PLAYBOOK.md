@@ -598,24 +598,19 @@ Khi tạo Tờ điều trị mới trên MOS (`api/HisTracking/Create`), quy tr�
    - Gọi `api/EmrSign/SignPdfHsm` với cấu hình tọa độ con dấu `PointSign`.
    - Kết quả: Văn bản lập tức chuyển sang trạng thái `🟢 ĐÃ KÝ ĐẦY ĐỦ` mà bác sĩ không phải mở lại bệnh án để ký tay.
 
-### 10.6. Quy Trình Ký Số Bìa Bệnh Án Ngoại Khoa & Khám Bệnh (Type 116 - Chân Ký Trang 2):
-* **Bối cảnh**: Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA`) và phần Khám bệnh gồm 2 trang A4:
-  - Trang 1: Bìa hành chính & Quá trình bệnh lý.
-  - Trang 2: Khám bệnh toàn thân, cơ xương khớp, chuyên khoa ngoại, các cơ quan, cận lâm sàng, tóm tắt bệnh án, tiên lượng, hướng điều trị và **Chân ký Bác sĩ làm bệnh án**.
-* **Tạo văn bản in EMR (`api/EmrDocument/CreateByTdo`)**:
-  - `DocumentTypeId = 116` (Vỏ bệnh án hỏi bệnh / Khám bệnh ngoại khoa).
-  - `HisCode = "Mps000030 TREATMENT_CODE:" + tr.TREATMENT_CODE + " BENHANNGOAIKHOA"`.
-  - Phôi PDF 2 trang chuẩn A4 (`595x842 pt`).
-* **Đóng dấu ký số Cloud HSM (`api/EmrSign/SignPdfHsm`)**:
-  - `PointSign`:
-    - `PageNumber = 2` (BẮT BUỘC: Đóng dấu tại Trang 2 - Chân ký Bác sĩ làm bệnh án).
-    - `MaxPageNumber = 2` (Tổng số trang là 2).
-    - `CoorXRectangle = 400.0f`, `CoorYRectangle = 120.0f` (Vị trí chân ký góc phải dưới trang 2).
-    - `WidthRectangle = 150.0f`, `HeightRectangle = 50.0f`.
-    - `TypeDisplay = 3` (Hiển thị ảnh con dấu / chữ ký scan Cloud HSM của ThS.BS Nguyễn Hữu Sâm).
-* **Công cụ thực thi**:
-  - `.\HisDiagnosticDoctor.exe sign-ba <MãBN>`
-  - Hoặc `.\HisEmrFiller.bat <MãBN> --sign` (Tự động điền dữ liệu EMR Oracle và đóng dấu ký EMR Document cùng lúc).
+### 10.6. Phân Định Ranh Giới Kỹ Thuật & Điểm Nghẽn Ký Số EMR: Tờ Điều Trị vs Vỏ Bệnh Án
+* **TỔNG KẾT ĐIỂM NGHẼN KỸ THUẬT (ARCHITECTURAL BOTTLENECK ANALYSIS)**:
+  1. **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`) - [TỰ ĐỘNG HÓA 100% - CHỐT HẠ]**:
+     - **Bản chất**: Là văn bản phiếu in lâm sàng độc lập gắn theo từng ID tờ điều trị (`HIS_TRACKING:xxx`).
+     - **Cơ chế**: Sinh `DocumentTDO` gắn mã `Mps000062`, đính kèm phôi PDF và gọi `api/EmrSign/SignPdfHsm`.
+     - **Kết quả**: EMR Viewer và HIS Desktop nhận diện 100%, hiển thị chữ ký số hợp lệ và con dấu tròn đỏ của ThS.BS Nguyễn Hữu Sâm (`034727`). Tự động hoàn toàn không cần can thiệp UI.
+  2. **Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA` - Type 116 / Mps000030) - [RANH GIỚI BẮT BUỘC]**:
+     - **Bản chất**: Bệnh án ngoại khoa trên EMR Bạch Mai **không phải là file PDF upload tĩnh**. Nó là một phân hệ Client phức hợp (Form WinForm tích hợp engine báo cáo DevExpress / ActiveReports `rptVoBenhAn` kết nối trực tiếp CSDL Oracle `BENHANNGOAIKHOA` & `THONGTINDIEUTRI`).
+     - **Điểm nghẽn**: Khi Bác sĩ mở nút "Bệnh án ngoại khoa" trên cây hồ sơ EMR Desktop, phần mềm tự render từ engine nội bộ của EMR Client chứ không đọc file PDF upload từ API bên ngoài. Nếu đẩy PDF rời qua API thì văn bản xem đính kèm có thể có dấu nhưng form bệnh án chính thức trên EMR vẫn ở trạng thái chưa ký hoặc báo lệch chuẩn.
+     - **Quy chuẩn chốt hạ**:
+       * **Điền dữ liệu lâm sàng**: TỰ ĐỘNG HÓA 100% vào Oracle bằng `HisEmrFiller.exe` (tiết kiệm toàn bộ công gõ bệnh án).
+       * **Ký số Vỏ bệnh án**: **Bác sĩ bấm nút KÝ TRỰC TIẾP TRÊN UI EMR DESKTOP (chỉ 1 click)** để phần mềm EMR Client tự đóng gói chữ ký nội bộ.
+       * **TUYỆT ĐỐI KHÔNG** cố gắng tạo script ký số giả lập qua API cho Vỏ bệnh án ngoại khoa.
 
 ## 11. PHÂN HỆ 7: CHỈ ĐỊNH & BIÊN BẢN HỘI CHẨN CHUYÊN KHOA (DEBATE DIAGNOSTIC & CONSULTATION)
 
@@ -764,7 +759,8 @@ Bệnh viện đã chuyển đổi toàn bộ danh mục sang hệ 5 ký tự ch
 | **52**| Đơn thuốc Insulin (Actrapid/Lantus/Mixtard) bị nhảy ngược vào Tờ Điều Trị buổi sáng (tờ điều trị phía trước) | Kê đơn trước khi tạo tờ điều trị ca chiều/tối khiến `EnsureTrackingForPrescription` bốc nhầm tờ điều trị buổi sáng; và `InstructionTime` trùng khít với `TRACKING_TIME` hoặc không có độ trễ logic lâm sàng | **Quy trình Tuần Tự & Quy Tắc Lùi 5 Phút (5-Minute Timing Offset)**: 1. **BẮT BUỘC** tạo Tờ điều trị trước (`HisTrackingCreator.exe` mốc 17h/21h), sau đó mới kê Insulin (`HisAutoPrescribe.exe`). 2. Thời gian y lệnh thuốc (`InstructionTime`) tự động **lùi +5 phút sau thời điểm Tờ điều trị** (`InstructionTime = TrackingTime + 5 phút`, vd: Tờ điều trị 17:00 -> Đơn thuốc 17:05). 3. `EnsureTrackingForPrescription` chặn không ghép vào tờ điều trị cũ cách > 3 giờ. Đảm bảo 100% đơn thuốc nằm gọn trong Tờ điều trị tương ứng trên EMR. |
 | **53**| Tải/Đồng bộ file lên Google Drive qua rclone bị chậm nghẽn 30-60s do chạy lệnh thăm dò thư mục gốc (`rclone lsf gdrive:`) | Quét toàn bộ thư mục root của Google Drive chứa hàng ngàn file/folder, vướng giới hạn rate limit của Google API khi dùng shared client_id | **Quy chuẩn Đẩy Cloud Siêu Tốc (Fast Cloud Push Rule)**: 1. **TUYỆT ĐỐI CẤM** chạy các lệnh thăm dò `rclone lsf/ls gdrive:`. 2. **Đẩy trực tiếp 1-lệnh duy nhất** thẳng vào thư mục đích: `rclone copy "<LocalFolder>" "gdrive:<TargetFolder>" --fast-list --transfers=4 --quiet` (hoặc `-v`). Quá trình truyền file thực tế chỉ mất 3-4 giây. Các thư mục đích đã chuẩn hóa gồm: `gdrive:BaoCaoBuongBenh_Khoa57`, `gdrive:Bien_Ban_Thong_Qua_Mo_PT01_YYYYMMDD`, `gdrive:HC BM`. |
 | **54**| Yêu cầu "Xóa suất ăn" bị thất bại do y lệnh đã ở trạng thái màu xanh (`🟢 ĐÃ HOÀN THÀNH` / `SERVICE_REQ_STT_ID == 3`) | Bệnh nhân mổ phiên hôm sau được điều dưỡng kê suất ăn sáng từ trước, và Trung tâm Dinh dưỡng Lâm sàng (Phòng 5809) đã bấm tiếp nhận/xuất ăn trên HIS Desktop | **Quy tắc Nghiệp vụ Dinh Dưỡng & Circuit Breaker**: 1. Nếu y lệnh `⚪ CHƯA THỰC HIỆN` (màu trắng): Dùng `HisClinicalCli.exe cancel-order <ID>` xóa tức thì. 2. Nếu y lệnh `🟢 ĐÃ HOÀN THÀNH` (màu xanh): Phân quyền MOS chặn bác sĩ lâm sàng xóa một chiều để bảo toàn suất ăn nhà bếp. **BẮT BUỘC DỪNG LẠI NGAY** theo nguyên tắc Circuit Breaker (tối đa 2 lần thử, không loop API); xuất thông báo rõ ID/mã phiếu và hướng dẫn Điều dưỡng buồng bệnh gọi Trung tâm Dinh dưỡng hủy tiếp nhận / cắt suất ăn mổ phiên. |
-| **55**| Ký số Vỏ bệnh án ngoại khoa EMR (Loại 116 / `BENHANNGOAIKHOA`) hiển thị trắng tinh (trống không) trên EMR Viewer | Đẩy luồng PDF rỗng (dummy bytes) chỉ chứa khung chữ ký HSM mà không có stream chữ và cấu trúc trang | **Quy trình Sinh PDF Chuẩn với Aspose.Words & Oracle EMR**: 1. Trích xuất 100% dữ liệu hành chính từ HIS (`V_HIS_TREATMENT`) và nội dung lâm sàng từ Oracle table `BENHANNGOAIKHOA`. 2. Dùng `Aspose.Words` dựng tài liệu 2 trang A4 chuẩn format Bộ Y tế (MS: 01/BV-01) gồm Phần hành chính, Quá trình bệnh lý, Tiền sử, Dấu hiệu sinh tồn, Khám chuyên khoa cột sống & cơ quan, Tóm tắt bệnh án, Chẩn đoán, Hướng điều trị. 3. Tự động kiểm soát co giãn font (8.8pt - 7.8pt) đảm bảo tài liệu luôn co vừa vặn đúng 2 trang và chân ký "BÁC SĨ LÀM BỆNH ÁN" khớp chính xác tọa độ Cloud HSM `(X=400, Y=120, Page 2)`. 4. Cập nhật đồng bộ các trường `DaKy = 1`, `DaKy_KB = 1`, `MaSoKyTen = MãVB`, `MaSoKyTen_KB = MãVB` vào Oracle `BENHANNGOAIKHOA`. |
+| **55**| Ký số Vỏ bệnh án ngoại khoa EMR (`BENHANNGOAIKHOA` / Loại 116) hiển thị trắng tinh hoặc không đồng bộ với EMR Client | EMR Desktop Bạch Mai render Vỏ bệnh án qua engine báo cáo nội bộ WinForm/XtraReport kết nối trực tiếp Oracle DB chứ không đọc file PDF upload từ API bên ngoài; việc cố tạo tài liệu PDF độc lập qua API sẽ lệch luồng ký số chuẩn của EMR Client | **Chốt Ranh Giới Tự Động Hóa Ký Số Chuẩn**: 1. **Vỏ bệnh án (`BENHANNGOAIKHOA`)**: Tự động hóa 100% việc điền dữ liệu lâm sàng vào Oracle EMR qua `HisEmrFiller.exe` (không tốn công gõ tay). Khâu ký số để **Bác sĩ bấm Ký 1-click trực tiếp trên giao diện EMR Desktop** để phần mềm tự đóng gói con dấu chuẩn hệ thống. TUYỆT ĐỐI CẤM cố gắng script ký API cho Vỏ bệnh án. 2. **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `HIS_TRACKING`) & Hội chẩn (Type 17)**: Tự động hóa 100% qua API & Cloud HSM (`HisTrackingCreator.exe` / `HisDebateCreator.exe`), tạo văn bản và ký số mượt mà tức thì. |
+
 
 
 
