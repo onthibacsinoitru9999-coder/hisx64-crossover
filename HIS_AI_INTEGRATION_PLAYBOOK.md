@@ -1734,6 +1734,21 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 - Ghi thật vào EMR: `.\HisEmrFiller.bat <MãBN_hoặc_Tên> --save`
 - Cập nhật lại tóm tắt theo chuẩn mới: `.\HisEmrFiller.bat <MãBN_hoặc_Tên> --force --save`
 - Quét nhanh danh sách BN vào viện hôm nay: `.\HisEmrFiller.bat --today`
+- Đối soát theo ngày vào viện (chỉ nội trú): `.\HisEmrFiller.bat --date YYYYMMDD`
+- Tự động bổ sung vỏ cho ca nội trú thiếu: `.\HisEmrFiller.bat --date YYYYMMDD --auto`
+- Thu hồi / Xóa vỏ ngoại trú nhầm lẫn: `.\HisEmrFiller.bat --reverse-outpatients`
+
+### 29.4. Bẫy Lỗi & Quy Tắc Cứng: Chỉ Áp Dụng Cho Bệnh Nhân Nội Trú (Inpatient Only)
+- **Vấn đề thực tế (2026-09-19):** Khi quét ngày vào viện, nếu không lọc `TDL_TREATMENT_TYPE_ID == 3`, công cụ quét nhầm bệnh nhân khám ngoại trú / phòng khám và tự động điền vỏ bệnh án ngoại khoa cho họ.
+- **Quy tắc cứng:**
+  1. Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA`) **CHỈ ÁP DỤNG CHO BỆNH NHÂN ĐIỀU TRỊ NỘI TRÚ** (`TDL_TREATMENT_TYPE_ID == 3` và có buồng bệnh nội trú).
+  2. Tuyệt đối KHÔNG làm vỏ bệnh án cho bệnh nhân khám ngoại trú / phòng khám.
+  3. `HisEmrFiller.exe` tích hợp chốt chặn tự động từ chối nếu bệnh nhân là diện khám ngoại trú.
+  4. Quét ngày (`--date YYYYMMDD`) bắt buộc lọc bỏ 100% bệnh nhân ngoại trú.
+  5. **Bẫy lỗi Oracle Schema:** Bảng `EMR_FINAL.BENHANNGOAIKHOA` khóa bằng `MAQUANLY`, **KHÔNG CÓ CỘT `MABENHNHAN`** (cột này nằm ở `THONGTINDIEUTRI`). Mọi câu lệnh SQL DELETE / SELECT trực tiếp trên `BENHANNGOAIKHOA` phải dùng `WHERE MAQUANLY = ti.MaQuanLy OR MAQUANLY = ti.TreatmentId`.
+- **Lệnh thu hồi khẩn cấp:**
+  `.\HisEmrFiller.bat --reverse-outpatients` (tự động xóa sạch vỏ ngoại trú trên Oracle EMR và bảo toàn 100% hồ sơ nội trú).
+
 
 
 

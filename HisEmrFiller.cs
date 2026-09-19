@@ -171,6 +171,7 @@ class HisEmrFiller
         string doctorCode = DEFAULT_DOCTOR_CODE;
         string doctorName = DEFAULT_DOCTOR_NAME;
         bool forceSummary = false;
+        bool isReverseOutpatients = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -179,6 +180,13 @@ class HisEmrFiller
                 dryRun = false;
             else if (a.Equals("--dry-run", StringComparison.OrdinalIgnoreCase) || a.Equals("--preview", StringComparison.OrdinalIgnoreCase))
                 dryRun = true;
+            else if (a.Equals("--reverse-outpatients", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--reverse", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("reverse", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--revert", StringComparison.OrdinalIgnoreCase))
+            {
+                isReverseOutpatients = true;
+            }
             else if (a.Equals("--force", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("-f", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("--force-summary", StringComparison.OrdinalIgnoreCase))
@@ -214,6 +222,11 @@ class HisEmrFiller
             {
                 input = a;
             }
+        }
+
+        if (isReverseOutpatients)
+        {
+            return RunReverseOutpatients();
         }
 
         // Tự động nhận diện nếu input là ngày tháng (VD: 18.09, 18/09/2026, 20260918)
@@ -288,6 +301,18 @@ class HisEmrFiller
             Console.WriteLine("[LỖI] Không tìm thấy bệnh nhân hoặc đợt điều trị cho: " + input);
             Console.ResetColor();
             return 3;
+        }
+
+        // CHỐNG TẠO VỎ BỆNH ÁN CHO BỆNH NHÂN NGOẠI TRÚ / PHÒNG KHÁM
+        // Quy tắc bắt buộc: Tuyệt đối KHÔNG làm vỏ bệnh án ngoại khoa cho bệnh nhân phòng khám
+        if (ti.TreatmentTypeId.HasValue && ti.TreatmentTypeId.Value != 3)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(string.Format("\n⛔ [TỪ CHỐI THỰC HIỆN] Bệnh nhân {0} ({1}) là diện NGOẠI TRÚ / PHÒNG KHÁM (TreatmentType: {2})!",
+                ti.PatientName, ti.PatientCode, ti.TreatmentTypeId.Value));
+            Console.WriteLine("   Quy tắc bắt buộc: Vỏ Bệnh Án Ngoại Khoa (BENHANNGOAIKHOA) CHỈ dành riêng cho bệnh nhân ĐIỀU TRỊ NỘI TRÚ (TreatmentType = 3).");
+            Console.ResetColor();
+            return 5;
         }
 
         if (!_facilitySpecified)
@@ -1259,7 +1284,7 @@ class HisEmrFiller
                     if (!patientMap.ContainsKey(dt.TREATMENT_ID))
                     {
                         var ti = LookupByTreatmentId(adapter, consumer, param, dt.TREATMENT_ID);
-                        if (ti != null)
+                        if (ti != null && (ti.TreatmentTypeId == 3 || ti.TreatmentTypeId == null))
                         {
                             ti.DeptInTime = dt.DEPARTMENT_IN_TIME;
                             patientMap[dt.TREATMENT_ID] = ti;
@@ -1273,7 +1298,7 @@ class HisEmrFiller
             Console.WriteLine("  ⚠️ Quét DepartmentTran: " + ex.Message);
         }
 
-        // 2. Quét HisTreatment vào viện trong ngày có liên quan Khoa 57
+        // 2. Quét HisTreatment vào viện trong ngày có liên quan Khoa 57 (CHỈ LẤY NỘI TRÚ TDL_TREATMENT_TYPE_ID == 3)
         try
         {
             var tf = new HisTreatmentViewFilter
@@ -1284,7 +1309,7 @@ class HisEmrFiller
             var trs = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, param);
             if (trs != null)
             {
-                var deptTrs = trs.Where(x => x.LAST_DEPARTMENT_ID == _deptId || x.IN_DEPARTMENT_ID == _deptId || x.END_DEPARTMENT_ID == _deptId).ToList();
+                var deptTrs = trs.Where(x => (x.LAST_DEPARTMENT_ID == _deptId || x.IN_DEPARTMENT_ID == _deptId || x.END_DEPARTMENT_ID == _deptId) && (x.TDL_TREATMENT_TYPE_ID == 3)).ToList();
                 foreach (var tr in deptTrs)
                 {
                     if (!patientMap.ContainsKey(tr.ID))
@@ -1317,7 +1342,8 @@ class HisEmrFiller
                         if (ip.ADD_TIME >= targetFrom && ip.ADD_TIME <= targetTo && !patientMap.ContainsKey(ip.TREATMENT_ID))
                         {
                             var ti = LookupByTreatmentId(adapter, consumer, param, ip.TREATMENT_ID);
-                            if (ti != null) patientMap[ip.TREATMENT_ID] = ti;
+                            if (ti != null && (ti.TreatmentTypeId == 3 || ti.TreatmentTypeId == null))
+                                patientMap[ip.TREATMENT_ID] = ti;
                         }
                     }
                 }
@@ -1325,12 +1351,12 @@ class HisEmrFiller
         }
         catch { }
 
-        // Lọc danh sách bệnh nhân NỘI TRÚ vào Khoa 57 ngày chỉ định
+        // Lọc danh sách bệnh nhân NỘI TRÚ vào Khoa 57 ngày chỉ định (BẮT BUỘC TreatmentTypeId == 3)
         var filteredList = patientMap.Values
-            .Where(ti => (ti.InTimeRaw >= targetFrom && ti.InTimeRaw <= targetTo) ||
-                         (ti.DeptInTime.HasValue && ti.DeptInTime.Value >= targetFrom && ti.DeptInTime.Value <= targetTo))
-            .Where(ti => ti.TreatmentTypeId == 3 || ti.ClinicalInTime.HasValue || roomMap.ContainsKey(ti.TreatmentId))
-            .OrderBy(ti => ti.DeptInTime ?? ti.InTimeRaw)
+            .Where(ti => (ti.TreatmentTypeId == 3) &&
+                         ((ti.InTimeRaw >= targetFrom && ti.InTimeRaw <= targetTo) ||
+                          (ti.DeptInTime.HasValue && ti.DeptInTime.Value >= targetFrom && ti.DeptInTime.Value <= targetTo)))
+            .OrderBy(ti => ti.InTimeRaw)
             .ToList();
 
         if (filteredList.Count == 0)
@@ -1439,6 +1465,193 @@ class HisEmrFiller
     }
 
     // ──────────────────────────────────────────────────────────────
+    // REVERSE VỎ BỆNH ÁN NGOẠI TRÚ / PHÒNG KHÁM
+    // ──────────────────────────────────────────────────────────────
+    static readonly string[] OutpatientPatientCodes = new string[]
+    {
+        "0004053714", "0004053891", "0004053381", "0004054099", "0003400119",
+        "0004054269", "0003989128", "0003726306", "0001614864", "0004054652",
+        "0002841197", "0000849122", "0003918608", "0002172283", "0004055042",
+        "0003978976", "0004055288", "0004055326", "0004055347", "0004055498",
+        "0004055501", "0004055673", "0001944203", "0004055808", "0003980536",
+        "0003132237", "0003272429", "0004055927", "0004056039", "0001411195",
+        "0004056139", "0004039141", "0004032056", "0004056335", "0001363157",
+        "0004056352", "0000669206", "0003664862", "0004056463", "0004056593"
+    };
+
+    static int RunReverseOutpatients()
+    {
+        Console.WriteLine("\n" + new string('=', 85));
+        Console.WriteLine("🔄 THỰC THI REVERSE: XÓA VỎ BỆNH ÁN NGOẠI TRÚ / PHÒNG KHÁM TRÊN ORACLE EMR");
+        Console.WriteLine(new string('=', 85));
+        Console.WriteLine("Chỉ thị của Bác sĩ: Tuyệt đối không làm vỏ bệnh án cho bệnh nhân phòng khám.");
+        Console.WriteLine(string.Format("Danh sách mục tiêu cần thu hồi: {0} bệnh nhân ngoại trú ngày 18/09.\n", OutpatientPatientCodes.Length));
+
+        dynamic con = CreateEmrConnection();
+        con.Open();
+        Console.WriteLine("✓ Kết nối Oracle EMR (EMR_FINAL) thành công.\n");
+
+        // Kiểm tra schema bảng BENHANNGOAIKHOA
+        try
+        {
+            dynamic cmdCol = Activator.CreateInstance(_mdbCmdType, new object[] { "SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE TABLE_NAME = 'BENHANNGOAIKHOA' ORDER BY COLUMN_ID", con });
+            dynamic rCol = cmdCol.ExecuteReader();
+            List<string> colList = new List<string>();
+            while (rCol.Read()) colList.Add(Convert.ToString(rCol[0]));
+            Console.WriteLine("📋 CÁC CỘT TRONG BENHANNGOAIKHOA: " + string.Join(", ", colList.ToArray()) + "\n");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Lỗi đọc cột: " + ex.Message);
+        }
+
+        // Kiểm tra method của BenhAnNgoaiKhoaFunc
+        try
+        {
+            LoadEmrAssemblies();
+            var methods = _baNKFuncType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+            List<string> mList = new List<string>();
+            foreach (var m in methods) mList.Add(m.Name);
+            Console.WriteLine("🔧 METHODS CỦA BenhAnNgoaiKhoaFunc: " + string.Join(", ", mList.ToArray()) + "\n");
+        }
+        catch { }
+
+        string tokenCode = ReadLiveToken();
+        var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
+        var param = new CommonParam();
+        var adapter = new MyAdapter();
+
+        int totalBaDeleted = 0;
+        int totalTtdtDeleted = 0;
+
+        foreach (var patCode in OutpatientPatientCodes)
+        {
+            var ti = LookupByPatientCode(adapter, consumer, param, patCode);
+            string pName = ti != null ? ti.PatientName : "N/A";
+            Console.Write(string.Format("  - Xử lý BN {0} ({1}): ", patCode, pName));
+
+            int countBa = 0;
+            int countTtdt = 0;
+
+            if (ti != null)
+            {
+                // 1. Xóa trong BENHANNGOAIKHOA theo MaQuanLy và TreatmentId
+                string sqlDelBa = string.Format(
+                    "DELETE FROM EMR_FINAL.BENHANNGOAIKHOA WHERE (MAQUANLY = {0} OR MAQUANLY = {1}) AND BACSYLAMBENHAN = '{2}'",
+                    ti.MaQuanLy.ToString(CultureInfo.InvariantCulture), ti.TreatmentId, DEFAULT_DOCTOR_CODE);
+                countBa = ExecuteNonQuery(con, sqlDelBa);
+
+                // 2. Xóa trong THONGTINDIEUTRI (IDLoaiBenhAn = 11)
+                string sqlDelTtdt = string.Format(
+                    "DELETE FROM EMR_FINAL.THONGTINDIEUTRI WHERE (MAQUANLY = {0} OR MAQUANLY = {1} OR MABENHNHAN = '{2}') AND IDLOAIBENHAN = 11",
+                    ti.MaQuanLy.ToString(CultureInfo.InvariantCulture), ti.TreatmentId, patCode);
+                countTtdt = ExecuteNonQuery(con, sqlDelTtdt);
+            }
+            else
+            {
+                string sqlDelTtdt = string.Format(
+                    "DELETE FROM EMR_FINAL.THONGTINDIEUTRI WHERE MABENHNHAN = '{0}' AND IDLOAIBENHAN = 11", patCode);
+                countTtdt = ExecuteNonQuery(con, sqlDelTtdt);
+            }
+
+            if (countBa > 0 || countTtdt > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(string.Format("ĐÃ XÓA (BENHANNGOAIKHOA: {0}, THONGTINDIEUTRI: {1})", Math.Max(0, countBa), Math.Max(0, countTtdt)));
+                Console.ResetColor();
+                if (countBa > 0) totalBaDeleted += countBa;
+                if (countTtdt > 0) totalTtdtDeleted += countTtdt;
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine("Đã dọn sạch / không còn bản ghi.");
+                Console.ResetColor();
+            }
+        }
+
+        // Quét toàn bộ các bản ghi còn lại của BS 034727 để rà soát sạch các ca ngoại trú nếu có
+        Console.WriteLine("\n🔍 ĐỐI SOÁT TOÀN BỘ HỒ SƠ CỦA BS 034727 TRÊN EMR:");
+        string sqlList = string.Format("SELECT MAQUANLY, BENHCHINH, NGAYKHAMBENH FROM EMR_FINAL.BENHANNGOAIKHOA WHERE BACSYLAMBENHAN = '{0}'", DEFAULT_DOCTOR_CODE);
+        dynamic rList = ExecuteReader(con, sqlList);
+        List<decimal> remainingMaQls = new List<decimal>();
+        while (rList != null && rList.Read())
+        {
+            remainingMaQls.Add(Convert.ToDecimal(rList[0]));
+        }
+
+        Console.WriteLine(string.Format("Tìm thấy {0} bản ghi BENHANNGOAIKHOA của BS {1}:", remainingMaQls.Count, DEFAULT_DOCTOR_CODE));
+        foreach (var mql in remainingMaQls)
+        {
+            var tiCheck = LookupByTreatmentCode(adapter, consumer, param, mql.ToString().PadLeft(12, '0'));
+            if (tiCheck == null)
+            {
+                long trId;
+                if (long.TryParse(mql.ToString(), out trId))
+                    tiCheck = LookupByTreatmentId(adapter, consumer, param, trId);
+            }
+
+            if (tiCheck != null)
+            {
+                bool isInpatient = (tiCheck.TreatmentTypeId == 3);
+                if (!isInpatient)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write(string.Format("  ⚠️ Phát hiện ca ngoại trú sót lại: {0} ({1}) - MaQuanLy: {2} -> Đang xóa... ",
+                        tiCheck.PatientName, tiCheck.PatientCode, mql));
+                    int delExtra = ExecuteNonQuery(con, string.Format("DELETE FROM EMR_FINAL.BENHANNGOAIKHOA WHERE MAQUANLY = {0} AND BACSYLAMBENHAN = '{1}'", mql, DEFAULT_DOCTOR_CODE));
+                    Console.WriteLine(delExtra > 0 ? "ĐÃ XÓA XONG." : "Không thể xóa.");
+                    Console.ResetColor();
+                    if (delExtra > 0) totalBaDeleted += delExtra;
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine(string.Format("  ✓ [NỘI TRÚ BẢO LƯU] {0} ({1}) - MaQuanLy: {2} | Chẩn đoán: {3}",
+                        tiCheck.PatientName, tiCheck.PatientCode, mql, tiCheck.IcdName));
+                    Console.ResetColor();
+                }
+            }
+            else
+            {
+                Console.WriteLine(string.Format("  - MaQuanLy: {0} (Không tìm thấy trong HIS)", mql));
+            }
+        }
+
+        // Commit transaction
+        try
+        {
+            ExecuteNonQuery(con, "COMMIT");
+        }
+        catch { }
+
+        Console.WriteLine("\n" + new string('-', 85));
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine(string.Format("📊 TỔNG KẾT REVERSE: Đã xóa {0} vỏ BENHANNGOAIKHOA và {1} bản ghi THONGTINDIEUTRI ngoại trú.", totalBaDeleted, totalTtdtDeleted));
+        Console.ResetColor();
+
+        // Kiểm tra an toàn: Đảm bảo bệnh nhân nội trú thật sự vẫn nguyên vẹn
+        Console.WriteLine("\n🔒 KIỂM TRA TOÀN VẸN CÁC CA NỘI TRÚ CHÍNH THỨC (BẢO LƯU 100%):");
+        string[] inpatientChecks = new string[] { "0004051068", "0000393143", "0003993384", "0002145867" };
+        foreach (var inCode in inpatientChecks)
+        {
+            var tiIn = LookupByPatientCode(adapter, consumer, param, inCode);
+            if (tiIn != null)
+            {
+                dynamic ba = BenhAnNgoaiKhoaSelect(con, tiIn.MaQuanLy);
+                if (ba == null || ba.MaQuanLy == 0) ba = BenhAnNgoaiKhoaSelect(con, (decimal)tiIn.TreatmentId);
+                bool hasBa = (ba != null && ba.MaQuanLy > 0);
+                Console.WriteLine(string.Format("  - BN {0} ({1}): {2}", 
+                    inCode, tiIn.PatientName, hasBa ? "✓ NGUYÊN VẸN AN TOÀN TRÊN EMR" : "⚠️ Chưa có vỏ"));
+            }
+        }
+
+        con.Close();
+        Console.WriteLine(new string('=', 85));
+        return 0;
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // TIỆN ÍCH DỮ LIỆU & ORACLE WRAPPERS
     // ──────────────────────────────────────────────────────────────
     static Assembly _emrMainLib;
@@ -1519,6 +1732,24 @@ class HisEmrFiller
             return cmd.ExecuteReader();
         }
         catch { return null; }
+    }
+
+    static int ExecuteNonQuery(dynamic con, string sql)
+    {
+        LoadEmrAssemblies();
+        try
+        {
+            dynamic cmd = Activator.CreateInstance(_mdbCmdType, new object[] { sql, con });
+            object res = cmd.ExecuteNonQuery();
+            if (res is int) return (int)res;
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            string detail = ex.InnerException != null ? (" --> " + ex.InnerException.Message) : "";
+            Console.WriteLine("  [ExecuteNonQuery Error] " + ex.Message + detail);
+            return -1;
+        }
     }
 
     static decimal ParseMaQuanLy(string treatmentCode, long treatmentId)

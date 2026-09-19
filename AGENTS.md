@@ -83,7 +83,13 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
 | 📑 **Tạo Biên bản Hội chẩn thông qua mổ (MS: PT-01)** | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN1,MãBN2,...>` | ❌ Không phá vỡ format mẫu docx |
 | ⚡ **Ghi nhận & học thao tác UI (Click/Phím/Text)** | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` hoặc `.\HisUiWrapper.exe --launch` | ❌ Không ghi ứng dụng ngoài HIS |
-| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR & Khởi tạo Trang bìa** | **`HisEmrFiller.exe`** | `.\HisEmrFiller.exe <MãBN> [--save]` | ❌ Không dùng kê đơn / tra cứu |
+| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR & Khởi tạo Trang bìa** | **`HisEmrFiller.exe`** | `.\HisEmrFiller.exe <MãBN> [--save]` | ❌ Không dùng cho ca Ngoại trú / Phòng khám |
+
+### 🌟 QUY TẮC BẮT BUỘC: VỎ BỆNH ÁN NGOẠI KHOA CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ (INPATIENT ONLY)
+* **TUYỆT ĐỐI CẤM**: Không tạo Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA` / EMR) cho bệnh nhân khám ngoại trú / phòng khám (`TDL_TREATMENT_TYPE_ID != 3`).
+* **Phạm vi áp dụng duy nhất**: Vỏ Bệnh Án Ngoại Khoa CHỈ dành riêng cho bệnh nhân **ĐIỀU TRỊ NỘI TRÚ** (`TDL_TREATMENT_TYPE_ID == 3` và nằm buồng bệnh nội trú Khoa 57 / Khoa 915).
+* **Chốt chặn an toàn trong Code**: `HisEmrFiller.exe` tự động chặn đứng và từ chối nếu bệnh nhân là diện ngoại trú / phòng khám. Khi quét bệnh nhân theo ngày (`--date YYYYMMDD`), công cụ tự động lọc bỏ 100% ca khám ngoại trú.
+* **Lệnh thu hồi khẩn cấp (Reverse)**: `.\HisEmrFiller.bat --reverse-outpatients` để xóa sạch vỏ bệnh án ngoại trú bị tạo nhầm trên DB Oracle EMR và bảo lưu nguyên vẹn 100% bệnh nhân nội trú.
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
