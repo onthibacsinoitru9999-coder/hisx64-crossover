@@ -165,6 +165,9 @@ class HisEmrFiller
         string input = null;
         bool dryRun = false; // Mặc định tự lưu theo Grill-me
         bool isTodayScan = false;
+        bool isDateScan = false;
+        string targetDateStr = null;
+        bool autoCreate = false;
         string doctorCode = DEFAULT_DOCTOR_CODE;
         string doctorName = DEFAULT_DOCTOR_NAME;
         bool forceSummary = false;
@@ -180,6 +183,17 @@ class HisEmrFiller
                      a.Equals("-f", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("--force-summary", StringComparison.OrdinalIgnoreCase))
                 forceSummary = true;
+            else if ((a.Equals("--date", StringComparison.OrdinalIgnoreCase) || a.Equals("-d", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Length)
+            {
+                targetDateStr = args[++i];
+                isDateScan = true;
+            }
+            else if (a.Equals("--auto", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--auto-create", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--create-missing", StringComparison.OrdinalIgnoreCase))
+            {
+                autoCreate = true;
+            }
             else if (a.Equals("--doctor", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
                 doctorCode = args[++i];
@@ -200,6 +214,22 @@ class HisEmrFiller
             {
                 input = a;
             }
+        }
+
+        // Tự động nhận diện nếu input là ngày tháng (VD: 18.09, 18/09/2026, 20260918)
+        if (!string.IsNullOrEmpty(input) && !isDateScan)
+        {
+            if (input.Contains(".") || input.Contains("/") || (input.Length == 8 && input.StartsWith("2026")))
+            {
+                targetDateStr = input;
+                isDateScan = true;
+                input = null;
+            }
+        }
+
+        if (isDateScan)
+        {
+            return RunDateAudit(targetDateStr, autoCreate, doctorCode, doctorName);
         }
 
         if (isTodayScan)
@@ -688,11 +718,11 @@ class HisEmrFiller
     static string FormatTienSuBrief(string tienSu)
     {
         if (string.IsNullOrWhiteSpace(tienSu)) return "khỏe mạnh";
-        string ts = tienSu.Replace("\r\n", ", ").Replace("\n", ", ").Replace("  ", " ").Trim();
+        string ts = tienSu.Replace("\r\n", ", ").Replace("\n", ", ").Replace(". ", ", ").Replace("  ", " ").Trim();
         while (ts.Contains(", ,") || ts.Contains(",,")) ts = ts.Replace(", ,", ",").Replace(",,", ",");
         if (ts.ToLower().Contains("khỏe mạnh") || ts.ToLower().Contains("khoe manh") || ts.ToLower().Contains("chưa phát hiện") || ts.ToLower().Contains("chưa ghi nhận"))
             return "khỏe mạnh";
-        if (ts.EndsWith(".")) ts = ts.Substring(0, ts.Length - 1).Trim();
+        if (ts.EndsWith(".") || ts.EndsWith(",")) ts = ts.Substring(0, ts.Length - 1).Trim();
         return ts;
     }
 
@@ -1157,6 +1187,257 @@ class HisEmrFiller
         return 0;
     }
 
+    static int RunDateAudit(string dateInput, bool autoCreate, string doctorCode, string doctorName)
+    {
+        long targetFrom = 0;
+        long targetTo = 0;
+        string displayDate = "";
+
+        try
+        {
+            int year = DateTime.Today.Year;
+            int month = DateTime.Today.Month;
+            int day = DateTime.Today.Day;
+
+            string s = (dateInput ?? "").Trim();
+            if (s.Length == 8 && s.StartsWith("202") && s.All(char.IsDigit))
+            {
+                year = int.Parse(s.Substring(0, 4));
+                month = int.Parse(s.Substring(4, 2));
+                day = int.Parse(s.Substring(6, 2));
+            }
+            else
+            {
+                char[] seps = new char[] { '/', '.', '-' };
+                string[] parts = s.Split(seps, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
+                {
+                    int.TryParse(parts[0], out day);
+                    int.TryParse(parts[1], out month);
+                    if (parts.Length >= 3) int.TryParse(parts[2], out year);
+                    if (year < 100) year += 2000;
+                }
+            }
+
+            targetFrom = (long)year * 10000000000L + (long)month * 100000000L + (long)day * 1000000L;
+            targetTo   = targetFrom + 235959L;
+            displayDate = string.Format("{0:D2}/{1:D2}/{2:D4}", day, month, year);
+        }
+        catch
+        {
+            targetFrom = (long)DateTime.Today.Year * 10000000000L + (long)DateTime.Today.Month * 100000000L + (long)DateTime.Today.Day * 1000000L;
+            targetTo   = targetFrom + 235959L;
+            displayDate = DateTime.Today.ToString("dd/MM/yyyy");
+        }
+
+        Console.WriteLine("\n" + new string('=', 85));
+        Console.WriteLine(string.Format("🏥 QUÉT BỆNH NHÂN VÀO KHOA CTCH & CỘT SỐNG (KHOA {0}) NGÀY {1}", _deptId, displayDate));
+        Console.WriteLine(new string('=', 85));
+
+        string tokenCode = ReadLiveToken();
+        var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
+        var param = new CommonParam();
+        var adapter = new MyAdapter();
+
+        var patientMap = new Dictionary<long, TreatmentInfo>();
+        var roomMap = new Dictionary<long, string>();
+
+        // 1. Quét HisDepartmentTran vào Khoa 57 trong ngày
+        try
+        {
+            var dtf = new HisDepartmentTranViewFilter
+            {
+                DEPARTMENT_ID = _deptId,
+                DEPARTMENT_IN_TIME_FROM = targetFrom,
+                DEPARTMENT_IN_TIME_TO = targetTo
+            };
+            var deptTrans = adapter.FetchList<V_HIS_DEPARTMENT_TRAN>("api/HisDepartmentTran/GetView", consumer, dtf, param);
+            if (deptTrans != null)
+            {
+                foreach (var dt in deptTrans)
+                {
+                    if (!patientMap.ContainsKey(dt.TREATMENT_ID))
+                    {
+                        var ti = LookupByTreatmentId(adapter, consumer, param, dt.TREATMENT_ID);
+                        if (ti != null)
+                        {
+                            ti.DeptInTime = dt.DEPARTMENT_IN_TIME;
+                            patientMap[dt.TREATMENT_ID] = ti;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  ⚠️ Quét DepartmentTran: " + ex.Message);
+        }
+
+        // 2. Quét HisTreatment vào viện trong ngày có liên quan Khoa 57
+        try
+        {
+            var tf = new HisTreatmentViewFilter
+            {
+                IN_TIME_FROM = targetFrom,
+                IN_TIME_TO = targetTo
+            };
+            var trs = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, param);
+            if (trs != null)
+            {
+                var deptTrs = trs.Where(x => x.LAST_DEPARTMENT_ID == _deptId || x.IN_DEPARTMENT_ID == _deptId || x.END_DEPARTMENT_ID == _deptId).ToList();
+                foreach (var tr in deptTrs)
+                {
+                    if (!patientMap.ContainsKey(tr.ID))
+                    {
+                        patientMap[tr.ID] = MapTreatment(tr);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  ⚠️ Quét HisTreatment: " + ex.Message);
+        }
+
+        // 3. Quét thông tin buồng giường từ bệnh nhân đang nằm buồng
+        try
+        {
+            var bf = new HisBedRoomViewFilter { DEPARTMENT_ID = _deptId };
+            var rooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", consumer, bf, param);
+            if (rooms != null && rooms.Count > 0)
+            {
+                var roomIds = rooms.Select(r => r.ID).ToList();
+                var tbrf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_IDs = roomIds, IS_IN_ROOM = true };
+                var inPatients = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", consumer, tbrf, param);
+                if (inPatients != null)
+                {
+                    foreach (var ip in inPatients)
+                    {
+                        roomMap[ip.TREATMENT_ID] = string.Format("{0} - {1}", ip.BED_ROOM_NAME, ip.BED_NAME);
+                        if (ip.ADD_TIME >= targetFrom && ip.ADD_TIME <= targetTo && !patientMap.ContainsKey(ip.TREATMENT_ID))
+                        {
+                            var ti = LookupByTreatmentId(adapter, consumer, param, ip.TREATMENT_ID);
+                            if (ti != null) patientMap[ip.TREATMENT_ID] = ti;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Lọc danh sách bệnh nhân NỘI TRÚ vào Khoa 57 ngày chỉ định
+        var filteredList = patientMap.Values
+            .Where(ti => (ti.InTimeRaw >= targetFrom && ti.InTimeRaw <= targetTo) ||
+                         (ti.DeptInTime.HasValue && ti.DeptInTime.Value >= targetFrom && ti.DeptInTime.Value <= targetTo))
+            .Where(ti => ti.TreatmentTypeId == 3 || ti.ClinicalInTime.HasValue || roomMap.ContainsKey(ti.TreatmentId))
+            .OrderBy(ti => ti.DeptInTime ?? ti.InTimeRaw)
+            .ToList();
+
+        if (filteredList.Count == 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(string.Format("ℹ️ Không tìm thấy bệnh nhân nội trú nào vào Khoa {0} ngày {1}.", _deptId, displayDate));
+            Console.ResetColor();
+            return 0;
+        }
+
+        Console.WriteLine(string.Format("✓ Tìm thấy tổng cộng {0} bệnh nhân NỘI TRÚ vào Khoa {1} ngày {2}:\n", filteredList.Count, _deptId, displayDate));
+
+        dynamic con = CreateEmrConnection();
+        con.Open();
+
+        var missingList = new List<TreatmentInfo>();
+        int idx = 1;
+
+        foreach (var ti in filteredList)
+        {
+            string roomStr = roomMap.ContainsKey(ti.TreatmentId) ? roomMap[ti.TreatmentId] : "Chưa xếp buồng/ngoại trú";
+
+            bool hasBA = false;
+            string bsBA = "";
+            try
+            {
+                dynamic ba = BenhAnNgoaiKhoaSelect(con, ti.MaQuanLy);
+                if (ba == null || ba.MaQuanLy == 0)
+                {
+                    ba = BenhAnNgoaiKhoaSelect(con, (decimal)ti.TreatmentId);
+                }
+                if (ba != null && ba.MaQuanLy > 0)
+                {
+                    hasBA = true;
+                    bsBA = SafeStr(ba.BacSyLamBenhAn);
+                }
+            }
+            catch { }
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(string.Format("[{0:D2}] {1} ({2}) | {3}T - {4} | Vào: {5}",
+                idx++, ti.PatientName, ti.PatientCode, ti.PatientAge, ti.PatientGender, ti.InTime));
+            Console.ResetColor();
+            Console.WriteLine(string.Format("     📍 Vị trí: {0}", roomStr));
+            Console.WriteLine(string.Format("     🩺 Chẩn đoán: [{0}] {1}", ti.IcdCode, ti.IcdName));
+            Console.Write("     📋 Vỏ bệnh án EMR: ");
+
+            if (hasBA)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(string.Format("✔ ĐÃ CÓ (BS: {0})", bsBA));
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("🔴 CHƯA CÓ VỎ BỆNH ÁN");
+                Console.ResetColor();
+                missingList.Add(ti);
+            }
+            Console.WriteLine();
+        }
+
+        con.Close();
+
+        // Tự động tạo nếu có cờ autoCreate
+        if (autoCreate && missingList.Count > 0)
+        {
+            Console.WriteLine(new string('-', 85));
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(string.Format("🚀 TỰ ĐỘNG TẠO VỎ BỆNH ÁN CHO {0} BỆNH NHÂN CHƯA CÓ...", missingList.Count));
+            Console.ResetColor();
+            Console.WriteLine(new string('-', 85));
+
+            int successCount = 0;
+            foreach (var ti in missingList)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine(string.Format("\n>>> Đang tạo Bệnh Án Ngoại Khoa cho: {0} ({1}) - Mã ĐT: {2}", ti.PatientName, ti.PatientCode, ti.TreatmentCode));
+                Console.ResetColor();
+
+                int res = Run(ti.PatientCode, false, doctorCode, doctorName, false);
+                if (res == 0)
+                {
+                    successCount++;
+                }
+            }
+
+            Console.WriteLine("\n" + new string('=', 85));
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(string.Format("🎉 HOÀN TẤT TỰ ĐỘNG TẠO VỎ BỆNH ÁN: {0}/{1} THÀNH CÔNG!", successCount, missingList.Count));
+            Console.ResetColor();
+            Console.WriteLine(new string('=', 85));
+        }
+        else if (missingList.Count > 0)
+        {
+            Console.WriteLine(new string('-', 85));
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(string.Format("💡 Có {0} bệnh nhân chưa có vỏ bệnh án EMR. Thêm cờ --auto để tự động tạo toàn bộ:", missingList.Count));
+            Console.WriteLine(string.Format("   .\\HisEmrFiller.bat --date {0} --auto", displayDate));
+            Console.ResetColor();
+            Console.WriteLine(new string('-', 85));
+        }
+
+        return 0;
+    }
+
     // ──────────────────────────────────────────────────────────────
     // TIỆN ÍCH DỮ LIỆU & ORACLE WRAPPERS
     // ──────────────────────────────────────────────────────────────
@@ -1263,6 +1544,9 @@ class HisEmrFiller
             PatientAge    = ageStr,
             PatientGender = !string.IsNullOrEmpty(t.TDL_PATIENT_GENDER_NAME) ? t.TDL_PATIENT_GENDER_NAME : ((t.TDL_PATIENT_GENDER_ID == 1) ? "Nam" : "Nữ"),
             InTime        = inTimeStr,
+            InTimeRaw     = t.IN_TIME,
+            TreatmentTypeId = t.TDL_TREATMENT_TYPE_ID,
+            ClinicalInTime = t.CLINICAL_IN_TIME,
             IcdCode       = t.ICD_CODE ?? "",
             IcdName       = t.ICD_NAME ?? "",
             IcdText       = t.ICD_TEXT ?? "",
@@ -1535,6 +1819,10 @@ class HisEmrFiller
         public string  PatientAge;
         public string  PatientGender;
         public string  InTime;
+        public long    InTimeRaw;
+        public long?   DeptInTime;
+        public long?   TreatmentTypeId;
+        public long?   ClinicalInTime;
         public string  IcdCode;
         public string  IcdName;
         public string  IcdText;
