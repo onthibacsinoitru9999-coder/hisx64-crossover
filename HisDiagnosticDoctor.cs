@@ -600,6 +600,54 @@ public class HisDiagnosticDoctor
                         Console.WriteLine("❌ Lỗi ký: " + (pSignRes.Messages != null ? string.Join("; ", pSignRes.Messages) : ""));
                     }
                 }
+
+                // Đồng bộ chữ ký số vào bảng BENHANNGOAIKHOA (Oracle CSDL EMR)
+                try
+                {
+                    string emrDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Integrate", "EMR");
+                    if (!Directory.Exists(emrDir))
+                    {
+                        emrDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Integrate", "EMR");
+                    }
+                    if (Directory.Exists(emrDir))
+                    {
+                        Assembly mdb = Assembly.LoadFrom(Path.Combine(emrDir, "MDB.dll"));
+                        Assembly oracle = Assembly.LoadFrom(Path.Combine(emrDir, "Oracle.ManagedDataAccess.dll"));
+                        Type connType = mdb.GetType("MDB.MDBConnection");
+                        Type cmdType = mdb.GetType("MDB.MDBCommand");
+                        string connStr = "Data Source=192.168.7.248:1521/orclstb;User Id=EMR_FINAL;Password=EMR_FINAL;";
+                        dynamic dbCon = Activator.CreateInstance(connType, new object[] { connStr });
+                        dbCon.Open();
+                        string docCode = docRes.DocumentCode ?? newDocId.ToString();
+                        string cleanTrCode = tr.TREATMENT_CODE.TrimStart('0');
+                        string upSql = string.Format(@"UPDATE BENHANNGOAIKHOA SET 
+                            TENFILEKY = 'Bệnh án Ngoại khoa(Hành chính)_{0}',
+                            USERNAMEKY = '{1}',
+                            NGAYKY = TO_DATE('{2}', 'YYYYMMDDHH24MISS'),
+                            COMPUTERKYTEN = 'HIS-DESKTOP',
+                            MASOKYTEN = '{0}',
+                            TENFILEKY_KB = 'Bệnh án Ngoại khoa(Khám bệnh)_{0}',
+                            USERNAMEKY_KB = '{1}',
+                            NGAYKY_KB = TO_DATE('{2}', 'YYYYMMDDHH24MISS'),
+                            COMPUTERKYTEN_KB = 'HIS-DESKTOP',
+                            MASOKYTEN_KB = '{0}'
+                        WHERE MaQuanLy IN ({3}, {4})", docCode, mySign.LOGINNAME, signTime, tr.ID, cleanTrCode);
+                        dynamic cmdUp = Activator.CreateInstance(cmdType, new object[] { upSql, dbCon });
+                        int rows = cmdUp.ExecuteNonQuery();
+                        dbCon.Close();
+                        if (rows > 0)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine(string.Format("✔ Đã đồng bộ chữ ký trực tiếp vào Form Bệnh Án Oracle EMR ({0} bản ghi)!", rows));
+                            Console.ResetColor();
+                        }
+                    }
+                }
+                catch (Exception exSync)
+                {
+                    Console.WriteLine("⚠️ Ghi chú đồng bộ Oracle: " + exSync.Message);
+                }
+
                 Console.WriteLine("===============================================================================");
             }
             catch (Exception ex)
