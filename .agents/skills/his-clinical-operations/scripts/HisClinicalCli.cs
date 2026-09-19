@@ -2675,9 +2675,9 @@ public class HisClinicalCli
             return;
         }
 
-        Console.WriteLine(string.Format("📋 Tìm thấy {0} văn bản EMR:", docs.Count));
+        Console.WriteLine(string.Format("📋 Tìm thấy {0} văn bản EMR (Hiển thị 15 văn bản mới nhất):", docs.Count));
         int idx = 1;
-        foreach (var d in docs.OrderByDescending(x => x.ID))
+        foreach (var d in docs.OrderByDescending(x => x.ID).Take(15))
         {
             string statusSign;
             if (string.IsNullOrEmpty(d.NEXT_SIGNER))
@@ -2737,11 +2737,11 @@ public class HisClinicalCli
         }
 
         var pendingDocs = docs.Where(d => 
-            (targetDocId == null || d.ID == targetDocId.Value) &&
-            !string.IsNullOrEmpty(d.NEXT_SIGNER) &&
-            (string.Equals(d.NEXT_SIGNER, currentDoctorLogin, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(d.NEXT_SIGNER, "034727", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(d.NEXT_SIGNER, "vmc", StringComparison.OrdinalIgnoreCase))
+            targetDocId != null ? (d.ID == targetDocId.Value) :
+            (!string.IsNullOrEmpty(d.NEXT_SIGNER) &&
+             (string.Equals(d.NEXT_SIGNER, currentDoctorLogin, StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(d.NEXT_SIGNER, "034727", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(d.NEXT_SIGNER, "vmc", StringComparison.OrdinalIgnoreCase)))
         ).ToList();
 
         if (pendingDocs.Count == 0)
@@ -2763,13 +2763,21 @@ public class HisClinicalCli
             var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, param);
             var mySign = signs != null ? signs.FirstOrDefault(s => 
                 (string.Equals(s.LOGINNAME, currentDoctorLogin, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(s.LOGINNAME, doc.NEXT_SIGNER, StringComparison.OrdinalIgnoreCase)) &&
+                 string.Equals(s.LOGINNAME, doc.NEXT_SIGNER, StringComparison.OrdinalIgnoreCase) ||
+                 string.IsNullOrEmpty(s.LOGINNAME)) &&
                 (s.SIGN_TIME == null || s.SIGN_TIME == 0)
             ) : null;
 
             if (mySign == null)
             {
                 Console.WriteLine("   ⚠️ Không tìm thấy lượt ký hợp lệ của Bác sĩ trong văn bản này!");
+                if (signs != null && signs.Count > 0)
+                {
+                    foreach (var s in signs)
+                    {
+                        Console.WriteLine(string.Format("      • Vị trí {0} ({1} - {2}): SIGN_TIME={3}", s.NUM_ORDER, s.LOGINNAME, s.USERNAME, s.SIGN_TIME));
+                    }
+                }
                 continue;
             }
 
