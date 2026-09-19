@@ -1764,6 +1764,7 @@ class Program
 
         string rawPatients = "";
         string rawTime = "17:00";
+        string rawDate = "";
         string content = "";
         string medInstruction = "";
         string careInstruction = "";
@@ -1773,6 +1774,13 @@ class Program
         {
             if ((args[i] == "-p" || args[i] == "--patient") && i + 1 < args.Length) rawPatients = args[i + 1];
             if ((args[i] == "-time" || args[i] == "-t") && i + 1 < args.Length) rawTime = args[i + 1];
+            if ((args[i] == "-date" || args[i] == "-d") && i + 1 < args.Length) rawDate = args[i + 1];
+            if ((args[i] == "-u" || args[i] == "-user" || args[i] == "--user") && i + 1 < args.Length)
+            {
+                MainForm.CurrentLoginName = args[i + 1].Trim();
+                if (MainForm.CurrentLoginName == "vmc") MainForm.CurrentUserName = "VŨ MINH CƯỜNG";
+                else if (MainForm.CurrentLoginName == "034727") MainForm.CurrentUserName = "NGUYỄN HỮU SÂM";
+            }
             if ((args[i] == "-content" || args[i] == "-c") && i + 1 < args.Length) content = args[i + 1];
             if ((args[i] == "-med" || args[i] == "-m") && i + 1 < args.Length) medInstruction = args[i + 1];
             if ((args[i] == "-care") && i + 1 < args.Length) careInstruction = args[i + 1];
@@ -1797,7 +1805,9 @@ class Program
         var codes = rawPatients.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => c.Trim()).ToList();
 
         Console.WriteLine(string.Format("• Số lượng bệnh nhân: {0}", codes.Count));
+        if (!string.IsNullOrEmpty(rawDate)) Console.WriteLine(string.Format("• Ngày chỉ định: {0}", rawDate));
         Console.WriteLine(string.Format("• Mốc giờ: {0}", rawTime));
+        Console.WriteLine(string.Format("• Bác sĩ: {0} ({1})", MainForm.CurrentUserName, MainForm.CurrentLoginName));
         Console.WriteLine(string.Format("• Nội dung: {0}", content));
         Console.WriteLine(string.Format("• Chăm sóc: {0}", careInstruction));
         Console.WriteLine(string.Format("• Y lệnh: {0}", medInstruction));
@@ -1821,6 +1831,14 @@ class Program
                 }
 
                 DateTime date = DateTime.Today;
+                if (!string.IsNullOrEmpty(rawDate))
+                {
+                    DateTime parsedDate;
+                    if (DateTime.TryParseExact(rawDate, new string[] { "yyyyMMdd", "yyyy-MM-dd", "dd/MM/yyyy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsedDate))
+                        date = parsedDate;
+                    else if (DateTime.TryParse(rawDate, out parsedDate))
+                        date = parsedDate;
+                }
                 TimeSpan tSpan;
                 if (!TimeSpan.TryParse(rawTime, out tSpan)) tSpan = new TimeSpan(17, 0, 0);
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
