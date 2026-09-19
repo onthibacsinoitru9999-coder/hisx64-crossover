@@ -531,30 +531,44 @@ Hệ thống Ký số EMR Inventec hoạt động trên 2 tầng độc lập:
    - `DOCUMENT_TYPE_ID = 17`: Loại văn bản "Trích biên bản hội chẩn" (`Mps000019`).
    - `EMR_SIGN`: Quản lý danh sách người ký, thứ tự ký (`NUM_ORDER = 1`: BS điều trị / Thư ký, `NUM_ORDER = 2`: BS phối hợp / Chủ tọa / Lãnh đạo khoa), thời gian ký (`SIGN_TIME`).
 
-### 10.2. Bản Chất Thực Tế: Chữ Ký Điện Tử Nội Bộ (Electronic Signature - KHÔNG CẦN USB TOKEN / MÃ PIN)
-* **Khám phá cốt lõi**: Bệnh viện Bạch Mai triển khai phân hệ Chữ ký điện tử nội bộ cho các hồ sơ điều trị thường quy (Tờ điều trị, Biên bản hội chẩn, Cam kết mổ...). 
-* **Cơ chế**: Không đòi hỏi USB Token phần cứng cắm tại cổng máy tính hay nhập mã PIN cá nhân, mà hệ thống xác thực dựa trên:
-  1. `TokenCode` của phiên đăng nhập Bác sĩ (`034727` - Ths.BS Nguyễn Hữu Sâm hoặc `vmc` - BS Vũ Minh Cường).
-  2. Con dấu scan chữ ký / ảnh chữ ký (`SIGN_IMAGE`) đã được lưu trữ sẵn trên cơ sở dữ liệu EMR của Inventec.
-  3. Khi gửi request ký, đặt `IsSignElectronic = true`, `IsFinishSign = true` trong DTO `EmrSignHsmSDO`.
+### 10.2. Bản Chất Thực Tế: Ký Điện Tử Cloud HSM (Server-Side HSM - KHÔNG CẦN USB TOKEN / MÃ PIN)
+* **Khám phá cốt lõi (2026-09-19)**: Bệnh viện Bạch Mai triển khai phân hệ **Cloud HSM tập trung** của VNPT/Inventec. API backend tự động điều phối chứng thư số đám mây để đóng dấu PDF mà máy trạm của bác sĩ **KHÔNG CẦN cắm USB Token phần cứng** hay nhập mã PIN.
+* **Cơ chế xác thực & bẫy lỗi quan trọng**:
+  1. `TokenCode` của phiên đăng nhập Bác sĩ (`034727` - Ths.BS Nguyễn Hữu Sâm: có chứng thư HSM Cloud hợp lệ trên server).
+  2. **BẪY LỖI SỐNG CÒN - `PointSign` (`EmrPointSignSDO`)**: `api/EmrSign/SignPdfHsm` **BẮT BUỘC** phải có trường `PointSign` chứa tọa độ, kích thước con dấu, cỡ chữ và kiểu hiển thị (`TypeDisplay = 3`). Nếu không có `PointSign`, API sẽ trả về `null` và không thể ký!
+  3. Khi gửi request ký, đặt `IsSignElectronic = true`, `IsSigning = true`, `IsFinishSign = true` trong DTO `EmrSignHsmSDO`.
 
-### 10.3. Cấu Trúc DTO Ký Chuẩn & Fallback API:
+### 10.3. Cấu Trúc DTO Ký Chuẩn (Full PointSign & Fallback API):
 ```csharp
-// 1. Ký qua SignPdfHsm (Chữ ký điện tử Server-side)
+// 1. Ký qua SignPdfHsm (Chữ ký điện tử Cloud HSM Server-side)
 var signSdo = new EmrSignHsmSDO
 {
     EmrDocumentId = doc.ID,
     EmrSignId = mySign.ID,
     SignTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss")),
     IsFinishSign = true,
+    IsSigning = true,
     IsSignElectronic = true,
     Description = "Ký điện tử Bác sĩ điều trị (Auto-Sign)",
     RoomCode = "NQCTCHBB734",
-    RoomTypeCode = "GI"
+    RoomTypeCode = "GI",
+    WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
+    PointSign = new EMR.SDO.EmrPointSignSDO
+    {
+        CoorXRectangle = 400.0f,
+        CoorYRectangle = 100.0f,
+        PageNumber = 1,
+        MaxPageNumber = 1,
+        WidthRectangle = 150.0f,
+        HeightRectangle = 50.0f,
+        SizeFont = 10,
+        TypeDisplay = 3,
+        FontName = "Times New Roman"
+    }
 };
 var res = myAdapter.PostData<EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSign);
 
-// 2. Fallback qua UpdateSdo nếu SignPdfHsm báo lỗi cấu hình HSM
+// 2. Fallback qua UpdateSdo nếu SignPdfHsm chưa cấu hình kịp
 if (res == null || res.EmrSign == null)
 {
     var updateSdo = new EmrSignUpdateSDO
@@ -572,16 +586,17 @@ if (res == null || res.EmrSign == null)
 ### 10.4. Danh Sách Lệnh CLI EMR Chuẩn Hóa (1-Click):
 | Lệnh CLI Chuẩn | Chức Năng | Ghi Chú |
 | :--- | :--- | :--- |
-| `.\HisClinicalCli.exe emr <MãBN\|MãĐT>` | Tra cứu 100% văn bản EMR, phân loại & trạng thái ký từng vị trí | Quét toàn bộ DocID, DocumentTypeCode, NextSigner |
-| `.\HisClinicalCli.exe sign-emr <MãBN\|MãĐT> [DocId]` | Tự động ký điện tử theo yêu cầu cho Bác sĩ hiện tại | Tự lọc văn bản đang chờ bác sĩ ký, thực hiện tức thì |
+| `.\HisClinicalCli.exe emr <MãBN\|MãĐT>` | Tra cứu 100% văn bản EMR, phân loại & trạng thái ký từng vị trí | Quét toàn bộ DocID, DocumentTypeCode, NextSigner. Nếu tất cả đã ký thì hiển thị `🟢 ĐÃ KÝ ĐẦY ĐỦ` |
+| `.\HisClinicalCli.exe sign-emr <MãBN\|MãĐT> [DocId]` | Tự động ký điện tử HSM theo yêu cầu cho Bác sĩ hiện tại | Tự lọc văn bản đang chờ bác sĩ ký, thực hiện tức thì với `PointSign` |
 
-### 10.5. Tự Động Ký EMR Ngay Khi Tạo Văn Bản (Kiểu 1 - Tích Hợp Sâu):
-1. **Biên bản hội chẩn chuyên khoa (`HisDebateCreator.exe`)**:
-   - Sau khi tạo phiếu hội chẩn và tờ điều trị đồng bộ, hệ thống tự động trích xuất văn bản EMR Type 17 (`Mps000019`) và ký điện tử ngay cho Thư ký (`034727`).
-2. **Tờ điều trị hàng ngày (`HisTrackingCreator.exe`)**:
-   - Cả chế độ GUI lẫn Batch CLI tự động đối soát và ký điện tử văn bản EMR Type 7 (`Mps000062`) của bệnh nhân ngay khi tạo thành công.
-
----
+### 10.5. Quy Trình 2 Bước Ký EMR Tự Động Cho Tờ Điều Trị (`HisTrackingCreator.exe`):
+Khi tạo Tờ điều trị mới trên MOS (`api/HisTracking/Create`), quy trình tự động thực hiện liên tiếp 2 bước sau:
+1. **Bước 1 - Tạo Lệnh in sinh văn bản EMR (`CreateByTdo`)**:
+   - Gọi `api/EmrDocument/CreateByTdo` với `DocumentTypeId = 7` (Tờ điều trị), `HisCode = "Mps000062 TREATMENT_CODE:{0} HIS_TRACKING:{1}"`.
+   - Đính kèm mẫu PDF phôi chuẩn (`Base64Data`) và khai báo vị trí ký cho Bác sĩ (`034727` - Ths.BS Nguyễn Hữu Sâm).
+2. **Bước 2 - Ký điện tử tự động Cloud HSM (`SignPdfHsm`)**:
+   - Gọi `api/EmrSign/SignPdfHsm` với cấu hình tọa độ con dấu `PointSign`.
+   - Kết quả: Văn bản lập tức chuyển sang trạng thái `🟢 ĐÃ KÝ ĐẦY ĐỦ` mà bác sĩ không phải mở lại bệnh án để ký tay.
 
 ## 11. PHÂN HỆ 7: CHỈ ĐỊNH & BIÊN BẢN HỘI CHẨN CHUYÊN KHOA (DEBATE DIAGNOSTIC & CONSULTATION)
 
@@ -1020,24 +1035,25 @@ Khi phát hiện dấu hiệu bất thường, Agent hoặc Bác sĩ chỉ cần
     - `.\HisEmrFiller.exe <MaBN> --save`: Ghi thật vào Oracle EMR (tự động khởi tạo Trang bìa nếu thiếu + ghi Vỏ bệnh án + xác nhận lại bằng Select).
     - `.\HisEmrFiller.exe <MaBN> --save --doctor <mã_bs>`: Ghi với bác sĩ cụ thể (`034727` hoặc `vmc`).
 
-- 🔏 **BẪY LỖI & QUY CHUẨN KÝ ĐIỆN TỬ EMR NỘI BỘ (EMR ELECTRONIC SIGNATURE - 2026-09-18)**:
+- 🔏 **BẪY LỖI & QUY CHUẨN KÝ ĐIỆN TỬ CLOUD HSM TRÊN EMR BẠCH MAI (EMR CLOUD HSM SIGNATURE - CẬP NHẬT 2026-09-19)**:
   * *Bản chất hệ thống Ký EMR Bạch Mai:*
     - Hồ sơ lâm sàng nội trú (Tờ điều trị, Hội chẩn chuyên khoa, Cam kết mổ...) KHÔNG sử dụng USB Token vật lý hay mã PIN HSM phức tạp.
-    - Hệ thống sử dụng **Chữ ký điện tử nội bộ** (`IsSignElectronic = true`), gắn liền với định danh phiên làm việc (`TokenCode`) và ảnh chữ ký scan (`SIGN_IMAGE`) lưu trữ sẵn trên máy chủ EMR.
+    - Bệnh viện triển khai **Cloud HSM tập trung**: Server tự động điều phối chứng thư số Cloud HSM cho Bác sĩ điều trị (`034727` - Ths.BS Nguyễn Hữu Sâm, HSM User Code: `8e2ccdb5e9f04c4c971d3cd354c53679`).
   * *Các bẫy lỗi runtime (Gotchas) cốt tử:*
-    1. **Lỗi `CS1704: An assembly with the same simple name has already been imported`**:
-       - *Nguyên nhân:* Tệp `refs.rsp` đã tự động nạp 1187 assemblies (bao gồm cả `EMR.EFMODEL.dll`, `EMR.Filter.dll`, `EMR.SDO.dll` trong thư mục `ReferencedAssemblies`). Nếu trong lệnh gọi compiler hoặc script ad-hoc truyền thêm `/r:.\Integrate\EMR\EMR.EFMODEL.dll` sẽ gây xung đột tên assembly trùng lặp.
-       - *Khắc phục:* Dùng đúng `refs.rsp` do `build_all_cs_tools.ps1` tạo ra, không truyền lặp các DLL EMR.
-    2. **Không ký được qua `api/EmrSign/SignPdfHsm` khi máy chủ chưa cấu hình chứng thư số HSM**:
-       - *Hiện tượng:* API `SignPdfHsm` trả về kết quả rỗng hoặc báo lỗi cấu hình chứng thư HSM.
-       - *Khắc phục:* BẮT BUỘC thiết kế cơ chế **Fallback 2 tầng**: nếu `SignPdfHsm` không thành công, tự động chuyển tiếp gọi `api/EmrSign/UpdateSdo` cập nhật `SIGN_TIME` trực tiếp trên bản ghi `EMR_SIGN` của Bác sĩ.
-    3. **Không tìm thấy bản ghi `EMR_DOCUMENT` ngay khi vừa tạo y lệnh**:
-       - *Nguyên nhân:* Server EMR cần độ trễ khoảng 1–1.5 giây để render và lưu bản ghi văn bản PDF vào CSDL EMR sau khi MOS ghi nhận nghiệp vụ (`HisDebate/CreateAutoTracking` hoặc `HisTracking/Create`).
-       - *Khắc phục:* Bổ sung `Thread.Sleep(1200 - 1500)` trước khi gọi `api/EmrDocument/Get` để đảm bảo văn bản đã sẵn sàng trong hàng đợi ký.
+    1. **BẪY LỖI SỐNG CÒN: `SignPdfHsm` trả về null do thiếu `PointSign` (`EmrPointSignSDO`)**:
+       - *Nguyên nhân:* Server API `api/EmrSign/SignPdfHsm` bắt buộc phải có đối tượng `PointSign` chứa tọa độ và kích thước con dấu chữ ký (`CoorXRectangle = 400.0f`, `CoorYRectangle = 100.0f`, `PageNumber = 1`, `WidthRectangle = 150.0f`, `HeightRectangle = 50.0f`, `TypeDisplay = 3`, `FontName = "Times New Roman"`). Nếu thiếu trường này, API sẽ trả về `null` không rõ nguyên nhân!
+       - *Khắc phục:* Luôn luôn khởi tạo đầy đủ `PointSign` trong `EmrSignHsmSDO` trước khi gọi `SignPdfHsm`.
+    2. **Tờ điều trị mới tạo trên MOS chưa có bản ghi văn bản EMR (Type 7)**:
+       - *Hiện tượng:* `api/EmrDocument/Get` không tìm thấy văn bản để ký dù Tờ điều trị đã tạo thành công trên MOS.
+       - *Khắc phục:* BẮT BUỘC thực hiện quy trình 2 bước:
+         - **Bước 1**: Gọi `api/EmrDocument/CreateByTdo` để tạo lệnh in sinh văn bản EMR Type 7 (`Mps000062`) đính kèm `HIS_TRACKING:<Id>`.
+         - **Bước 2**: Gọi `api/EmrSign/SignPdfHsm` với `PointSign` để đóng dấu ký số ngay lập tức.
+    3. **Hiển thị trạng thái ký trên EMR CLI**:
+       - *Kinh nghiệm:* Kiểm tra danh sách `EMR_SIGN`, nếu tất cả người ký đều có `SIGN_TIME > 0`, văn bản phải được đánh dấu là `🟢 ĐÃ KÝ ĐẦY ĐỦ`.
   * *Công cụ tích hợp chuẩn hóa:*
     - `.\HisClinicalCli.exe emr <MãBN>`: Tra cứu danh sách văn bản EMR và trạng thái ký từng vị trí.
     - `.\HisClinicalCli.exe sign-emr <MãBN> [DocId]`: Tự động ký điện tử theo yêu cầu cho Bác sĩ hiện tại.
-    - Tự động ký ngầm tích hợp trong `HisDebateCreator.exe` (Type 17) và `HisTrackingCreator.exe` (Type 7).
+    - Tự động ký ngầm tích hợp sâu trong `HisTrackingCreator.exe` (Type 7) và `HisDebateCreator.exe` (Type 17).
 
 
 

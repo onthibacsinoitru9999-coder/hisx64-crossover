@@ -2679,8 +2679,12 @@ public class HisClinicalCli
         int idx = 1;
         foreach (var d in docs.OrderByDescending(x => x.ID).Take(15))
         {
+            var signFilter = new EmrSignFilter { DOCUMENT_ID = d.ID };
+            var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, param);
+            bool isAllSigned = signs != null && signs.Count > 0 && signs.All(s => s.SIGN_TIME > 0);
+
             string statusSign;
-            if (string.IsNullOrEmpty(d.NEXT_SIGNER))
+            if (string.IsNullOrEmpty(d.NEXT_SIGNER) || isAllSigned)
             {
                 statusSign = "🟢 ĐÃ KÝ ĐẦY ĐỦ";
             }
@@ -2697,8 +2701,6 @@ public class HisClinicalCli
             Console.WriteLine(string.Format("    Tên VB : {0}", d.DOCUMENT_NAME));
             Console.WriteLine(string.Format("    Mã VB  : {0} | HIS_CODE: {1}", d.DOCUMENT_CODE, d.HIS_CODE));
 
-            var signFilter = new EmrSignFilter { DOCUMENT_ID = d.ID };
-            var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, param);
             if (signs != null && signs.Count > 0)
             {
                 foreach (var s in signs.OrderBy(x => x.NUM_ORDER))
@@ -2787,10 +2789,24 @@ public class HisClinicalCli
                 EmrSignId = mySign.ID,
                 SignTime = signTime,
                 IsFinishSign = true,
+                IsSigning = true,
                 IsSignElectronic = true,
                 Description = "Ký điện tử Bác sĩ điều trị (Auto-Sign)",
                 RoomCode = "NQCTCHBB734",
-                RoomTypeCode = "GI"
+                RoomTypeCode = "GI",
+                WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
+                PointSign = new EMR.SDO.EmrPointSignSDO
+                {
+                    CoorXRectangle = 400.0f,
+                    CoorYRectangle = 100.0f,
+                    PageNumber = 1,
+                    MaxPageNumber = 1,
+                    WidthRectangle = 150.0f,
+                    HeightRectangle = 50.0f,
+                    SizeFont = 10,
+                    TypeDisplay = 3,
+                    FontName = "Times New Roman"
+                }
             };
 
             CommonParam pSign = new CommonParam();

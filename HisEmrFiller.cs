@@ -1,28 +1,24 @@
 // HisEmrFiller.cs — Tự động điền Vỏ Bệnh Án Ngoại Khoa (BENHANNGOAIKHOA) vào EMR Oracle
 // Cách dùng:
-//   HisEmrFiller.exe <MaBN>                   → dry-run: xem trước nội dung bệnh án
-//   HisEmrFiller.exe <MaBN> --save            → ghi thật vào DB EMR Oracle
-//   HisEmrFiller.exe <MaBN> --save --doctor <ma>  → ghi với bác sĩ được chỉ định
-//   HisEmrFiller.exe <MaQuanLy>               → nhận MaQuanLy dạng số (7 chữ số trở lên)
+//   HisEmrFiller.exe <MaBN>                         → dry-run: xem trước nội dung bệnh án
+//   HisEmrFiller.exe <MaBN> --save                  → ghi thật vào DB EMR Oracle
+//   HisEmrFiller.exe <MaBN> --save --doctor <ma>    → ghi với bác sĩ được chỉ định
+//   HisEmrFiller.exe <MaQuanLy|MaDT>                → MaQuanLy = TREATMENT_CODE (VD 7266109 / 000007266109)
+//   HisEmrFiller.exe <MaBN> --facility HN|NB        → Hà Nội Khoa 57 / Ninh Bình Khoa 915
+//   HisEmrFiller.exe --today [--facility HN|NB]     → rà soát BN vào khoa hôm nay
 //
-// Build:
-//   csc /r:Integrate\EMR\MDB.dll /r:Integrate\EMR\EMR_MAIN.Library.dll
-//       /r:Integrate\EMR\Oracle.ManagedDataAccess.dll
-//       /r:ReferencedAssemblies\Inventec.Common.Adapter.dll
-//       /r:ReferencedAssemblies\Inventec.Common.WebApiClient.dll
-//       /r:ReferencedAssemblies\Inventec.Core.dll
-//       /r:ReferencedAssemblies\MOS.EFMODEL.dll /r:ReferencedAssemblies\MOS.Filter.dll
-//       /r:ReferencedAssemblies\Newtonsoft.Json.dll
-//       /out:HisEmrFiller.exe HisEmrFiller.cs
-//       /platform:x64 /optimize
+// Oracle MaQuanLy = số TREATMENT_CODE (không phải HIS Treatment.ID).
+// Build: HisEmrFiller.bat  (hoặc csc x64 + Integrate\EMR + ReferencedAssemblies)
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Inventec.Common.Adapter;
 using Inventec.Common.WebApiClient;
 using Inventec.Core;
@@ -40,13 +36,24 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     const string MOS_BASE = "http://192.168.7.236:1608/";
     const string EMR_CONNSTR = "User Id=EMR_FINAL;Password=EMR_FINAL;Data Source=192.168.7.248:1521/orclstb;";
+    const int VARCHAR_LIMIT = 2000;
+    const int VARCHAR_LIMIT_LONG = 3900;
 
-    // Bác sĩ fallback mặc định (Khoa 57)
     const string DEFAULT_DOCTOR_CODE = "034727";
     const string DEFAULT_DOCTOR_NAME = "ThS.BS Nguyễn Hữu Sâm";
 
-    // Khoa chấn thương chỉnh hình Bạch Mai HN
-    const long DEPT_ID = 57;
+    const long DEPT_ID_HN = 57;
+    const long DEPT_ID_NB = 915;
+    const string MAKHOA_HN = "9";
+    const string MAKHOA_NB = "CSNBKP05";
+    const string DEPT_NAME_HN = "Khoa Chấn thương Chỉnh hình và Cột sống";
+    const string DEPT_NAME_NB = "Khoa Ngoại tổng hợp - Tầng 3 Nhà E";
+
+    static long _deptId = DEPT_ID_HN;
+    static string _maKhoa = MAKHOA_HN;
+    static string _facility = "HN";
+    static string _deptNameDefault = DEPT_NAME_HN;
+    static bool _facilitySpecified = false;
 
     // ──────────────────────────────────────────────────────────────
     // ENTRYPOINT
@@ -64,17 +71,77 @@ class HisEmrFiller
             return 1;
         }
 
-        // Parse args
-        string input = args[0];
-        bool dryRun  = !args.Any(a => a.Equals("--save", StringComparison.OrdinalIgnoreCase));
+        string input = null;
+        bool dryRun = true;
+        bool doctorSpecified = false;
         string doctorCode = DEFAULT_DOCTOR_CODE;
         string doctorName = DEFAULT_DOCTOR_NAME;
-        for (int i = 1; i < args.Length - 1; i++)
+
+        for (int i = 0; i < args.Length; i++)
         {
-            if (args[i].Equals("--doctor", StringComparison.OrdinalIgnoreCase))
+            string a = args[i];
+            if (a.Equals("--save", StringComparison.OrdinalIgnoreCase))
+                dryRun = false;
+            else if (a.Equals("--dry-run", StringComparison.OrdinalIgnoreCase))
+                dryRun = true;
+            else if (a.Equals("--doctor", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
-                doctorCode = args[i + 1];
-                doctorName = null; // resolve later from HIS
+                doctorSpecified = true;
+                doctorCode = args[++i];
+                doctorName = null;
+            }
+            else if (a.Equals("--facility", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                ApplyFacility(args[++i], true);
+            }
+            else if (a.Equals("--today", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("today", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--status", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("status", StringComparison.OrdinalIgnoreCase))
+            {
+                input = "--today";
+            }
+            else if (!a.StartsWith("-") && input == null)
+            {
+                input = a;
+            }
+        }
+
+        if (string.IsNullOrEmpty(input))
+        {
+            PrintUsage();
+            return 1;
+        }
+
+        if (!doctorSpecified)
+        {
+            string sessionDoc = ExtractActiveDoctorFromSession();
+            if (!string.IsNullOrEmpty(sessionDoc))
+            {
+                doctorCode = sessionDoc;
+                doctorName = MapDoctorName(sessionDoc);
+                Console.WriteLine("✓ Bác sĩ phiên (LogSession): " + doctorCode + " — " + doctorName);
+            }
+            else
+            {
+                Console.WriteLine("  [INFO] Không đọc được bác sĩ phiên → fallback " + DEFAULT_DOCTOR_CODE);
+            }
+        }
+
+        ApplyOracleCulture();
+
+        if (input == "--today")
+        {
+            try
+            {
+                return RunTodayStatus();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[LỖI] " + ex.Message);
+                Console.ResetColor();
+                return 2;
             }
         }
 
@@ -109,28 +176,8 @@ class HisEmrFiller
         var param    = new CommonParam();
         var adapter  = new MyAdapter();
 
-        // Step 2: Phân giải MaBN hoặc MaQuanLy → lấy thông tin HIS
-        // Quy tắc: MaBN luôn 10 chữ số bắt đầu bằng 0 (VD: 0002145867)
-        //          MaQuanLy thường 7-8 chữ số không có leading zero (VD: 7265925)
-        TreatmentInfo ti;
-        bool isMaBN = (IsNumericId(input) && input.Length == 10 && input[0] == '0')
-                   || (!IsNumericId(input));
-        if (!isMaBN && IsNumericId(input) && input.Length >= 6 && input.Length <= 12)
-        {
-            // Tìm theo TreatmentId (MaQuanLy)
-            long treatId = long.Parse(input);
-            ti = LookupByTreatmentId(adapter, consumer, param, treatId);
-            if (ti == null)
-            {
-                // Fallback: thử tìm theo PatientCode nếu không tìm được theo ID
-                ti = LookupByPatientCode(adapter, consumer, param, input);
-            }
-        }
-        else
-        {
-            // MaBN (PatientCode) hoặc string
-            ti = LookupByPatientCode(adapter, consumer, param, input);
-        }
+        // Step 2: Phân giải MaBN (10 số) / MaDT 12 số / MaQuanLy (TREATMENT_CODE)
+        TreatmentInfo ti = ResolveIdentifier(adapter, consumer, param, input);
 
         if (ti == null)
         {
@@ -140,11 +187,14 @@ class HisEmrFiller
             return 3;
         }
 
+        if (!_facilitySpecified)
+            InferFacilityFromDept(ti.DeptId);
+
         Console.WriteLine(string.Format("✓ Bệnh nhân  : {0} ({1})", ti.PatientName, ti.PatientCode));
-        Console.WriteLine(string.Format("  Mã ĐT      : {0}  |  MaQuanLy: {1}", ti.TreatmentCode, ti.TreatmentId));
+        Console.WriteLine(string.Format("  Mã ĐT      : {0}  |  HIS ID: {1}  |  MaQuanLy EMR: {2}", ti.TreatmentCode, ti.TreatmentId, ti.MaQuanLy));
         Console.WriteLine(string.Format("  Vào viện   : {0}", ti.InTime));
         Console.WriteLine(string.Format("  Chẩn đoán  : [{0}] {1}", ti.IcdCode, ti.IcdName));
-        Console.WriteLine(string.Format("  Khoa       : {0}", ti.DeptName));
+        Console.WriteLine(string.Format("  Khoa       : {0}  |  Cơ sở: {1} (MAKHOA={2})", ti.DeptName, _facility, _maKhoa));
 
         // Step 3: Kết nối Oracle EMR
         dynamic con = CreateEmrConnection();
@@ -152,12 +202,12 @@ class HisEmrFiller
         Console.WriteLine("✓ Kết nối Oracle EMR OK");
 
         // Step 4: Kiểm tra bệnh án đã tồn tại chưa
-        dynamic existingBA = BenhAnNgoaiKhoaSelect(con, (decimal)ti.TreatmentId);
+        dynamic existingBA = BenhAnNgoaiKhoaSelect(con, ti.MaQuanLy);
         bool isUpdate = (existingBA != null && existingBA.MaQuanLy > 0);
         if (isUpdate)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("[INFO] Bệnh án BENHANNGOAIKHOA đã tồn tại (ID: " + existingBA.MaQuanLy + ") → sẽ UPDATE.");
+            Console.WriteLine("[INFO] Bệnh án BENHANNGOAIKHOA đã tồn tại (MaQuanLy: " + existingBA.MaQuanLy + ") → sẽ UPDATE.");
             Console.ResetColor();
         }
         else
@@ -166,18 +216,21 @@ class HisEmrFiller
         }
 
         // Step 5: Tìm mẫu kế thừa từ DB (cùng nhóm bệnh hoặc cùng BN)
-        TemplateBA tmpl = FindTemplate(con, adapter, consumer, param, ti);
+        TemplateBA tmpl = FindTemplate(con, ti);
 
-        // Step 6: Lấy DHST mới nhất
+        // Step 6: Lấy DHST + CLS/PACS thật từ HIS
         DhstInfo dhst = GetLatestDhst(adapter, consumer, param, ti.TreatmentId);
+        LabPacsInfo labs = FetchLabsAndPacs(adapter, consumer, param, ti.TreatmentId);
+        if (!string.IsNullOrEmpty(labs.Summary))
+            Console.WriteLine("  → CLS/PACS: " + TruncField(labs.Summary, 160));
 
         // Step 7: Đọc tên bác sĩ từ HIS nếu cần
         if (string.IsNullOrEmpty(doctorName))
-            doctorName = ResolveDocName(adapter, consumer, param, doctorCode);
+            doctorName = MapDoctorName(doctorCode);
 
         // Step 8: Tạo object bệnh án
         dynamic ba = isUpdate ? existingBA : CreateNewBenhAnNgoaiKhoa();
-        PopulateBenhAn(ba, ti, dhst, tmpl, doctorCode, doctorName, isUpdate);
+        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate);
 
         // Step 8.5: Kiểm tra trạng thái Trang bìa THONGTINDIEUTRI
         EnsureThongTinDieuTri(con, ti, false);
@@ -214,7 +267,7 @@ class HisEmrFiller
         Console.ResetColor();
 
         // Step 11: Xác nhận bằng Select
-        dynamic verify = BenhAnNgoaiKhoaSelect(con, (decimal)ti.TreatmentId);
+        dynamic verify = BenhAnNgoaiKhoaSelect(con, ti.MaQuanLy);
         if (verify != null)
         {
             Console.WriteLine(string.Format("✓ Xác nhận: BenhChinh='{0}' | BacSy='{1}'",
@@ -231,25 +284,313 @@ class HisEmrFiller
         return 0;
     }
 
+    static int RunTodayStatus()
+    {
+        Console.WriteLine("\n" + new string('=', 85));
+        Console.WriteLine(string.Format("KIEM TRA BENH NHAN VAO NOI TRU HOM NAY — {0} ({1})", _deptNameDefault, _facility));
+        Console.WriteLine(new string('=', 85));
+
+        string tokenCode = ReadLiveToken();
+        var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
+        var param = new CommonParam();
+        var adapter = new MyAdapter();
+
+        DateTime today = DateTime.Today;
+        long todayFrom = (long)today.Year * 10000000000L + (long)today.Month * 100000000L + (long)today.Day * 1000000L;
+        long todayTo   = todayFrom + 235959L;
+
+        Console.WriteLine(string.Format("⏰ Ngày quét: {0:dd/MM/yyyy} (Khung giờ: {1} -> {2})", today, todayFrom, todayTo));
+        Console.WriteLine(string.Format("--> [1/3] Dang truy van luot chuyen/vao khoa {0} tu HIS...", _deptId));
+
+        var dtf = new HisDepartmentTranViewFilter
+        {
+            DEPARTMENT_ID = _deptId,
+            DEPARTMENT_IN_TIME_FROM = todayFrom,
+            DEPARTMENT_IN_TIME_TO = todayTo
+        };
+        var deptTrans = adapter.FetchList<V_HIS_DEPARTMENT_TRAN>("api/HisDepartmentTran/GetView", consumer, dtf, param);
+        if (deptTrans == null) deptTrans = new List<V_HIS_DEPARTMENT_TRAN>();
+
+        // Distinct treatments
+        var treatMap = new Dictionary<long, V_HIS_DEPARTMENT_TRAN>();
+        foreach (var dt in deptTrans)
+        {
+            if (!treatMap.ContainsKey(dt.TREATMENT_ID))
+                treatMap[dt.TREATMENT_ID] = dt;
+        }
+
+        Console.WriteLine(string.Format("    Tim thay {0} luot tiep nhan vao khoa {1} hom nay.", treatMap.Count, _deptId));
+
+        // Quét buồng bệnh
+        Console.WriteLine(string.Format("--> [2/3] Dang quet buong/giuong khoa {0}...", _deptId));
+        var bedMap = new Dictionary<long, string>();
+        try
+        {
+            var bf = new HisBedRoomViewFilter { DEPARTMENT_ID = _deptId };
+            var allRooms = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", consumer, bf, param);
+            if (allRooms != null)
+            {
+                foreach (var room in allRooms)
+                {
+                    var tbrf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_ID = room.ID, IS_IN_ROOM = true };
+                    var inPatients = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", consumer, tbrf, param);
+                    if (inPatients == null) continue;
+                    foreach (var ip in inPatients)
+                    {
+                        bedMap[ip.TREATMENT_ID] = string.Format("{0} ({1})", room.BED_ROOM_NAME, ip.BED_NAME);
+                        // Nếu bệnh nhân được thêm vào buồng hôm nay mà chưa có trong treatMap thì bổ sung
+                        if (ip.ADD_TIME >= todayFrom && ip.ADD_TIME <= todayTo && !treatMap.ContainsKey(ip.TREATMENT_ID))
+                        {
+                            var mockDt = new V_HIS_DEPARTMENT_TRAN
+                            {
+                                TREATMENT_ID = ip.TREATMENT_ID,
+                                TDL_PATIENT_CODE = ip.TDL_PATIENT_CODE,
+                                TDL_PATIENT_NAME = ip.TDL_PATIENT_NAME,
+                                DEPARTMENT_IN_TIME = ip.ADD_TIME
+                            };
+                            treatMap[ip.TREATMENT_ID] = mockDt;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Bổ sung thông tin chi tiết cho các bệnh nhân thiếu chẩn đoán / TreatmentCode
+        foreach (var kvp in treatMap.ToList())
+        {
+            var dt = kvp.Value;
+            if (string.IsNullOrEmpty(dt.TREATMENT_CODE) || string.IsNullOrEmpty(dt.ICD_NAME))
+            {
+                try
+                {
+                    var tf = new HisTreatmentViewFilter { ID = dt.TREATMENT_ID };
+                    var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, param);
+                    if (trList != null && trList.Count > 0)
+                    {
+                        var tr = trList[0];
+                        dt.TREATMENT_CODE = tr.TREATMENT_CODE;
+                        dt.TDL_PATIENT_CODE = tr.TDL_PATIENT_CODE;
+                        dt.TDL_PATIENT_NAME = tr.TDL_PATIENT_NAME;
+                        dt.TDL_PATIENT_DOB = tr.TDL_PATIENT_DOB;
+                        dt.TDL_PATIENT_GENDER_NAME = tr.TDL_PATIENT_GENDER_NAME;
+                        dt.ICD_CODE = tr.ICD_CODE;
+                        dt.ICD_NAME = tr.ICD_NAME;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        // Kết nối Oracle EMR
+        Console.WriteLine("--> [3/3] Đang kết nối Oracle EMR kiểm tra Trang bìa & Vỏ bệnh án...");
+        dynamic con = CreateEmrConnection();
+        con.Open();
+
+        Console.WriteLine("\n" + new string('-', 85));
+        Console.WriteLine(string.Format("DANH SACH {0} BENH NHAN VAO KHOA {1} HOM NAY ({2:dd/MM/yyyy}):", treatMap.Count, _deptId, today));
+        Console.WriteLine(new string('-', 85));
+
+        int idx = 1;
+        int countCoBia = 0;
+        int countChuaCoBia = 0;
+        int countCoVoBA = 0;
+        int countChuaCoVoBA = 0;
+
+        var missingList = new List<string>();
+
+        foreach (var kvp in treatMap.OrderBy(x => x.Value.DEPARTMENT_IN_TIME ?? 0))
+        {
+            long treatId = kvp.Key;
+            var dt = kvp.Value;
+            string patName = dt.TDL_PATIENT_NAME ?? "";
+            string patCode = dt.TDL_PATIENT_CODE ?? "";
+            string treatCode = dt.TREATMENT_CODE ?? "";
+            string inTimeStr = LongToDateStr(dt.DEPARTMENT_IN_TIME.HasValue ? dt.DEPARTMENT_IN_TIME.Value : 0);
+            string icdStr = string.IsNullOrEmpty(dt.ICD_CODE) && string.IsNullOrEmpty(dt.ICD_NAME)
+                ? "(Chưa có chẩn đoán)"
+                : string.Format("[{0}] {1}", dt.ICD_CODE ?? "", dt.ICD_NAME ?? "");
+            string roomStr = bedMap.ContainsKey(treatId) ? bedMap[treatId] : "Chưa xếp buồng";
+
+            decimal maQl = ParseMaQuanLy(treatCode, treatId);
+
+            // Kiểm tra THONGTINDIEUTRI
+            bool hasTTDT = false;
+            string ttdtLoai = "";
+            try
+            {
+                string sqlTtdt = string.Format(
+                    "SELECT IDLOAIBENHAN, CHANDOAN_KHIVAOKHOADIEUTRI FROM EMR_FINAL.THONGTINDIEUTRI WHERE TRUNC(MAQUANLY) = {0}",
+                    maQl.ToString(CultureInfo.InvariantCulture));
+                dynamic rdr = ExecuteReader(con, sqlTtdt);
+                if (rdr != null && rdr.Read())
+                {
+                    hasTTDT = true;
+                    ttdtLoai = SafeStr(rdr[0]);
+                    rdr.Close();
+                }
+                else if (rdr != null) rdr.Close();
+            }
+            catch { }
+
+            // Kiểm tra BENHANNGOAIKHOA
+            bool hasBA = false;
+            string bsBA = "";
+            string ngayKham = "";
+            try
+            {
+                dynamic baObj = BenhAnNgoaiKhoaSelect(con, maQl);
+                if (baObj != null && baObj.MaQuanLy > 0)
+                {
+                    hasBA = true;
+                    bsBA = SafeStr(baObj.BacSyLamBenhAn);
+                    if (string.IsNullOrEmpty(bsBA)) bsBA = SafeStr(baObj.TenBacSyLamBenhAn);
+                    if (baObj.NgayKhamBenh != null)
+                        ngayKham = string.Format("{0:dd/MM/yyyy HH:mm}", baObj.NgayKhamBenh);
+                }
+            }
+            catch { }
+
+            if (hasTTDT) countCoBia++; else countChuaCoBia++;
+            if (hasBA) countCoVoBA++; else countChuaCoVoBA++;
+
+            if (!hasBA) missingList.Add(patCode);
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(string.Format("[{0:D2}] BN: {1} | MaBN: {2} | MaDT: {3} | MaQuanLy: {4}",
+                idx++, patName, patCode, treatCode, maQl));
+            Console.ResetColor();
+            Console.WriteLine(string.Format("     📍 Buồng: {0} | Vào viện/khoa: {1}", roomStr, inTimeStr));
+            Console.WriteLine(string.Format("     🩺 Chẩn đoán: {0}", icdStr));
+
+            Console.Write("     📂 Trang bìa THONGTINDIEUTRI : ");
+            if (hasTTDT)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(string.Format("✔ ĐÃ CÓ (IDLoaiBenhAn: {0})", ttdtLoai));
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("🔴 CHƯA CÓ");
+            }
+            Console.ResetColor();
+
+            Console.Write("     📋 Vỏ BA BENHANNGOAIKHOA     : ");
+            if (hasBA)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(string.Format("✔ ĐÃ ĐIỀN (BS: {0} | Ngày khám: {1})", bsBA, ngayKham));
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("🔴 CHƯA ĐIỀN");
+            }
+            Console.ResetColor();
+            Console.WriteLine(new string('-', 85));
+        }
+
+        con.Close();
+
+        Console.WriteLine("\n" + new string('=', 85));
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine(string.Format("TONG KET BIA & BENH AN EMR HOM NAY ({0:dd/MM/yyyy}) — {1}:", today, _facility));
+        Console.ResetColor();
+        Console.WriteLine(string.Format("  - Tong so BN vao khoa {0} hom nay : {1} benh nhan", _deptId, treatMap.Count));
+        Console.WriteLine(string.Format("  - Trang bìa THONGTINDIEUTRI       : {0} ĐÃ CÓ  |  {1} CHƯA CÓ", countCoBia, countChuaCoBia));
+        Console.WriteLine(string.Format("  - Vỏ BA BENHANNGOAIKHOA           : {0} ĐÃ ĐIỀN |  {1} CHƯA ĐIỀN", countCoVoBA, countChuaCoVoBA));
+
+        if (missingList.Count > 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(string.Format("\n⚡ CÓ {0} BỆNH NHÂN CHƯA CÓ VỎ BỆNH ÁN NGOẠI KHOA EMR:", missingList.Count));
+            Console.ResetColor();
+            foreach (var m in missingList)
+            {
+                Console.WriteLine(string.Format("  .\\HisEmrFiller.exe {0} --save", m));
+            }
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("\n🎉 TUYỆT VỜI! 100% BỆNH NHÂN VÀO KHOA HÔM NAY ĐÃ CÓ ĐẦY ĐỦ BỆNH ÁN NGOẠI KHOA EMR!");
+            Console.ResetColor();
+        }
+        Console.WriteLine(new string('=', 85));
+
+        return 0;
+    }
+
     // ──────────────────────────────────────────────────────────────
     // HIS API HELPERS
     // ──────────────────────────────────────────────────────────────
+    static TreatmentInfo ResolveIdentifier(MyAdapter adapter, ApiConsumer consumer, CommonParam param, string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        string kw = input.Trim();
+
+        // MaBN: 10 chữ số (0002145867) hoặc không phải số
+        if (!IsNumericId(kw) || (kw.Length == 10 && kw[0] == '0'))
+            return LookupByPatientCode(adapter, consumer, param, kw);
+
+        // MaDT 12 chữ số (000007266109) = TREATMENT_CODE
+        if (kw.Length == 12)
+        {
+            var byCode = LookupByTreatmentCode(adapter, consumer, param, kw);
+            if (byCode != null) return byCode;
+        }
+
+        // Số 6–11: thử TREATMENT_CODE (pad 12) rồi HIS ID rồi MaBN
+        if (kw.Length >= 6 && kw.Length <= 11)
+        {
+            var byCode = LookupByTreatmentCode(adapter, consumer, param, kw.PadLeft(12, '0'));
+            if (byCode != null) return byCode;
+
+            long id;
+            if (long.TryParse(kw, out id))
+            {
+                var byId = LookupByTreatmentId(adapter, consumer, param, id);
+                if (byId != null) return byId;
+            }
+            return LookupByPatientCode(adapter, consumer, param, kw);
+        }
+
+        return LookupByPatientCode(adapter, consumer, param, kw);
+    }
+
     static TreatmentInfo LookupByPatientCode(MyAdapter adapter, ApiConsumer consumer, CommonParam param, string patCode)
     {
-        // Đảm bảo 10 ký tự
         patCode = patCode.PadLeft(10, '0');
         var tf = new HisTreatmentViewFilter
         {
-            PATIENT_CODE__EXACT  = patCode,
-            IS_PAUSE             = false
+            PATIENT_CODE__EXACT = patCode,
+            IS_PAUSE = false
         };
         var trs = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, param);
+        if (trs == null || trs.Count == 0)
+        {
+            tf.IS_PAUSE = null;
+            trs = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, param);
+        }
         if (trs == null || trs.Count == 0) return null;
-        // Ưu tiên đợt nội trú Khoa 57 mới nhất
-        var filtered = trs.Where(x => x.END_DEPARTMENT_ID == DEPT_ID).ToList();
-        if (filtered.Count == 0) filtered = trs;
+
+        List<V_HIS_TREATMENT> filtered = trs;
+        if (_facilitySpecified)
+        {
+            var byDept = trs.Where(x => x.END_DEPARTMENT_ID == _deptId).ToList();
+            if (byDept.Count > 0) filtered = byDept;
+        }
         var t = filtered.OrderByDescending(x => x.IN_TIME).FirstOrDefault();
         return MapTreatment(t);
+    }
+
+    static TreatmentInfo LookupByTreatmentCode(MyAdapter adapter, ApiConsumer consumer, CommonParam param, string treatCode)
+    {
+        var tf = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = treatCode };
+        var trs = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, param);
+        if (trs == null || trs.Count == 0) return null;
+        return MapTreatment(trs.OrderByDescending(x => x.IN_TIME).First());
     }
 
     static TreatmentInfo LookupByTreatmentId(MyAdapter adapter, ApiConsumer consumer, CommonParam param, long treatId)
@@ -263,16 +604,17 @@ class HisEmrFiller
     static TreatmentInfo MapTreatment(V_HIS_TREATMENT t)
     {
         if (t == null) return null;
-        // Inventec stores datetime as long yyyyMMddHHmmss
         string inTimeStr = LongToDateStr(t.IN_TIME);
-        // DOB format: 19881028000000 → year = 1988 (divide by 10000000000)
         string ageStr = t.TDL_PATIENT_DOB > 0
                         ? (DateTime.Now.Year - (int)(t.TDL_PATIENT_DOB / 10000000000L)).ToString()
                         : "?";
+        string icdText = "";
+        try { icdText = t.ICD_TEXT ?? ""; } catch { }
         return new TreatmentInfo
         {
             TreatmentId   = t.ID,
             TreatmentCode = t.TREATMENT_CODE ?? "",
+            MaQuanLy      = ParseMaQuanLy(t.TREATMENT_CODE, t.ID),
             PatientCode   = t.TDL_PATIENT_CODE ?? "",
             PatientName   = t.TDL_PATIENT_NAME ?? "",
             PatientAge    = ageStr,
@@ -282,7 +624,8 @@ class HisEmrFiller
             InTime        = inTimeStr,
             IcdCode       = t.ICD_CODE ?? "",
             IcdName       = t.ICD_NAME ?? "",
-            DeptName      = t.END_DEPARTMENT_NAME ?? "",
+            IcdText       = icdText,
+            DeptName      = string.IsNullOrEmpty(t.END_DEPARTMENT_NAME) ? _deptNameDefault : t.END_DEPARTMENT_NAME,
             DeptId        = t.END_DEPARTMENT_ID.HasValue ? t.END_DEPARTMENT_ID.Value : 0
         };
     }
@@ -327,37 +670,42 @@ class HisEmrFiller
         catch { return new DhstInfo(); }
     }
 
-    static string ResolveDocName(MyAdapter adapter, ApiConsumer consumer, CommonParam param, string docCode)
+    static string MapDoctorName(string docCode)
     {
-        // Fallback mapping — không dùng HisUserLoginNameFilter (type có thể không tồn tại)
-        if (docCode == "034727") return DEFAULT_DOCTOR_NAME;
-        if (docCode == "vmc")    return "BS Vu Minh Cuong";
-        if (docCode == "hdc")    return "TS.BS Ha Duc Cuong";
+        if (string.IsNullOrEmpty(docCode)) return DEFAULT_DOCTOR_NAME;
+        if (docCode.Equals("034727", StringComparison.OrdinalIgnoreCase)) return DEFAULT_DOCTOR_NAME;
+        if (docCode.Equals("vmc", StringComparison.OrdinalIgnoreCase)) return "BS Vũ Minh Cường";
+        if (docCode.Equals("hdc", StringComparison.OrdinalIgnoreCase)) return "BS Hà Đức Cường";
         return docCode;
     }
 
     // ──────────────────────────────────────────────────────────────
     // TEMPLATE FINDER — kế thừa mẫu từ DB EMR Oracle
+    // Oracle: ROWNUM đứng NGOÀI ORDER BY (subquery). Join TRUNC(MAQUANLY).
     // ──────────────────────────────────────────────────────────────
-    static TemplateBA FindTemplate(dynamic con, MyAdapter adapter, ApiConsumer consumer, CommonParam param, TreatmentInfo ti)
+    static TemplateBA FindTemplate(dynamic con, TreatmentInfo ti)
     {
         var result = new TemplateBA();
         string cols = "b.QUATRINHBENHLY, b.TIENSUBENHBANTHAN, b.TIENSUBENHGIADINH, " +
                       "b.TOANTHAN, b.COXUONGKHOP, b.THANKINH, b.TUANHOAN, b.HOHAP, " +
                       "b.TIEUHOA, b.THANTIETNIEUSINHDUC, b.CACXETNGHIEMCANLAMSANGCANLAM, " +
-                      "b.TOMTATBENHAN, b.PHANBIET, b.TIENLUONG, b.HUONGDIEUTRI";
+                      "b.TOMTATBENHAN, b.PHANBIET, b.TIENLUONG, b.HUONGDIEUTRI, " +
+                      "b.DIUNG, b.DIUNG_TEXT, b.MATUY, b.MATUY_TEXT, b.RUOUBIA, b.RUOUBIA_TEXT, " +
+                      "b.THUOCLA, b.THUOCLA_TEXT, b.THUOCLAO, b.THUOCLAO_TEXT, " +
+                      "b.BENHKEMTHEO, b.KHAC_CACCOQUAN, b.TOMTATKETQUAXETNGHIEM";
+        string maQl = ti.MaQuanLy.ToString(CultureInfo.InvariantCulture);
 
         try
         {
-            // Ưu tiên 1: Cùng bệnh nhân (đợt điều trị cũ nhất của BN này)
+            // Ưu tiên 1: cùng bệnh nhân, đợt mới nhất
             string sqlSamePt = string.Format(
-                "SELECT {0} " +
+                "SELECT * FROM (SELECT {0} " +
                 "FROM EMR_FINAL.BENHANNGOAIKHOA b " +
-                "JOIN EMR_FINAL.THONGTINDIEUTRI t ON b.MAQUANLY = t.MAQUANLY " +
-                "WHERE t.MABENHNHAN = '{1}' AND b.MAQUANLY <> {2} " +
-                "AND b.QUATRINHBENHLY IS NOT NULL AND ROWNUM <= 1 " +
-                "ORDER BY t.NGAYTAO DESC",
-                cols, SafeSql(ti.PatientCode), ti.TreatmentId);
+                "JOIN EMR_FINAL.THONGTINDIEUTRI t ON TRUNC(b.MAQUANLY) = TRUNC(t.MAQUANLY) " +
+                "WHERE t.MABENHNHAN = '{1}' AND TRUNC(b.MAQUANLY) <> {2} " +
+                "AND b.QUATRINHBENHLY IS NOT NULL " +
+                "ORDER BY t.NGAYTAO DESC) WHERE ROWNUM <= 1",
+                cols, SafeSql(ti.PatientCode), maQl);
 
             dynamic rdr = ExecuteReader(con, sqlSamePt);
             if (rdr != null && rdr.Read())
@@ -369,65 +717,76 @@ class HisEmrFiller
             }
             if (rdr != null) rdr.Close();
 
-            // Ưu tiên 2: Cùng nhóm ICD-10 (3 ký tự đầu), khoa CTCH hoặc bất kỳ khoa ngoại nào
-            string icd3 = ti.IcdCode.Length >= 3 ? ti.IcdCode.Substring(0, 3) : ti.IcdCode;
-            string sqlSameIcd = string.Format(
-                "SELECT {0}, t.CHANDOAN_KHIVAOKHOADIEUTRI " +
-                "FROM EMR_FINAL.BENHANNGOAIKHOA b " +
-                "JOIN EMR_FINAL.THONGTINDIEUTRI t ON b.MAQUANLY = t.MAQUANLY " +
-                "WHERE (t.MAICD_KHIVAOKHOADIEUTRI LIKE '{1}%' OR t.MAICD_SOBO LIKE '{1}%' OR t.MAICD_BENHCHINH_RAVIEN LIKE '{1}%') " +
-                "AND b.QUATRINHBENHLY IS NOT NULL AND b.COXUONGKHOP IS NOT NULL " +
-                "AND ROWNUM <= 1 " +
-                "ORDER BY t.NGAYTAO DESC",
-                cols, SafeSql(icd3));
-
-            dynamic rdr2 = ExecuteReader(con, sqlSameIcd);
-            if (rdr2 != null && rdr2.Read())
+            // Ưu tiên 2: cùng ICD-10 (3 ký tự) + MAKHOA đúng cơ sở; lấy 5 hàng mới nhất rồi lọc tương thích
+            string icd3 = (ti.IcdCode ?? "").Length >= 3 ? ti.IcdCode.Substring(0, 3) : (ti.IcdCode ?? "");
+            if (!string.IsNullOrEmpty(icd3))
             {
-                var cand = ReadTemplateRow(rdr2);
-                string chandoanGoc = SafeStr(rdr2["CHANDOAN_KHIVAOKHOADIEUTRI"]);
-                rdr2.Close();
-                if (IsTemplateCompatible(cand, ti))
-                {
-                    result = cand;
-                    Console.WriteLine(string.Format("  → Kế thừa mẫu: ICD-10 '{0}' ({1})", icd3, chandoanGoc));
-                    return result;
-                }
-                else
-                {
-                    Console.WriteLine(string.Format("  [INFO] Mẫu ICD-10 '{0}' ({1}) không phù hợp nhóm bệnh → tự sinh chuẩn.", icd3, chandoanGoc));
-                }
-            }
-            if (rdr2 != null) rdr2.Close();
+                string sqlSameIcd = string.Format(
+                    "SELECT * FROM (SELECT {0}, t.CHANDOAN_KHIVAOKHOADIEUTRI " +
+                    "FROM EMR_FINAL.BENHANNGOAIKHOA b " +
+                    "JOIN EMR_FINAL.THONGTINDIEUTRI t ON TRUNC(b.MAQUANLY) = TRUNC(t.MAQUANLY) " +
+                    "WHERE t.MAKHOA = '{1}' " +
+                    "AND (t.MAICD_KHIVAOKHOADIEUTRI LIKE '{2}%' OR t.MAICD_SOBO LIKE '{2}%' OR t.MAICD_BENHCHINH_RAVIEN LIKE '{2}%') " +
+                    "AND b.QUATRINHBENHLY IS NOT NULL AND b.COXUONGKHOP IS NOT NULL " +
+                    "ORDER BY t.NGAYTAO DESC) WHERE ROWNUM <= 5",
+                    cols, SafeSql(_maKhoa), SafeSql(icd3));
 
-            // Ưu tiên 3: Cùng Khoa CTCH gần nhất (generic)
+                dynamic rdr2 = ExecuteReader(con, sqlSameIcd);
+                TemplateBA picked = null;
+                string chandoanGoc = "";
+                if (rdr2 != null)
+                {
+                    while (rdr2.Read())
+                    {
+                        var cand = ReadTemplateRow(rdr2);
+                        string cd = RdrStr(rdr2, 28);
+                        if (IsTemplateCompatible(cand, ti))
+                        {
+                            picked = cand;
+                            chandoanGoc = cd;
+                            break;
+                        }
+                    }
+                    rdr2.Close();
+                }
+                if (picked != null)
+                {
+                    Console.WriteLine(string.Format("  → Kế thừa mẫu: ICD-10 '{0}' MAKHOA={1} ({2})", icd3, _maKhoa, chandoanGoc));
+                    return picked;
+                }
+                Console.WriteLine(string.Format("  [INFO] Không có mẫu ICD-10 '{0}' phù hợp tại MAKHOA={1} → tự sinh chuẩn.", icd3, _maKhoa));
+            }
+
+            // Ưu tiên 3: cùng khoa (MAKHOA), mẫu mới nhất tương thích
             string sqlKhoa = string.Format(
-                "SELECT {0} " +
+                "SELECT * FROM (SELECT {0} " +
                 "FROM EMR_FINAL.BENHANNGOAIKHOA b " +
-                "JOIN EMR_FINAL.THONGTINDIEUTRI t ON b.MAQUANLY = t.MAQUANLY " +
-                "WHERE (t.KHOA LIKE N'%Ch%n th%ng%' OR t.TENKHOAVAO LIKE N'%Ch%n th%ng%') " +
+                "JOIN EMR_FINAL.THONGTINDIEUTRI t ON TRUNC(b.MAQUANLY) = TRUNC(t.MAQUANLY) " +
+                "WHERE t.MAKHOA = '{1}' " +
                 "AND b.QUATRINHBENHLY IS NOT NULL AND b.COXUONGKHOP IS NOT NULL " +
-                "AND ROWNUM <= 1 " +
-                "ORDER BY t.NGAYTAO DESC",
-                cols);
+                "ORDER BY t.NGAYTAO DESC) WHERE ROWNUM <= 5",
+                cols, SafeSql(_maKhoa));
 
             dynamic rdr3 = ExecuteReader(con, sqlKhoa);
-            if (rdr3 != null && rdr3.Read())
+            if (rdr3 != null)
             {
-                var cand = ReadTemplateRow(rdr3);
-                rdr3.Close();
-                if (IsTemplateCompatible(cand, ti))
+                TemplateBA pickedKhoa = null;
+                while (rdr3.Read())
                 {
-                    result = cand;
-                    Console.WriteLine("  → Kế thừa mẫu: Khoa CTCH gần nhất (generic)");
-                    return result;
+                    var cand = ReadTemplateRow(rdr3);
+                    if (IsTemplateCompatible(cand, ti))
+                    {
+                        pickedKhoa = cand;
+                        break;
+                    }
                 }
-                else
+                rdr3.Close();
+                if (pickedKhoa != null)
                 {
-                    Console.WriteLine("  [INFO] Mẫu Khoa CTCH gần nhất không phù hợp nhóm bệnh → tự sinh chuẩn.");
+                    Console.WriteLine(string.Format("  → Kế thừa mẫu: MAKHOA={0} gần nhất (đã lọc tương thích)", _maKhoa));
+                    return pickedKhoa;
                 }
             }
-            if (rdr3 != null) rdr3.Close();
         }
         catch (Exception ex)
         {

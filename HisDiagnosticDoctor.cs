@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Collections.Generic;
@@ -89,7 +89,7 @@ public class HisDiagnosticDoctor
                 {
                     long length = fs.Length;
                     if (length == 0) continue;
-                    int bufferSize = (int)Math.Min(131072L, length);
+                    int bufferSize = (int)Math.Min(2097152L, length);
                     fs.Seek(length - bufferSize, SeekOrigin.Begin);
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
@@ -409,6 +409,83 @@ public class HisDiagnosticDoctor
         {
             string t = ReadLiveToken();
             Console.WriteLine("Token: " + (t ?? "NULL"));
+        }
+        else if (args[0].ToLower() == "inspect-tracking")
+        {
+            try
+            {
+                var refDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReferencedAssemblies");
+                string signPath = Path.Combine(refDir, "Inventec.Common.SignLibrary.dll");
+                if (File.Exists(signPath))
+                {
+                    var asm = Assembly.LoadFrom(signPath);
+                    var emrDocType = asm.GetType("Inventec.Common.SignLibrary.Api.EmrDocument");
+                    long targetDocId = 93425215; // The newly created doc from previous run
+                    Console.WriteLine("\n=== Calling SignPdfHsm with PointSign on DocId " + targetDocId + " ===");
+                    InitSession();
+                    var emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+
+                    var signFilter = new EMR.Filter.EmrSignFilter { DOCUMENT_ID = targetDocId };
+                    var pSignFilter = new CommonParam();
+                    var signs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSignFilter);
+                    if (signs == null || signs.Count == 0)
+                    {
+                        Console.WriteLine("❌ Không tìm thấy EMR_SIGN cho doc " + targetDocId);
+                        return;
+                    }
+                    var mySign = signs[0];
+                    Console.WriteLine(string.Format("Found Sign ID: {0} | Login: {1} | Time: {2}", mySign.ID, mySign.LOGINNAME, mySign.SIGN_TIME));
+
+                    long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                    var signHsmSdo = new EMR.SDO.EmrSignHsmSDO
+                    {
+                        EmrDocumentId = targetDocId,
+                        EmrSignId = mySign.ID,
+                        SignTime = signTime,
+                        IsFinishSign = true,
+                        IsSigning = true,
+                        IsSignElectronic = true,
+                        Description = "Ký điện tử Bác sĩ điều trị",
+                        RoomCode = "NQCTCHBB734",
+                        RoomTypeCode = "GI",
+                        WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
+                        PointSign = new EMR.SDO.EmrPointSignSDO
+                        {
+                            CoorXRectangle = 400.0f,
+                            CoorYRectangle = 100.0f,
+                            PageNumber = 1,
+                            MaxPageNumber = 1,
+                            WidthRectangle = 150.0f,
+                            HeightRectangle = 50.0f,
+                            SizeFont = 10,
+                            TypeDisplay = 3,
+                            FontName = "Times New Roman"
+                        }
+                    };
+
+                    Console.WriteLine("Posting to api/EmrSign/SignPdfHsm...");
+                    var pSignRes = new CommonParam();
+                    var resSign = myAdapter.PostData<EMR.SDO.EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signHsmSdo, pSignRes);
+                    if (resSign != null && resSign.EmrSign != null)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine(string.Format("🎉🎉🎉 KÝ ĐIỆN TỬ THÀNH CÔNG RỰC RỠ! SignID: {0} | SignTime: {1}", 
+                            resSign.EmrSign.ID, resSign.EmrSign.SIGN_TIME));
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        Console.WriteLine("❌ SignPdfHsm failed. HasException: " + pSignRes.HasException);
+                        if (pSignRes.Messages != null) foreach (var m in pSignRes.Messages) Console.WriteLine("  Msg: " + m);
+                        if (pSignRes.BugCodes != null) foreach (var b in pSignRes.BugCodes) Console.WriteLine("  Bug: " + b);
+                    }
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.ToString());
+            }
         }
         else
         {
