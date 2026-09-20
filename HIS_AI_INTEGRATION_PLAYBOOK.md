@@ -2015,3 +2015,29 @@ Quy trình nạp và ký Biên bản Hội chẩn thông qua mổ (Biểu mẫu 
 ### 31.3. Bẫy Kỹ Thuật & Bài Học Xương Máu (Gotchas):
 1. **Aspose Watermark Evaluation Gotcha**: `HisPt01Creator` sử dụng thư viện Aspose dạng dùng thử chèn đoạn văn bản đỏ `"Evaluation Only. Created with Aspose.Words..."` ở đầu văn bản. Khi nạp vào DevExpress RichEdit của HIS, bác sĩ phải click xóa tay. `WordCleaner.cs` đã giải quyết triệt để bằng cách giải nén cấu trúc OpenXML `word/document.xml`, dùng regex bóc tách sạch đoạn `<w:p>` chứa watermark trước khi nạp vào HIS.
 2. **Cross-Desktop Session Sandbox (Win32 Error 170)**: Trong môi trường dòng lệnh/terminal hoặc background task của Agent, tiến trình khởi chạy trong một desktop sandbox ảo khác với desktop tương tác thật (`WinSta0\Default`). Nếu thread chính có `[STAThread]` hoặc đã khởi tạo OLE/UIA, gọi `SetThreadDesktop` sẽ bị lỗi `170 ERROR_BUSY`. Giải pháp chuẩn: Kích hoạt luồng chạy trên một STA worker thread độc lập (`new Thread(...)`), gọi `SetThreadDesktop(OpenDesktop("Default", ...))` ngay đầu hàm worker để gắn kết 100% với màn hình tương tác của bác sĩ.
+
+---
+
+## 32. QUY TRÌNH CHỈ ĐỊNH DỊCH DINH DƯỠNG TRƯỚC MỔ (LEANPRO PRESUR 12.5%) TỪ TỦ TRỰC TTSPDD_9
+
+### 32.1. Tiêu Chuẩn & Danh Mục Lâm Sàng:
+* **Thuốc / Chế phẩm**: Leanpro PreSur 12.5% - Dung dịch Carbohydrate trước phẫu thuật (Mã: `SPBM25651`, MedicineTypeId: `26851`).
+* **Kho Tủ Trực**: **`TTSPDD_9`** (Tủ trực Sản phẩm dinh dưỡng - Khoa Chấn thương Chỉnh hình và Cột sống, **`MediStockId = 7787`**). Tuyệt đối không kê từ Kho Dược/Dinh dưỡng lĩnh (`753`).
+* **Đối tượng chỉ định**: Bệnh nhân chuẩn bị phẫu thuật chương trình/phiên.
+* **Quy tắc an toàn (Guardrails)**:
+  1. **Tuổi < 70**: Chống chỉ định cho bệnh nhân $\ge 70$ tuổi.
+  2. **Không ĐTĐ**: Chống chỉ định cho bệnh nhân có chẩn đoán Đái tháo đường (mã `E10` - `E14` hoặc có từ khóa tiểu đường).
+* **Liều dùng chuẩn**: 6 chai (Tối 20h uống 4 chai, sáng 06h uống 2 chai).
+
+### 32.2. Quy Trình Kê Đơn Tủ Trực 2 Bước Chuẩn Hóa:
+1. **Bước 1 (Giữ Bean)**: `POST api/HisMedicineBean/Take`
+   - `TypeId = 26851`, `MediStockId = 7787`, `Amount = 6.0m`, `PatientTypeId = 42` (hoặc `TDL_PATIENT_TYPE_ID`).
+2. **Bước 2 (Tạo Đơn Tủ Trực)**: `POST api/HisServiceReq/OutPatientPresCreateList`
+   - `IsCabinet = true`, `ClientSessionKey = sessionKey`, `MedicineBeanIds = beans.Select(b => b.ID)`.
+   - Lùi 5 phút sau Tờ điều trị (`InstructionTime = TrackingTime + 5 phút`).
+3. **Quy Chuẩn Ký EMR**: Tuyệt đối không đẩy dummy PDF rỗng vào EMR (`AutoSignTrackingEmr` tạo văn bản trắng). Bác sĩ in và ký trực tiếp Tờ điều trị trên HIS Desktop Client để template `062-Tờ điều trị chuẩn.xlsx` tự nạp đầy đủ 100% dữ liệu.
+
+### 32.3. Lệnh Sử Dụng:
+```powershell
+.\HisLeanproAssigner.bat "<MãBN1,MãBN2,...>"
+```
