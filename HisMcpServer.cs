@@ -832,10 +832,10 @@ namespace HisMcp
             sb.AppendLine("\n--- BUOC 3: KE DON INSULIN TU TRUC (+5 PHUT OFFSET) ---");
             bool step3Error;
             long stockId = (facility == "NB") ? 5142 : 810;
-            string insulinDesc = string.Format("{0}{1}", units, insulinType);
-            string toolPrescribe = ResolveToolPath("HisAutoPrescribe.exe");
-            string res3 = RunProcess(toolPrescribe, string.Format("single {0} --stock {1} --items {2} --facility {3}",
-                EscapeArg(pCode), stockId, EscapeArg(insulinDesc), EscapeArg(facility)), out step3Error);
+            string toolPrescribe = ResolveToolPath("HisCabinetPrescribe.exe");
+            string timeStr = (slot == "17h") ? "17:05" : (slot == "21h" ? "21:05" : "06:05");
+            string res3 = RunProcess(toolPrescribe, string.Format("insulin {0} {1} {2} {3} {4}",
+                EscapeArg(pCode), units, EscapeArg(insulinType), EscapeArg(timeStr), stockId), out step3Error);
             sb.AppendLine(res3);
 
             // BUG FIX: Dung || (OR) - bat ky buoc nao loi la bao loi.

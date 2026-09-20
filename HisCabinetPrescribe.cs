@@ -447,11 +447,12 @@ public class HisCabinetPrescribe
         string doctorName,
         out string serviceReqCode,
         out string expMestCode,
-        out string error)
+        out string error,
+        V_HIS_MEDICINE_TYPE medTypeObj = null)
     {
         var item = new CabinetPrescribeItem
         {
-            Medicine = new V_HIS_MEDICINE_TYPE { ID = medicineTypeId },
+            Medicine = medTypeObj ?? new V_HIS_MEDICINE_TYPE { ID = medicineTypeId },
             Amount = amount,
             Tutorial = tutorial,
             UseFormId = useFormId,
@@ -756,12 +757,13 @@ public class HisCabinetPrescribe
         string timeStr = args.Length > 4 ? args[4] : "21:00";
         long stockId = args.Length > 5 ? long.Parse(args[5]) : STOCK_TU_TRUC_CTCH_HN;
 
-        string medKw = "Lantus";
-        if (typeStr.StartsWith("R") || typeStr.Contains("ACT")) medKw = "Actrapid";
-        else if (typeStr.StartsWith("M") || typeStr.Contains("MIX")) medKw = "Mixtard";
+        string medKw = "14956";
+        string medDisplay = "Lantus";
+        if (typeStr.StartsWith("R") || typeStr.Contains("ACT")) { medKw = "27727"; medDisplay = "Actrapid"; }
+        else if (typeStr.StartsWith("M") || typeStr.Contains("MIX")) { medKw = "18119"; medDisplay = "Mixtard"; }
 
         decimal presAmount = ui / 1000.0m;
-        string tutorial = string.Format("Tiêm dưới da {0} đơn vị {1} lúc {2}.", (int)ui, medKw, timeStr);
+        string tutorial = string.Format("Tiêm dưới da {0} đơn vị {1} lúc {2}.", (int)ui, medDisplay, timeStr);
 
         Console.OutputEncoding = Encoding.UTF8;
         string token = ReadLiveToken();
@@ -783,7 +785,7 @@ public class HisCabinetPrescribe
         long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Theo dõi đường huyết và tiêm Insulin", tutorial, ref insTime);
 
         string sCode, eCode, err;
-        bool ok = PrescribeCabinetItem(consumer, tr, roomId, stockId, med.ID, presAmount, tutorial, 15, false, trkId, insTime, "034727", "Ths.BS NGUYỄN HỮU SÂM", out sCode, out eCode, out err);
+        bool ok = PrescribeCabinetItem(consumer, tr, roomId, stockId, med.ID, presAmount, tutorial, 15, false, trkId, insTime, "034727", "Ths.BS NGUYỄN HỮU SÂM", out sCode, out eCode, out err, med);
         if (ok)
         {
             Console.WriteLine("===============================================================================");

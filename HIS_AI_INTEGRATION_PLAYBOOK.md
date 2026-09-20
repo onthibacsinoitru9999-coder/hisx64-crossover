@@ -2065,5 +2065,22 @@ Bác sĩ chỉ cần gửi prompt tự nhiên, ngắn gọn; Agent sẽ tự đ�
 | 📋 **Điền vỏ bệnh án EMR** | `"Điền vỏ bệnh án ngoại khoa EMR cho BN 0001666593"` | `his_emr_fill` |
 | 🩺 **Kiểm tra kết nối HIS** | `"Kiểm tra kết nối hệ thống HIS và token"` | `his_system_health` |
 
+---
+
+## 36. BẪY LỖI & QUY CHUẨN KÊ INSULIN TỦ TRỰC (CABINET INSULIN PRESCRIBING)
+
+### 36.1. Bẫy Tìm Kiếm Danh Mục Thuốc Bằng Từ Khóa (Keyword Fallback Trap)
+* **Hiện tượng**: Gọi API kê tủ trực `TakeBean` báo lỗi `Không giữ được thuốc trong tủ trực (có thể hết tồn)` mặc dù kiểm tra tồn kho tủ trực 810 vẫn còn đủ số lượng lọ (VD: Actrapid tồn 0.44 lọ, Lantus 1.42 lọ).
+* **Nguyên nhân**: Trong cơ sở dữ liệu `HIS_MEDICINE_TYPE` có nhiều bản ghi cùng chứa từ khóa "Actrapid" (thuộc các gói thầu cũ hoặc loại thuốc đã ngừng kích hoạt). Khi tìm bằng `KEY_WORD = "Actrapid"`, hàm trả về bản ghi đầu tiên có `ID` khác với mã đang tồn bean trong tủ trực (`TH.ACTR004` - ID: **`27727`**). Do đó API `api/HisMedicineBean/Take` không tìm thấy bean nào thuộc `TypeId` đó trong kho 810.
+* **Giải pháp chuẩn hóa**: Trong `HisCabinetPrescribe.cs`, ánh xạ trực tiếp sang các `MEDICINE_TYPE_ID` chuẩn có sẵn trong tủ trực:
+  - **Actrapid**: ID **`27727`** (`TH.ACTR004`)
+  - **Lantus**: ID **`14956`** (`TH.LANT001`)
+  - **Mixtard**: ID **`18119`** (`TH.MIXT003`)
+
+### 36.2. Quy Chuẩn Công Cụ Điều Phối MCP `his_execute_protocol_glucose`
+* **Vấn đề**: Trước đây `ExecuteProtocolGlucose` trong `HisMcpServer.cs` gọi `HisAutoPrescribe.exe single ... --stock 810 --items ...` (các tham số này không được `HisAutoPrescribe` hỗ trợ).
+* **Khắc phục**: Chuyển sang gọi chuẩn xác công cụ `HisCabinetPrescribe.exe insulin <pCode> <units> <typeStr> <timeStr> <stockId>` để đồng bộ 100% với luồng tủ trực (`TakeBean` -> `OutPatientPresCreateList` -> `IsCabinet = true`).
+
+
 
 
