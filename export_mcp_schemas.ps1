@@ -36,7 +36,8 @@ $tools = $data.result.tools
 Write-Host "Discovered $($tools.Count) tools from HisMcpServer." -ForegroundColor Green
 
 # 2. Target MCP directories
-$appData = if ($env:USERPROFILE) { Join-Path $env:USERPROFILE ".gemini\antigravity\mcp" } else { "C:\Users\dr\.gemini\antigravity\mcp" }
+$userProfile = if ($env:USERPROFILE) { $env:USERPROFILE } else { "C:\Users\dr" }
+$appData = Join-Path $userProfile ".gemini\antigravity\mcp"
 $targetDirs = @(
     (Join-Path $appData "his-clinical"),
     (Join-Path $appData "his-clinical_his-clinical")
@@ -72,10 +73,10 @@ foreach ($tDir in $targetDirs) {
     Write-Host "  Written instructions -> $instPath" -ForegroundColor Green
 }
 
-# 3. Update mcp_config.json files
+# 3. Update mcp_config.json files safely (preserve other existing servers)
 $configPaths = @(
-    "C:\Users\dr\.gemini\config\mcp_config.json",
-    "C:\Users\dr\.gemini\antigravity\mcp_config.json",
+    (Join-Path $userProfile ".gemini\config\mcp_config.json"),
+    (Join-Path $userProfile ".gemini\antigravity\mcp_config.json"),
     (Join-Path $rootDir ".agents\mcp_config.json")
 )
 
@@ -93,18 +94,42 @@ foreach ($cfgPath in $configPaths) {
         New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null
     }
 
-    $cfgData = @{
-        "mcpServers" = @{
-            "his-clinical" = @{
-                "command" = $mcpExe
-                "args" = @()
-                "env" = @{
-                    "HIS_BASE_DIR" = $rootDir
-                }
+    $cfgObj = $null
+    if (Test-Path $cfgPath) {
+        try {
+            $raw = Get-Content -Raw -Encoding UTF8 $cfgPath
+            if ($raw -and $raw.Trim()) {
+                $cfgObj = $raw | ConvertFrom-Json
             }
+        } catch {
+            $cfgObj = $null
         }
     }
-    $newJson = $cfgData | ConvertTo-Json -Depth 5
+
+    if (-not $cfgObj) {
+        $cfgObj = [PSCustomObject]@{
+            mcpServers = [PSCustomObject]@{}
+        }
+    }
+    if (-not $cfgObj.mcpServers) {
+        $cfgObj | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value ([PSCustomObject]@{}) -Force
+    }
+
+    $serverDefObj = [PSCustomObject]@{
+        command = $mcpExe
+        args = @()
+        env = [PSCustomObject]@{
+            HIS_BASE_DIR = $rootDir
+        }
+    }
+
+    if ($cfgObj.mcpServers -is [System.Collections.IDictionary]) {
+        $cfgObj.mcpServers["his-clinical"] = $serverDefObj
+    } else {
+        $cfgObj.mcpServers | Add-Member -MemberType NoteProperty -Name "his-clinical" -Value $serverDefObj -Force
+    }
+
+    $newJson = $cfgObj | ConvertTo-Json -Depth 10
     [System.IO.File]::WriteAllText($cfgPath, $newJson, [System.Text.Encoding]::UTF8)
     Write-Host "Updated MCP Config -> $cfgPath" -ForegroundColor Green
 }

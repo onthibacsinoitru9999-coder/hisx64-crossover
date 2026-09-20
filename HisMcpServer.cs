@@ -179,13 +179,51 @@ namespace HisMcp
                 Arr("patientCode")
             ));
 
-            // 7. his_prescribe_medicine
+            // 7a. his_prescribe_cabinet
+            tools.Add(CreateTool(
+                "his_prescribe_cabinet",
+                "Ke don thuoc dieu tri (khang sinh, giam dau, dich truyen, vien nen...), tiem Insulin, Leanpro truoc mo, vat tu thay bang tu TU TRUC (IS_CABINET = 1: HN Khoa 57 kho 810, Tu truc dinh duong TTSPDD_9 kho 7787, NB Khu 3E kho 5142, Khu 3D kho 5141). Ho tro ca tra cuu ton tu truc (mode='stock').",
+                Obj(
+                    "mode", Obj("type", "string", "description", "Che do: 'single' (1 thuoc), 'multi' (toa thuoc dieu tri), 'insulin' (tiem insulin), 'leanpro' (dinh duong truoc mo 7787), 'dressing' (thay bang 810), 'stock' (xem ton tu truc)", "enum", Arr("single", "multi", "insulin", "leanpro", "dressing", "stock")),
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (khong bat buoc khi mode='stock')"),
+                    "stockId", Obj("type", "integer", "description", "Ma kho tu truc (HN: 810 Khoa 57; Dinh duong: 7787; NB: 5142 Khu 3E, 5141 Khu 3D). Mac dinh 810"),
+                    "medicineName", Obj("type", "string", "description", "Ten hoac ma thuoc (khi mode='single')"),
+                    "amount", Obj("type", "number", "description", "So luong thuoc (khi mode='single' hoac 'leanpro')"),
+                    "tutorial", Obj("type", "string", "description", "Huong dan su dung thuoc (khi mode='single')"),
+                    "items", Obj("type", "array", "items", Obj("type", "string"), "description", "Danh sach thuoc khi mode='multi'. Dinh dang moi phan tu: 'TenThuoc|SoLuong|HDSD|[DuongDungId]'"),
+                    "insulinUnits", Obj("type", "number", "description", "So don vi Insulin UI (khi mode='insulin', VD: 8, 10, 12)"),
+                    "insulinType", Obj("type", "string", "description", "Loai Insulin: 'R' (Actrapid), 'L' (Lantus), 'M' (Mixtard)", "enum", Arr("R", "L", "M")),
+                    "timeSlot", Obj("type", "string", "description", "Moc gio: '17:00', '21:00', '06:00'..."),
+                    "keyword", Obj("type", "string", "description", "Tu khoa loc ton kho (khi mode='stock')")
+                ),
+                Arr("mode")
+            ));
+
+            // 7b. his_prescribe_warehouse
+            tools.Add(CreateTool(
+                "his_prescribe_warehouse",
+                "Ke don thuoc noi tru thuong quy, san pham dinh duong dieu tri LINH TU KHO DUOC / CAP PHAT (IS_CABINET = 0: Kho thuoc vien 4210, Kho thuoc ong 4209, Kho SP dinh duong 753, Kho duoc chinh NB 4854). Ho tro tra cuu danh muc Duoc (mode='search').",
+                Obj(
+                    "mode", Obj("type", "string", "description", "Che do: 'single' (1 thuoc linh), 'multi' (toa thuoc linh), 'nutrition' (dinh duong kho 753), 'search' (tra cuu danh muc)", "enum", Arr("single", "multi", "nutrition", "search")),
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (khong bat buoc khi mode='search')"),
+                    "stockId", Obj("type", "integer", "description", "Ma kho cap phat (Kho thuoc vien: 4210, Kho thuoc ong: 4209, Kho dinh duong: 753, CSNB: 4854). Mac dinh 4210"),
+                    "medicineName", Obj("type", "string", "description", "Ten/ma thuoc hoac tu khoa tra cuu (khi mode='single' hoac 'search')"),
+                    "amount", Obj("type", "number", "description", "So luong thuoc linh (khi mode='single' hoac 'nutrition')"),
+                    "tutorial", Obj("type", "string", "description", "Huong dan su dung thuoc"),
+                    "items", Obj("type", "array", "items", Obj("type", "string"), "description", "Danh sach thuoc khi mode='multi'. Dinh dang moi phan tu: 'Thuoc|SL|HDSD|[KhoId]|[DuongDungId]|[Cu Sang:Trua:Chieu:Toi]'"),
+                    "useFormId", Obj("type", "integer", "description", "ID duong dung (1: Uong, 15: Tiem, 20: Truyen TM, 25: Dung ngoai, 32: Dinh duong)"),
+                    "doses", Obj("type", "string", "description", "Cu uong 'Sang:Trua:Chieu:Toi' (VD: '01::01')")
+                ),
+                Arr("mode")
+            ));
+
+            // 7c. his_prescribe_medicine (Fallback/Alias)
             tools.Add(CreateTool(
                 "his_prescribe_medicine",
-                "Ke don thuoc tu Tu truc (HN: Kho 810 / NB: Kho 5142) hoac Kho Duoc. Ho tro don tiem Insulin va thuoc vien/truyen",
+                "Ke don thuoc tu Tu truc (HN: Kho 810 / NB: Kho 5142) hoac Kho Duoc (Dieu phoi tu dong). Khuyen nghi uu tien dung his_prescribe_cabinet hoac his_prescribe_warehouse.",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
-                    "stockId", Obj("type", "integer", "description", "Ma kho/tu truc (HN: 810; NB: 5142). Mac dinh 810"),
+                    "stockId", Obj("type", "integer", "description", "Ma kho/tu truc (HN: 810; NB: 5142; Kho vien: 4210). Mac dinh 810"),
                     "medicines", Obj("type", "string", "description", "Mo ta thuoc hoac danh sach thuoc (VD: 'Actrapid 8UI tiem duoi da')"),
                     "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB"))
                 ),
@@ -343,6 +381,12 @@ namespace HisMcp
                         break;
                     case "his_create_tracking":
                         output = ExecuteCreateTracking(args, out isError);
+                        break;
+                    case "his_prescribe_cabinet":
+                        output = ExecutePrescribeCabinet(args, out isError);
+                        break;
+                    case "his_prescribe_warehouse":
+                        output = ExecutePrescribeWarehouse(args, out isError);
                         break;
                     case "his_prescribe_medicine":
                         output = ExecutePrescribe(args, out isError);
@@ -516,24 +560,176 @@ namespace HisMcp
             return RunProcess(tool, sb.ToString(), out isError);
         }
 
-        private static string ExecutePrescribe(JObject args, out bool isError)
+        private static string ExecutePrescribeCabinet(JObject args, out bool isError)
         {
+            string mode = args["mode"] != null ? args["mode"].ToString().Trim().ToLower() : "single";
             string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
-            string meds = args["medicines"] != null ? args["medicines"].ToString().Trim() : "";
             long stockId = args["stockId"] != null ? (long)args["stockId"] : 810;
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim() : "HN";
+            string tool = ResolveToolPath("HisCabinetPrescribe.exe");
 
-            if (string.IsNullOrEmpty(pCode) || string.IsNullOrEmpty(meds))
+            if (mode == "stock")
             {
-                isError = true;
-                return "Loi: patientCode va medicines khong duoc de trong.";
+                string kw = args["keyword"] != null ? args["keyword"].ToString().Trim() : "";
+                string cmdArgs = "stock " + stockId + (string.IsNullOrEmpty(kw) ? "" : " " + EscapeArg(kw));
+                return RunProcess(tool, cmdArgs, out isError);
             }
 
-            string tool = ResolveToolPath("HisAutoPrescribe.exe");
-            string cmdArgs = string.Format("single {0} --stock {1} --items {2} --facility {3}",
-                EscapeArg(pCode), stockId, EscapeArg(meds), EscapeArg(facility));
+            if (string.IsNullOrEmpty(pCode))
+            {
+                isError = true;
+                return "Loi: patientCode khong duoc de trong cho che do " + mode;
+            }
 
-            return RunProcess(tool, cmdArgs, out isError);
+            if (mode == "insulin")
+            {
+                decimal units = args["insulinUnits"] != null ? (decimal)args["insulinUnits"] : 8m;
+                string typeStr = args["insulinType"] != null ? args["insulinType"].ToString().Trim().ToUpper() : "R";
+                string timeStr = args["timeSlot"] != null ? args["timeSlot"].ToString().Trim() : "17:00";
+                string cmdArgs = string.Format("insulin {0} {1} {2} {3} {4}",
+                    EscapeArg(pCode), units, EscapeArg(typeStr), EscapeArg(timeStr), stockId);
+                return RunProcess(tool, cmdArgs, out isError);
+            }
+
+            if (mode == "leanpro")
+            {
+                decimal qty = args["amount"] != null ? (decimal)args["amount"] : 6m;
+                string cmdArgs = string.Format("leanpro {0} {1}", EscapeArg(pCode), qty);
+                return RunProcess(tool, cmdArgs, out isError);
+            }
+
+            if (mode == "dressing")
+            {
+                string cmdArgs = string.Format("dressing {0} 1 1 {1}", EscapeArg(pCode), stockId);
+                return RunProcess(tool, cmdArgs, out isError);
+            }
+
+            if (mode == "multi")
+            {
+                var itemsArray = args["items"] as JArray;
+                if (itemsArray == null || itemsArray.Count == 0)
+                {
+                    isError = true;
+                    return "Loi: items (danh sach thuoc) khong duoc de trong khi mode='multi'.";
+                }
+                var sb = new StringBuilder();
+                sb.Append("multi ").Append(EscapeArg(pCode));
+                foreach (var it in itemsArray)
+                {
+                    sb.Append(" ").Append(EscapeArg(it.ToString()));
+                }
+                if (stockId != 810) sb.Append(" --stock ").Append(stockId);
+                if (args["timeSlot"] != null && !string.IsNullOrEmpty(args["timeSlot"].ToString()))
+                {
+                    sb.Append(" --time ").Append(EscapeArg(args["timeSlot"].ToString()));
+                }
+                return RunProcess(tool, sb.ToString(), out isError);
+            }
+
+            // Default: mode == "single"
+            string medName = args["medicineName"] != null ? args["medicineName"].ToString().Trim() : "";
+            decimal amt = args["amount"] != null ? (decimal)args["amount"] : 1m;
+            string tutorial = args["tutorial"] != null ? args["tutorial"].ToString().Trim() : "Dung theo chi dan cua bac si";
+            string time = args["timeSlot"] != null ? args["timeSlot"].ToString().Trim() : "";
+
+            if (string.IsNullOrEmpty(medName))
+            {
+                isError = true;
+                return "Loi: medicineName khong duoc de trong khi mode='single'.";
+            }
+
+            string singleArgs = string.Format("single {0} {1} {2} {3} {4}",
+                EscapeArg(pCode), EscapeArg(medName), amt, stockId, EscapeArg(tutorial));
+            if (!string.IsNullOrEmpty(time)) singleArgs += " " + EscapeArg(time);
+
+            return RunProcess(tool, singleArgs, out isError);
+        }
+
+        private static string ExecutePrescribeWarehouse(JObject args, out bool isError)
+        {
+            string mode = args["mode"] != null ? args["mode"].ToString().Trim().ToLower() : "single";
+            string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
+            long stockId = args["stockId"] != null ? (long)args["stockId"] : 4210;
+            string tool = ResolveToolPath("HisWarehousePrescribe.exe");
+
+            if (mode == "search")
+            {
+                string kw = args["medicineName"] != null ? args["medicineName"].ToString().Trim() : "";
+                if (string.IsNullOrEmpty(kw))
+                {
+                    isError = true;
+                    return "Loi: medicineName (tu khoa tra cuu) khong duoc de trong khi mode='search'.";
+                }
+                return RunProcess(tool, "search " + EscapeArg(kw), out isError);
+            }
+
+            if (string.IsNullOrEmpty(pCode))
+            {
+                isError = true;
+                return "Loi: patientCode khong duoc de trong cho che do " + mode;
+            }
+
+            if (mode == "nutrition")
+            {
+                string spName = args["medicineName"] != null ? args["medicineName"].ToString().Trim() : "Leanpro PreSur";
+                decimal qty = args["amount"] != null ? (decimal)args["amount"] : 6m;
+                string tut = args["tutorial"] != null ? args["tutorial"].ToString().Trim() : "Uong theo chi dinh chuyen khoa";
+                string cmdArgs = string.Format("nutrition {0} {1} {2} {3} {4}",
+                    EscapeArg(pCode), EscapeArg(spName), qty, (stockId > 0 ? stockId : 753), EscapeArg(tut));
+                return RunProcess(tool, cmdArgs, out isError);
+            }
+
+            if (mode == "multi")
+            {
+                var itemsArray = args["items"] as JArray;
+                if (itemsArray == null || itemsArray.Count == 0)
+                {
+                    isError = true;
+                    return "Loi: items (danh sach thuoc) khong duoc de trong khi mode='multi'.";
+                }
+                var sb = new StringBuilder();
+                sb.Append("multi ").Append(EscapeArg(pCode));
+                foreach (var it in itemsArray)
+                {
+                    sb.Append(" ").Append(EscapeArg(it.ToString()));
+                }
+                if (stockId != 4210) sb.Append(" --stock ").Append(stockId);
+                if (args["timeSlot"] != null && !string.IsNullOrEmpty(args["timeSlot"].ToString()))
+                {
+                    sb.Append(" --time ").Append(EscapeArg(args["timeSlot"].ToString()));
+                }
+                return RunProcess(tool, sb.ToString(), out isError);
+            }
+
+            // Default: mode == "single"
+            string medName = args["medicineName"] != null ? args["medicineName"].ToString().Trim() : "";
+            decimal amt = args["amount"] != null ? (decimal)args["amount"] : 1m;
+            string tutorial = args["tutorial"] != null ? args["tutorial"].ToString().Trim() : "Dung theo chi dan cua bac si";
+            long? useFormId = args["useFormId"] != null ? (long?)args["useFormId"] : null;
+            string doses = args["doses"] != null ? args["doses"].ToString().Trim() : "";
+
+            if (string.IsNullOrEmpty(medName))
+            {
+                isError = true;
+                return "Loi: medicineName khong duoc de trong khi mode='single'.";
+            }
+
+            string singleArgs = string.Format("single {0} {1} {2} {3} {4}",
+                EscapeArg(pCode), EscapeArg(medName), amt, stockId, EscapeArg(tutorial));
+            if (useFormId.HasValue) singleArgs += " " + useFormId.Value;
+            if (!string.IsNullOrEmpty(doses)) singleArgs += " " + EscapeArg(doses);
+
+            return RunProcess(tool, singleArgs, out isError);
+        }
+
+        private static string ExecutePrescribe(JObject args, out bool isError)
+        {
+            long stockId = args["stockId"] != null ? (long)args["stockId"] : 810;
+            // Neu stockId la tu truc (810, 7787, 5142, 5141) -> dieu phoi sang ExecutePrescribeCabinet
+            if (stockId == 810 || stockId == 7787 || stockId == 5142 || stockId == 5141)
+            {
+                return ExecutePrescribeCabinet(args, out isError);
+            }
+            return ExecutePrescribeWarehouse(args, out isError);
         }
 
         private static string ExecuteAssignBedsideGlucose(JObject args, out bool isError)

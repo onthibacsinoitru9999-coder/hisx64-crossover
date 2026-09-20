@@ -20,7 +20,9 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 ### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG MỌI NHIỆM VỤ & /GOAL
 1. **Ưu tiên số 1 (Chống rác file 100%)**: Sử dụng các công cụ **HIS MCP Server** (`his_*`) chạy qua giao thức JSON-RPC 2.0 (`HisMcpServer.exe`). Mọi dữ liệu vào/ra truyền qua RAM/stdio, **hoàn toàn không tạo bất kỳ file tạm nào trên đĩa**.
    - Tra cứu: `his_patient_lookup`, `his_get_orders`, `his_debate_view`
-   - Kê đơn / Tiêm: `his_prescribe_medicine`
+   - Kê đơn Tủ Trực (Thuốc, Insulin, Leanpro, Thay băng): `his_prescribe_cabinet`
+   - Kê đơn Lĩnh Kho Dược (Thuốc viên, Thuốc ống, Dinh dưỡng 753): `his_prescribe_warehouse`
+   - Kê đơn điều phối tự động: `his_prescribe_medicine`
    - Tờ điều trị: `his_create_tracking`
    - ĐMMM & Thợ đường huyết: `his_assign_bedside_glucose`, `his_execute_protocol_glucose`
    - Suất ăn & Dinh dưỡng: `his_assign_ration`, `his_assign_leanpro`
@@ -94,8 +96,8 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (màu trắng)** | `his_cancel_order` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
 | 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu** | `his_cancel_service` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
 | 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa** | `his_debate_view` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
-| 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro từ TỦ TRỰC** | `his_prescribe_medicine` | **`HisCabinetPrescribe.exe`** / `HisAutoPrescribe.exe` | `.\HisCabinetPrescribe.bat single ...` hoặc `.\HisAutoPrescribe.exe single` | ❌ Không gọi API kê lĩnh 4210 |
-| 🏭 **Kê đơn thuốc nội trú thường quy LĨNH KHO DƯỢC** | `his_prescribe_medicine` | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` | ❌ Không gọi API tủ trực (TakeBean) |
+| 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro, Thay băng từ TỦ TRỰC** | `his_prescribe_cabinet` *(hoặc `his_prescribe_medicine`)* | **`HisCabinetPrescribe.exe`** / `HisAutoPrescribe.exe` | `.\HisCabinetPrescribe.bat single ...` hoặc `.\HisAutoPrescribe.exe single` | ❌ Không gọi API kê lĩnh 4210 |
+| 🏭 **Kê đơn thuốc nội trú thường quy LĨNH KHO DƯỢC** | `his_prescribe_warehouse` *(hoặc `his_prescribe_medicine`)* | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` | ❌ Không gọi API tủ trực (TakeBean) |
 | 📝 **Tạo tờ điều trị hàng ngày (DHST + AI)** | `his_create_tracking` | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` | ❌ Không dùng kê đơn |
 | 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | `his_assign_bedside_glucose` | **`HisGlucoseBedsideAssigner.exe`** | `.\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
 | ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` | Pipeline 3 bước | Tự động Tờ ĐT -> CLS -> Thuốc +5p | ❌ Không đổi thứ tự |
