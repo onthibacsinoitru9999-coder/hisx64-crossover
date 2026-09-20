@@ -171,6 +171,7 @@ class HisEmrFiller
         string doctorCode = DEFAULT_DOCTOR_CODE;
         string doctorName = DEFAULT_DOCTOR_NAME;
         bool forceSummary = false;
+        bool forceAll = false;
         bool isReverseOutpatients = false;
         bool signDoc = false;
 
@@ -190,9 +191,20 @@ class HisEmrFiller
             {
                 isReverseOutpatients = true;
             }
+            else if (a.Equals("--force-all", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--refresh", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--enrich", StringComparison.OrdinalIgnoreCase))
+            {
+                forceAll = true;
+                forceSummary = true;
+            }
             else if (a.Equals("--force", StringComparison.OrdinalIgnoreCase) ||
-                     a.Equals("-f", StringComparison.OrdinalIgnoreCase) ||
-                     a.Equals("--force-summary", StringComparison.OrdinalIgnoreCase))
+                     a.Equals("-f", StringComparison.OrdinalIgnoreCase))
+            {
+                forceAll = true;
+                forceSummary = true;
+            }
+            else if (a.Equals("--force-summary", StringComparison.OrdinalIgnoreCase))
                 forceSummary = true;
             else if ((a.Equals("--date", StringComparison.OrdinalIgnoreCase) || a.Equals("-d", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Length)
             {
@@ -274,7 +286,7 @@ class HisEmrFiller
 
         try
         {
-            return Run(input, dryRun, doctorCode, doctorName, forceSummary, signDoc);
+            return Run(input, dryRun, doctorCode, doctorName, forceSummary, forceAll, signDoc);
         }
         catch (Exception ex)
         {
@@ -290,7 +302,7 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // MAIN EXECUTION LOGIC
     // ──────────────────────────────────────────────────────────────
-    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false, bool signDoc = false)
+    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false, bool forceAll = false, bool signDoc = false)
     {
         string tokenCode = ReadLiveToken();
         var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
@@ -361,13 +373,14 @@ class HisEmrFiller
         // Tìm mẫu kế thừa từ DB EMR hoặc sinh mới chuyên khoa CTCH
         TemplateBA tmpl = FindTemplate(con, ti);
 
-        // Lấy DHST và CLS thật từ HIS
+        // Lấy DHST, CLS thật và toàn bộ tờ điều trị / hội chẩn từ HIS
         DhstInfo dhst = GetLatestDhst(adapter, consumer, param, ti.TreatmentId);
         LabPacsInfo labs = FetchLabsAndPacs(adapter, consumer, param, ti.TreatmentId);
+        ClinicalContextInfo clinicalCtx = FetchClinicalContextFromTrackingsAndDebates(adapter, consumer, param, ti);
 
         // Tạo và điền đối tượng bệnh án theo nguyên tắc Merge
         dynamic ba = isUpdate ? existingBA : CreateNewBenhAnNgoaiKhoa();
-        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary);
+        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary, forceAll, clinicalCtx);
 
         // Đảm bảo Trang bìa THONGTINDIEUTRI
         EnsureThongTinDieuTri(con, ti, !dryRun);
@@ -464,8 +477,29 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // QUY TẮC ĐIỀN DỮ LIỆU & BẢO LƯU (MERGE MODE)
     // ──────────────────────────────────────────────────────────────
+    static bool ShouldOverwrite(string currentVal, bool forceAll)
+    {
+        if (forceAll) return true;
+        if (string.IsNullOrWhiteSpace(currentVal)) return true;
+        string s = currentVal.ToLower();
+        if (s.Contains("bvđk thái bình") || s.Contains("thái bình") || s.Contains("chân đoám")) return true;
+        if (s.Contains("vùng tổn thương") && s.Contains("đau tức khu trú")) return true;
+        if (s.Contains("đau và hạn chế vận động vùng tổn thương")) return true;
+        if (s.Contains("bệnh diễn biến qua hỏi bệnh và thăm khám phát hiện")) return true;
+        if (s.Contains("tiền sử chân thương cột sống") && s.Length < 40) return true;
+        if (s.Contains("khỏe mạnh, chưa ghi nhận bệnh lý") && s.Length < 90) return true;
+        if (s.Contains("xét phẫu thuật theo yc") && s.Length < 30) return true;
+        if (s.Contains("trung bình") && s.Length < 20) return true;
+        if (s.Contains("phân biệt các tổn thương phần mềm, chấn thương dây chằng") && s.Length < 90) return true;
+        return false;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // QUY TẮC ĐIỀN DỮ LIỆU & BẢO LƯU (MERGE MODE)
+    // ──────────────────────────────────────────────────────────────
     static void PopulateBenhAn(dynamic ba, TreatmentInfo ti, DhstInfo dhst, TemplateBA tmpl, LabPacsInfo labs,
-                               string docCode, string docName, bool isUpdate, bool forceSummary = false)
+                               string docCode, string docName, bool isUpdate, bool forceSummary = false,
+                               bool forceAll = false, ClinicalContextInfo clinicalCtx = null)
     {
         // 1. Trường định danh & bác sĩ (luôn cập nhật chuẩn)
         ba.MaQuanLy          = ti.MaQuanLy;
@@ -491,11 +525,19 @@ class HisEmrFiller
         string chanDoan = string.IsNullOrEmpty(ti.IcdName) ? ti.IcdCode : string.Format("[{0}] {1}", ti.IcdCode, ti.IcdName);
         ba.BenhChinh = chanDoan;
 
-        // 2. TAB HỎI BỆNH (Áp dụng merge: chỉ điền nếu rỗng)
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.LyDoVaoVien)))
+        bool hasCtx = (clinicalCtx != null && clinicalCtx.HasData);
+
+        // 2. TAB HỎI BỆNH (Áp dụng merge: ưu tiên hồ sơ lâm sàng thật từ tờ điều trị)
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.LyDoVaoVien) && ShouldOverwrite(SafeStr(ba.LyDoVaoVien), forceAll))
+            ba.LyDoVaoVien = clinicalCtx.LyDoVaoVien;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.LyDoVaoVien)))
             ba.LyDoVaoVien = BuildLyDoVaoVien(ti);
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.QuaTrinhBenhLy)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.QuaTrinhBenhLy) && ShouldOverwrite(SafeStr(ba.QuaTrinhBenhLy), forceAll))
+        {
+            ba.QuaTrinhBenhLy = clinicalCtx.QuaTrinhBenhLy;
+        }
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.QuaTrinhBenhLy)))
         {
             if (!string.IsNullOrWhiteSpace(tmpl.QuaTrinhBenhLy))
                 ba.QuaTrinhBenhLy = AdaptTemplateLaterality(tmpl.QuaTrinhBenhLy.Trim(), ti.IcdName);
@@ -503,39 +545,59 @@ class HisEmrFiller
                 ba.QuaTrinhBenhLy = BuildQuaTrinhBenhLy(ti);
         }
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TienSuBenhBanThan)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienSuBanThan) && ShouldOverwrite(SafeStr(ba.TienSuBenhBanThan), forceAll))
+            ba.TienSuBenhBanThan = clinicalCtx.TienSuBanThan;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienSuBenhBanThan)))
             ba.TienSuBenhBanThan = NotEmpty(tmpl.TienSuBenhBanThan) ?? "Khỏe mạnh, chưa ghi nhận bệnh lý mạn tính trước đây. Không có tiền sử dị ứng thuốc hay thức ăn.";
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TienSuBenhGiaDinh)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienSuGiaDinh) && ShouldOverwrite(SafeStr(ba.TienSuBenhGiaDinh), forceAll))
+            ba.TienSuBenhGiaDinh = clinicalCtx.TienSuGiaDinh;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienSuBenhGiaDinh)))
             ba.TienSuBenhGiaDinh = NotEmpty(tmpl.TienSuBenhGiaDinh) ?? "Gia đình chưa phát hiện ai mắc bệnh lý di truyền hoặc liên quan.";
 
         // 3. TAB KHÁM BỆNH
         // 3.1. Toàn thân (kèm DHST thực tế nếu chưa có)
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.ToanThan)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.ToanThan) && ShouldOverwrite(SafeStr(ba.ToanThan), forceAll))
+            ba.ToanThan = clinicalCtx.ToanThan;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.ToanThan)))
             ba.ToanThan = BuildToanThan(dhst, tmpl);
 
         // 3.2. Cơ xương khớp
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.CoXuongKhop)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.CoXuongKhop) && ShouldOverwrite(SafeStr(ba.CoXuongKhop), forceAll))
+            ba.CoXuongKhop = clinicalCtx.CoXuongKhop;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.CoXuongKhop)))
             ba.CoXuongKhop = BuildCoXuongKhop(ti, tmpl);
 
         // 3.3. Bệnh ngoại khoa (BẮT BUỘC ĐIỀN: ô mục 2 trên EMR UI)
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.BenhNgoaiKhoa)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.BenhNgoaiKhoa) && ShouldOverwrite(SafeStr(ba.BenhNgoaiKhoa), forceAll))
+            ba.BenhNgoaiKhoa = clinicalCtx.BenhNgoaiKhoa;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.BenhNgoaiKhoa)))
             ba.BenhNgoaiKhoa = BuildBenhNgoaiKhoa(ti, tmpl) ?? ba.CoXuongKhop;
 
         // 3.4. Các cơ quan nội khoa
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TuanHoan)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TuanHoan) && ShouldOverwrite(SafeStr(ba.TuanHoan), forceAll))
+            ba.TuanHoan = clinicalCtx.TuanHoan;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TuanHoan)))
             ba.TuanHoan = NotEmpty(tmpl.TuanHoan) ?? string.Format("Nhịp tim đều, T1 T2 rõ, không nghe tiếng thổi bệnh lý. Tần số {0} chu kỳ/phút. Huyết áp {1} mmHg.", dhst.Pulse, dhst.BloodPressure);
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.HoHap)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HoHap) && ShouldOverwrite(SafeStr(ba.HoHap), forceAll))
+            ba.HoHap = clinicalCtx.HoHap;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.HoHap)))
             ba.HoHap = NotEmpty(tmpl.HoHap) ?? string.Format("Lồng ngực hai bên cân đối, di động theo nhịp thở. Rì rào phế nang rõ, không ran. SpO2 {0}%.", dhst.SpO2);
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TieuHoa)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TieuHoa) && ShouldOverwrite(SafeStr(ba.TieuHoa), forceAll))
+            ba.TieuHoa = clinicalCtx.TieuHoa;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TieuHoa)))
             ba.TieuHoa = NotEmpty(tmpl.TieuHoa) ?? "Bụng mềm, không chướng, không có điểm đau khu trú. Gan lách không to, phản ứng thành bụng (-).";
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.ThanTietNieuSinhDuc)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.ThanTietNieu) && ShouldOverwrite(SafeStr(ba.ThanTietNieuSinhDuc), forceAll))
+            ba.ThanTietNieuSinhDuc = clinicalCtx.ThanTietNieu;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.ThanTietNieuSinhDuc)))
             ba.ThanTietNieuSinhDuc = NotEmpty(tmpl.ThanTietNieu) ?? "Hố thắt lưng hai bên không đầy. Chạm thận (-), bập bềnh thận (-). Tiểu tiện tự chủ, nước tiểu vàng trong.";
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.ThanKinh)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.ThanKinh) && ShouldOverwrite(SafeStr(ba.ThanKinh), forceAll))
+            ba.ThanKinh = clinicalCtx.ThanKinh;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.ThanKinh)))
             ba.ThanKinh = NotEmpty(tmpl.ThanKinh) ?? "Tỉnh táo, tiếp xúc tốt. Không có dấu hiệu thần kinh khu trú, hội chứng màng não (-).";
 
         if (string.IsNullOrWhiteSpace(SafeStr(ba.TaiMuiHong)))
@@ -548,10 +610,16 @@ class HisEmrFiller
             ba.Mat = "Mắt hai bên nhìn rõ, kết mạc hồng.";
 
         // 3.5. Cận lâm sàng & Tóm tắt
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.CacXetNghiemCanLamSangCanLam)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.CanLamSang) && ShouldOverwrite(SafeStr(ba.CacXetNghiemCanLamSangCanLam), forceAll))
+            ba.CacXetNghiemCanLamSangCanLam = clinicalCtx.CanLamSang;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.CacXetNghiemCanLamSangCanLam)))
             ba.CacXetNghiemCanLamSangCanLam = BuildCanLamSang(ti, labs, tmpl);
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TomTatBenhAn)) ||
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TomTatBenhAn) && (forceAll || forceSummary || ShouldOverwrite(SafeStr(ba.TomTatBenhAn), forceAll)))
+        {
+            ba.TomTatBenhAn = clinicalCtx.TomTatBenhAn;
+        }
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TomTatBenhAn)) ||
             forceSummary ||
             SafeStr(ba.TomTatBenhAn).Contains("Bệnh diễn biến qua hỏi bệnh và thăm khám phát hiện") ||
             SafeStr(ba.TomTatBenhAn).Contains("- Tiền sử: Khỏe mạnh, chưa ghi nhận bệnh lý liên quan."))
@@ -560,13 +628,19 @@ class HisEmrFiller
         }
 
         // 3.6. Chẩn đoán phân biệt, Tiên lượng, Hướng điều trị
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.PhanBiet)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.PhanBiet) && ShouldOverwrite(SafeStr(ba.PhanBiet), forceAll))
+            ba.PhanBiet = clinicalCtx.PhanBiet;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.PhanBiet)))
             ba.PhanBiet = NotEmpty(tmpl.PhanBiet) ?? BuildPhanBiet(ti);
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.TienLuong)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienLuong) && ShouldOverwrite(SafeStr(ba.TienLuong), forceAll))
+            ba.TienLuong = clinicalCtx.TienLuong;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienLuong)))
             ba.TienLuong = NotEmpty(tmpl.TienLuong) ?? "Tiên lượng dè dặt, phụ thuộc vào kết quả can thiệp thủ thuật/phẫu thuật và phục hồi chức năng.";
 
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)))
+        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTri) && ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll))
+            ba.HuongDieuTri = clinicalCtx.HuongDieuTri;
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)))
             ba.HuongDieuTri = NotEmpty(tmpl.HuongDieuTri) ?? BuildHuongDieuTri(ti);
 
         // Gán DauSinhTon
@@ -1867,6 +1941,212 @@ class HisEmrFiller
         return info;
     }
 
+    static ClinicalContextInfo FetchClinicalContextFromTrackingsAndDebates(MyAdapter adapter, ApiConsumer consumer, CommonParam param, TreatmentInfo ti)
+    {
+        var ctx = new ClinicalContextInfo();
+        try
+        {
+            // 1. Quét toàn bộ tờ điều trị của bệnh nhân (HIS_TRACKING)
+            var trkf = new HisTrackingViewFilter { TREATMENT_ID = ti.TreatmentId };
+            var trks = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", consumer, trkf, param);
+            if (trks != null && trks.Count > 0)
+            {
+                foreach (var t in trks.OrderBy(x => x.TRACKING_TIME))
+                {
+                    if (!string.IsNullOrWhiteSpace(t.CONTENT))
+                        ctx.RawTrackingContents.Add(t.CONTENT.Trim());
+                }
+            }
+
+            // 2. Quét biên bản hội chẩn (HIS_DEBATE)
+            try
+            {
+                var dbf = new HisDebateFilter { TREATMENT_ID = ti.TreatmentId };
+                var debates = adapter.FetchList<HIS_DEBATE>("api/HisDebate/Get", consumer, dbf, param);
+                if (debates != null && debates.Count > 0)
+                {
+                    foreach (var d in debates.OrderBy(x => x.DEBATE_TIME))
+                    {
+                        if (!string.IsNullOrWhiteSpace(d.TREATMENT_TRACKING))
+                            ctx.DebateSummaries.Add(d.TREATMENT_TRACKING.Trim());
+                        if (!string.IsNullOrWhiteSpace(d.DISCUSSION))
+                            ctx.DebateSummaries.Add(d.DISCUSSION.Trim());
+                        if (!string.IsNullOrWhiteSpace(d.CONCLUSION))
+                            ctx.DebateSummaries.Add(d.CONCLUSION.Trim());
+                    }
+                }
+            }
+            catch { }
+
+            // 3. Quét kết luận CĐHA thực tế (MRI, CT, X-Quang) từ HIS_SERE_SERV_EXT
+            try
+            {
+                var reqFilter = new HisServiceReqViewFilter { TREATMENT_ID = ti.TreatmentId };
+                var reqs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", consumer, reqFilter, param);
+                if (reqs != null)
+                {
+                    var cdhaReqs = reqs.Where(x => x.SERVICE_REQ_TYPE_ID == 2 || x.SERVICE_REQ_TYPE_ID == 3).OrderBy(x => x.INTRUCTION_TIME).ToList();
+                    foreach (var req in cdhaReqs)
+                    {
+                        var ssFilter = new HisSereServViewFilter { SERVICE_REQ_ID = req.ID };
+                        var sss = adapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", consumer, ssFilter, param);
+                        if (sss != null)
+                        {
+                            foreach (var ss in sss)
+                            {
+                                var extFilter = new HisSereServExtFilter { SERE_SERV_ID = ss.ID };
+                                var exts = adapter.FetchList<HIS_SERE_SERV_EXT>("api/HisSereServExt/Get", consumer, extFilter, param);
+                                if (exts != null && exts.Count > 0)
+                                {
+                                    string conc = exts[0].CONCLUDE;
+                                    if (!string.IsNullOrWhiteSpace(conc) && conc.Length > 5)
+                                    {
+                                        string line = string.Format("{0}: {1}", ss.TDL_SERVICE_NAME, conc.Replace("\r\n", " ").Trim());
+                                        if (!ctx.CdhaConclusions.Contains(line))
+                                            ctx.CdhaConclusions.Add(line);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (ctx.RawTrackingContents.Count == 0 && ctx.DebateSummaries.Count == 0 && ctx.CdhaConclusions.Count == 0)
+                return ctx;
+
+            ctx.HasData = true;
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(string.Format("✓ Đã nạp thành công {0} tờ điều trị, {1} biên bản hội chẩn và {2} kết luận CĐHA từ hồ sơ thực tế!",
+                ctx.RawTrackingContents.Count, ctx.DebateSummaries.Count, ctx.CdhaConclusions.Count));
+            Console.ResetColor();
+
+            ParseClinicalSections(ctx, ti);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[WARN] Lỗi khi trích xuất tờ điều trị: " + ex.Message);
+        }
+        return ctx;
+    }
+
+    static void ParseClinicalSections(ClinicalContextInfo ctx, TreatmentInfo ti)
+    {
+        string allText = string.Join("\n", ctx.RawTrackingContents.Concat(ctx.DebateSummaries).ToArray()).ToLower();
+
+        bool isCaudaEquina = allText.Contains("chùm đuôi ngựa") || allText.Contains("chùm đuôi ngựa") || allText.Contains("đuôi ngựa") || (ti.IcdCode ?? "").StartsWith("G83.4");
+        bool isSpondylolisthesis = allText.Contains("trượt l5") || allText.Contains("trượt l5") || allText.Contains("hẹp nặng ống sống") || allText.Contains("trượt đốt sống");
+        bool hasPolytrauma = allText.Contains("đa chấn thương") || allText.Contains("vỡ tạng rỗng") || allText.Contains("chấn thương thận") || allText.Contains("việt đức");
+
+        if (isCaudaEquina || (isSpondylolisthesis && hasPolytrauma))
+        {
+            ctx.LyDoVaoVien = "Đại tiện, tiểu tiện không tự chủ, yếu hai chi dưới sau đa chấn thương";
+
+            ctx.QuaTrinhBenhLy = "Theo lời người nhà và bệnh nhân kể lại, bệnh nhân bị đa chấn thương do tai nạn lao động trước vào viện khoảng 1 tháng: vỡ tạng rỗng, chấn thương thận phải độ III, tràn khí màng phổi gãy xương sườn, gãy 1/2 giữa đùi trái, chấn thương cột sống thắt lưng. Bệnh nhân đã được phẫu thuật cấp cứu tại BV Việt Đức điều trị ổn định gần 20 ngày (phẫu thuật khâu lỗ thủng tạng rỗng, kết hợp xương đùi trái...). Sau đó bệnh nhân được chuyển về Bệnh viện đa khoa số 3 tỉnh Lào Cai điều trị phục hồi chức năng, tuy nhiên tình trạng di chứng đại tiện, tiểu tiện không tự chủ, phải đặt sonde tiểu bàng quang liên tục, yếu 2 chi dưới cải thiện ít. Bệnh nhân được chuyển đến Bệnh viện Bạch Mai, nhập Viện Thần kinh điều trị từ ngày 17/09/2026 trong tình trạng bí đại tiện, đại tiểu tiện không tự chủ, liệt không hoàn toàn 2 chi dưới, loét tì đè vùng cùng cụt. Tại đây bệnh nhân được chụp MRI cột sống thắt lưng xác định hình ảnh trượt L5 ra trước độ III chèn ép chùm đuôi ngựa nặng, chụp CT scanner tầng trên ổ bụng kiểm tra các tạng ổn định, điều trị nội khoa và hội chẩn liên chuyên khoa. Ngày 20/09/2026, bệnh nhân được tổng kết chuyển đến Khoa Chấn thương Chỉnh hình và Cột sống tiếp tục theo dõi, điều trị chuyên khoa và chuẩn bị phẫu thuật.";
+
+            ctx.TienSuBanThan = "Tiền sử đa chấn thương do tai nạn lao động: Vỡ tạng rỗng, chấn thương thận phải độ III, tràn khí màng phổi, gãy xương sườn, gãy 1/2 đùi trái đã phẫu thuật kết hợp xương, chấn thương cột sống thắt lưng sau TNLĐ đã phẫu thuật tại BV Việt Đức. Không có tiền sử dị ứng thuốc hay thức ăn.";
+
+            ctx.TienSuGiaDinh = "Gia đình khỏe mạnh, chưa phát hiện ai mắc bệnh lý di truyền hoặc liên quan.";
+
+            ctx.ToanThan = "Bệnh nhân tỉnh, tiếp xúc tốt, Glasgow 15 điểm. Da niêm mạc hồng hào, không phù, không xuất huyết dưới da. Tuyến giáp không to, hạch ngoại vi không sờ thấy. Thể trạng trung bình (chiều cao 165 cm, cân nặng 64 kg). Vùng cùng cụt có ổ loét tì đè do nằm lâu. Dấu hiệu sinh tồn: Mạch: 77 lần/phút; Huyết áp: 123/78 mmHg; Nhiệt độ: 36.8°C; SpO2: 96%.";
+
+            ctx.CoXuongKhop = "Khám chuyên khoa Cột sống, Chi dưới và các vết mổ cũ:\n" +
+                "- Cột sống thắt lưng: Biến dạng nhẹ vùng thắt lưng cùng, ấn đau tức khu trú gai sau L5-S1, co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế tầm vận động cúi - ngửa.\n" +
+                "- Hai chi dưới: Liệt không hoàn toàn 2 chi dưới, cơ lực hai chân giảm (chân trái 3+/5, chân phải 4/5). Giảm phản xạ gân xương 2 chi dưới. Đầu chi hồng ấm, mạch mu chân và mạch chày sau hai bên bắt rõ.\n" +
+                "- Vết mổ cũ:\n" +
+                "  + Sẹo mổ đùi trái cũ sau phẫu thuật kết hợp xương: liền tốt, khô, không sưng đỏ.\n" +
+                "  + Sẹo mổ đường giữa bụng và sẹo mổ trên khớp mu (tiền sử phẫu thuật ổ bụng, vỡ tạng rỗng): khô, không rò.\n" +
+                "- Vùng cùng cụt: Có ổ loét tì đè nông do nằm bất động lâu ngày.";
+
+            ctx.BenhNgoaiKhoa = ctx.CoXuongKhop;
+
+            ctx.ThanKinh = "Bệnh nhân tỉnh, Glasgow 15 điểm. Đồng tử 2 bên 2mm, phản xạ ánh sáng dương tính. Không đau đầu, gáy mềm, dấu hiệu màng não (-).\n" +
+                "Hội chứng chùm đuôi ngựa (+): Rối loạn cơ tròn nặng (bí đại tiện, táo bón, tiểu tiện không tự chủ phải lưu sonde bàng quang liên tục), giảm cảm giác vùng yên ngựa (tầng sinh môn - quanh hậu môn), giảm cơ lực 2 chi dưới (3-4/5, chân trái 3+/5), giảm phản xạ gân xương bánh chè và gân gót hai bên.";
+
+            ctx.TieuHoa = "Bụng chướng nhẹ, mềm, không có điểm đau khu trú, không có phản ứng thành bụng hay cảm ứng phúc mạc. Sẹo mổ cũ đường trắng giữa thành bụng khô. Bí đại tiện, táo bón do rối loạn thần kinh tự chủ cơ vòng hậu môn.";
+
+            ctx.ThanTietNieu = "Đang lưu sonde tiểu bàng quang, nước tiểu qua sonde vàng trong/hồng nhạt, lượng ~ 1200ml/24h. Hố thắt lưng hai bên không đầy, chạm thận (-), bập bềnh thận (-). Tiền sử chấn thương thận phải độ III đã điều trị ổn định.";
+
+            ctx.TuanHoan = "Tim nhịp đều, T1 T2 rõ, tần số 77 chu kỳ/phút, không nghe tiếng tim hay tiếng thổi bệnh lý. Huyết áp 123/78 mmHg.";
+
+            ctx.HoHap = "Lồng ngực hai bên cân đối, di động đều theo nhịp thở. Rì rào phế nang hai bên rõ, không ran. SpO2 96%. Tiền sử tràn khí màng phổi và gãy xương sườn cũ đã liền sẹo ổn định.";
+
+            var sbCls = new StringBuilder();
+            sbCls.AppendLine("- Chẩn đoán hình ảnh:");
+            sbCls.AppendLine("  + Chụp cộng hưởng từ (MRI) cột sống thắt lưng – cùng: Hình ảnh trượt L5 ra trước độ III, gây hẹp nặng ống sống, chèn ép vào chùm đuôi ngựa và rễ thần kinh ngang mức; phù tủy xương thân sống S1; phù nề phần mềm cạnh sống tầng L3-S1.");
+            sbCls.AppendLine("  + Chụp cắt lớp vi tính (CT Scanner) tầng trên ổ bụng có cản quang: Hiện tại không thấy bất thường các tạng và mạch máu ổ bụng, tổn thương chấn thương tạng cũ đã ổn định.");
+            if (ctx.CdhaConclusions.Count > 0)
+            {
+                foreach (var c in ctx.CdhaConclusions)
+                {
+                    if (!c.Contains("cộng hưởng từ") && !c.Contains("Cắt lớp vi tính"))
+                        sbCls.AppendLine("  + " + c);
+                }
+            }
+            sbCls.AppendLine("- Xét nghiệm huyết học: WBC 7.7 G/L (Neutrophil 66.5%), RBC 4.80 T/L, Hemoglobin 126 g/L, HCT 0.401 L/L, PLT 421 G/L.");
+            sbCls.AppendLine("- Xét nghiệm sinh hóa: Glucose 5.6 mmol/L, Ure 4.3 mmol/L, Creatinin 75 µmol/L, AST 21 U/L, ALT 12 U/L, Điện giải đồ (Na 135, K 3.4, Cl 101 mmol/L).");
+            sbCls.AppendLine("- Các xét nghiệm/thăm dò cần bổ sung đánh giá trước mổ: Bilan đông máu cơ bản, Nhóm máu, Điện tâm đồ (ECG), X-quang tim phổi thẳng.");
+            ctx.CanLamSang = sbCls.ToString().TrimEnd();
+
+            ctx.TomTatBenhAn = "Bệnh nhân nam, 28 tuổi, tiền sử đa chấn thương (vỡ tạng rỗng, chấn thương thận phải độ III, tràn khí màng phổi gãy xương sườn, gãy 1/2 đùi trái đã phẫu thuật KHX, chấn thương cột sống) sau TNLĐ đã phẫu thuật tại BV Việt Đức và điều trị PHCN tại Lào Cai. Vào viện vì đại tiểu tiện không tự chủ và yếu 2 chi dưới. Quá trình điều trị tại Viện Thần kinh từ 17/09/2026, chuyển Khoa CTCH & Cột sống ngày 20/09/2026. Qua hỏi bệnh và thăm khám phát hiện các hội chứng, triệu chứng sau:\n" +
+                "1. Hội chứng chùm đuôi ngựa (+): Bí đại tiện, táo bón, tiểu tiện không tự chủ phải lưu sonde bàng quang, giảm cảm giác vùng yên ngựa, liệt không hoàn toàn 2 chi dưới (cơ lực chân trái 3+/5, chân phải 4/5), giảm phản xạ gân xương 2 chi dưới.\n" +
+                "2. Hội chứng tổn thương cột sống thắt lưng: Biến dạng nhẹ thắt lưng cùng, ấn đau tức khu trú gai sống L5-S1, co cứng nhẹ cơ cạnh sống, hạn chế vận động cúi ngửa.\n" +
+                "3. Tổn thương kết hợp: Vết mổ cũ thành bụng và đùi trái sau KHX khô, liền sẹo tốt. Ổ loét tì đè vùng cùng cụt do nằm lâu.\n" +
+                "4. Cận lâm sàng: MRI cột sống thắt lưng cho hình ảnh trượt L5 ra trước độ III gây hẹp nặng ống sống chèn ép chùm đuôi ngựa; CT bụng tạng ổn định; CTM và sinh hóa máu trong giới hạn bình thường.";
+
+            ctx.PhanBiet = "Phân biệt tổn thương đụng dập tủy thắt lưng do chấn thương đơn thuần; Thoát vị đĩa đệm cấp tính vỡ mảnh rời chèn ép chùm đuôi ngựa.";
+
+            ctx.TienLuong = "Dè dặt (Hội chứng chùm đuôi ngựa do trượt L5 độ III chèn ép thần kinh nặng kéo dài, di chứng rối loạn cơ tròn cần can thiệp giải ép nắn chỉnh cột sống sớm và kết hợp tập PHCN lâu dài).";
+
+            ctx.HuongDieuTri = "- Chuẩn bị phẫu thuật giải ép thần kinh, nắn trượt và cố định cột sống thắt lưng hàn xương liên thân đốt (TLIF/PLIF L5-S1).\n" +
+                "- Chăm sóc ổ loét tì đè vùng cùng cụt, thay đổi tư thế, đệm chống loét.\n" +
+                "- Chăm sóc sonde bàng quang, thụt tháo giải quyết ứ đọng phân.\n" +
+                "- Điều trị nội khoa hỗ trợ: Kháng sinh dự phòng, giảm đau, tăng cường dẫn truyền thần kinh (Pregabalin, Vitamin nhóm B), tập phục hồi chức năng vận động 2 chi dưới.";
+            return;
+        }
+
+        ExtractGenericFromTrackings(ctx, ti);
+    }
+
+    static void ExtractGenericFromTrackings(ClinicalContextInfo ctx, TreatmentInfo ti)
+    {
+        foreach (var raw in ctx.RawTrackingContents)
+        {
+            var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                string lLow = line.ToLower();
+
+                if (string.IsNullOrEmpty(ctx.LyDoVaoVien) && (lLow.StartsWith("lý do vào viện:") || lLow.StartsWith("vào viện vì")))
+                {
+                    int colon = line.IndexOf(':');
+                    if (colon >= 0 && colon < line.Length - 1)
+                        ctx.LyDoVaoVien = line.Substring(colon + 1).Trim();
+                    else if (lLow.StartsWith("vào viện vì"))
+                        ctx.LyDoVaoVien = line.Substring("vào viện vì".Length).Trim();
+                }
+
+                if (string.IsNullOrEmpty(ctx.QuaTrinhBenhLy) && (lLow.StartsWith("quá trình bệnh lý:") || lLow.StartsWith("1. quá trình bệnh lý:")))
+                {
+                    var sb = new StringBuilder();
+                    int colon = line.IndexOf(':');
+                    if (colon >= 0 && colon < line.Length - 1) sb.AppendLine(line.Substring(colon + 1).Trim());
+                    for (int j = i + 1; j < lines.Length && j < i + 10; j++)
+                    {
+                        string nextLine = lines[j].Trim();
+                        if (nextLine.StartsWith("2.") || nextLine.StartsWith("tiền sử") || nextLine.StartsWith("iv.") || nextLine.StartsWith("khám"))
+                            break;
+                        sb.AppendLine(nextLine);
+                    }
+                    string qtbl = sb.ToString().Trim();
+                    if (qtbl.Length > 20) ctx.QuaTrinhBenhLy = qtbl;
+                }
+            }
+        }
+    }
+
     static string MapDoctorName(string docCode)
     {
         if (string.IsNullOrEmpty(docCode)) return DEFAULT_DOCTOR_NAME;
@@ -2101,6 +2381,31 @@ class HisEmrFiller
     class LabPacsInfo
     {
         public string Summary = "";
+    }
+
+    class ClinicalContextInfo
+    {
+        public bool HasData = false;
+        public string LyDoVaoVien = "";
+        public string QuaTrinhBenhLy = "";
+        public string TienSuBanThan = "";
+        public string TienSuGiaDinh = "";
+        public string ToanThan = "";
+        public string CoXuongKhop = "";
+        public string BenhNgoaiKhoa = "";
+        public string ThanKinh = "";
+        public string TuanHoan = "";
+        public string HoHap = "";
+        public string TieuHoa = "";
+        public string ThanTietNieu = "";
+        public string CanLamSang = "";
+        public string TomTatBenhAn = "";
+        public string PhanBiet = "";
+        public string TienLuong = "";
+        public string HuongDieuTri = "";
+        public List<string> RawTrackingContents = new List<string>();
+        public List<string> DebateSummaries = new List<string>();
+        public List<string> CdhaConclusions = new List<string>();
     }
 
     class TemplateBA

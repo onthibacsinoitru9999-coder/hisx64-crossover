@@ -1589,167 +1589,6 @@ Mọi Agent trước khi sinh code, viết script hoặc đề xuất giải ph�
 Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên tắc sau:
 1. **Zero Hallucination (Quy tắc 10 AGENTS.md):** Bắt buộc đối soát log và dữ liệu thật từ DB theo quy trình 3 bước: `Pre-check (GetView) -> Execute (POST API) -> Post-verify (truy vấn DB)`. Tuyệt đối cấm bịa số phiếu hay ID.
 2. **Đích danh CĐHA (Quy tắc 4 AGENTS.md):** Trích xuất đích danh từng tầng tổn thương cột sống, loại gãy xương; không ghi chung chung.
-Khi chỉnh sửa và xuất file `.docx` từ template OpenXML:
-```csharp
-// 1. Tạo file ZIP mới (ZipArchiveMode.Create) duyệt toàn bộ entry của file mẫu theo ĐÚNG THỨ TỰ:
-using (var srcZip = ZipFile.OpenRead(templateDocx))
-using (var destFile = new FileStream(targetFilePath, FileMode.Create))
-using (var destZip = new ZipArchive(destFile, ZipArchiveMode.Create))
-{
-    foreach (var entry in srcZip.Entries)
-    {
-        var newEntry = destZip.CreateEntry(entry.FullName, CompressionLevel.Optimal);
-        using (var destStream = newEntry.Open())
-        {
-            if (entry.FullName == "word/document.xml")
-            {
-                // 2. Ghi UTF-8 NO BOM và tắt định dạng tự động:
-                byte[] bytes = new UTF8Encoding(false).GetBytes(modifiedDocXml);
-                destStream.Write(bytes, 0, bytes.Length);
-            }
-            else
-            {
-                using (var srcStream = entry.Open())
-                {
-                    srcStream.CopyTo(destStream);
-                }
-            }
-        }
-    }
-}
-```
-* **Kiểm thử tự động bằng CLI headless**:
-  ```powershell
-  & "D:\office fake\program\soffice.exe" --headless --convert-to pdf "<file.docx>" --outdir "<outdir>"
-  ```
-  Nếu chuyển đổi sang `.pdf` thành công tức là file `.docx` hoàn toàn hợp lệ, không còn bất kỳ cảnh báo lỗi cấu trúc nào.
-
----
-
-## 23. QUY TRÌNH & KỸ THUẬT CHỈ ĐỊNH CLS TRỰC TIẾP BYPASS UI (HEADLESS API) & CƠ CHẾ GOM ỐNG BỆNH PHẨM 1-BARCODE
-
-### 23.1. Bản Chất Nghiệp Vụ & Giá Trị Lâm Sàng
-* **Mục tiêu**: Cho phép AI Agent / CLI thực thi chỉ định trọn gói Bilan mổ cấp cứu hoặc mổ phiên (Xét nghiệm máu, Nước tiểu, Vi sinh, CĐHA, TDCN) trực tiếp qua REST API máy chủ MOS mà **hoàn toàn không cần mở giao diện HIS Desktop**, tiết kiệm thời gian thao tác từ vài phút xuống còn dưới 2 giây.
-* **Cơ chế Backend Endpoint**:
-  - `POST http://192.168.7.236:1608/api/HisServiceReq/AssignServiceByInstructionTimes`
-  - Headers: `TokenCode: <64_char_token>`, `ApplicationCode: HIS`, `Content-Type: application/json; charset=utf-8`
-  - Lớp DTO Payload: `MOS.SDO.AssignServiceSDO`
-
-### 23.2. 5 Rào Chắn Kỹ Thuật Bắt Buộc (5 Strict Backend Guardrails)
-Để Backend MOS chấp thuận y lệnh mà không trả về lỗi `Success: false` hay ngoại lệ ngầm:
-
-1. 🏨 **`RequestRoomId` Bắt Buộc Là Buồng Bệnh Nhân Nằm**:
-   - `RequestRoomId` trong `AssignServiceSDO` **BẮT BUỘC** phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân đang nằm điều trị (`V_HIS_TREATMENT_BED_ROOM.BED_ROOM_ID`).
-   - *Bẫy Gotcha*: Nếu gán phòng làm việc chung (VD: `5248`) cho bệnh nhân ở buồng khác (VD: `17413` - CSNB hoặc `5257` - P724) mà chưa đăng ký, Backend sẽ từ chối hoặc y lệnh không hiển thị trên giao diện theo dõi buồng của điều dưỡng.
-
-2. 🔑 **Kích Hoạt Phòng Làm Việc (`UpdateWorkInfo`) Trước Khi Gửi**:
-   - Token của Bác sĩ phải kích hoạt danh sách phòng làm việc chứa `RequestRoomId` của bệnh nhân:
-   - Gửi `POST api/Token/UpdateWorkInfo` với `WorkInfoSDO.Rooms` chứa `RoomId` của buồng bệnh và phòng trực.
-
-3. ⏰ **Đồng Bộ Tờ Điều Trị (`TrackingId` & `InstructionTime`)**:
-   - `TrackingId` phải trỏ tới một bản ghi `HIS_TRACKING` hợp lệ trong ngày.
-   - `InstructionTime`, `InstructionTimes`, `UseTimes` và `TrackingInfos.IntructionTime` phải đồng bộ chính xác với `HIS_TRACKING.TRACKING_TIME`.
-
-4. 🆔 **Mã Phiên Giao Dịch Đơn Nhất (`SessionCode`)**:
-   - Gán `SessionCode = Guid.NewGuid().ToString()` trong payload để Backend gom toàn bộ y lệnh trong đợt gửi vào cùng một phiên giao dịch.
-
-5. 🩸 **Cơ Chế Gom Ống Bệnh Phẩm 1-Barcode (Specimen & Tube Bundling Rule)**:
-   - **Nguyên lý cốt lõi của MOS**: Khi gửi mảng `ServiceReqDetails` chứa nhiều kỹ thuật, Backend MOS **tự động gom các dịch vụ có cùng `RoomId` (Phòng tiếp nhận / Thực hiện) thành 1 `HIS_SERVICE_REQ` duy nhất**.
-   - **Ý nghĩa sống còn**:
-     * 1 `HIS_SERVICE_REQ` = 1 Mã Barcode / 1 Tem lấy mẫu trên hệ thống LIS.
-     * Khi gom đúng: Bác sĩ chỉ định 3 xét nghiệm Virus (HIV + HBsAg + HCV) $\rightarrow$ Backend sinh ra **đúng 1 mã phiếu y lệnh** $\rightarrow$ Điều dưỡng dán 1 tem $\rightarrow$ **Lấy đúng 1 ống máu nắp vàng/đỏ**.
-     * Nếu gửi rời rạc qua vòng lặp nhiều lần $\rightarrow$ Sinh ra 3 mã phiếu y lệnh $\rightarrow$ **Bệnh nhân bị lấy 3 ống máu riêng biệt**, gây đau đớn và lãng phí vật tư!
-
-### 23.3. Cấu Trúc DTO JSON Chuẩn Khi Gửi API:
-```json
-{
-  "TreatmentId": 7147393,
-  "RequestRoomId": 17413,
-  "RequestLoginName": "vmc",
-  "RequestUserName": "VŨ MINH CƯỜNG",
-  "InstructionTime": 20260909084250,
-  "InstructionTimes": [ 20260909084250 ],
-  "UseTimes": [ 20260909084250 ],
-  "TrackingId": 9913239,
-  "TrackingInfos": [
-    { "TrackingId": 9913239, "IntructionTime": 20260909084250 }
-  ],
-  "IcdCode": "T07",
-  "IcdName": "Đa chấn thương",
-  "SessionCode": "a3f5e921-6b8c-4a3e-9f12-0987654321ab",
-  "ServiceReqDetails": [
-    { "ServiceId": 74110, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
-    { "ServiceId": 74107, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
-    { "ServiceId": 74096, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
-    { "ServiceId": 74042, "RoomId": 15231, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Hóa sinh" },
-    { "ServiceId": 73898, "RoomId": 15718, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Nhóm máu" },
-    { "ServiceId": 68137, "RoomId": 14819, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "ECG" }
-  ]
-}
-```
-
-### 23.4. Bản Đồ Phòng Thực Hiện Xét Nghiệm & Gom Ống (Cơ Sở 1 Hà Nội vs Cơ Sở 2 Ninh Bình)
-
-| Nhóm Xét Nghiệm / Kỹ Thuật | Loại Ống / Bệnh Phẩm | Phòng Thực Hiện CS1 (Bạch Mai HN - Khoa 57) | Phòng Thực Hiện CS2 (Ninh Bình - Khoa 915) | Kết Quả Gom Y Lệnh |
-| :--- | :--- | :---: | :---: | :--- |
-| **Huyết học Tế bào (CTM, Máu lắng)** | Ống EDTA (Nắp tím) | `RoomId = 1772` | `RoomId = 15711` | 1 Mã phiếu $\rightarrow$ 1 Ống EDTA |
-| **Đông máu (PT, APTT, Fibrinogen)** | Ống Citrate (Nắp xanh lam) | `RoomId = 626` | `RoomId = 15712` | 1 Mã phiếu $\rightarrow$ 1 Ống Citrate |
-| **Sinh hóa (Ure, Cre, Glu, Men gan, ĐGĐ)**| Ống Serum/Heparin (Nắp đỏ/vàng)| `RoomId = 410` | `RoomId = 15231` | 1 Mã phiếu $\rightarrow$ 1 Ống Sinh hóa |
-| **Virus Miễn dịch (HIV, HBsAg, HCV)** | Ống Serum (Nắp vàng/đỏ) | `RoomId = 871` | `RoomId = 15721` | 1 Mã phiếu $\rightarrow$ 1 Ống Miễn dịch |
-| **Truyền máu (Định nhóm máu ABO, Rh)**| Ống EDTA/Gelcard | `RoomId = 1464` | `RoomId = 15718` | 1 Mã phiếu $\rightarrow$ 1 Ống Nhóm máu |
-| **Tổng phân tích Nước tiểu** | Lọ đựng nước tiểu | `RoomId = 566` | `RoomId = 15721` / `15231` | 1 Mã phiếu $\rightarrow$ 1 Lọ nước tiểu |
-| **Điện tim thường (ECG)** | Phiếu đo điện tim | `RoomId = 920` / `931` | `RoomId = 19328` / `14819` | 1 Mã phiếu Điện tim |
-| **Siêu âm ổ bụng tổng quát** | Phiếu siêu âm | `RoomId = 17547` | `RoomId = 15724` | 1 Mã phiếu Siêu âm |
-
-### 23.5. Lệnh Thực Thi 1-Click Trên `HisClinicalCli.exe`:
-```powershell
-# 1. Chỉ định đơn lẻ:
-.\HisClinicalCli.exe assign-cls <TreatmentId> <TrackingId> <ServiceId> <ExecuteRoomId> "[Note]" [PatientTypeId]
-
-# 2. Chỉ định gói Bilan phẫu thuật (Tự động gom nhóm tối ưu theo phòng & ống bệnh phẩm):
-.\HisClinicalCli.exe assign-bilan <TreatmentId> <TrackingId> <spine|trauma|cement|hip|hand> [PatientTypeId]
-```
-
----
-
-## 24. QUY CHUẨN TỰ ĐỘNG HÓA TRA CỨU & MỞ ẢNH PACS / RIS (WEB VIEWER 1-CLICK)
-
-### 24.1. Kiến Trúc & Cấu Hình Mạng:
-- **RIS Minerva:** `http://192.168.200.110/ris` (Tài khoản: `ctch` / Mật khẩu: `ctchCS2026!`)
-- **Modern Web DICOM Viewer (OHIF):** `http://192.168.200.111:8081`
-- **Máy chủ Lưu trữ PACS:**
-  - `CS2`: `192.168.200.107:8080` (WADO: `http://192.168.200.107:8080/pacs/CS2/wado`)
-  - `VRPACS / IMPORT2`: `192.168.200.111:8080`
-
-### 24.2. Bẫy Lỗi (Gotchas) & Bài Học Xương Máu:
-1. **Tiền tố Mã Bệnh nhân RIS (`VS.`):**
-   - Trên HIS mã BN là 10 chữ số (VD: `0004009330`).
-   - Trên RIS Minerva, mã BN bắt buộc phải có tiền tố `VS.` (thành `VS.0004009330`). Nếu truyền thiếu `VS.` API sẽ trả về 0 bản ghi.
-2. **Biến môi trường `$PID` của PowerShell:**
-   - Trong PowerShell, `$PID` là biến tự động lưu Process ID (Read-only). Không được đặt tên biến `$pid = ...`, phải dùng `$pIdStr` hoặc `$patientCode`.
-3. **PowerShell Array vs String khi dùng `-match`:**
-   - Khi chạy `curl.exe`, kết quả trả về là mảng `[Object[]]`.
-   - Toán tử `-match` trên mảng lọc phần tử chứ KHÔNG gán `$matches`. Bắt buộc dùng `($res -join "`n") -match ...`.
-4. **Không cần đăng nhập lại tại Web Viewer:**
-   - Link `http://192.168.200.111:8081/viewer?session=...` đã chứa sẵn session token được sinh bởi RIS. Trình duyệt mở trực tiếp không bị chặn xác thực.
-5. **Cấm dùng Quick Tunnel Internet cho ảnh DICOM (Tránh Lag giật nghiêm trọng):**
-   - Tệp ảnh DICOM (MRI/CT Scanner) chứa hàng trăm lát cắt với dung lượng lớn (hàng chục đến hàng trăm MB).
-   - Việc mở tunnel ra Internet qua Cloudflare Quick Tunnel / ngrok miễn phí sẽ bị bóp băng thông và định tuyến quốc tế qua Hồng Kông/Singapore, gây lag giật không thể thao tác.
-   - Bắt buộc dùng link mạng nội bộ (`http://192.168.200.111:8081/viewer?session=...`) trên máy tính bệnh viện hoặc điện thoại/máy tính bảng kết nối Wi-Fi bệnh viện để tải ảnh tức thì dưới 1 giây.
-6. **Thêm cờ `-m 5` cho curl khi lấy Location 302:**
-   - Khi gọi `curl.exe -s -i "$risUrl/viewer?study=$iuid"`, bắt buộc phải có `-m 5` (`--max-time 5`) để tránh bị treo socket keep-alive.
-
-### 24.3. Công Cụ CLI Thực Thi:
-- `.\HisPacsCli.bat <MãBN>`: Liệt kê toàn bộ ca chụp (MRI, CT, X-quang, Siêu âm) và in link Web Viewer 1-click.
-- `.\HisPacsCli.bat <MãBN> -Open`: Tự động đẩy thẳng các tab xem ảnh lên Google Chrome / Edge trên màn hình bác sĩ.
-
----
-
-## 25. QUY CHUẨN CỐT LÕI: NGUYÊN TẮC PONYTAIL (LAZY SENIOR DEV MODE) TOÀN DIỆN CHO MỌI NHÁNH
-
-### 25.1. Triết Lý & Định Nghĩa:
-- **Tác giả triết lý**: Kế thừa và nâng cấp từ [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail): *"He says nothing. He writes one line. It works."*
-- **Quy định cứng toàn diện**: Áp dụng mặc định 100% thời gian cho **toàn bộ quá trình làm việc trên tất cả các nhánh** (`main`, `ha-noi`, `ninh-binh`), không cần từ khóa kích hoạt ("1shot", "ponytail").
 - **Ý nghĩa của "Lười" (Lazy Senior Dev)**:
   - Lười ở đây nghĩa là **tối ưu hiệu quả đến mức cực hạn**: tối thiểu hóa số dòng code, token, thời gian, chi phí, giải thích thừa; dứt điểm nhanh nhất. Tuyệt đối KHÔNG cẩu thả.
   - **Đoạn code tốt nhất là đoạn code không bao giờ phải viết.**
@@ -2041,3 +1880,35 @@ Quy trình nạp và ký Biên bản Hội chẩn thông qua mổ (Biểu mẫu 
 ```powershell
 .\HisLeanproAssigner.bat "<MãBN1,MãBN2,...>"
 ```
+
+---
+
+## 33. QUY TRÌNH TỰ ĐỘNG NẠP DỮ LIỆU TỪ TỜ ĐIỀU TRỊ & HỘI CHẨN VÀO VỎ BỆNH ÁN NGOẠI KHOA EMR (HISEMRFILLER)
+
+### 33.1. Vấn Đề Thực Tế & Nguyên Nhân:
+* Khi tạo Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA`), nếu chỉ kế thừa mẫu từ bệnh nhân khác cùng nhóm ICD (`FindTemplate`), nội dung bệnh sử, tiền sử và phần khám chuyên khoa có thể mang tính chất đại trà hoặc sót các thương tổn phức tạp của bệnh nhân (như đa chấn thương, vết mổ cũ, rối loạn cơ tròn, chùm đuôi ngựa, ổ loét tì đè...).
+
+### 33.2. Giải Pháp Kỹ Thuật Chuẩn Hóa:
+1. **Nạp đa nguồn lâm sàng thực tế**:
+   - Quét toàn bộ tờ điều trị (`api/HisTracking/GetView`) của đợt điều trị.
+   - Quét biên bản hội chẩn liên khoa (`api/HisDebate/Get` - `TREATMENT_TRACKING`, `DISCUSSION`, `CONCLUSION`).
+   - Quét kết luận CĐHA thực tế (MRI, CT Scanner) từ `api/HisSereServExt/Get`.
+2. **Tổng hợp chuyên khoa sâu**:
+   - Trích xuất chính xác Lý do vào viện, Quá trình bệnh lý (tai nạn, mổ cấp cứu tuyến trước, chuyển viện).
+   - Tiền sử đa chấn thương chi tiết.
+   - Khám toàn thân, DHST, ổ loét tì đè do nằm lâu.
+   - Khám chuyên khoa Cột sống, Chi dưới, kiểm tra các vết mổ cũ thành bụng/chi thể.
+   - Khám Thần kinh (Hội chứng chùm đuôi ngựa, rối loạn cơ tròn), Tiêu hóa (bí đại tiện), Tiết niệu (lưu sonde).
+   - Tổng hợp kết quả CĐHA (trượt đốt sống L5, hẹp ống sống, CT bụng...).
+   - Tóm tắt bệnh án, tiên lượng và hướng điều trị phẫu thuật nắn trượt cố định cột sống.
+3. **Cơ chế ghi đè an toàn (`ShouldOverwrite`)**:
+   - Tự động nhận diện và thay thế các mẫu placeholder rác của template cũ.
+   - Cung cấp cờ `--force`, `--force-all`, `--refresh` cho phép bác sĩ làm mới toàn bộ vỏ bệnh án theo diễn biến điều trị mới nhất.
+4. **Cú pháp thực thi**:
+   ```powershell
+   # Tự động trích xuất và điền vỏ bệnh án:
+   .\HisEmrFiller.bat <MãBN|MãĐT>
+   
+   # Làm mới toàn bộ các trường dữ liệu từ tờ điều trị & hội chẩn:
+   .\HisEmrFiller.bat <MãBN|MãĐT> --force
+   ```
