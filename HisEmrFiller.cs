@@ -314,6 +314,11 @@ class HisEmrFiller
         {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("[LỖI] Không tìm thấy bệnh nhân hoặc đợt điều trị cho: " + input);
+            Console.WriteLine("  TokenCode: " + (tokenCode != null ? (tokenCode.Length > 16 ? tokenCode.Substring(0, 16) + "..." : tokenCode) : "NULL"));
+            if (param != null && param.Messages != null && param.Messages.Count > 0)
+                Console.WriteLine("  Param Messages: " + string.Join("; ", param.Messages));
+            if (param != null && param.BugCodes != null && param.BugCodes.Count > 0)
+                Console.WriteLine("  Param BugCodes: " + string.Join("; ", param.BugCodes));
             Console.ResetColor();
             return 3;
         }
@@ -1768,7 +1773,7 @@ class HisEmrFiller
         string dir = AppDomain.CurrentDomain.BaseDirectory;
         string emrDir = Path.Combine(dir, "Integrate", "EMR");
         _mdbLib = Assembly.LoadFrom(Path.Combine(emrDir, "MDB.dll"));
-        _emrMainLib = Assembly.LoadFrom(Path.Combine(emrDir, "EMR_MAIN.Library.dll"));
+        _emrMainLib = Assembly.LoadFrom(Path.Combine(emrDir, "EMR_MAIN.dll"));
         try { Assembly.LoadFrom(Path.Combine(emrDir, "Oracle.ManagedDataAccess.dll")); } catch { }
 
         _mdbConnType = _mdbLib.GetType("MDB.MDBConnection");

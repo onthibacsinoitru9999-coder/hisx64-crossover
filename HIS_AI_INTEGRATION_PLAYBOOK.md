@@ -1913,6 +1913,19 @@ Quy trình nạp và ký Biên bản Hội chẩn thông qua mổ (Biểu mẫu 
    .\HisEmrFiller.bat <MãBN|MãĐT> --force
    ```
 
+### 33.3. Bảng Tổng Hợp Sai Lầm & Bài Học Xương Máu (Gotchas):
+1. **Thiếu file `HisEmrFiller.exe.config` dẫn tới API trả NULL**:
+   - *Triệu chứng*: `LookupByPatientCode` trả về `trs: NULL, HasEx: False` mặc dù token hợp lệ và `HisClinicalCli.exe` tra cứu bình thường.
+   - *Nguyên nhân*: Thư viện `Inventec.Common.Adapter` và `WebApiClient` phụ thuộc vào `appSettings` trong file `.config` của tiến trình (`HisEmrFiller.exe.config`). Nếu thiếu file này, adapter không khởi tạo được timeout/client configuration và trả về null âm thầm.
+   - *Khắc phục*: Đồng bộ `HisEmrFiller.exe.config` chuẩn theo `HisClinicalCli.exe.config`.
+2. **Lỗi BadImageFormatException do kiến trúc 64-bit vs 32-bit (x86)**:
+   - *Triệu chứng*: `Could not load file or assembly MDB.dll ... An attempt was made to load a program with an incorrect format`.
+   - *Nguyên nhân*: Các DLL EMR gốc (`Integrate\EMR\MDB.dll`, `EMR_MAIN.dll`, `Oracle.DataAccess.dll`) là native **32-bit (x86)**. Biên dịch với `Framework64` và `/platform:x64` sẽ gây crash ngay khi load assembly.
+   - *Khắc phục*: `HisEmrFiller.bat` bắt buộc dùng `C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe` với cờ `/platform:x86`.
+3. **Sai tên DLL `EMR_MAIN.dll`**:
+   - *Triệu chứng*: `Could not load file or assembly EMR_MAIN.Library.dll`.
+   - *Khắc phục*: Tên DLL chuẩn trong `Integrate\EMR\` là `EMR_MAIN.dll`, lớp đối tượng là `EMR_MAIN.BenhAnNgoaiKhoa`.
+
 ---
 
 ## 34. HỆ THỐNG HÓA 2 BỘ CÔNG CỤ KÊ ĐỒ Y TẾ CHUYÊN BIỆT: KÊ TỦ TRỰC vs KÊ LĨNH KHO DƯỢC
