@@ -1,38 +1,37 @@
-﻿# Original User Request
+# Original User Request
 
-## Initial Request — 2026-09-09T16:52:58Z
+## Initial Request — 2026-09-19T12:09:06+07:00
 
-Quét toàn diện toàn bộ codebase hệ thống HIS Automation, phát hiện và sửa chữa triệt để mọi điểm nghẽn, liên kết môi trường, cấu hình compiler, mã hóa ký tự, và tối ưu hóa các kịch bản thực thi để toàn bộ hệ thống hoạt động mượt mà, trơn tru 100%. Triển khai đầy đủ đội ngũ tác nhân đa chuyên biệt (C#, Python/AI, PowerShell/Batch, Kiểm định y lệnh lâm sàng). Ưu tiên tối thượng: chính xác, bền bỉ và tốc độ cao.
+You are the SWE Light Orchestrator for this task.
 
-Working directory: f:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB
-Integrity mode: development
+Your Working Directory: e:\his-x64-28-11fix GDYK\his-x64\.agents\swe_1
+Target Project Directory: e:\his-x64-28-11fix GDYK\his-x64\mcp_servers\his_diabetes_mcp
+User Request Authoritative Source: e:\his-x64-28-11fix GDYK\his-x64\.agents\ORIGINAL_REQUEST.md
 
-## Requirements
+Task Details:
+This is a single self-contained project; keep it small and focused. Build a dedicated local Node.js/TypeScript Model Context Protocol (MCP) server that strictly encapsulates the "Thợ cho đường huyết" (Diabetes 1-Click Protocol) workflow.
 
-### R1. Rà soát & Tối ưu hóa 100% Batch Files & Toolchain Links
-Kiểm tra tất cả file `.bat` trong thư mục gốc và thư mục con để đảm bảo 100% không còn file nào hardcode đường dẫn cũ (`C:\Program Files\Git\cmd`, đường dẫn Python cố định, v.v.). Đảm bảo mọi script đều liên kết qua bộ nạp môi trường tự động `set_env.bat`, vận hành trơn tru trên mọi terminal (CMD, PowerShell, Git Bash) và không phụ thuộc vào vị trí thư mục sâu.
+Integrity mode: demo
 
-### R2. Tự Động Quét, Đối Soát & Biên Dịch Đồng Bộ Các Công Cụ C# (.cs -> .exe)
-Kiểm tra tính nhất quán giữa file mã nguồn `.cs` và file nhị phân thực thi `.exe` (`HisClinicalCli.exe`, `HisTrackingCreator.exe`, `HisAutoPrescribe.exe`, `HisGlucoseBedsideAssigner.exe`, `HisRationAssigner.exe`, `HisDebateCreator.exe`, `HisDiagnosticDoctor.exe`, `HisWardReportCreator.exe`). Nếu phát hiện file `.cs` mới hơn file `.exe` hoặc thiếu file `.exe`, tự động nạp danh mục DLL trong `ReferencedAssemblies/` và biên dịch bằng `csc.exe` 64-bit mà không gây lỗi tham chiếu.
+Requirements:
+1. R1. MCP Server Implementation:
+   Create a standalone Node.js/TypeScript MCP server exposing a single tool (e.g., `execute_diabetes_protocol`). The tool must accept necessary clinical parameters (patient ID, facility context, glucose results for 17h/21h/6h, insulin units) required to run the workflow.
+2. R2. CLI Orchestration:
+   The tool must orchestrate the execution of the existing C# CLI tools in the strict sequence defined by the protocol:
+   1) `HisTrackingCreator.exe` (Treatment tracking)
+   2) `HisGlucoseBedsideAssigner.exe` (Glucose test assignment)
+   3) `HisAutoPrescribe.exe` (Insulin prescription).
+3. R3. Safe Execution & Timing:
+   The orchestration logic must automatically calculate and apply the 5-minute offset for the Insulin prescription (InstructionTime = TrackingTime + 5 minutes). It must capture standard output/errors from the CLI tools and return structured MCP responses.
+4. Verification Resources:
+   You will build a mock CLI script (`mock_cli.js` or `.bat`) that intercepts calls to the `.exe` files and logs the passed arguments and timestamps to a text file for programmatic verification.
 
-### R3. Tối Ưu Hóa Tốc Độ & Độ Trễ Truy Vấn Lâm Sàng (Zero Friction)
-Rà soát thuật toán truy vấn dữ liệu bệnh nhân và đi buồng (`HisClinicalCli lookup`, `HisClinicalCli wardround`, `HisWardReport.bat`). Đảm bảo áp dụng cơ chế gom mẻ (batch query) theo mảng ID, kỹ thuật đọc token tail-seek 128KB với `FileShare.ReadWrite`, loại bỏ hoàn toàn các điểm nghẽn vòng lặp tuần tự để thời gian tra cứu đạt dưới 1.5 giây.
+Acceptance Criteria:
+- Tool Exposure: The compiled MCP server starts successfully and returns the `execute_diabetes_protocol` tool when `list_tools` is called.
+- Sequential Orchestration: When the tool is invoked, the mock CLI log proves that `HisTrackingCreator`, `HisGlucoseBedsideAssigner`, and `HisAutoPrescribe` were called in the exact required order.
+- Timing Logic Verification: The mock CLI log proves that the timestamp passed to the `HisAutoPrescribe` step is exactly 5 minutes later than the timestamp passed to `HisTrackingCreator`.
 
-### R4. Dọn Dẹp File Rác, File Tạm & Chuẩn Hóa Cấu Trúc
-Rà soát cây thư mục dự án, dọn dẹp các file rác, file log tạm thời (`*.tmp`, stdout thừa, output kiểm thử không cần thiết) mà không ảnh hưởng đến các file cấu hình quan trọng (`ConfigSystem.xml`, `*.exe.config`, `ReferencedAssemblies/`). Đảm bảo toàn bộ file script lưu chuẩn UTF-8 (hoặc UTF-8 BOM cho `.ps1`) để Windows PowerShell 5.1 không bị lỗi font hoặc lỗi cú pháp.
-
-### R5. Kiểm Thử Khép Kín & Kiểm Định Tự Động Toàn Hệ Thống
-Chạy bộ kiểm tra sức khỏe toàn diện (`HisDiagnosticDoctor.bat health`), kiểm thử cú pháp toàn bộ `.ps1`, kiểm tra CLI models AI (`HisAiCli.bat models`), và chạy thử nghiệm luồng điều phối ĐTĐ (`HisDiabetesOrchestrator.ps1 -DryRun -SkipConfirm`) để xác nhận 100% hệ thống hoạt động không có lỗi.
-
-## Acceptance Criteria
-
-### Tính Nhất Quán & Sẵn Sàng Công Cụ
-- [ ] 100% các file `.bat` đều được cấu hình nạp môi trường tự động, không còn đường dẫn tuyệt đối gán cứng.
-- [ ] Mọi công cụ C# cốt lõi đều có file `.exe` đồng bộ mới nhất với mã nguồn `.cs`, dung lượng và timestamp hợp lệ.
-- [ ] Toàn bộ file `.ps1` vượt qua bộ phân tích cú pháp `[System.Management.Automation.Language.Parser]::ParseFile` với 0 lỗi.
-
-### Hiệu Năng & Độ Ổn Định
-- [ ] `HisDiagnosticDoctor.bat health` chạy thành công và báo kết luận "Hệ thống sẵn sàng 100%".
-- [ ] `HisAiCli.bat models` in danh mục mô hình OpenRouter thành công trong dưới 2 giây.
-- [ ] Thư mục làm việc sạch sẽ, không còn file rác kiểm thử tồn đọng.
-- [ ] Phiên bản mã nguồn và tri thức được đóng gói và đồng bộ lên Git `origin main`.
+Rules:
+- Maintain your working directory files (progress.md, BRIEFING.md) in e:\his-x64-28-11fix GDYK\his-x64\.agents\swe_1.
+- Follow the SWE Light loop: dispatch implementer, verify thoroughly with tests, review with reviewer.
+- When finished, write handoff.md and send a completion message back to me (the Sentinel).
