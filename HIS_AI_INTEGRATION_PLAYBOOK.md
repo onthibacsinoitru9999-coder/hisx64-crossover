@@ -1589,14 +1589,207 @@ Mọi Agent trước khi sinh code, viết script hoặc đề xuất giải ph�
 Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên tắc sau:
 1. **Zero Hallucination (Quy tắc 10 AGENTS.md):** Bắt buộc đối soát log và dữ liệu thật từ DB theo quy trình 3 bước: `Pre-check (GetView) -> Execute (POST API) -> Post-verify (truy vấn DB)`. Tuyệt đối cấm bịa số phiếu hay ID.
 2. **Đích danh CĐHA (Quy tắc 4 AGENTS.md):** Trích xuất đích danh từng tầng tổn thương cột sống, loại gãy xương; không ghi chung chung.
+Khi chỉnh sửa và xuất file `.docx` từ template OpenXML:
+```csharp
+// 1. Tạo file ZIP mới (ZipArchiveMode.Create) duyệt toàn bộ entry của file mẫu theo ĐÚNG THỨ TỰ:
+using (var srcZip = ZipFile.OpenRead(templateDocx))
+using (var destFile = new FileStream(targetFilePath, FileMode.Create))
+using (var destZip = new ZipArchive(destFile, ZipArchiveMode.Create))
+{
+    foreach (var entry in srcZip.Entries)
+    {
+        var newEntry = destZip.CreateEntry(entry.FullName, CompressionLevel.Optimal);
+        using (var destStream = newEntry.Open())
+        {
+            if (entry.FullName == "word/document.xml")
+            {
+                // 2. Ghi UTF-8 NO BOM và tắt định dạng tự động:
+                byte[] bytes = new UTF8Encoding(false).GetBytes(modifiedDocXml);
+                destStream.Write(bytes, 0, bytes.Length);
+            }
+            else
+            {
+                using (var srcStream = entry.Open())
+                {
+                    srcStream.CopyTo(destStream);
+                }
+            }
+        }
+    }
+}
+```
+* **Kiểm thử tự động bằng CLI headless**:
+  ```powershell
+  & "D:\office fake\program\soffice.exe" --headless --convert-to pdf "<file.docx>" --outdir "<outdir>"
+  ```
+  Nếu chuyển đổi sang `.pdf` thành công tức là file `.docx` hoàn toàn hợp lệ, không còn bất kỳ cảnh báo lỗi cấu trúc nào.
+
+---
+
+## 23. QUY TRÌNH & KỸ THUẬT CHỈ ĐỊNH CLS TRỰC TIẾP BYPASS UI (HEADLESS API) & CƠ CHẾ GOM ỐNG BỆNH PHẨM 1-BARCODE
+
+### 23.1. Bản Chất Nghiệp Vụ & Giá Trị Lâm Sàng
+* **Mục tiêu**: Cho phép AI Agent / CLI thực thi chỉ định trọn gói Bilan mổ cấp cứu hoặc mổ phiên (Xét nghiệm máu, Nước tiểu, Vi sinh, CĐHA, TDCN) trực tiếp qua REST API máy chủ MOS mà **hoàn toàn không cần mở giao diện HIS Desktop**, tiết kiệm thời gian thao tác từ vài phút xuống còn dưới 2 giây.
+* **Cơ chế Backend Endpoint**:
+  - `POST http://192.168.7.236:1608/api/HisServiceReq/AssignServiceByInstructionTimes`
+  - Headers: `TokenCode: <64_char_token>`, `ApplicationCode: HIS`, `Content-Type: application/json; charset=utf-8`
+  - Lớp DTO Payload: `MOS.SDO.AssignServiceSDO`
+
+### 23.2. 5 Rào Chắn Kỹ Thuật Bắt Buộc (5 Strict Backend Guardrails)
+Để Backend MOS chấp thuận y lệnh mà không trả về lỗi `Success: false` hay ngoại lệ ngầm:
+
+1. 🏨 **`RequestRoomId` Bắt Buộc Là Buồng Bệnh Nhân Nằm**:
+   - `RequestRoomId` trong `AssignServiceSDO` **BẮT BUỘC** phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân đang nằm điều trị (`V_HIS_TREATMENT_BED_ROOM.BED_ROOM_ID`).
+   - *Bẫy Gotcha*: Nếu gán phòng làm việc chung (VD: `5248`) cho bệnh nhân ở buồng khác (VD: `17413` - CSNB hoặc `5257` - P724) mà chưa đăng ký, Backend sẽ từ chối hoặc y lệnh không hiển thị trên giao diện theo dõi buồng của điều dưỡng.
+
+2. 🔑 **Kích Hoạt Phòng Làm Việc (`UpdateWorkInfo`) Trước Khi Gửi**:
+   - Token của Bác sĩ phải kích hoạt danh sách phòng làm việc chứa `RequestRoomId` của bệnh nhân:
+   - Gửi `POST api/Token/UpdateWorkInfo` với `WorkInfoSDO.Rooms` chứa `RoomId` của buồng bệnh và phòng trực.
+
+3. ⏰ **Đồng Bộ Tờ Điều Trị (`TrackingId` & `InstructionTime`)**:
+   - `TrackingId` phải trỏ tới một bản ghi `HIS_TRACKING` hợp lệ trong ngày.
+   - `InstructionTime`, `InstructionTimes`, `UseTimes` và `TrackingInfos.IntructionTime` phải đồng bộ chính xác với `HIS_TRACKING.TRACKING_TIME`.
+
+4. 🆔 **Mã Phiên Giao Dịch Đơn Nhất (`SessionCode`)**:
+   - Gán `SessionCode = Guid.NewGuid().ToString()` trong payload để Backend gom toàn bộ y lệnh trong đợt gửi vào cùng một phiên giao dịch.
+
+5. 🩸 **Cơ Chế Gom Ống Bệnh Phẩm 1-Barcode (Specimen & Tube Bundling Rule)**:
+   - **Nguyên lý cốt lõi của MOS**: Khi gửi mảng `ServiceReqDetails` chứa nhiều kỹ thuật, Backend MOS **tự động gom các dịch vụ có cùng `RoomId` (Phòng tiếp nhận / Thực hiện) thành 1 `HIS_SERVICE_REQ` duy nhất**.
+   - **Ý nghĩa sống còn**:
+     * 1 `HIS_SERVICE_REQ` = 1 Mã Barcode / 1 Tem lấy mẫu trên hệ thống LIS.
+     * Khi gom đúng: Bác sĩ chỉ định 3 xét nghiệm Virus (HIV + HBsAg + HCV) $\rightarrow$ Backend sinh ra **đúng 1 mã phiếu y lệnh** $\rightarrow$ Điều dưỡng dán 1 tem $\rightarrow$ **Lấy đúng 1 ống máu nắp vàng/đỏ**.
+     * Nếu gửi rời rạc qua vòng lặp nhiều lần $\rightarrow$ Sinh ra 3 mã phiếu y lệnh $\rightarrow$ **Bệnh nhân bị lấy 3 ống máu riêng biệt**, gây đau đớn và lãng phí vật tư!
+
+### 23.3. Cấu Trúc DTO JSON Chuẩn Khi Gửi API:
+```json
+{
+  "TreatmentId": 7147393,
+  "RequestRoomId": 17413,
+  "RequestLoginName": "vmc",
+  "RequestUserName": "VŨ MINH CƯỜNG",
+  "InstructionTime": 20260909084250,
+  "InstructionTimes": [ 20260909084250 ],
+  "UseTimes": [ 20260909084250 ],
+  "TrackingId": 9913239,
+  "TrackingInfos": [
+    { "TrackingId": 9913239, "IntructionTime": 20260909084250 }
+  ],
+  "IcdCode": "T07",
+  "IcdName": "Đa chấn thương",
+  "SessionCode": "a3f5e921-6b8c-4a3e-9f12-0987654321ab",
+  "ServiceReqDetails": [
+    { "ServiceId": 74110, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
+    { "ServiceId": 74107, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
+    { "ServiceId": 74096, "RoomId": 15721, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Vi sinh" },
+    { "ServiceId": 74042, "RoomId": 15231, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Hóa sinh" },
+    { "ServiceId": 73898, "RoomId": 15718, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "Nhóm máu" },
+    { "ServiceId": 68137, "RoomId": 14819, "Amount": 1.0, "PatientTypeId": 1, "InstructionNote": "ECG" }
+  ]
+}
+```
+
+### 23.4. Bản Đồ Phòng Thực Hiện Xét Nghiệm & Gom Ống (Cơ Sở 1 Hà Nội vs Cơ Sở 2 Ninh Bình)
+
+| Nhóm Xét Nghiệm / Kỹ Thuật | Loại Ống / Bệnh Phẩm | Phòng Thực Hiện CS1 (Bạch Mai HN - Khoa 57) | Phòng Thực Hiện CS2 (Ninh Bình - Khoa 915) | Kết Quả Gom Y Lệnh |
+| :--- | :--- | :---: | :---: | :--- |
+| **Huyết học Tế bào (CTM, Máu lắng)** | Ống EDTA (Nắp tím) | `RoomId = 1772` | `RoomId = 15711` | 1 Mã phiếu $\rightarrow$ 1 Ống EDTA |
+| **Đông máu (PT, APTT, Fibrinogen)** | Ống Citrate (Nắp xanh lam) | `RoomId = 626` | `RoomId = 15712` | 1 Mã phiếu $\rightarrow$ 1 Ống Citrate |
+| **Sinh hóa (Ure, Cre, Glu, Men gan, ĐGĐ)**| Ống Serum/Heparin (Nắp đỏ/vàng)| `RoomId = 410` | `RoomId = 15231` | 1 Mã phiếu $\rightarrow$ 1 Ống Sinh hóa |
+| **Virus Miễn dịch (HIV, HBsAg, HCV)** | Ống Serum (Nắp vàng/đỏ) | `RoomId = 871` | `RoomId = 15721` | 1 Mã phiếu $\rightarrow$ 1 Ống Miễn dịch |
+| **Truyền máu (Định nhóm máu ABO, Rh)**| Ống EDTA/Gelcard | `RoomId = 1464` | `RoomId = 15718` | 1 Mã phiếu $\rightarrow$ 1 Ống Nhóm máu |
+| **Tổng phân tích Nước tiểu** | Lọ đựng nước tiểu | `RoomId = 566` | `RoomId = 15721` / `15231` | 1 Mã phiếu $\rightarrow$ 1 Lọ nước tiểu |
+| **Điện tim thường (ECG)** | Phiếu đo điện tim | `RoomId = 920` / `931` | `RoomId = 19328` / `14819` | 1 Mã phiếu Điện tim |
+| **Siêu âm ổ bụng tổng quát** | Phiếu siêu âm | `RoomId = 17547` | `RoomId = 15724` | 1 Mã phiếu Siêu âm |
+
+### 23.5. Lệnh Thực Thi 1-Click Trên `HisClinicalCli.exe`:
+```powershell
+# 1. Chỉ định đơn lẻ:
+.\HisClinicalCli.exe assign-cls <TreatmentId> <TrackingId> <ServiceId> <ExecuteRoomId> "[Note]" [PatientTypeId]
+
+# 2. Chỉ định gói Bilan phẫu thuật (Tự động gom nhóm tối ưu theo phòng & ống bệnh phẩm):
+.\HisClinicalCli.exe assign-bilan <TreatmentId> <TrackingId> <spine|trauma|cement|hip|hand> [PatientTypeId]
+```
+
+---
+
+## 24. QUY CHUẨN TỰ ĐỘNG HÓA TRA CỨU & MỞ ẢNH PACS / RIS (WEB VIEWER 1-CLICK)
+
+### 24.1. Kiến Trúc & Cấu Hình Mạng:
+- **RIS Minerva:** `http://192.168.200.110/ris` (Tài khoản: `ctch` / Mật khẩu: `ctchCS2026!`)
+- **Modern Web DICOM Viewer (OHIF):** `http://192.168.200.111:8081`
+- **Máy chủ Lưu trữ PACS:**
+  - `CS2`: `192.168.200.107:8080` (WADO: `http://192.168.200.107:8080/pacs/CS2/wado`)
+  - `VRPACS / IMPORT2`: `192.168.200.111:8080`
+
+### 24.2. Bẫy Lỗi (Gotchas) & Bài Học Xương Máu:
+1. **Tiền tố Mã Bệnh nhân RIS (`VS.`):**
+   - Trên HIS mã BN là 10 chữ số (VD: `0004009330`).
+   - Trên RIS Minerva, mã BN bắt buộc phải có tiền tố `VS.` (thành `VS.0004009330`). Nếu truyền thiếu `VS.` API sẽ trả về 0 bản ghi.
+2. **Biến môi trường `$PID` của PowerShell:**
+   - Trong PowerShell, `$PID` là biến tự động lưu Process ID (Read-only). Không được đặt tên biến `$pid = ...`, phải dùng `$pIdStr` hoặc `$patientCode`.
+3. **PowerShell Array vs String khi dùng `-match`:**
+   - Khi chạy `curl.exe`, kết quả trả về là mảng `[Object[]]`.
+   - Toán tử `-match` trên mảng lọc phần tử chứ KHÔNG gán `$matches`. Bắt buộc dùng `($res -join "`n") -match ...`.
+4. **Không cần đăng nhập lại tại Web Viewer:**
+   - Link `http://192.168.200.111:8081/viewer?session=...` đã chứa sẵn session token được sinh bởi RIS. Trình duyệt mở trực tiếp không bị chặn xác thực.
+5. **Cấm dùng Quick Tunnel Internet cho ảnh DICOM (Tránh Lag giật nghiêm trọng):**
+   - Tệp ảnh DICOM (MRI/CT Scanner) chứa hàng trăm lát cắt với dung lượng lớn (hàng chục đến hàng trăm MB).
+   - Việc mở tunnel ra Internet qua Cloudflare Quick Tunnel / ngrok miễn phí sẽ bị bóp băng thông và định tuyến quốc tế qua Hồng Kông/Singapore, gây lag giật không thể thao tác.
+   - Bắt buộc dùng link mạng nội bộ (`http://192.168.200.111:8081/viewer?session=...`) trên máy tính bệnh viện hoặc điện thoại/máy tính bảng kết nối Wi-Fi bệnh viện để tải ảnh tức thì dưới 1 giây.
+6. **Thêm cờ `-m 5` cho curl khi lấy Location 302:**
+   - Khi gọi `curl.exe -s -i "$risUrl/viewer?study=$iuid"`, bắt buộc phải có `-m 5` (`--max-time 5`) để tránh bị treo socket keep-alive.
+
+### 24.3. Công Cụ CLI Thực Thi:
+- `.\HisPacsCli.bat <MãBN>`: Liệt kê toàn bộ ca chụp (MRI, CT, X-quang, Siêu âm) và in link Web Viewer 1-click.
+- `.\HisPacsCli.bat <MãBN> -Open`: Tự động đẩy thẳng các tab xem ảnh lên Google Chrome / Edge trên màn hình bác sĩ.
+
+---
+
+## 25. QUY CHUẨN CỐT LÕI: NGUYÊN TẮC PONYTAIL (LAZY SENIOR DEV MODE) TOÀN DIỆN CHO MỌI NHÁNH
+
+### 25.1. Triết Lý & Định Nghĩa:
+- **Tác giả triết lý**: Kế thừa và nâng cấp từ [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail): *"He says nothing. He writes one line. It works."*
+- **Quy định cứng toàn diện**: Áp dụng mặc định 100% thời gian cho **toàn bộ quá trình làm việc trên tất cả các nhánh** (`main`, `ha-noi`, `ninh-binh`), không cần từ khóa kích hoạt ("1shot", "ponytail").
+- **Ý nghĩa của "Lười" (Lazy Senior Dev)**:
+  - Lười ở đây nghĩa là **tối ưu hiệu quả đến mức cực hạn**: tối thiểu hóa số dòng code, token, thời gian, chi phí, giải thích thừa; dứt điểm nhanh nhất. Tuyệt đối KHÔNG cẩu thả.
+  - **Đoạn code tốt nhất là đoạn code không bao giờ phải viết.**
+  - Deletion over addition (Xóa bỏ > Thêm mới). Boring over clever (Đơn giản, dễ bảo trì > Tinh vi, phức tạp).
+
+### 25.2. Bậc Thang Phản Xạ 7 Nấc (The Ponytail Ladder):
+Mọi Agent trước khi sinh code, viết script hoặc đề xuất giải pháp BẮT BUỘC phải dừng ở nấc thang đầu tiên giải quyết được bài toán:
+```text
+1. Có cần tồn tại không?          → YAGNI: Nhu cầu suy diễn/để dành = BỎ QUA NGAY. Nêu rõ 1 dòng.
+2. Đã có sẵn trong codebase này?  → TÁI SỬ DỤNG kho CLI HIS có sẵn (HisClinicalCli, HisAutoPrescribe, HisTrackingCreator...). CẤM viết lại!
+3. Thư viện chuẩn (Stdlib) làm được? → DÙNG THƯ VIỆN CHUẨN (C#, Python, PowerShell).
+4. Tính năng Native Platform có sẵn? → DÙNG NATIVE PLATFORM (OS CLI, DB command, native Windows/HIS API).
+5. Dependency đã cài giải quyết được? → DÙNG NÓ (các assembly trong refs.rsp). Cấm cài thư viện mới rườm rà.
+6. Viết được thành 1 dòng không?  → VIẾT ĐÚNG 1 DÒNG.
+7. Chỉ khi đó mới viết:           → VIẾT LƯỢNG CODE TỐI THIỂU HOẠT ĐỘNG ĐƯỢC.
+```
+
+### 25.3. Sửa Lỗi Tận Gốc (Root Cause Bug Fixing):
+- Báo cáo lỗi từ người dùng thường chỉ là triệu chứng (symptom).
+- Trước khi sửa: Luôn grep quét toàn bộ các caller gọi đến hàm đó.
+- Sửa 1 lần duy nhất tại nơi tất cả các luồng cùng đi qua (core dùng chung), thay vì đi vá ngọn ở từng caller.
+
+### 25.4. Quy Chuẩn Đầu Ra (Output Format):
+- **Code / Lệnh CLI trước tiên (Code First).**
+- **Giải thích tối đa 3 dòng:** Nêu rõ đã bỏ qua (skipped) cái gì và khi nào mới cần thêm vào:
+  ```text
+  [Code hoặc Lệnh CLI] → skipped: [X], add when [Y].
+  ```
+- Tuyệt đối không văn mẫu chào hỏi, không diễn giải vòng vo, không viết sớ phân tích kiến trúc khi không được yêu cầu.
+
+### 25.5. Ranh Giới An Toàn Lâm Sàng Bất Khả Xâm Phạm (When NOT to be Lazy):
+Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên tắc sau:
+1. **Zero Hallucination (Quy tắc 10 AGENTS.md):** Bắt buộc đối soát log và dữ liệu thật từ DB theo quy trình 3 bước: `Pre-check (GetView) -> Execute (POST API) -> Post-verify (truy vấn DB)`. Tuyệt đối cấm bịa số phiếu hay ID.
+2. **Đích danh CĐHA (Quy tắc 4 AGENTS.md):** Trích xuất đích danh từng tầng tổn thương cột sống, loại gãy xương; không ghi chung chung.
 3. **Kho tủ trực thuốc theo đúng cơ sở:** Hà Nội `810` (`TT_KCTCHCS`), Ninh Bình `5142` (`TTT_NBKP05.02`) / `5141` (`TTT_NBKP05.01`).
 4. **Hủy y lệnh (Quy tắc 13 AGENTS.md):** Chỉ được hủy chỉ định màu trắng (`SERVICE_REQ_STT_ID == 1`). Cấm hủy màu vàng/xanh.
 5. **One Runnable Check:** Luôn để lại 1 lệnh CLI hoặc test tối thiểu để xác nhận logic chạy đúng.
 
 ---
 *Tài liệu Cẩm Nang Hợp Nhất được biên soạn, xác thực và lưu giữ tự động bởi AI Agent.*
-
-
 
 ---
 
@@ -1616,32 +1809,32 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 ### Giải pháp đúng — áp dụng vĩnh viễn:
 
 **✅ Dùng Start-Job để song song hóa:**
-`powershell
+```powershell
 # ĐÚNG: Song song, ~3-5 giây cho 32 BN
- =  | ForEach-Object {
-     = 
+$jobs = $patients | ForEach-Object {
+    $code = $_.Code
     Start-Job -ScriptBlock {
-        param(, , )
-         = &  orders  2>&1 | Out-String
-         =  -split "---+"
-            = [bool]( | Where-Object {  -match  -and  -match "đơn điều trị|đơn kho|tủ trực" })
-         = [bool]( | Where-Object {  -match  -and  -match "suất ăn|BT0|DD0|TM0" })
-        [PSCustomObject]@{ Code=; HasMed=; HasRation= }
-    } -ArgumentList .Code, , 
+        param($exe, $c, $filterDate)
+        $out = & $exe orders $c 2>&1 | Out-String
+        $blocks = $out -split "---+"
+        $hasMed = [bool]($blocks | Where-Object { $_ -match $filterDate -and $_ -match "đơn điều trị|đơn kho|tủ trực" })
+        $hasRation = [bool]($blocks | Where-Object { $_ -match $filterDate -and $_ -match "suất ăn|BT0|DD0|TM0" })
+        [PSCustomObject]@{ Code=$c; HasMed=$hasMed; HasRation=$hasRation }
+    } -ArgumentList $cliExe, $code, $filterDate
 }
- =  | Wait-Job | Receive-Job
- | Remove-Job
-`
+$results = $jobs | Wait-Job | Receive-Job
+$jobs | Remove-Job
+```
 
-**✅ Tham số đúng cho orders:** Luôn dùng **MaBN** (VD:  003440380), không dùng TreatmentId.
+**✅ Tham số đúng cho orders:** Luôn dùng **MaBN** (VD: 003440380), không dùng TreatmentId.
 
 **✅ Logic lọc ngày đúng:** Lọc theo chuỗi dd/MM thực tế trong output (VD: "13/09"), không tìm từ khóa ngôn ngữ tự nhiên.
 
-`powershell
+```powershell
 # ĐÚNG:
- = (Get-Date).AddDays(1).ToString("dd/MM")   # → "13/09"
- = ( | Where-Object {  -match [regex]::Escape() -and  -match "đơn điều trị|đơn kho|tủ trực" })
-`
+$tomorrowStr = (Get-Date).AddDays(1).ToString("dd/MM")   # → "13/09"
+$hasMed = ($blocks | Where-Object { $_ -match [regex]::Escape($tomorrowStr) -and $_ -match "đơn điều trị|đơn kho|tủ trực" })
+```
 
 ### Kết quả thực tế sau khi sửa đúng (13/09/2026):
 - **Chưa có thuốc:** 7 BN (712: QUÁCH ĐẠI VƯỢNG, VI TRUNG HIẾU, PHẠM NGỌC HÒA | 716: NGUYỄN NGỌC HIỂN | 724: NGUYỄN THỊ KHỞI | 712A: TẠ THỊ NGUYỆT, ĐẶNG THỊ BÍCH)
@@ -1725,6 +1918,14 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
    - `session_YYYYMMDD_HHmmss_workflow.md`: Quy trình diễn giải tiếng Việt có cấu trúc (gắn nhãn `[HIS]` / `[EMR]`).
    - `session_YYYYMMDD_HHmmss_replay.cs`: Mã C# tự động phát lại (UIA Replay Recipe).
 
+### 28.3. Quy Trình Chuyển Đổi Tự Động Từ UI Recording Thành Agent Skills (Continuous Skill Factory)
+Mọi thư mục ghi nhận thao tác lưu tại `Logs\ui_recordings\<TênNghiệpVụ>\` đều có thể chuyển hóa thành Skill chuẩn hóa cho Agent:
+- **Công cụ chuyển đổi 1-click**: `Tools\HisUiWrapper\SynthesizeSkill.bat` (hoặc PowerShell `SynthesizeSkill.ps1`).
+- **Cấu trúc Skill sinh ra**:
+  * `.agents\skills\<tên-skill>\SKILL.md`: Bóc tách thành các giai đoạn lâm sàng tuần tự, ma trận phím tắt (`Ctrl+S`, `Ctrl+A`, `Ctrl+E`), bảng điều khiển UIA.
+  * `.agents\skills\<tên-skill>\references\`: Lưu giữ workflow gốc và từ điển điều khiển UI.
+  * `.agents\skills\<tên-skill>\scripts\`: Chứa mã C# tự động phát lại thao tác (Replay Recipe).
+
 ---
 
 ## 29. QUY CHUẨN TỰ ĐỘNG ĐIỀN BỆNH ÁN NGOẠI KHOA EMR (`HisEmrFiller`)
@@ -1766,6 +1967,51 @@ Tuyệt đối KHÔNG ĐƯỢC lười biếng hoặc cắt xén các nguyên t�
 - **Lệnh thu hồi khẩn cấp:**
   `.\HisEmrFiller.bat --reverse-outpatients` (tự động xóa sạch vỏ ngoại trú trên Oracle EMR và bảo toàn 100% hồ sơ nội trú).
 
+---
 
+## 30. PHÂN HỆ TIỂU PHẪU & THỦ THUẬT NGOẠI KHOA (HIS MINOR SURGERY & PROCEDURES)
 
+### 30.1. Thông Số Cốt Lõi
+- **Phòng thực hiện**: Phòng Tiểu Phẫu Nhà Q (`ExecuteRoomId = 931`) thuộc Khoa 57 (`DEPARTMENT_ID = 57`).
+- **Kho cấp phát thuốc/vật tư**: Tủ trực Khoa 57 (`810` - `TT_KCTCHCS`).
+- **Kíp thủ thuật chuẩn**: Phẫu thuật viên chính: `hdc` (BS Hà Đức Cường), Thư ký/Phụ: `034727` / `sam` (BS Nguyễn Hữu Sâm), `vmc` / `minh` (BS Vũ Minh Cường).
 
+### 30.2. Luồng Lâm Sàng 5 Bước & Phím Tắt Thần Tốc
+1. **Chuyển phòng**: Quick Access Toolbar `Chọn phòng` -> Gõ "tiểu" -> Chọn Nhà Q -> Bấm `btnChoice` (**`Ctrl + S`**).
+2. **Tiếp nhận & Chẩn đoán can thiệp**: Mở `Xử lý yêu cầu khám/cls/pttt` -> Double click BN trên `gridControlServiceReq` -> Sửa `txtMANNER` & `txtConclude` sang can thiệp thực tế (VD: "rút đinh khx ngón chân phải") -> Chọn loại PTTT `cboLoaiPT` (`02`).
+3. **Tường trình & Kíp mổ**: Nhập `txtDescription` (mẫu 8 bước: Sát khuẩn, tê gốc chi, rạch da, bộc lộ, rút đinh, kiểm tra số lượng, sát khuẩn lại, băng ép) -> Gán PTV `hdc`, Thư ký `sam`/`minh`.
+4. **Xuất thuốc tủ trực**: Bấm `btnTuTruc` ("Tủ trực") -> Tìm "lido" (Lidocain 2%) -> Số lượng `1` -> Đường dùng "tê dưới da" -> Bấm `btnAdd` (**`Ctrl + A`**) -> Bấm `btnSave` (**`Ctrl + S`**) -> Đóng popup.
+5. **Ký số & Đóng ca**: Tích chọn `chkSign` -> Bấm `btnSave` (**`Ctrl + S`**) -> Bấm `Có` -> Cửa sổ EMR hiện lên bấm **`Ký`** -> Quay lại bấm `btnFinish` (**`Ctrl + E`**) hoàn tất ca -> Chuyển tab về Buồng bệnh nội trú.
+
+---
+
+## 31. PHÂN HỆ BIÊN BẢN HỘI CHẨN THÔNG QUA MỔ (PT-01) & UI AUTOMATION RUNNER
+
+### 31.1. Tổng Quan & Công Cụ Chuẩn Hóa
+Quy trình nạp và ký Biên bản Hội chẩn thông qua mổ (Biểu mẫu MS: PT-01) kết hợp 2 công cụ độc lập:
+1. **`HisPt01Creator.exe`**: Sinh file Word `.docx` chuẩn mẫu Bộ Y tế / Bệnh viện Bạch Mai từ dữ liệu bệnh án lâm sàng và cận lâm sàng tự động (lưu tại `Reports\BienBanHoiChan_PT01\`).
+2. **`HisPt01UiUploader.exe`** (Launcher: `HisPt01UiUploader.bat`): Robot tự động điều khiển UI (HIS & EMR) theo quy trình 5 pha được học từ các phiên ghi nhận thực tế (`HisUiWrapper`):
+   - **Pha 1**: Tìm kiếm bệnh nhân trên danh sách buồng bệnh HIS (`F2` -> Mã BN/Tên BN -> `Enter` -> Chọn dòng).
+   - **Pha 2**: Mở danh mục `Biểu mẫu khác hồ sơ điều trị` (Click phải -> `In ấn` -> `Biểu mẫu khác` -> `Ctrl+F` -> tìm `pt` -> click `Editing control`).
+   - **Pha 3**: Nạp nội dung Word & Lưu biểu mẫu (Click `Open` -> Nạp file `.docx` đã tự động tẩy sạch watermark Aspose qua `WordCleaner` -> Chờ nạp `txtContent` -> `Ctrl+S` lưu biểu mẫu).
+   - **Pha 4**: Mở EMR & Cấu hình luồng ký (Bấm `EMR` -> Bấm `Thiết lập ký` trên `Văn bản điện tử` -> Chọn mẫu luồng ký `SIGN_TEMP_NAME row 3` -> Nhập tài khoản duyệt ký `cboSigner` [mặc định: `duy thanh`] -> Bấm `btnAdd` [Thêm người ký] -> Click 2 lần `Down` [hạ thứ tự] -> Bấm `btnSave` [Cập nhật]).
+   - **Pha 5**: Ký số văn bản & Hoàn tất (Bấm `Ký` trên `Văn bản điện tử` -> Chờ ký số EMR -> Bấm `Kết thúc ký` -> Xác nhận popup `Đồng ý`).
+
+### 31.2. Cú Pháp Sử Dụng CLI:
+```powershell
+# Chạy tự động nạp & ký số cho bệnh nhân theo mã hồ sơ:
+.\HisPt01UiUploader.bat 0004035437
+
+# Chạy tự động theo tên bệnh nhân (tự dò tìm file docx trong Reports\BienBanHoiChan_PT01\):
+.\HisPt01UiUploader.bat "Trần Thảo Nhi"
+
+# Chạy thử nghiệm an toàn (dừng lại trước bước Ký số thật):
+.\HisPt01UiUploader.bat 0004035437 --dry-run
+
+# Chỉ định rõ file Word và tài khoản duyệt ký:
+.\HisPt01UiUploader.bat 0004035437 --file "Reports\BienBanHoiChan_PT01\PT01_11_TRẦN_THẢO_NHI_0004035437.docx" --signer "duy thanh"
+```
+
+### 31.3. Bẫy Kỹ Thuật & Bài Học Xương Máu (Gotchas):
+1. **Aspose Watermark Evaluation Gotcha**: `HisPt01Creator` sử dụng thư viện Aspose dạng dùng thử chèn đoạn văn bản đỏ `"Evaluation Only. Created with Aspose.Words..."` ở đầu văn bản. Khi nạp vào DevExpress RichEdit của HIS, bác sĩ phải click xóa tay. `WordCleaner.cs` đã giải quyết triệt để bằng cách giải nén cấu trúc OpenXML `word/document.xml`, dùng regex bóc tách sạch đoạn `<w:p>` chứa watermark trước khi nạp vào HIS.
+2. **Cross-Desktop Session Sandbox (Win32 Error 170)**: Trong môi trường dòng lệnh/terminal hoặc background task của Agent, tiến trình khởi chạy trong một desktop sandbox ảo khác với desktop tương tác thật (`WinSta0\Default`). Nếu thread chính có `[STAThread]` hoặc đã khởi tạo OLE/UIA, gọi `SetThreadDesktop` sẽ bị lỗi `170 ERROR_BUSY`. Giải pháp chuẩn: Kích hoạt luồng chạy trên một STA worker thread độc lập (`new Thread(...)`), gọi `SetThreadDesktop(OpenDesktop("Default", ...))` ngay đầu hàm worker để gắn kết 100% với màn hình tương tác của bác sĩ.

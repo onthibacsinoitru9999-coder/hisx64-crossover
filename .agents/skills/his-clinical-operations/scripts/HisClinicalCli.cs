@@ -717,17 +717,35 @@ public class HisClinicalCli
         InitSession();
         long tId = 0;
         V_HIS_TREATMENT tr = null;
-        var tfKw = new HisTreatmentViewFilter { KEY_WORD = keyword.Trim() };
-        var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfKw, param);
-        if (list != null && list.Count > 0)
-        {
-            tr = list.OrderByDescending(x => x.IN_TIME).First();
-        }
-        else if (long.TryParse(keyword, out tId))
+        string kw = keyword.Trim();
+        if (long.TryParse(kw, out tId))
         {
             var tfId = new HisTreatmentViewFilter { ID = tId };
             var lId = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfId, param);
             if (lId != null && lId.Count > 0) tr = lId[0];
+
+            if (tr == null)
+            {
+                var tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = kw.PadLeft(10, '0') };
+                var lCode = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (lCode != null && lCode.Count > 0) tr = lCode[0];
+            }
+
+            if (tr == null)
+            {
+                var tfCode = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = kw.PadLeft(12, '0') };
+                var lCode = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (lCode != null && lCode.Count > 0) tr = lCode[0];
+            }
+        }
+        if (tr == null)
+        {
+            var tfKw = new HisTreatmentViewFilter { KEY_WORD = kw, IS_PAUSE = false };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfKw, param);
+            if (list != null && list.Count > 0)
+            {
+                tr = list.OrderByDescending(x => x.IN_TIME).First();
+            }
         }
 
         if (tr == null)
@@ -799,6 +817,192 @@ public class HisClinicalCli
             }
         }
         Console.WriteLine();
+    }
+
+    public static void ViewPatientTrackings(string keyword)
+    {
+        InitSession();
+        long tId = 0;
+        V_HIS_TREATMENT tr = null;
+        string kw = keyword.Trim();
+        if (long.TryParse(kw, out tId))
+        {
+            var tfId = new HisTreatmentViewFilter { ID = tId };
+            var lId = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfId, param);
+            if (lId != null && lId.Count > 0) tr = lId[0];
+
+            if (tr == null)
+            {
+                var tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = kw.PadLeft(10, '0') };
+                var lCode = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (lCode != null && lCode.Count > 0) tr = lCode[0];
+            }
+
+            if (tr == null)
+            {
+                var tfCode = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = kw.PadLeft(12, '0') };
+                var lCode = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (lCode != null && lCode.Count > 0) tr = lCode[0];
+            }
+        }
+        if (tr == null)
+        {
+            var tfKw = new HisTreatmentViewFilter { KEY_WORD = kw, IS_PAUSE = false };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfKw, param);
+            if (list != null && list.Count > 0) tr = list.OrderByDescending(x => x.IN_TIME).First();
+        }
+
+        if (tr == null)
+        {
+            Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + keyword);
+            return;
+        }
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("📝 TOÀN BỘ TỜ ĐIỀU TRỊ (TRACKING): {0} (Mã BN: {1} | Mã ĐT: {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE));
+        Console.WriteLine(string.Format("Chẩn đoán: [{0}] {1} (Chi tiết: {2})", tr.ICD_CODE, tr.ICD_NAME, tr.ICD_TEXT ?? tr.ICD_SUB_CODE));
+        Console.WriteLine("===============================================================================");
+
+        var trkf = new HisTrackingViewFilter { TREATMENT_ID = tr.ID };
+        var trks = myAdapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", mosConsumer, trkf, param);
+        if (trks == null || trks.Count == 0)
+        {
+            Console.WriteLine("ℹ️ Bệnh nhân chưa có tờ điều trị nào.");
+            return;
+        }
+
+        var dhstf = new HisDhstViewFilter { TREATMENT_ID = tr.ID };
+        var dhsts = myAdapter.FetchList<V_HIS_DHST>("api/HisDhst/GetView", mosConsumer, dhstf, param);
+
+        foreach (var trk in trks.OrderBy(x => x.TRACKING_TIME))
+        {
+            string tStr = trk.TRACKING_TIME.ToString();
+            string timeStr = tStr.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", tStr.Substring(6, 2), tStr.Substring(4, 2), tStr.Substring(0, 4), tStr.Substring(8, 2), tStr.Substring(10, 2)) : tStr;
+
+            var matchedDhst = dhsts != null ? dhsts.FirstOrDefault(d => d.EXECUTE_TIME == trk.TRACKING_TIME || (d.EXECUTE_TIME.HasValue && Math.Abs(d.EXECUTE_TIME.Value - trk.TRACKING_TIME) < 100)) : null;
+
+            Console.WriteLine("-------------------------------------------------------------------------------");
+            Console.WriteLine(string.Format("📅 TỜ ĐIỀU TRỊ: {0} | ID: {1}", timeStr, trk.ID));
+            if (matchedDhst != null)
+            {
+                Console.WriteLine(string.Format("   🩺 DHST: Mạch: {0} ck/p | HA: {1}/{2} mmHg | Nhiệt: {3} °C | SpO2: {4}% | NT: {5} l/p | Cân nặng: {6} kg",
+                    matchedDhst.PULSE, matchedDhst.BLOOD_PRESSURE_MAX, matchedDhst.BLOOD_PRESSURE_MIN, matchedDhst.TEMPERATURE, matchedDhst.SPO2, matchedDhst.BREATH_RATE, matchedDhst.WEIGHT));
+            }
+            Console.WriteLine("   📝 NỘI DUNG DIỄN BIẾN & Y LỆNH:");
+            if (!string.IsNullOrEmpty(trk.CONTENT))
+            {
+                var lines = trk.CONTENT.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                foreach (var line in lines)
+                {
+                    Console.WriteLine("      " + line);
+                }
+            }
+        }
+        Console.WriteLine("===============================================================================");
+    }
+
+    public static void ViewPatientCdhaAndLabs(string keyword)
+    {
+        InitSession();
+        long tId = 0;
+        V_HIS_TREATMENT tr = null;
+        string kw = keyword.Trim();
+        if (long.TryParse(kw, out tId))
+        {
+            var tfId = new HisTreatmentViewFilter { ID = tId };
+            var lId = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfId, param);
+            if (lId != null && lId.Count > 0) tr = lId[0];
+
+            if (tr == null)
+            {
+                var tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = kw.PadLeft(10, '0') };
+                var lCode = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (lCode != null && lCode.Count > 0) tr = lCode[0];
+            }
+
+            if (tr == null)
+            {
+                var tfCode = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = kw.PadLeft(12, '0') };
+                var lCode = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+                if (lCode != null && lCode.Count > 0) tr = lCode[0];
+            }
+        }
+        if (tr == null)
+        {
+            var tfKw = new HisTreatmentViewFilter { KEY_WORD = kw, IS_PAUSE = false };
+            var list = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfKw, param);
+            if (list != null && list.Count > 0) tr = list.OrderByDescending(x => x.IN_TIME).First();
+        }
+
+        if (tr == null)
+        {
+            Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + keyword);
+            return;
+        }
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🖼️ KẾT QUẢ CHẨN ĐOÁN HÌNH ẢNH & THĂM DÒ: {0} ({1})", tr.TDL_PATIENT_NAME, tr.TREATMENT_CODE));
+        Console.WriteLine("===============================================================================");
+
+        var reqFilter = new HisServiceReqViewFilter { TREATMENT_ID = tr.ID };
+        var reqs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, reqFilter, param);
+        if (reqs != null)
+        {
+            var cdhaReqs = reqs.Where(x => x.SERVICE_REQ_TYPE_ID == 2 || x.SERVICE_REQ_TYPE_ID == 3).OrderBy(x => x.INTRUCTION_TIME).ToList();
+            foreach (var req in cdhaReqs)
+            {
+                string tStr = req.INTRUCTION_TIME.ToString();
+                string timeStr = tStr.Length >= 12 ? string.Format("{0}/{1}/{2} {3}:{4}", tStr.Substring(6, 2), tStr.Substring(4, 2), tStr.Substring(0, 4), tStr.Substring(8, 2), tStr.Substring(10, 2)) : tStr;
+                Console.WriteLine(string.Format("\n📋 Phiếu [{0}] lúc {1} | {2} | Nơi làm: {3}", req.SERVICE_REQ_CODE, timeStr, req.SERVICE_REQ_TYPE_NAME, req.EXECUTE_ROOM_NAME));
+                
+                var ssFilter = new HisSereServViewFilter { SERVICE_REQ_ID = req.ID };
+                var sss = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisSereServ/GetView", mosConsumer, ssFilter, param);
+                if (sss != null)
+                {
+                    foreach (var ss in sss)
+                    {
+                        var extFilter = new HisSereServExtFilter { SERE_SERV_ID = ss.ID };
+                        var exts = myAdapter.FetchList<HIS_SERE_SERV_EXT>("api/HisSereServExt/Get", mosConsumer, extFilter, param);
+                        string conc = (exts != null && exts.Count > 0) ? exts[0].CONCLUDE : "";
+                        string desc = (exts != null && exts.Count > 0) ? exts[0].DESCRIPTION : "";
+                        Console.WriteLine(string.Format("  • Dịch vụ: {0}", ss.TDL_SERVICE_NAME));
+                        if (!string.IsNullOrEmpty(conc)) Console.WriteLine(string.Format("    👉 Kết luận: {0}", conc.Replace("\r\n", " ").Trim()));
+                        if (!string.IsNullOrEmpty(desc) && desc.Length < 300) Console.WriteLine(string.Format("    👉 Mô tả: {0}", desc.Replace("\r\n", " ").Trim()));
+                    }
+                }
+            }
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("📊 TOÀN BỘ KẾT QUẢ XÉT NGHIỆM CHI TIẾT: {0} ({1})", tr.TDL_PATIENT_NAME, tr.TREATMENT_CODE));
+        Console.WriteLine("===============================================================================");
+
+        var teinFilter = new HisSereServTeinViewFilter { TDL_TREATMENT_ID = tr.ID };
+        var teins = myAdapter.FetchList<V_HIS_SERE_SERV_TEIN>("api/HisSereServTein/GetView", mosConsumer, teinFilter, param);
+        if (teins != null && teins.Count > 0)
+        {
+            var grp = teins.GroupBy(x => x.TDL_SERVICE_REQ_ID ?? 0).OrderBy(g => g.Key);
+            foreach (var g in grp)
+            {
+                long reqId = g.Key;
+                var req = reqs != null ? reqs.FirstOrDefault(r => r.ID == reqId) : null;
+                string timeStr = req != null ? req.INTRUCTION_TIME.ToString() : (g.First().MODIFY_TIME.HasValue ? g.First().MODIFY_TIME.Value.ToString() : "-");
+                if (timeStr.Length >= 12)
+                {
+                    timeStr = string.Format("{0}/{1}/{2} {3}:{4}", timeStr.Substring(6, 2), timeStr.Substring(4, 2), timeStr.Substring(0, 4), timeStr.Substring(8, 2), timeStr.Substring(10, 2));
+                }
+                string reqCode = req != null ? req.SERVICE_REQ_CODE : reqId.ToString();
+                Console.WriteLine(string.Format("\n📋 Phiếu [{0}] lúc {1} ({2} chỉ số):", reqCode, timeStr, g.Count()));
+                foreach (var t in g)
+                {
+                    if (!string.IsNullOrEmpty(t.VALUE))
+                    {
+                        Console.WriteLine(string.Format("   - {0,-35}: {1} {2}", t.TEST_INDEX_NAME ?? t.TEST_INDEX_CODE, t.VALUE, t.TEST_INDEX_UNIT_NAME));
+                    }
+                }
+            }
+        }
+        Console.WriteLine("===============================================================================");
     }
 
     public static void SearchMed(string keyword)
@@ -4014,6 +4218,16 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc TreatmentID!");
                 ViewPatientMeds(args[1]);
+            }
+            else if (cmd == "tracking" || cmd == "trks" || cmd == "todieutri" || cmd == "dienbien")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc TreatmentID!");
+                ViewPatientTrackings(args[1]);
+            }
+            else if (cmd == "cdha" || cmd == "labs" || cmd == "cls" || cmd == "xetnghiem")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc TreatmentID!");
+                ViewPatientCdhaAndLabs(args[1]);
             }
             else if (cmd == "search-med" || cmd == "find-med")
             {

@@ -82,7 +82,10 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
 | 📑 **Tạo Biên bản Hội chẩn thông qua mổ (MS: PT-01)** | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN1,MãBN2,...>` | ❌ Không phá vỡ format mẫu docx |
+| 🚀 **Nạp & Ký số Biên bản PT-01 vào EMR qua UI** | **`HisPt01UiUploader.exe`** | `.\HisPt01UiUploader.bat <MãBN|TênBN> [--signer "duy thanh"] [--dry-run]` | ❌ Không ký thủ công lặp lại |
 | ⚡ **Ghi nhận & học thao tác UI (Click/Phím/Text)** | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` hoặc `.\HisUiWrapper.exe --launch` | ❌ Không ghi ứng dụng ngoài HIS |
+| 🔪 **Thao tác Tiểu phẫu & Thủ thuật (Rút đinh, Khâu...)** | **`his-minor-surgery`** | Skill `.agents/skills/his-minor-surgery/` | ❌ Không bỏ sót kíp mổ & xuất tủ trực |
+| 🔄 **Chuyển đổi UI Recording thành Agent Skill** | **`SynthesizeSkill.bat`** | `.\Tools\HisUiWrapper\SynthesizeSkill.bat [Folder]` | ❌ Không cấu hình thủ công sai chuẩn |
 | 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR & Khởi tạo Trang bìa** | **`HisEmrFiller.exe`** | `.\HisEmrFiller.exe <MãBN> [--save]` | ❌ Không dùng cho ca Ngoại trú / Phòng khám |
 
 ### 🌟 QUY TẮC BẮT BUỘC: VỎ BỆNH ÁN NGOẠI KHOA CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ (INPATIENT ONLY)
@@ -91,7 +94,6 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 * **Chốt chặn an toàn trong Code**: `HisEmrFiller.exe` tự động chặn đứng và từ chối nếu bệnh nhân là diện ngoại trú / phòng khám. Khi quét bệnh nhân theo ngày (`--date YYYYMMDD`), công cụ tự động lọc bỏ 100% ca khám ngoại trú.
 * **Lệnh thu hồi khẩn cấp (Reverse)**: `.\HisEmrFiller.bat --reverse-outpatients` để xóa sạch vỏ bệnh án ngoại trú bị tạo nhầm trên DB Oracle EMR và bảo lưu nguyên vẹn 100% bệnh nhân nội trú.
 * **Quy chuẩn Ký số Vỏ bệnh án vs Tờ điều trị**: `HisEmrFiller.exe` tự động hóa 100% việc điền dữ liệu lâm sàng vào Oracle EMR (tiết kiệm thời gian gõ bệnh án). Khâu ký số Vỏ bệnh án Bác sĩ bấm **1-click trực tiếp trên UI EMR Desktop** để phần mềm EMR Client tự đóng gói chữ ký nội bộ. **Ký số tự động 100% qua API & Cloud HSM chỉ áp dụng cho TỜ ĐIỀU TRỊ (`HisTrackingCreator.exe` - Type 7) và BIÊN BẢN HỘI CHẨN (Type 17)**.
-
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
