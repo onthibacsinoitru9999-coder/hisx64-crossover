@@ -600,10 +600,10 @@ Khi tạo Tờ điều trị mới trên MOS (`api/HisTracking/Create`), quy tr�
 
 ### 10.6. Phân Định Ranh Giới Kỹ Thuật & Điểm Nghẽn Ký Số EMR: Tờ Điều Trị vs Vỏ Bệnh Án
 * **TỔNG KẾT ĐIỂM NGHẼN KỸ THUẬT (ARCHITECTURAL BOTTLENECK ANALYSIS)**:
-  1. **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`) - [TỰ ĐỘNG HÓA 100% - CHỐT HẠ]**:
-     - **Bản chất**: Là văn bản phiếu in lâm sàng độc lập gắn theo từng ID tờ điều trị (`HIS_TRACKING:xxx`).
-     - **Cơ chế**: Sinh `DocumentTDO` gắn mã `Mps000062`, đính kèm phôi PDF và gọi `api/EmrSign/SignPdfHsm`.
-     - **Kết quả**: EMR Viewer và HIS Desktop nhận diện 100%, hiển thị chữ ký số hợp lệ và con dấu tròn đỏ của ThS.BS Nguyễn Hữu Sâm (`034727`). Tự động hoàn toàn không cần can thiệp UI.
+  1. **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`) - [TẠM DỪNG KÝ SỐ QUA API]**:
+     - **Trạng thái**: TẠM DỪNG chức năng tự động ký số qua API theo yêu cầu của Bác sĩ điều trị cho tới khi có bản cập nhật mới.
+     - **Lý do**: Việc đẩy phôi PDF tối giản (dummy PDF) vào EMR tạo ra văn bản trắng chưa đạt chuẩn hiển thị đầy đủ của template tờ điều trị.
+     - **Quy trình hiện tại**: `HisTrackingCreator.exe` chỉ tạo bản ghi lâm sàng trên MOS (`api/HisTracking/Create`). Bác sĩ mở EMR Desktop hoặc HIS Client để in và ký trực tiếp tờ điều trị có đầy đủ định dạng bảng biểu.
   2. **Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA` - Type 116 / Mps000030) - [RANH GIỚI BẮT BUỘC]**:
      - **Bản chất**: Bệnh án ngoại khoa trên EMR Bạch Mai **không phải là file PDF upload tĩnh**. Nó là một phân hệ Client phức hợp (Form WinForm tích hợp engine báo cáo DevExpress / ActiveReports `rptVoBenhAn` kết nối trực tiếp CSDL Oracle `BENHANNGOAIKHOA` & `THONGTINDIEUTRI`).
      - **Điểm nghẽn**: Khi Bác sĩ mở nút "Bệnh án ngoại khoa" trên cây hồ sơ EMR Desktop, phần mềm tự render từ engine nội bộ của EMR Client chứ không đọc file PDF upload từ API bên ngoài. Nếu đẩy PDF rời qua API thì văn bản xem đính kèm có thể có dấu nhưng form bệnh án chính thức trên EMR vẫn ở trạng thái chưa ký hoặc báo lệch chuẩn.

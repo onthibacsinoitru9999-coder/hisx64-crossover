@@ -12,7 +12,7 @@ Skill này cung cấp quy trình và kịch bản thực thi tự động tạo 
 
 > [!IMPORTANT]
 > **Chốt Ranh Giới Kỹ Thuật Ký Số**:
-> - **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`)**: **TỰ ĐỘNG HÓA KÝ SỐ 100%**. Đây là đối tượng duy nhất được tự động hóa hoàn toàn từ tạo tờ điều trị đến đóng dấu đỏ Cloud HSM qua API.
+> - ⚠️ **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`)**: **TẠM DỪNG CHỨC NĂNG TỰ ĐỘNG KÝ SỐ QUA API THEO CHỈ ĐỊNH CỦA BÁC SĨ** cho tới khi có bản cập nhật mới. Hệ thống chỉ tạo tờ điều trị trên HIS/MOS (`api/HisTracking/Create`), không gọi `AutoSignTrackingEmr` để tránh tạo dummy PDF rỗng. Bác sĩ in và ký trực tiếp trên UI EMR Desktop Client.
 > - **Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA`)**: Điền tự động dữ liệu vào Oracle EMR qua `HisEmrFiller.exe`. Bác sĩ ký 1-click trực tiếp trên giao diện EMR Desktop. Tuyệt đối không script ký API cho Vỏ bệnh án để tránh lệch engine báo cáo XtraReports của EMR Client.
 
 ---

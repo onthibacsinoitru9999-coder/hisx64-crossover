@@ -248,6 +248,12 @@ public class HisLeanproAssigner
 
     public static bool AutoSignTrackingEmr(string token, string treatmentCode, string doctorLogin, long? trackingId = null, long? sheetOrder = null, long? trackingTime = null, string doctorName = null)
     {
+        // TẠM DỪNG CHỨC NĂNG KÝ TỜ ĐIỀU TRỊ THEO YÊU CẦU CỦA BÁC SĨ (CHỜ CẬP NHẬT MỚI)
+        return false;
+    }
+
+    private static bool Disabled_AutoSignTrackingEmr_Old(string token, string treatmentCode, string doctorLogin, long? trackingId = null, long? sheetOrder = null, long? trackingTime = null, string doctorName = null)
+    {
         try
         {
             if (string.IsNullOrEmpty(token)) return false;

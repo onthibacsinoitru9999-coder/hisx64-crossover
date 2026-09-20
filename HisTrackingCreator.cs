@@ -1540,6 +1540,13 @@ public class MainForm : Form
 
     public static bool AutoSignTrackingEmr(string treatmentCode, string doctorLogin, long? trackingId = null, long? sheetOrder = null, long? trackingTime = null, string doctorName = null)
     {
+        // TẠM DỪNG CHỨC NĂNG KÝ TỜ ĐIỀU TRỊ THEO YÊU CẦU CỦA BÁC SĨ (CHỜ CẬP NHẬT MỚI)
+        // Bác sĩ sẽ in và ký trực tiếp trên UI EMR Desktop Client.
+        return false;
+    }
+
+    private static bool Disabled_AutoSignTrackingEmr_Old(string treatmentCode, string doctorLogin, long? trackingId = null, long? sheetOrder = null, long? trackingTime = null, string doctorName = null)
+    {
         try
         {
             if (string.IsNullOrEmpty(currentToken)) return false;
