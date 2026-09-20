@@ -174,6 +174,7 @@ namespace HisMcp
                     "bloodPressure", Obj("type", "string", "description", "Huyet ap (VD: '120/80')"),
                     "temperature", Obj("type", "number", "description", "Nhiet do (do C, mac dinh 36.5)"),
                     "spO2", Obj("type", "integer", "description", "SpO2 (%, mac dinh 98)"),
+                    "respiratoryRate", Obj("type", "integer", "description", "Nhip tho (lan/phut, mac dinh 18-20)"),
                     "instructionTime", Obj("type", "string", "description", "Thoi gian y lenh YYYYMMDDHHmmss (de trong lay gio hien tai)")
                 ),
                 Arr("patientCode")
@@ -316,10 +317,11 @@ namespace HisMcp
             // 15. his_emr_fill
             tools.Add(CreateTool(
                 "his_emr_fill",
-                "Dien Vo Benh An Ngoai Khoa EMR (CHI AP DUNG BENH NHAN NOI TRU Khoa 57 / Khoa 915)",
+                "Dien Vo Benh An Ngoai Khoa EMR (CHI AP DUNG BENH NHAN NOI TRU Khoa 57 / Khoa 915). Mac dinh chi xem truoc (dry-run), can truyen save=true de ghi vao Oracle EMR",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan noi tru"),
-                    "save", Obj("type", "boolean", "description", "Luu vao Oracle EMR (mac dinh false)")
+                    "save", Obj("type", "boolean", "description", "Luu vao Oracle EMR (mac dinh false - dry-run truoc)"),
+                    "force", Obj("type", "boolean", "description", "Ghi de toan bo cac truong du lieu (mac dinh false - chi cap nhat truong trong)")
                 ),
                 Arr("patientCode")
             ));
@@ -551,6 +553,10 @@ namespace HisMcp
             if (args["spO2"] != null)
             {
                 sb.Append(" --spo2 " + args["spO2"].ToString());
+            }
+            if (args["respiratoryRate"] != null)
+            {
+                sb.Append(" --rr " + args["respiratoryRate"].ToString());
             }
             if (args["instructionTime"] != null && !string.IsNullOrEmpty(args["instructionTime"].ToString()))
             {
@@ -832,7 +838,10 @@ namespace HisMcp
                 EscapeArg(pCode), stockId, EscapeArg(insulinDesc), EscapeArg(facility)), out step3Error);
             sb.AppendLine(res3);
 
-            isError = step1Error && step2Error && step3Error;
+            // BUG FIX: Dung || (OR) - bat ky buoc nao loi la bao loi.
+            // Truoc day dung && (AND) nen chi bao loi khi CA 3 buoc deu loi,
+            // gay ra tinh trang bao thanh cong gia khi Insulin chua duoc ke (NGUY HIEM LAM SANG!)
+            isError = step1Error || step2Error || step3Error;
             sb.AppendLine("\n=== HOAN TAT PROTOCOL DUONG HUYET ===");
             return sb.ToString();
         }
@@ -887,6 +896,7 @@ namespace HisMcp
         {
             string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
             bool save = args["save"] != null && (bool)args["save"];
+            bool force = args["force"] != null && (bool)args["force"];
 
             if (string.IsNullOrEmpty(pCode))
             {
@@ -895,8 +905,11 @@ namespace HisMcp
             }
 
             string tool = ResolveToolPath("HisEmrFiller.exe");
-            string cmdArgs = EscapeArg(pCode) + (save ? " --save" : "");
-            return RunProcess(tool, cmdArgs, out isError);
+            var sb = new StringBuilder();
+            sb.Append(EscapeArg(pCode));
+            if (save) sb.Append(" --save");
+            if (force) sb.Append(" --force");
+            return RunProcess(tool, sb.ToString(), out isError);
         }
 
         private static string ExecuteSystemHealth(out bool isError)

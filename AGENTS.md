@@ -63,7 +63,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   . .\set_env.ps1 ; git pull origin main
   ```
   *(Trường hợp thư mục mới chưa có `.git`, Agent tự động chạy lệnh tự phục hồi sau để liên kết ngay với repository: `git init ; git remote add origin https://github.com/onthibacsinoitru9999-coder/hisx64-crossover.git ; git fetch origin main ; git branch -M main ; git reset origin/main`)*
-* **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///f:/NB/LBP2900_R150_V330_W64_uk_EN_2/x64/MISC/ANIMIMG/his/HIS%20CSNB/HIS_AI_INTEGRATION_PLAYBOOK.md) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
+* **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///HIS_AI_INTEGRATION_PLAYBOOK.md) (file trong thư mục gốc repo) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
 
 ### 🌟 QUY TẮC CỨNG: BẮT BUỘC KHAI BÁO & NHẬN DIỆN CƠ SỞ ĐẦU PHIÊN (FACILITY PRE-FLIGHT DECLARATION)
 * **BẮT BUỘC 100%**: Ngay khi khởi động phiên làm việc mới (hoặc trước khi thực hiện bất kỳ y lệnh lâm sàng nào), Agent PHẢI **XÁC ĐỊNH & KHAI BÁO RÕ RÀNG** đang làm việc tại cơ sở nào:

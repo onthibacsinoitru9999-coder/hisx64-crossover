@@ -46,3 +46,11 @@ mcp_servers/**/temp_test_logs/
 mcp_servers/**/*.log
 
 Data/Cache/
+
+# 4. KHÔNG TRACK CÁC FILE SCRIPT TẠM RÁC (CHỐNG TẠO TIỀN LỆ XẤU)
+# File test_script*.py đã được archive vào Archive/trash_scripts/
+test_script*.py
+*_temp.py
+*_test.py
+payload_*.json
+PrescribeTemp*.cs
