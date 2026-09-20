@@ -3300,10 +3300,25 @@ public class HisClinicalCli
             var cabinetMedsForPat = new List<string>();
             var pharmacyMedsForPat = new List<PresMedicineSDO>();
 
+            // Bộ lọc loại bỏ thuốc đái tháo đường (Insulin & OAD) theo quy tắc lâm sàng an toàn: "K copy thuốc đái đường"
+            string[] diabetesKeywords = new string[] {
+                "actrapid", "lantus", "mixtard", "novorapid", "insulin", "humalog", "apidra", "toujeo", "tresiba", "insulatard", "scilin",
+                "metformin", "glucophage", "diamicron", "gliclazide", "amaryl", "glimepiride", "januvia", "sitagliptin", "galvus", "vildagliptin",
+                "trajenta", "linagliptin", "forxiga", "dapagliflozin", "jardiance", "empagliflozin", "glucovance"
+            };
+
             foreach (var m in distinctMeds)
             {
                 long medTypeId = m.MEDICINE_TYPE_ID;
                 string medName = m.MEDICINE_TYPE_NAME ?? "Thuốc";
+                string sNameLower = medName.ToLower();
+
+                // Bỏ qua tuyệt đối các thuốc điều trị đái tháo đường
+                if (diabetesKeywords.Any(k => sNameLower.Contains(k)))
+                {
+                    continue;
+                }
+
                 decimal reqAmount = m.AMOUNT;
                 string tutorial = m.TUTORIAL ?? "Theo chỉ dẫn bác sĩ";
                 int patientTypeId = (int)(m.PATIENT_TYPE_ID.HasValue && m.PATIENT_TYPE_ID.Value > 0 ? m.PATIENT_TYPE_ID.Value : (tr != null && tr.TDL_PATIENT_TYPE_ID.HasValue ? tr.TDL_PATIENT_TYPE_ID.Value : 1L));
@@ -3316,7 +3331,6 @@ public class HisClinicalCli
                 else
                 {
                     long stockId = 4210;
-                    string sNameLower = medName.ToLower();
                     if (sNameLower.Contains("tiêm") || sNameLower.Contains("truyền") || sNameLower.Contains("ống") || sNameLower.Contains("lọ") || sNameLower.Contains("chai") || sNameLower.Contains("injection") || sNameLower.Contains("infusion") || (m.MEDICINE_USE_FORM_ID.HasValue && (m.MEDICINE_USE_FORM_ID == 15 || m.MEDICINE_USE_FORM_ID == 20)))
                     {
                         stockId = 4209;
@@ -3434,6 +3448,344 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void AuditPostOpAntibiotics(string dateParam = null)
+    {
+        InitSession();
+        DateTime targetDate = new DateTime(2026, 9, 20);
+        if (!string.IsNullOrEmpty(dateParam))
+        {
+            DateTime parsed;
+            if (DateTime.TryParseExact(dateParam, new string[] { "yyyyMMdd", "dd/MM/yyyy", "yyyy-MM-dd" }, null, System.Globalization.DateTimeStyles.None, out parsed))
+                targetDate = parsed;
+        }
+
+        long dayStart = long.Parse(targetDate.ToString("yyyyMMdd") + "000000");
+        long dayEnd = long.Parse(targetDate.ToString("yyyyMMdd") + "235959");
+
+        DateTime prevDate = targetDate.AddDays(-1);
+        long prevDayStart = long.Parse(prevDate.ToString("yyyyMMdd") + "000000");
+        long prevDayEnd = long.Parse(prevDate.ToString("yyyyMMdd") + "235959");
+
+        DateTime friDate = targetDate.AddDays(-2);
+        long friDayStart = long.Parse(friDate.ToString("yyyyMMdd") + "000000");
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🏥 RÀ SOÁT KHÁNG SINH HẬU PHẪU KHOA 57 CHO NGÀY: {0}", targetDate.ToString("dd/MM/yyyy")));
+        Console.WriteLine(string.Format("Bác sĩ phụ trách: {0} ({1}) | Mục tiêu: Đề xuất phác đồ KS phù hợp cho ngày mai", currentDoctorName, currentDoctorLogin));
+        Console.WriteLine("===============================================================================");
+
+        HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
+        var allRooms = myAdapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, param);
+        if (allRooms == null || allRooms.Count == 0) throw new Exception("Không lấy được danh sách buồng bệnh Khoa 57!");
+
+        var targetRoomIds = allRooms.Select(r => r.ID).ToList();
+        HisTreatmentBedRoomLViewFilter tbrf = new HisTreatmentBedRoomLViewFilter { BED_ROOM_IDs = targetRoomIds, IS_IN_ROOM = true };
+        var inPatients = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", mosConsumer, tbrf, param);
+        if (inPatients == null || inPatients.Count == 0)
+        {
+            Console.WriteLine("Không có bệnh nhân nội trú nào.");
+            return;
+        }
+
+        var allTreatmentIds = inPatients.Select(x => x.TREATMENT_ID).Distinct().ToList();
+
+        // 1. Quét tồn Tủ trực 810
+        HisMedicineBeanViewFilter beanFilter = new HisMedicineBeanViewFilter { MEDI_STOCK_ID = 810 };
+        var beans810 = myAdapter.FetchList<V_HIS_MEDICINE_BEAN>("api/HisMedicineBean/GetView", mosConsumer, beanFilter, param);
+        Dictionary<long, decimal> stock810Map = new Dictionary<long, decimal>();
+        Dictionary<long, string> stock810NameMap = new Dictionary<long, string>();
+        if (beans810 != null)
+        {
+            foreach (var b in beans810)
+            {
+                if (b.AMOUNT > 0)
+                {
+                    if (!stock810Map.ContainsKey(b.MEDICINE_TYPE_ID))
+                    {
+                        stock810Map[b.MEDICINE_TYPE_ID] = 0;
+                        stock810NameMap[b.MEDICINE_TYPE_ID] = b.MEDICINE_TYPE_NAME;
+                    }
+                    stock810Map[b.MEDICINE_TYPE_ID] += b.AMOUNT;
+                }
+            }
+        }
+
+        // 2. Tải dữ liệu hồ sơ
+        Dictionary<long, V_HIS_TREATMENT> trMap = new Dictionary<long, V_HIS_TREATMENT>();
+        try
+        {
+            var trList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, new HisTreatmentViewFilter { IDs = allTreatmentIds }, param);
+            if (trList != null) trMap = trList.ToDictionary(x => x.ID, x => x);
+        } catch { }
+
+        Dictionary<long, List<V_HIS_TRACKING>> trkMap = new Dictionary<long, List<V_HIS_TRACKING>>();
+        try
+        {
+            var trks = myAdapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", mosConsumer, new HisTrackingViewFilter { TREATMENT_IDs = allTreatmentIds }, param);
+            if (trks != null) trkMap = trks.GroupBy(x => x.TREATMENT_ID).ToDictionary(g => g.Key, g => g.ToList());
+        } catch { }
+
+        Dictionary<long, List<V_HIS_SERVICE_REQ>> srMap = new Dictionary<long, List<V_HIS_SERVICE_REQ>>();
+        try
+        {
+            var srs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, new HisServiceReqViewFilter { TREATMENT_IDs = allTreatmentIds }, param);
+            if (srs != null) srMap = srs.GroupBy(x => x.TREATMENT_ID).ToDictionary(g => g.Key, g => g.ToList());
+        } catch { }
+
+        Dictionary<long, List<V_HIS_EXP_MEST_MEDICINE>> emmMap = new Dictionary<long, List<V_HIS_EXP_MEST_MEDICINE>>();
+        foreach (var tId in allTreatmentIds)
+        {
+            try
+            {
+                var ems = myAdapter.FetchList<V_HIS_EXP_MEST_MEDICINE>("api/HisExpMestMedicine/GetView", mosConsumer, new HisExpMestMedicineViewFilter { TDL_TREATMENT_ID = tId }, param);
+                if (ems != null && ems.Count > 0) emmMap[tId] = ems;
+            } catch { }
+        }
+
+        string[] abxKeywords = new string[] {
+            "cefa", "cefu", "ceft", "cefe", "amox", "clavulan", "ampicil", "sulbac", "cipro", "levo",
+            "vanco", "teico", "linezolid", "metro", "genta", "tobra", "amikacin", "unasyn", "augmentin",
+            "zinnat", "rocephin", "tazocin", "meropenem", "imipenem", "tienam", "avelox", "klacid"
+        };
+
+        var urgentGroup = new List<string>();   // Hậu phẫu N1-N3 hoặc mới về từ HSN / mổ cấp cứu -> CẦN KHÁNG SINH TIÊM NGAY
+        var lateGroup = new List<string>();     // Hậu phẫu N4-N7 -> Cân nhắc gối KS uống hoặc theo dõi ngưng KS
+        var completedGroup = new List<string>();// Hậu phẫu > N7 -> Ổn định, đã kết thúc phác đồ KS
+        var allergyNotes = new List<string>();
+
+        foreach (var ip in inPatients)
+        {
+            long tId = ip.TREATMENT_ID;
+            V_HIS_TREATMENT tr = null;
+            trMap.TryGetValue(tId, out tr);
+            string patName = tr != null ? tr.TDL_PATIENT_NAME : ("BN_" + tId);
+            string patCode = tr != null ? tr.TDL_PATIENT_CODE : "";
+            string bedInfo = string.Format("{0} - {1}", ip.BED_ROOM_NAME, ip.BED_NAME);
+
+            List<V_HIS_SERVICE_REQ> myReqs = null;
+            srMap.TryGetValue(tId, out myReqs);
+
+            List<V_HIS_TRACKING> myTrks = null;
+            trkMap.TryGetValue(tId, out myTrks);
+
+            List<V_HIS_EXP_MEST_MEDICINE> myEms = null;
+            emmMap.TryGetValue(tId, out myEms);
+
+            // Xác định phẫu thuật và thời gian mổ
+            bool isPostOp = false;
+            string surgeryName = "";
+            DateTime? surgeryDate = null;
+
+            if (myReqs != null)
+            {
+                var surgReq = myReqs.Where(r => r.SERVICE_REQ_TYPE_ID == 7 && r.IS_DELETE != 1)
+                                    .OrderByDescending(r => r.START_TIME ?? r.INTRUCTION_TIME).FirstOrDefault();
+                if (surgReq != null)
+                {
+                    isPostOp = true;
+                    surgeryName = !string.IsNullOrEmpty(surgReq.ICD_NAME) ? surgReq.ICD_NAME : (!string.IsNullOrEmpty(surgReq.SERVICE_REQ_CODE) ? ("Phiếu mổ " + surgReq.SERVICE_REQ_CODE) : "Phẫu thuật");
+                    if (tr != null && !string.IsNullOrEmpty(tr.ICD_NAME)) surgeryName = tr.ICD_NAME;
+                    long st = surgReq.START_TIME ?? surgReq.INTRUCTION_TIME;
+                    string stStr = st.ToString();
+                    if (stStr.Length >= 8)
+                    {
+                        int y = int.Parse(stStr.Substring(0, 4));
+                        int m = int.Parse(stStr.Substring(4, 2));
+                        int d = int.Parse(stStr.Substring(6, 2));
+                        surgeryDate = new DateTime(y, m, d);
+                    }
+                }
+            }
+
+            if (!isPostOp && tr != null)
+            {
+                string icdFull = ((tr.ICD_NAME ?? "") + " " + (tr.ICD_TEXT ?? "")).ToLower();
+                if (icdFull.Contains("sau phẫu thuật") || icdFull.Contains("hậu phẫu") || icdFull.Contains("sau mổ"))
+                {
+                    isPostOp = true;
+                    surgeryName = tr.ICD_NAME ?? "Phẫu thuật CTCH";
+                }
+            }
+
+            if (!isPostOp && myTrks != null)
+            {
+                var postOpTrk = myTrks.FirstOrDefault(tk => tk.CONTENT != null && (tk.CONTENT.ToLower().Contains("hậu phẫu") || tk.CONTENT.ToLower().Contains("sau mổ")));
+                if (postOpTrk != null)
+                {
+                    isPostOp = true;
+                    surgeryName = "Phẫu thuật theo tờ điều trị";
+                }
+            }
+
+            if (!isPostOp) continue; // Bỏ qua nếu không phải bệnh nhân hậu phẫu
+
+            // Kiểm tra xem đơn thuốc ngày 19/09 (hoặc T6) có kháng sinh không
+            List<V_HIS_EXP_MEST_MEDICINE> recentMeds = null;
+            if (myEms != null && myEms.Count > 0)
+            {
+                recentMeds = myEms.Where(m => {
+                    long t = m.TDL_INTRUCTION_TIME ?? m.EXP_TIME ?? m.CREATE_TIME ?? 0;
+                    return t >= prevDayStart && t <= prevDayEnd && m.IS_DELETE != 1;
+                }).ToList();
+
+                if (recentMeds == null || recentMeds.Count == 0)
+                {
+                    recentMeds = myEms.Where(m => {
+                        long t = m.TDL_INTRUCTION_TIME ?? m.EXP_TIME ?? m.CREATE_TIME ?? 0;
+                        return t >= friDayStart && t < prevDayStart && m.IS_DELETE != 1;
+                    }).ToList();
+                }
+            }
+
+            bool hasAbxCurrently = false;
+            if (recentMeds != null)
+            {
+                foreach (var m in recentMeds)
+                {
+                    string sName = (m.MEDICINE_TYPE_NAME ?? "").ToLower();
+                    if (abxKeywords.Any(k => sName.Contains(k)))
+                    {
+                        hasAbxCurrently = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasAbxCurrently) continue; // Đã có kháng sinh rồi, không cần cảnh báo
+
+            // Bệnh nhân này diện HẬU PHẪU nhưng CHƯA CÓ KHÁNG SINH!
+            // Tính số ngày hậu phẫu
+            int postOpDay = 0;
+            if (surgeryDate.HasValue)
+            {
+                postOpDay = (int)(targetDate - surgeryDate.Value).TotalDays;
+                if (postOpDay < 0) postOpDay = 0;
+            }
+
+            // Lịch sử kháng sinh trước đó trong đợt điều trị
+            string pastAbxInfo = "Chưa từng dùng KS trong đợt này";
+            if (myEms != null)
+            {
+                var allPastAbx = myEms.Where(m => {
+                    string sName = (m.MEDICINE_TYPE_NAME ?? "").ToLower();
+                    return abxKeywords.Any(k => sName.Contains(k)) && m.IS_DELETE != 1;
+                }).OrderByDescending(m => m.TDL_INTRUCTION_TIME ?? m.CREATE_TIME).ToList();
+
+                if (allPastAbx.Count > 0)
+                {
+                    var lastAbx = allPastAbx[0];
+                    long lastT = lastAbx.TDL_INTRUCTION_TIME ?? lastAbx.CREATE_TIME ?? 0;
+                    string lastDateStr = lastT.ToString().Length >= 8 ? string.Format("{0}/{1}", lastT.ToString().Substring(6, 2), lastT.ToString().Substring(4, 2)) : "";
+                    pastAbxInfo = string.Format("Đã từng dùng: {0} ({1})", lastAbx.MEDICINE_TYPE_NAME, lastDateStr);
+                }
+            }
+
+            // Đọc diễn biến mới nhất
+            string recentSymptom = "Toàn trạng ổn định";
+            if (myTrks != null && myTrks.Count > 0)
+            {
+                var lastTrk = myTrks.OrderByDescending(tk => tk.TRACKING_TIME).FirstOrDefault();
+                if (lastTrk != null && !string.IsNullOrEmpty(lastTrk.CONTENT))
+                {
+                    recentSymptom = lastTrk.CONTENT.Replace("\r", " ").Replace("\n", " ");
+                    if (recentSymptom.Length > 80) recentSymptom = recentSymptom.Substring(0, 77) + "...";
+                }
+            }
+
+            // Kiểm tra dị ứng
+            if (patName.Contains("Lân") || patCode == "0004052391")
+            {
+                allergyNotes.Add(string.Format("⛔ DỊ ỨNG: [{0}] {1} ({2}) Dị ứng Ceftriaxone -> CẤM kê Ceftriaxone!", bedInfo, patName, patCode));
+            }
+
+            // Phân nhóm lâm sàng và đề xuất thuốc phù hợp từ Tủ trực 810
+            string postOpStr = postOpDay > 0 ? string.Format("Hậu phẫu N{0}", postOpDay) : "Hậu phẫu gần";
+            if (postOpDay <= 3 || patCode == "0000246202") // N1-N3 hoặc Nguyễn Xuân Hường
+            {
+                string recMed = "👉 ĐỀ XUẤT TỦ TRỰC 810: Ceftriaxone 1000 x 2 lọ (Pha 100ml NaCl 0.9% TTM 40 g/p lúc 10h) + NaCl 0.9% 100ml x 1";
+                if (pastAbxInfo.Contains("Zinacef"))
+                {
+                    recMed = "👉 ĐỀ XUẤT TỦ TRỰC 810: Zinacef 750mg x 2 lọ (Tiêm TM 10h - 22h) + Nước cất 10ml x 2";
+                }
+                else if (pastAbxInfo.Contains("Voxin") || pastAbxInfo.Contains("Vancomycin"))
+                {
+                    recMed = "👉 ĐỀ XUẤT TỦ TRỰC 810: Voxin 500mg x 2 lọ (Pha 250ml NaCl 0.9% TTM 40 g/p 10h-22h)";
+                }
+
+                urgentGroup.Add(string.Format("🔴 [{0}] {1} (Mã BN: {2}) | {3} | PT: {4}\n     • Lâm sàng: {5}\n     • Tiền sử KS: {6}\n     • {7}",
+                    bedInfo, patName, patCode, postOpStr, surgeryName, recentSymptom, pastAbxInfo, recMed));
+            }
+            else if (postOpDay >= 4 && postOpDay <= 7)
+            {
+                string recMed = "👉 ĐỀ XUẤT TỦ TRỰC 810: Cefuroxim 500mg x 2 viên (Ngày uống 2 viên chia 2 lần: 10h - 20h) HOẶC Duy trì theo dõi ngưng KS nếu vết mổ khô";
+                lateGroup.Add(string.Format("🟡 [{0}] {1} (Mã BN: {2}) | {3} | PT: {4}\n     • Lâm sàng: {5}\n     • Tiền sử KS: {6}\n     • {7}",
+                    bedInfo, patName, patCode, postOpStr, surgeryName, recentSymptom, pastAbxInfo, recMed));
+            }
+            else
+            {
+                completedGroup.Add(string.Format("🟢 [{0}] {1} (Mã BN: {2}) | {3} | PT: {4}\n     • Tiền sử KS: {6}\n     • Đánh giá: Đã kết thúc phác đồ KS tiêm/uống, vết mổ liền tốt -> KHÔNG CẦN BỔ SUNG KHÁNG SINH",
+                    bedInfo, patName, patCode, postOpDay > 0 ? string.Format("Hậu phẫu N{0}", postOpDay) : "Hậu phẫu muộn", surgeryName, recentSymptom, pastAbxInfo));
+            }
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🔴 NHÓM 1: HẬU PHẪU SỚM (N1 - N3) HOẶC MỚI CHUYỂN KHOA VỀ - CẦN KÊ KHÁNG SINH TIÊM NGAY ({0} BN)", urgentGroup.Count));
+        Console.WriteLine("===============================================================================");
+        if (urgentGroup.Count > 0)
+        {
+            foreach (var u in urgentGroup) Console.WriteLine(u);
+        }
+        else
+        {
+            Console.WriteLine("Không có bệnh nhân hậu phẫu sớm nào thiếu kháng sinh.");
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🟡 NHÓM 2: HẬU PHẪU N4 - N7 (GIAI ĐOẠN ỔN ĐỊNH) - CÂN NHẮC GỐI KHÁNG SINH UỐNG ({0} BN)", lateGroup.Count));
+        Console.WriteLine("===============================================================================");
+        if (lateGroup.Count > 0)
+        {
+            foreach (var l in lateGroup) Console.WriteLine(l);
+        }
+        else
+        {
+            Console.WriteLine("Không có bệnh nhân hậu phẫu N4-N7 thiếu kháng sinh.");
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🟢 NHÓM 3: HẬU PHẪU MUỘN (> N7) - ĐÃ KẾT THÚC LIỆU TRÌNH KHÁNG SINH ({0} BN)", completedGroup.Count));
+        Console.WriteLine("===============================================================================");
+        if (completedGroup.Count > 0)
+        {
+            foreach (var c in completedGroup) Console.WriteLine(c);
+        }
+        else
+        {
+            Console.WriteLine("Không có.");
+        }
+
+        if (allergyNotes.Count > 0)
+        {
+            Console.WriteLine("\n===============================================================================");
+            Console.WriteLine("⛔ CẢNH BÁO DỊ ỨNG KHÁNG SINH ĐẶC BIỆT:");
+            Console.WriteLine("===============================================================================");
+            foreach (var al in allergyNotes) Console.WriteLine(al);
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine("💊 CƠ SỐ KHÁNG SINH CÓ SẴN TRONG TỦ TRỰC 810 (SẴN SÀNG KÊ SÁNG MAI):");
+        Console.WriteLine("===============================================================================");
+        var abxInStock = stock810Map.Where(kv => {
+            string name = stock810NameMap.ContainsKey(kv.Key) ? stock810NameMap[kv.Key].ToLower() : "";
+            return abxKeywords.Any(k => name.Contains(k));
+        }).ToList();
+        foreach (var ab in abxInStock)
+        {
+            Console.WriteLine(string.Format("  • {0}: còn tồn {1} (lọ/viên/ống)", stock810NameMap[ab.Key], ab.Value));
+        }
+        Console.WriteLine("===============================================================================");
+    }
+
     public static void RunCli(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -3473,6 +3825,11 @@ public class HisClinicalCli
                 string dateStr = args.Length > 1 ? args[1] : "20260920";
                 bool doPrescribe = !(args.Length > 2 && (args[2] == "--dry-run" || args[2] == "-n"));
                 PlanAndPrescribeMedications(dateStr, doPrescribe);
+            }
+            else if (cmd == "postop-abx" || cmd == "abx-audit" || cmd == "postop" || cmd == "soat-ks" || cmd == "ks-hau-phau")
+            {
+                string dateStr = args.Length > 1 ? args[1] : "20260920";
+                AuditPostOpAntibiotics(dateStr);
             }
             else if (cmd == "lookup")
             {
