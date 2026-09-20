@@ -127,3 +127,10 @@ Khi cần trích xuất danh sách thuốc từ văn bản đơn thuốc ngoại
 - Sử dụng CLI: `.\HisAiCli.bat json "Trích xuất danh mục thuốc và cách dùng..."`
 - Hệ thống tự động sử dụng **`stealth/ox-alpha`** (Ưu tiên số 1) hoặc **`cohere/north-mini-code:free`** để xuất JSON chuẩn DTO `InPatientPresSDO`.
 
+### 4.6. Thực Thi Kê Đơn Qua HIS MCP Server (Chống Rác File Trong /goal):
+Trong các phiên chạy tự động `/goal`, Agent **BẮT BUỘC** gọi qua công cụ MCP:
+- Kê đơn tủ trực / kho: `his_prescribe_medicine(patientCode, stockId, medicines, facility)`
+- Protocol Thợ cho đường huyết: `his_execute_protocol_glucose(patientCode, glucoseValue, insulinType, units, timeSlot, facility)`
+- Tuyệt đối KHÔNG tự ý tạo file `.cs`, `.ps1` hay `.bat` tạm bợ.
+
+

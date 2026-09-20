@@ -1969,3 +1969,48 @@ Hệ thống HIS Inventec phân định nghiêm ngặt 2 nhóm kho với cơ ch�
 .\HisWarehousePrescribe.bat nutrition 0001666593 "Leanpro PreSur" 6 753 "Uống tối 4 chai 20h, sáng 2 chai 06h"
 ```
 
+---
+
+## 35. HIS CLINICAL MCP SERVER (MODEL CONTEXT PROTOCOL): ĐÓNG GÓI CHUẨN HÓA & TRIỆT TIÊU FILE RÁC TRONG /GOAL
+
+### 35.1. Bối cảnh & Nguyên nhân:
+Khi Agent thực thi nhiệm vụ tự động hóa lâm sàng (đặc biệt trong phiên `/goal` chạy xuyên đêm/lâu dài):
+- Các kịch bản trước đây chỉ dẫn Agent chạy dòng lệnh hoặc viết script tự chế.
+- Dẫn đến việc Agent tự sinh các file script tạm (`.ps1`, `.cs`, `.bat`, `.py`, payload `.json`) làm rác git repository, phá vỡ tính toàn vẹn của mã nguồn và tiềm ẩn nguy cơ gọi sai kho/lỗi compilation.
+- **Giải pháp dứt điểm**: Toàn bộ nghiệp vụ lâm sàng được đóng gói thành **`HisMcpServer.exe`** tuân thủ 100% chuẩn Model Context Protocol (JSON-RPC 2.0 qua stdio). Mọi thao tác đều thực thi in-memory trong RAM và trả trực tiếp vào context LLM.
+
+### 35.2. Cấu hình & Khởi chạy MCP Server:
+* **Mã nguồn**: `HisMcpServer.cs` biên dịch ra `HisMcpServer.exe` (PE x64 .NET Framework 4.8 không cần runtime ngoài).
+* **Script biên dịch**: `.\build_mcp_server.ps1` hoặc `.\build_mcp_server.bat`
+* **Script xuất schema**: `.\export_mcp_schemas.ps1` (tự động xuất 16 file tool schema `.json` sang `~/.gemini/antigravity/mcp/his-clinical/` và đăng ký vào `mcp_config.json`).
+* **Cấu hình Antigravity MCP (`~/.gemini/config/mcp_config.json`)**:
+  ```json
+  {
+    "mcpServers": {
+      "his-clinical": {
+        "command": "D:\\his 3-9\\his-x64-28-11fix GDYK\\his-x64\\HisMcpServer.exe",
+        "args": []
+      }
+    }
+  }
+  ```
+
+### 35.3. Ma trận 16 Công cụ Lâm sàng Native MCP:
+1. `his_patient_lookup`: Tra cứu thông tin BN, buồng bệnh, tiền sử, dịch vụ, đơn cũ.
+2. `his_get_orders`: Xem danh sách y lệnh & trạng thái màu sắc (trắng/vàng/xanh).
+3. `his_cancel_order`: Hủy y lệnh chưa thực hiện (màu trắng).
+4. `his_cancel_service`: Hủy dịch vụ con đơn lẻ trong phiếu y lệnh.
+5. `his_debate_view`: Đọc Biên bản Hội chẩn & ý kiến chuyên khoa khách.
+6. `his_create_tracking`: Tạo Tờ điều trị hàng ngày (DHST + AI sinh diễn biến).
+7. `his_prescribe_medicine`: Kê đơn thuốc tủ trực (HN 810, NB 5142) hoặc kho dược.
+8. `his_assign_bedside_glucose`: Chỉ định ĐMMM tại giường (HN BM02426 / NB NB260620.6231).
+9. `his_assign_ration`: Chỉ định suất ăn dinh dưỡng bệnh lý theo buồng (BT01, DD01...).
+10. `his_assign_leanpro`: Chỉ định dịch dinh dưỡng trước mổ Leanpro PreSur (chặn >=70t/ĐTĐ).
+11. `his_execute_protocol_glucose`: Đặc quyền 'Thợ cho đường huyết' 1-Click (Tờ ĐT -> CLS -> Thuốc +5p).
+12. `his_create_pt01`: Lập biên bản thông qua mổ MS: PT-01 chuẩn docx.
+13. `his_view_pacs`: Tra cứu PACS/RIS và lấy URL xem ảnh Web PACS.
+14. `his_debate_create`: Tạo phiếu chỉ định hội chẩn chuyên khoa Type 17 / Mps000019.
+15. `his_emr_fill`: Điền vỏ bệnh án EMR nội trú Khoa 57 / 915.
+16. `his_system_health`: Kiểm tra sức khỏe kết nối HIS, TokenCode và ping máy chủ.
+
+

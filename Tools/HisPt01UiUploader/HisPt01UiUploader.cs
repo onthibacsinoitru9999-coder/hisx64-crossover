@@ -105,29 +105,103 @@ namespace HisPt01UiUploader
                 HisUiDriver.ActivateWindow(hisWin);
                 Thread.Sleep(500);
 
-                HisUiDriver.PressKey(HisUiDriver.VK_F2, 400);
-                HisUiDriver.SendText(patientQuery);
-                HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 1200);
+                // Tối ưu hóa chuỗi tìm kiếm: Ưu tiên mã bệnh nhân (nếu có trong tên file docx) hoặc chuỗi không dấu
+                string searchKey = patientQuery;
+                Match mCode = Regex.Match(Path.GetFileName(docxPath), @"\b(00\d{8})\b");
+                if (mCode.Success)
+                {
+                    searchKey = mCode.Groups[1].Value;
+                    Console.WriteLine("    -> Sử dụng Mã BN để tìm kiếm chuẩn xác: " + searchKey);
+                }
+                else
+                {
+                    searchKey = HisUiDriver.RemoveDiacritics(patientQuery);
+                    Console.WriteLine("    -> Chuẩn hóa tìm kiếm không dấu: " + searchKey);
+                }
 
-                var patientRow = HisUiDriver.FindElementByName(hisWin, "row 0", 5000);
+                var txtSearch = HisUiDriver.FindElement(hisWin, AutomationElement.AutomationIdProperty, "txtKeyWord", 2000);
+                if (txtSearch != null)
+                {
+                    HisUiDriver.Click(txtSearch, 300);
+                    HisUiDriver.PasteText(searchKey);
+                    HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 1500);
+                }
+                else
+                {
+                    HisUiDriver.PressKey(HisUiDriver.VK_F2, 400);
+                    HisUiDriver.PasteText(searchKey);
+                    HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 1500);
+                }
+
+                var grid = HisUiDriver.FindElement(hisWin, AutomationElement.AutomationIdProperty, "gridControlTreatmentBedRoom", 3000);
+                AutomationElement patientRow = null;
+                if (grid != null)
+                {
+                    patientRow = HisUiDriver.FindElementByName(grid, "row 0", 3000);
+                    if (patientRow == null)
+                    {
+                        patientRow = HisUiDriver.FindElementByName(grid, "Data Panel", 2000);
+                    }
+                }
+                if (patientRow == null)
+                {
+                    patientRow = HisUiDriver.FindElementByName(hisWin, "row 0", 4000);
+                }
+
                 if (patientRow == null)
                 {
                     Console.WriteLine("❌ LỖI: Không tìm thấy dòng bệnh nhân trong danh sách!");
                     return;
                 }
+                
+                try
+                {
+                    var rect = patientRow.Current.BoundingRectangle;
+                    Console.WriteLine(string.Format("    -> Tìm thấy dòng bệnh nhân: '{0}' tại ({1}, {2}, {3}x{4})", 
+                        patientRow.Current.Name, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height));
+                }
+                catch {}
+
                 HisUiDriver.Click(patientRow, 500);
                 Console.WriteLine("    -> Đã chọn bệnh nhân thành công.");
 
                 // PHASE 2: Mở Biểu Mẫu Khác
                 Console.WriteLine("\n[2/5] 📑 Đang mở danh mục 'Biểu mẫu khác hồ sơ điều trị'...");
-                HisUiDriver.RightClick(patientRow, 1000);
+                Thread.Sleep(300);
+                HisUiDriver.RightClick(patientRow, 1500);
 
                 var mnuInAn = HisUiDriver.FindElementByName(AutomationElement.RootElement, "In ấn", 5000);
-                if (mnuInAn != null) HisUiDriver.Click(mnuInAn, 800);
+                if (mnuInAn != null)
+                {
+                    Console.WriteLine("    -> Tìm thấy menu 'In ấn'. Đang mở menu con...");
+                    HisUiDriver.Hover(mnuInAn, 400);
+                    var r = mnuInAn.Current.BoundingRectangle;
+                    if (!r.IsEmpty)
+                        HisUiDriver.ClickPoint((int)(r.Left + r.Width / 2), (int)(r.Top + r.Height / 2), 1500);
+                    else
+                        HisUiDriver.Click(mnuInAn, 1500);
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ Cảnh báo: Không tìm thấy menu 'In ấn'!");
+                }
 
                 var mnuBieuMau = HisUiDriver.FindElementByName(AutomationElement.RootElement, "Biễu mẫu khác", 5000);
                 if (mnuBieuMau == null) mnuBieuMau = HisUiDriver.FindElementByName(AutomationElement.RootElement, "Biểu mẫu khác", 3000);
-                if (mnuBieuMau != null) HisUiDriver.Click(mnuBieuMau, 2000);
+                if (mnuBieuMau != null)
+                {
+                    Console.WriteLine("    -> Tìm thấy mục 'Biễu mẫu khác'. Đang mở cửa sổ biểu mẫu...");
+                    var r = mnuBieuMau.Current.BoundingRectangle;
+                    if (!r.IsEmpty)
+                        HisUiDriver.ClickPoint((int)(r.Left + r.Width / 2), (int)(r.Top + r.Height / 2), 3000);
+                    else
+                        HisUiDriver.Click(mnuBieuMau, 3000);
+                }
+                else
+                {
+                    Console.WriteLine("❌ LỖI: Không tìm thấy mục 'Biễu mẫu khác hồ sơ điều trị'!");
+                    return;
+                }
 
                 var winBieuMau = HisUiDriver.FindTopWindow("Biểu mẫu khác", 8000);
                 if (winBieuMau == null)
@@ -136,15 +210,23 @@ namespace HisPt01UiUploader
                     return;
                 }
                 HisUiDriver.ActivateWindow(winBieuMau);
-                Thread.Sleep(500);
+                Thread.Sleep(800);
 
                 HisUiDriver.PressShortcut(HisUiDriver.VK_F, ctrl: true);
-                Thread.Sleep(500);
+                Thread.Sleep(600);
                 HisUiDriver.SendText("pt");
                 HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 1000);
 
                 var btnEdit = HisUiDriver.FindElementByName(winBieuMau, "Editing control", 4000);
-                if (btnEdit != null) HisUiDriver.Click(btnEdit, 3000);
+                if (btnEdit != null)
+                {
+                    HisUiDriver.Click(btnEdit, 3000);
+                }
+                else
+                {
+                    var firstRow = HisUiDriver.FindElementByName(winBieuMau, "row 0", 2000);
+                    if (firstRow != null) HisUiDriver.DoubleClick(firstRow, 3000);
+                }
                 Console.WriteLine("    -> Đã mở trình soạn thảo biểu mẫu PT-01.");
 
                 // PHASE 3: Nạp File Word & Lưu
@@ -166,7 +248,7 @@ namespace HisPt01UiUploader
                 if (dlgOpen != null)
                 {
                     HisUiDriver.ActivateWindow(dlgOpen);
-                    Thread.Sleep(300);
+                    Thread.Sleep(500);
 
                     var editFileName = HisUiDriver.FindElement(dlgOpen, AutomationElement.AutomationIdProperty, "1148", 2000);
                     if (editFileName == null) editFileName = HisUiDriver.FindElement(dlgOpen, AutomationElement.ClassNameProperty, "Edit", 2000);
@@ -174,13 +256,19 @@ namespace HisPt01UiUploader
                     if (editFileName != null)
                     {
                         HisUiDriver.SetText(editFileName, cleanDocx);
+                        Thread.Sleep(300);
                         HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 2500);
                     }
                     else
                     {
                         HisUiDriver.SendText(cleanDocx);
+                        Thread.Sleep(300);
                         HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 2500);
                     }
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ Cảnh báo: Không tìm thấy hộp thoại 'Open'!");
                 }
 
                 Thread.Sleep(2000);
@@ -208,12 +296,25 @@ namespace HisPt01UiUploader
                 if (winLuongKy != null)
                 {
                     HisUiDriver.ActivateWindow(winLuongKy);
-                    Thread.Sleep(500);
+                    Thread.Sleep(800);
+
+                    // Mở danh sách chọn mẫu luồng ký
+                    var cboTemplate = HisUiDriver.FindElement(winLuongKy, AutomationElement.AutomationIdProperty, "cboSignTemplate", 3000);
+                    if (cboTemplate != null)
+                    {
+                        var dropBtn = HisUiDriver.FindElement(cboTemplate, AutomationElement.ControlTypeProperty, ControlType.Button, 1500);
+                        if (dropBtn != null) HisUiDriver.Click(dropBtn, 1000);
+                        else HisUiDriver.Click(cboTemplate, 1000);
+                    }
 
                     // Chọn mẫu luồng ký thứ 3
                     var row3 = HisUiDriver.FindElementByName(AutomationElement.RootElement, "SIGN_TEMP_NAME row 3", 4000);
                     if (row3 == null) row3 = HisUiDriver.FindElementByName(winLuongKy, "row 3", 3000);
                     if (row3 != null) HisUiDriver.Click(row3, 1000);
+
+                    // Nếu có hộp thoại xác nhận 'Có / Không' (ID 6)
+                    var btnCo = HisUiDriver.FindElementByName(AutomationElement.RootElement, "Có", 2000);
+                    if (btnCo != null) HisUiDriver.Click(btnCo, 1000);
 
                     if (!string.IsNullOrEmpty(signer))
                     {
@@ -226,9 +327,11 @@ namespace HisPt01UiUploader
                         {
                             HisUiDriver.Click(editSigner, 200);
                             HisUiDriver.SetText(editSigner, signer);
-                            Thread.Sleep(500);
+                            Thread.Sleep(800);
+                            HisUiDriver.PressKey(HisUiDriver.VK_RETURN, 500);
 
                             var btnAdd = HisUiDriver.FindElement(winLuongKy, AutomationElement.AutomationIdProperty, "btnAdd", 3000);
+                            if (btnAdd == null) btnAdd = HisUiDriver.FindElementByName(winLuongKy, "Thêm người ký", 2000);
                             if (btnAdd != null) HisUiDriver.Click(btnAdd, 1000);
 
                             var btnDown = HisUiDriver.FindElementByName(winLuongKy, "Down", 2000);
@@ -241,6 +344,7 @@ namespace HisPt01UiUploader
                     }
 
                     var btnSaveLuongKy = HisUiDriver.FindElement(winLuongKy, AutomationElement.AutomationIdProperty, "btnSave", 3000);
+                    if (btnSaveLuongKy == null) btnSaveLuongKy = HisUiDriver.FindElementByName(winLuongKy, "Cập nhật", 2000);
                     if (btnSaveLuongKy != null) HisUiDriver.Click(btnSaveLuongKy, 3000);
                     Console.WriteLine("    -> Đã cấu hình luồng ký thành công.");
                 }
@@ -283,6 +387,10 @@ namespace HisPt01UiUploader
         private static string AutoFindDocx(string query)
         {
             string baseDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "BienBanHoiChan_PT01");
+            if (!Directory.Exists(baseDir))
+            {
+                baseDir = Path.Combine(Directory.GetCurrentDirectory(), "Reports", "BienBanHoiChan_PT01");
+            }
             if (!Directory.Exists(baseDir)) return string.Empty;
 
             string q = query.Trim();

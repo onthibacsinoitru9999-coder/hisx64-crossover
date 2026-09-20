@@ -79,3 +79,11 @@ Kết quả hiển thị:
   .\HisAiCli.bat ask "Chuẩn hóa diễn biến bệnh cho BN hậu phẫu nẹp vít cột sống ngày 2..."
   ```
 - Mô hình AI đa tầng miễn phí (`minimax/minimax-m3:free` hoặc `openrouter/free`) sẽ chuẩn hóa format y khoa trước khi truyền vào `HisTrackingCreator.exe`.
+
+---
+
+## 6. Thực Thi Tạo Tờ Điều Trị Qua HIS MCP Server (Chống Rác File Trong /goal)
+Trong các phiên chạy tự động `/goal`, Agent **BẮT BUỘC** gọi qua công cụ MCP:
+- `his_create_tracking(patientCode, progressNote, pulse, bloodPressure, temperature, spO2, instructionTime)`
+- Mọi diễn biến lâm sàng được truyền qua tham số và ký số HSM tự động, tuyệt đối KHÔNG tạo script tạm.
+

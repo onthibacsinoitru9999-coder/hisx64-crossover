@@ -6,17 +6,18 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 
 
 
-## 0. CAM FREESTYLE SCRIPT (BAT BUOC 100% — DOC TRUOC MOI THU)
+## 0. CAM FREESTYLE SCRIPT & QUY CHUẨN HIS MCP SERVER (BẮT BUỘC 100% — ĐỌC TRƯỚC MỌI THỨ)
 
-**Van de thuc te 2026-09-16:** Agent tu viet `Prescribe*.cs` / compile `csc` moi viec ke thuoc tu truc → TakeBean OK nhung `OutPatientPresCreateList` fail Messages rong; DLL Inventec mat; de ke nham kho 4210.
+**Vấn đề thực tế 2026-09-16 & 2026-09-20:** Agent tự viết `Prescribe*.cs` / compile `csc` / tự tạo các file script tạm (`.ps1`, `.bat`, `.py`, payload `.json`) khi chạy nhiệm vụ `/goal` → Gây rác thư mục, dirty git repo, vỡ compilation, mất DLL Inventec; dễ kê nhầm kho 4210.
 
-### CAM TUYET DOI
-1. **CAM** tao file C# one-off (`PrescribeXxx.cs`, `CheckStock*.cs`, ad-hoc `Program.Main`) cho ke don / CLS / to dieu tri neu tool trong bang muc 2 da co.
-2. **CAM** compile bang `csc` cho nghiep vu lam sang hang ngay.
-3. **CAM** hardcode `TrackingId`.
-4. **CAM** ke y lenh tu truc tu kho `4209` / `4210` (Kho duoc). Ha Noi Khoa 57 = **`MediStockId 810`**.
-5. **CAM** bao thanh cong khi API tra null / Messages rong.
+### CẤM TUYỆT ĐỐI
+1. **CẤM** tạo file C# / PowerShell / Batch / Python tạm bợ một lần (`PrescribeXxx.cs`, `test.ps1`, `script.py`, payload `.json`) trong quá trình thực hiện nhiệm vụ hoặc chạy `/goal`.
+2. **CẤM** compile bằng `csc` cho nghiệp vụ lâm sàng hàng ngày khi tool hoặc MCP Server đã có sẵn.
+3. **CẤM** hardcode `TrackingId`.
+4. **CẤM** kê y lệnh tủ trực từ kho `4209` / `4210` (Kho dược). Hà Nội Khoa 57 = **`MediStockId 810`**; Ninh Bình Khu 3E = **`5142`**.
+5. **CẤM** báo thành công khi API trả null / Messages rỗng.
 
+<<<<<<< HEAD
 ### BAT BUOC
 1. Kê thuốc / vật tư / dinh dưỡng / Insulin từ **TỦ TRỰC** (`IS_CABINET = 1`) → **chỉ** `HisCabinetPrescribe.bat` (hoặc `HisAutoPrescribe.exe`).
 2. Kê đơn thuốc / dinh dưỡng **LĨNH TỪ KHO DƯỢC / CẤP PHÁT** (`IS_CABINET = 0`) → **chỉ** `HisWarehousePrescribe.bat`.
@@ -24,12 +25,27 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 4. Chạy exe/bat **từ thư mục gốc project** (sau `. .\set_env.ps1`), không tự ý viết file C# one-off.
 5. Nếu tool fail ≤ 2 lần: dừng, in Messages+BugCodes, báo bác sĩ — **không** viết script thử-sai kéo dài.
 6. Nếu cần sửa bug tool: sửa trực tiếp trong `HisCabinetPrescribe.cs` / `HisWarehousePrescribe.cs` / CLI sẵn có, build lại qua `build_all_cs_tools.ps1` — **không** fork sang file script tạm.
+=======
+### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG /GOAL
+1. **Ưu tiên số 1 (Chống rác file 100%)**: Sử dụng các công cụ **HIS MCP Server** (`his_*`) chạy qua giao thức JSON-RPC 2.0 (`HisMcpServer.exe`). Mọi dữ liệu vào/ra truyền qua RAM/stdio, **hoàn toàn không tạo bất kỳ file tạm nào trên đĩa**.
+   - Tra cứu: `his_patient_lookup`, `his_get_orders`, `his_debate_view`
+   - Kê đơn / Tiêm: `his_prescribe_medicine`
+   - Tờ điều trị: `his_create_tracking`
+   - ĐMMM & Thợ đường huyết: `his_assign_bedside_glucose`, `his_execute_protocol_glucose`
+   - Suất ăn & Dinh dưỡng: `his_assign_ration`, `his_assign_leanpro`
+   - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
+   - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
+   - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
+2. **Nếu gọi CLI ngoài MCP**: Chạy trực tiếp file exe biên dịch sẵn từ thư mục gốc project (sau `. .\set_env.ps1`), không fork file mới.
+3. Nếu tool fail ≤ 2 lần: dừng, in Messages+BugCodes, báo bác sĩ — **không** viết script thử-sai kéo dài.
+4. Nếu cần sửa bug tool: sửa code nguồn chuẩn (`HisMcpServer.cs`, `HisClinicalCli.cs`, `HisAutoPrescribe.cs`), chạy `build_mcp_server.ps1` hoặc `build_all_cs_tools.ps1`, ghi playbook — **không** tạo file tạm.
+>>>>>>> dbafaeb (feat: pack clinical skills into JSON-RPC 2.0 HisMcpServer to eliminate trash scripts during /goal)
 
-### Checklist truoc khi goi API ghi
-- [ ] Login `034727` (tru khi user chi dinh khac)
-- [ ] `UpdateWorkInfo` (phong truc 5248 + buong BN)
-- [ ] Tu truc HN: stock **810** + flow TakeBean → OutPatientPresCreateList + IsCabinet
-- [ ] TrackingId lay tu EnsureTracking / tracking ngay — khong hardcode
+### Checklist trước khi gọi API ghi
+- [ ] Login `034727` (trừ khi user chỉ định khác)
+- [ ] `UpdateWorkInfo` (phòng trực 5248 + buồng BN)
+- [ ] Tủ trực HN: stock **810**; Tủ trực NB: stock **5142** + flow TakeBean → OutPatientPresCreateList + IsCabinet
+- [ ] TrackingId lấy từ EnsureTracking / tracking ngày — không hardcode
 
 ---
 ## 1. QUY TẮC ĐẦU PHIÊN CHO MỌI KHUNG CHAT MỚI (PRE-FLIGHT SYNC - BẮT BUỘC 100%)
@@ -61,32 +77,34 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   2. Nếu Bác sĩ chưa khai báo: Agent kiểm tra branch Git hiện tại (`git branch --show-current`). Nếu ở `ninh-binh` thì chạy cấu hình Ninh Bình; nếu ở `ha-noi` thì chạy cấu hình Hà Nội.
   3. TUYỆT ĐỐI CẤM tự ý áp dụng catalog Hà Nội cho bệnh nhân Ninh Bình (sẽ gây lỗi `Success: false` do mã `BM02426` không có trong hợp đồng BHYT Ninh Bình) hoặc ngược lại.
 
-## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC PHẦN MỀM CON (SINGLE RESPONSIBILITY CLI MATRIX)
-Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục đích chuyên biệt. **TUYỆT ĐỐI KHÔNG GỌI NHẦM CÔNG CỤ (Đặc biệt: Khi tra cứu thông tin CẤM gọi `HisAutoPrescribe.exe`)**:
+## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC CÔNG CỤ (MCP TOOL & SINGLE RESPONSIBILITY CLI MATRIX)
+Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập. **ƯU TIÊN SỐ 1 TRONG /GOAL: GỌI TRỰC TIẾP MCP TOOL (KHÔNG TẠO FILE RÁC)**. Khi gọi CLI, chỉ dùng exe biên dịch sẵn:
 
-| Mục Đích / Yêu Cầu Của Bác Sĩ | Công Cụ DUY NHẤT Được Phép Gọi | Lệnh Mẫu Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
-| :--- | :--- | :--- | :--- |
-| 🔍 **Tra cứu thông tin BN, buồng, tiền sử, dịch vụ, đơn cũ** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
-| 📋 **Xem danh sách y lệnh & trạng thái màu sắc (trắng/vàng/xanh)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN>` | ❌ Không tự cào DB |
-| 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (chỉ định màu trắng)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
-| 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu y lệnh** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
-| 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro, thay băng từ TỦ TRỰC** | **`HisCabinetPrescribe.exe`** | `.\HisCabinetPrescribe.bat single ...` hoặc `multi` hoặc `stock` | ❌ Không gọi API kê lĩnh 4210 |
-| 🏭 **Kê đơn thuốc nội trú thường quy, dinh dưỡng LĨNH KHO DƯỢC** | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` hoặc `multi` hoặc `search` | ❌ Không gọi API tủ trực (TakeBean) |
-| 📋 **Đối soát & kiểm tra thiếu Sơ kết 3 ngày / 7 ngày** | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |
-| 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
-| 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | **`HisGlucoseBedsideAssigner.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
-| 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01, DD01, TM01`)** | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
-| 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro PreSur)** | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN1,MãBN2>"` | ❌ Không kê người >= 70t / ĐTĐ |
-| 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17 / Mps000019)** | **`HisDebateCreator.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
-| 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
-| 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
-| 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
-| 📑 **Tạo Biên bản Hội chẩn thông qua mổ (MS: PT-01)** | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN1,MãBN2,...>` | ❌ Không phá vỡ format mẫu docx |
-| 🚀 **Nạp & Ký số Biên bản PT-01 vào EMR qua UI** | **`HisPt01UiUploader.exe`** | `.\HisPt01UiUploader.bat <MãBN|TênBN> [--signer "duy thanh"] [--dry-run]` | ❌ Không ký thủ công lặp lại |
-| ⚡ **Ghi nhận & học thao tác UI (Click/Phím/Text)** | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` hoặc `.\HisUiWrapper.exe --launch` | ❌ Không ghi ứng dụng ngoài HIS |
-| 🔪 **Thao tác Tiểu phẫu & Thủ thuật (Rút đinh, Khâu...)** | **`his-minor-surgery`** | Skill `.agents/skills/his-minor-surgery/` | ❌ Không bỏ sót kíp mổ & xuất tủ trực |
-| 🔄 **Chuyển đổi UI Recording thành Agent Skill** | **`SynthesizeSkill.bat`** | `.\Tools\HisUiWrapper\SynthesizeSkill.bat [Folder]` | ❌ Không cấu hình thủ công sai chuẩn |
-| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR & Khởi tạo Trang bìa** | **`his-inpatient-surgery-record`** / `HisEmrFiller.exe` | `.\HisEmrFiller.bat <MãBN> [--save] [--force]` | ❌ Không dùng cho ca Ngoại trú / Phòng khám |
+| Mục Đích / Yêu Cầu Của Bác Sĩ | MCP Tool (Ưu Tiên Số 1) | Công Cụ CLI Fallback | Lệnh Mẫu CLI Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
+| :--- | :--- | :--- | :--- | :--- |
+| 🔍 **Tra cứu thông tin BN, buồng, tiền sử, đơn cũ** | `his_patient_lookup` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
+| 📋 **Xem danh sách y lệnh & trạng thái màu sắc** | `his_get_orders` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe orders <MãBN>` | ❌ Không tự cào DB |
+| 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (màu trắng)** | `his_cancel_order` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
+| 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu** | `his_cancel_service` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
+| 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa** | `his_debate_view` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
+| 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro từ TỦ TRỰC** | `his_prescribe_medicine` | **`HisCabinetPrescribe.exe`** / `HisAutoPrescribe.exe` | `.\HisCabinetPrescribe.bat single ...` hoặc `.\HisAutoPrescribe.exe single` | ❌ Không gọi API kê lĩnh 4210 |
+| 🏭 **Kê đơn thuốc nội trú thường quy LĨNH KHO DƯỢC** | `his_prescribe_medicine` | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` | ❌ Không gọi API tủ trực (TakeBean) |
+| 📝 **Tạo tờ điều trị hàng ngày (DHST + AI)** | `his_create_tracking` | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` | ❌ Không dùng kê đơn |
+| 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | `his_assign_bedside_glucose` | **`HisGlucoseBedsideAssigner.exe`** | `.\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
+| ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` | Pipeline 3 bước | Tự động Tờ ĐT -> CLS -> Thuốc +5p | ❌ Không đổi thứ tự |
+| 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
+| 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
+| 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
+| 📑 **Tạo Biên bản Hội chẩn thông qua mổ (PT-01)** | `his_create_pt01` | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN>` | ❌ Không phá vỡ docx |
+| 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang)** | `his_view_pacs` | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
+| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR Nội trú** | `his_emr_fill` | **`HisEmrFiller.exe`** | `.\HisEmrFiller.bat <MãBN> [--save] [--force]` | ❌ Không dùng cho Ngoại trú |
+| 🩺 **Kiểm tra sức khỏe hệ thống & Ping server** | `his_system_health` | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
+| 📋 **Đối soát & kiểm tra thiếu Sơ kết 3/7 ngày** | - | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |
+| 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | - | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
+| 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | - | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
+| 🚀 **Nạp & Ký số Biên bản PT-01 vào EMR UI** | - | **`HisPt01UiUploader.exe`** | `.\HisPt01UiUploader.bat <MãBN>` | ❌ Không ký thủ công lặp lại |
+| ⚡ **Ghi nhận & học thao tác UI (Click/Phím)** | - | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` | ❌ Không ghi ngoài HIS |
+| 🔪 **Thao tác Tiểu phẫu & Thủ thuật (Rút đinh)** | - | Skill `.agents/skills/his-minor-surgery/` | Skill minor surgery | ❌ Không bỏ sót kíp mổ |
 
 ### 🌟 QUY TẮC BẮT BUỘC: VỎ BỆNH ÁN NGOẠI KHOA CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ (INPATIENT ONLY)
 * **TUYỆT ĐỐI CẤM**: Không tạo Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA` / EMR) cho bệnh nhân khám ngoại trú / phòng khám (`TDL_TREATMENT_TYPE_ID != 3`).

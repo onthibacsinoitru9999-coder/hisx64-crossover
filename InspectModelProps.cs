@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using MOS.EFMODEL.DataModels;
 
@@ -10,6 +10,7 @@ class Program
         PrintProps(typeof(V_HIS_TRACKING));
         PrintProps(typeof(V_HIS_SERE_SERV));
         PrintProps(typeof(V_HIS_EXP_MEST_MEDICINE));
+        PrintProps(typeof(V_HIS_SERE_SERV_TEIN));
     }
 
     static void PrintProps(Type t)

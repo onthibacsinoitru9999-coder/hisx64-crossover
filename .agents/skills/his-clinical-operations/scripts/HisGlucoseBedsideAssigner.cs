@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Drawing;
@@ -1606,7 +1606,6 @@ public class MainForm : Form
                     MultipleExecute = 1,
                     IsNotUseBhyt = false,
                     IsNoHeinDifference = false,
-                    IsGuaranteed = false,
                     EkipInfos = new List<EkipSDO>()
                 }
             }

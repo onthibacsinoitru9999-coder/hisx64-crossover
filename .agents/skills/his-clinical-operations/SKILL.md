@@ -317,3 +317,17 @@ Hỗ trợ Bác sĩ hủy nhanh các y lệnh thừa hoặc chỉ định nhầm
 1. **Chỉ xóa màu trắng (`SERVICE_REQ_STT_ID = 1`)**: Chặn 100% việc xóa y lệnh đang thực hiện (vàng) hoặc đã có kết quả (xanh).
 2. **Không sửa Audit Trail**: Tuyệt đối không can thiệp sửa tên người chỉ định trong CSDL.
 3. **Tự động dọn dẹp EMR**: Tự động phát hiện và gọi `api/EmrDocument/Delete` nếu y lệnh có văn bản ký số EMR liên kết.
+
+---
+
+## 12. Thực Thi Lâm Sàng Qua HIS MCP Server (Chống Rác File Trong /goal)
+
+Trong các phiên chạy tự động `/goal`, Agent **BẮT BUỘC** gọi qua các công cụ MCP:
+- **Tra cứu hồ sơ**: `his_patient_lookup(patientCode, facility)`
+- **Xem y lệnh & trạng thái màu**: `his_get_orders(patientCode)`
+- **Hủy phiếu y lệnh trắng**: `his_cancel_order(orderId)`
+- **Hủy dịch vụ con đơn lẻ**: `his_cancel_service(serviceReqMatId)`
+- **Đọc biên bản hội chẩn**: `his_debate_view(patientCode)`
+- **Kiểm tra kết nối hệ thống**: `his_system_health()`
+- Tuyệt đối KHÔNG tự ý tạo file script `.cs`, `.ps1` hay `.bat` tạm bợ.
+

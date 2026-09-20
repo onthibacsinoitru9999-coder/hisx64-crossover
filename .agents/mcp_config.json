@@ -1,0 +1,13 @@
+﻿{
+    "mcpServers":  {
+                       "his-clinical":  {
+                                            "args":  [
+
+                                                     ],
+                                            "env":  {
+                                                        "HIS_BASE_DIR":  "D:\\his 3-9\\his-x64-28-11fix GDYK\\his-x64"
+                                                    },
+                                            "command":  "D:\\his 3-9\\his-x64-28-11fix GDYK\\his-x64\\HisMcpServer.exe"
+                                        }
+                   }
+}
