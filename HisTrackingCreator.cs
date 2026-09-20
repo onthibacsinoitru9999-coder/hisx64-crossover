@@ -1557,35 +1557,9 @@ public class MainForm : Form
             string docUser = !string.IsNullOrEmpty(doctorName) ? doctorName : CurrentUserName;
             if (string.IsNullOrEmpty(docUser) || docLogin == "034727") docUser = "NGUYỄN HỮU SÂM";
 
-            // ──────────────────────────────────────────────────────────
-            // GIẢI PHÁP A: Query xem EMR đã tự sinh Type 7 chưa
-            // ──────────────────────────────────────────────────────────
-            Thread.Sleep(1500); // Chờ EMR backend xử lý xong
-            var docFilter = new EmrDocumentFilter
-            {
-                TREATMENT_CODE__EXACT = treatmentCode,
-                DOCUMENT_TYPE_ID = 7
-            };
-            CommonParam pDoc = new CommonParam();
-            var docs = myAdapter.FetchList<EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, pDoc);
-
             EMR_DOCUMENT targetDoc = null;
 
-            // Tìm document có tag HIS_TRACKING khớp với trackingId này
-            if (trackingId.HasValue && docs != null)
-            {
-                string tag = "HIS_TRACKING:" + trackingId.Value;
-                targetDoc = docs.FirstOrDefault(d => d.HIS_CODE != null && d.HIS_CODE.Contains(tag));
-            }
-
-            // Nếu EMR tự sinh (không có HIS_CODE cụ thể nhưng có Type 7 mới nhất chưa ký)
-            if (targetDoc == null && docs != null && docs.Count > 0)
-            {
-                targetDoc = docs.OrderByDescending(d => d.ID).FirstOrDefault(d =>
-                    string.IsNullOrEmpty(d.NEXT_SIGNER) == false &&
-                    (string.Equals(d.NEXT_SIGNER, docLogin, StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(d.NEXT_SIGNER, "034727", StringComparison.OrdinalIgnoreCase)));
-            }
+            Console.Error.WriteLine("[AutoSign DEBUG] Bỏ qua Giải pháp A → Thẳng vào B (EMR không tự sinh Type 7)");
 
             // ──────────────────────────────────────────────────────────
             // GIẢI PHÁP B: EMR không tự sinh → Tạo PDF tờ điều trị thật
@@ -1596,10 +1570,13 @@ public class MainForm : Form
                     treatmentCode, trackingId, sheetOrder, trackingTime,
                     docUser, docLogin);
 
+                Console.Error.WriteLine(string.Format("[AutoSign DEBUG] GenerateTrackingPdf: {0}", pdfBytes != null ? pdfBytes.Length + " bytes" : "null"));
+
                 if (pdfBytes == null || pdfBytes.Length == 0)
                 {
                     // Fallback: PDF không sinh được → dùng placeholder tối thiểu nhưng có text
                     pdfBytes = GenerateMinimalTrackingPdf(treatmentCode, trackingId, sheetOrder, trackingTime, docUser);
+                    Console.Error.WriteLine(string.Format("[AutoSign DEBUG] MinimalPdf fallback: {0}", pdfBytes != null ? pdfBytes.Length + " bytes" : "null"));
                 }
 
                 string base64Pdf = Convert.ToBase64String(pdfBytes);
@@ -1615,7 +1592,7 @@ public class MainForm : Form
                     HisCode = hisCode,
                     DepartmentCode = "9",
                     DocumentTime = docTime,
-                    Loginname = docLogin,
+                    Loginname = "034727",   // Hardcode BS có HSM
                     PaperName = "A4",
                     RawKind = 9,
                     Width = 827.0m,
@@ -1626,9 +1603,9 @@ public class MainForm : Form
                         new EMR.TDO.SignTDO
                         {
                             NumOrder = 1,
-                            Loginname = docLogin,
-                            Username = docUser,
-                            FullName = docUser,
+                            Loginname = "034727",
+                            Username = "NGUYỄN HỮU SÂM",
+                            FullName = "NGUYỄN HỮU SÂM",
                             Title = "Ths.BS",
                             DepartmentCode = "9",
                             DepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống"
@@ -1640,13 +1617,20 @@ public class MainForm : Form
 
                 CommonParam pTdo = new CommonParam();
                 var docRes = myAdapter.PostData<EMR.TDO.DocumentTDO>("api/EmrDocument/CreateByTdo", emrConsumer, docTdo, pTdo);
+                Console.Error.WriteLine(string.Format("[AutoSign DEBUG] CreateByTdo: {0}", docRes != null ? "DocId=" + docRes.DocumentId : "null"));
+                if (docRes == null && pTdo.Messages != null && pTdo.Messages.Count > 0)
+                    Console.Error.WriteLine("[AutoSign DEBUG] CreateByTdo Messages: " + string.Join("; ", pTdo.Messages));
                 if (docRes != null && docRes.DocumentId.HasValue)
                 {
                     targetDoc = new EMR_DOCUMENT { ID = docRes.DocumentId.Value, DOCUMENT_CODE = docRes.DocumentCode };
                 }
             }
 
-            if (targetDoc == null) return false;
+            if (targetDoc == null)
+            {
+                Console.Error.WriteLine("[AutoSign DEBUG] targetDoc still null after B → return false");
+                return false;
+            }
 
             // ──────────────────────────────────────────────────────────
             // KÝ ĐIỆN TỬ CLOUD HSM
@@ -1654,6 +1638,7 @@ public class MainForm : Form
             var signFilter = new EmrSignFilter { DOCUMENT_ID = targetDoc.ID };
             CommonParam pSign = new CommonParam();
             var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
+            Console.Error.WriteLine(string.Format("[AutoSign DEBUG] Signs found: {0}", signs != null ? signs.Count : -1));
             var mySign = signs != null ? signs.FirstOrDefault(s =>
                 (string.Equals(s.LOGINNAME, docLogin, StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(s.LOGINNAME, "034727", StringComparison.OrdinalIgnoreCase) ||
@@ -1661,7 +1646,11 @@ public class MainForm : Form
                 (s.SIGN_TIME == null || s.SIGN_TIME == 0)
             ) : null;
 
-            if (mySign == null) return false;
+            if (mySign == null)
+            {
+                Console.Error.WriteLine("[AutoSign DEBUG] mySign == null → return false");
+                return false;
+            }
 
             long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
             var signSdo = new EmrSignHsmSDO
@@ -1691,6 +1680,7 @@ public class MainForm : Form
             };
 
             var resSign = myAdapter.PostData<EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSign);
+            Console.Error.WriteLine(string.Format("[AutoSign DEBUG] SignPdfHsm: {0}", resSign != null ? (resSign.EmrSign != null ? "OK" : "EmrSign=null") : "null"));
             if (resSign != null && resSign.EmrSign != null)
             {
                 return true;
@@ -1706,11 +1696,14 @@ public class MainForm : Form
                         new EMR_SIGN { ID = mySign.ID, SIGN_TIME = signTime }
                     }
                 };
-                return myAdapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSign);
+                bool updResult = myAdapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSign);
+                Console.Error.WriteLine(string.Format("[AutoSign DEBUG] UpdateSdo fallback: {0}", updResult));
+                return updResult;
             }
         }
-        catch
+        catch (Exception exSign)
         {
+            Console.Error.WriteLine("[AutoSign ERROR] " + exSign.Message);
             return false;
         }
     }
@@ -1896,7 +1889,7 @@ p { margin: 2px 0; }
 
             // Thiết lập trang A4
             var pageSetup = builder.PageSetup;
-            pageSetup.PaperSize = Enum.Parse(paperSizeType, "A4");
+            pageSetup.PaperSize = (dynamic)Enum.Parse(paperSizeType, "A4");
             pageSetup.TopMargin = 25.0;
             pageSetup.BottomMargin = 25.0;
             pageSetup.LeftMargin = 35.0;
@@ -1905,15 +1898,28 @@ p { margin: 2px 0; }
             builder.InsertHtml(html);
             wordDoc.UpdatePageLayout();
 
-            using (var ms = new System.IO.MemoryStream())
+            string tempPdf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "his_tracking_" + DateTime.Now.Ticks + ".pdf");
+            try
             {
-                object saveFormatPdf = Enum.Parse(saveFormatType, "Pdf");
-                wordDoc.Save(ms, saveFormatPdf);
-                return ms.ToArray();
+                wordDoc.Save(tempPdf);  // Aspose tự detect PDF format từ extension
+                byte[] result = System.IO.File.ReadAllBytes(tempPdf);
+                System.IO.File.Delete(tempPdf);
+                return result;
+            }
+            catch
+            {
+                // Fallback: thử overload Save(Stream, dynamic)
+                using (var ms = new System.IO.MemoryStream())
+                {
+                    object saveFormatPdf = Enum.Parse(saveFormatType, "Pdf");
+                    wordDoc.Save((System.IO.Stream)ms, (dynamic)saveFormatPdf);
+                    return ms.ToArray();
+                }
             }
         }
-        catch
+        catch (Exception exPdf)
         {
+            Console.Error.WriteLine("[GenerateTrackingPdf ERROR] " + exPdf.Message);
             return null;
         }
     }
