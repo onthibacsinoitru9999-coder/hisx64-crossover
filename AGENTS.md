@@ -17,16 +17,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 4. **CẤM** kê y lệnh tủ trực từ kho `4209` / `4210` (Kho dược). Hà Nội Khoa 57 = **`MediStockId 810`**; Ninh Bình Khu 3E = **`5142`**.
 5. **CẤM** báo thành công khi API trả null / Messages rỗng.
 
-<<<<<<< HEAD
-### BAT BUOC
-1. Kê thuốc / vật tư / dinh dưỡng / Insulin từ **TỦ TRỰC** (`IS_CABINET = 1`) → **chỉ** `HisCabinetPrescribe.bat` (hoặc `HisAutoPrescribe.exe`).
-2. Kê đơn thuốc / dinh dưỡng **LĨNH TỪ KHO DƯỢC / CẤP PHÁT** (`IS_CABINET = 0`) → **chỉ** `HisWarehousePrescribe.bat`.
-3. Tra cứu / orders / cancel → **chỉ** `HisClinicalCli.exe`.
-4. Chạy exe/bat **từ thư mục gốc project** (sau `. .\set_env.ps1`), không tự ý viết file C# one-off.
-5. Nếu tool fail ≤ 2 lần: dừng, in Messages+BugCodes, báo bác sĩ — **không** viết script thử-sai kéo dài.
-6. Nếu cần sửa bug tool: sửa trực tiếp trong `HisCabinetPrescribe.cs` / `HisWarehousePrescribe.cs` / CLI sẵn có, build lại qua `build_all_cs_tools.ps1` — **không** fork sang file script tạm.
-=======
-### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG /GOAL
+### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG MỌI NHIỆM VỤ & /GOAL
 1. **Ưu tiên số 1 (Chống rác file 100%)**: Sử dụng các công cụ **HIS MCP Server** (`his_*`) chạy qua giao thức JSON-RPC 2.0 (`HisMcpServer.exe`). Mọi dữ liệu vào/ra truyền qua RAM/stdio, **hoàn toàn không tạo bất kỳ file tạm nào trên đĩa**.
    - Tra cứu: `his_patient_lookup`, `his_get_orders`, `his_debate_view`
    - Kê đơn / Tiêm: `his_prescribe_medicine`
@@ -36,10 +27,26 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
    - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
    - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
    - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
-2. **Nếu gọi CLI ngoài MCP**: Chạy trực tiếp file exe biên dịch sẵn từ thư mục gốc project (sau `. .\set_env.ps1`), không fork file mới.
-3. Nếu tool fail ≤ 2 lần: dừng, in Messages+BugCodes, báo bác sĩ — **không** viết script thử-sai kéo dài.
-4. Nếu cần sửa bug tool: sửa code nguồn chuẩn (`HisMcpServer.cs`, `HisClinicalCli.cs`, `HisAutoPrescribe.cs`), chạy `build_mcp_server.ps1` hoặc `build_all_cs_tools.ps1`, ghi playbook — **không** tạo file tạm.
->>>>>>> dbafaeb (feat: pack clinical skills into JSON-RPC 2.0 HisMcpServer to eliminate trash scripts during /goal)
+2. **Quyền hạn của Agent - Toàn quyền tinh chỉnh thông số (Parameters/Arguments)**:
+   - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
+     * *Liều lượng thuốc, cữ tiêm (sáng/trưa/chiều/tối), thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị)*.
+     * *Nội dung diễn biến lâm sàng, sinh hiệu DHST, cơ sở hoạt động (`HN` hoặc `NB`), buồng bệnh, phòng thực hiện*.
+     * *Chuyển đổi linh hoạt giữa Tủ trực (Kho 810 / 5142) và Kho Dược (4210 / 4209)* tùy theo yêu cầu chỉ định.
+   - **Tuyệt đối cấm**: Tự ý tạo mới các script/phần mềm lẻ tẻ rác (`.cs`, `.ps1`, `.bat`, `.py`, payload `.json`) khi đang làm nhiệm vụ.
+3. **Cơ chế Dừng Thao Tác & Báo Cáo Kẹt (Circuit-Breaker Pattern - BẮT BUỘC)**:
+   - Khi phát sinh nghiệp vụ lâm sàng mới nằm ngoài khả năng của 16 công cụ MCP hiện có, HOẶC khi công cụ MCP/API backend từ chối/báo lỗi $\le 2$ lần:
+     * ⛔ **DỪNG LẠI NGAY LẬP TỨC**: Tuyệt đối không được cố chấp viết file script tạm thử-sai kéo dài làm chậm trễ công việc lâm sàng và làm bẩn git repo.
+     * 📢 **BÁO CÁO RÕ RÀNG 4 ĐIỂM CHO BÁC SĨ**:
+       1. **Kẹt ở đâu**: Chỉ rõ bước và thao tác đang bị nghẽn (VD: giữ bean thuốc, tạo tờ điều trị, chỉ định CLS...).
+       2. **Mã lỗi & Thông báo API**: In nguyên văn `Messages`, `BugCodes` hoặc HTTP status code từ HIS Inventec backend.
+       3. **Nguyên nhân phán đoán**: Giải thích lý do (VD: kho hết tồn, sai mã dịch vụ giữa 2 cơ sở HN/NB, bệnh nhân chưa có tờ điều trị trong ngày, tài khoản chưa được phân quyền buồng bệnh...).
+       4. **Đề xuất giải pháp**: Đề xuất Bác sĩ thao tác trực tiếp trên UI HIS cho ca cấp bách, hoặc đề xuất bổ sung chuẩn hóa method/tool mới vào `HisMcpServer.cs` theo quy trình git.
+4. **Nếu gọi CLI ngoài MCP (Khi MCP Server không sẵn sàng)**:
+   - Kê tủ trực (`IS_CABINET = 1`) $\rightarrow$ `HisCabinetPrescribe.bat` / `HisAutoPrescribe.exe single`.
+   - Kê kho dược (`IS_CABINET = 0`) $\rightarrow$ `HisWarehousePrescribe.bat single`.
+   - Tra cứu / orders / cancel $\rightarrow$ `HisClinicalCli.exe`.
+   - Chạy trực tiếp file exe biên dịch sẵn từ thư mục gốc project (sau `. .\set_env.ps1`), không fork file mới.
+   - Nếu cần sửa bug: Sửa trực tiếp code nguồn chuẩn (`HisMcpServer.cs`, `HisCabinetPrescribe.cs`, `HisClinicalCli.cs`), chạy `build_mcp_server.ps1` hoặc `build_all_cs_tools.ps1` và ghi playbook.
 
 ### Checklist trước khi gọi API ghi
 - [ ] Login `034727` (trừ khi user chỉ định khác)

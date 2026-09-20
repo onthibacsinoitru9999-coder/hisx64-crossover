@@ -2013,4 +2013,42 @@ Khi Agent thực thi nhiệm vụ tự động hóa lâm sàng (đặc biệt tr
 15. `his_emr_fill`: Điền vỏ bệnh án EMR nội trú Khoa 57 / 915.
 16. `his_system_health`: Kiểm tra sức khỏe kết nối HIS, TokenCode và ping máy chủ.
 
+### 35.4. Quy Định Về Quyền Tinh Chỉnh Tham Số & Cơ Chế Dừng Báo Cáo Kẹt (Circuit-Breaker):
+* **Quyền tinh chỉnh tham số của Agent**:
+  - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
+    * Điều chỉnh liều lượng thuốc, cữ tiêm, số lượng ngày dùng, thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị).
+    * Bổ sung ghi chú diễn biến lâm sàng, sinh hiệu DHST theo thực tế thăm khám.
+    * Chuyển đổi linh hoạt giữa Tủ trực (`810`/`5142`) và Kho Dược (`4210`/`4209`) hoặc Kho Dinh dưỡng (`753`).
+  - **CẤM TUYỆT ĐỐI**: Không tự tạo file script `.cs`, `.ps1`, `.bat`, `.py`, payload `.json` tạm bợ khi đang thực thi nhiệm vụ hoặc chạy `/goal`. Mọi tác vụ phải đi qua các hàm MCP tool native.
+* **Cơ chế Circuit-Breaker (Bắt buộc dừng và báo cáo khi kẹt)**:
+  - Khi phát sinh nghiệp vụ chưa có MCP tool tương ứng, HOẶC API Inventec từ chối $\le 2$ lần:
+    * ⛔ **Dừng ngay lập tức**: Không cố chấp viết script thử-sai kéo dài.
+    * 📢 **Báo cáo 4 điểm trọng yếu cho Bác sĩ**:
+      1. Kẹt ở bước nào, nghiệp vụ gì?
+      2. Mã lỗi backend (`BugCodes`, `Messages`, HTTP Status)?
+      3. Nguyên nhân gây kẹt (hết tồn kho, sai mã dịch vụ cơ sở, chưa có tờ điều trị, tài khoản thiếu quyền...)?
+      4. Đề xuất giải pháp bổ sung MCP tool hoặc thao tác trực tiếp trên UI HIS.
+
+### 35.5. Cẩm Nang Prompt Mẫu Cho Bác Sĩ Kích Hoạt MCP Tools:
+Bác sĩ chỉ cần gửi prompt tự nhiên, ngắn gọn; Agent sẽ tự động ánh xạ vào MCP Tool tương ứng:
+
+| Nghiệp Vụ Lâm Sàng | Câu Lệnh / Prompt Bác Sĩ Mẫu | MCP Tool Tự Động Kích Hoạt |
+| :--- | :--- | :--- |
+| 🔍 **Tra cứu bệnh nhân** | `"Tra cứu bệnh nhân 0001666593"`<br>`"Xem thông tin phòng 714 bệnh nhân Nguyễn Văn A"` | `his_patient_lookup` |
+| 📋 **Xem y lệnh & trạng thái** | `"Xem danh sách y lệnh của BN 0001666593"`<br>`"Kiểm tra các chỉ định hôm nay xem có dịch vụ nào màu trắng không"` | `his_get_orders` |
+| 🗑️ **Hủy y lệnh màu trắng** | `"Hủy phiếu y lệnh 000090054138 cho tôi"`<br>`"Xóa dịch vụ con ID 12345678"` | `his_cancel_order`<br>`his_cancel_service` |
+| 📝 **Tạo tờ điều trị hàng ngày** | `"Tạo tờ điều trị hôm nay cho BN 0001666593, mạch 80, HA 120/80, đau lưng giảm"` | `his_create_tracking` |
+| 💊 **Kê thuốc tủ trực** | `"Kê từ tủ trực cho BN 0001666593: Paracetamol Kabi 1 chai truyền TM"`<br>`"Kê tủ trực 3E: Cefuroxim 750mg 2 lọ tiêm TM"` | `his_prescribe_medicine` (`isCabinet: true`) |
+| 🏭 **Kê thuốc lĩnh kho dược** | `"Kê đơn lĩnh kho dược cho BN 0001666593: Cefuroxim 500mg 2 viên uống sáng 1 tối 1"` | `his_prescribe_medicine` (`isCabinet: false`) |
+| ⚡ **Thợ cho đường huyết (1-Click)** | `"Thợ cho đường huyết ca này: BN 0001666593 lúc 17h ĐH 12.4 tiêm 6R"`<br>*(Kèm ảnh sổ/bảng theo dõi ĐH)* | `his_execute_protocol_glucose` |
+| 🩸 **Chỉ định ĐMMM lẻ** | `"Chỉ định đường máu mao mạch tại giường cho BN 0001666593"` | `his_assign_bedside_glucose` |
+| 🍲 **Chỉ định suất ăn** | `"Chỉ định suất ăn cơm thường BT01 cho buồng P714"`<br>`"Báo ăn buồng 3E-05 suất đái tháo đường"` | `his_assign_ration` |
+| 🥛 **Chỉ định Leanpro trước mổ** | `"Kê 6 chai Leanpro trước mổ cho BN 0001666593 mổ ngày mai"` | `his_assign_leanpro` |
+| 🖼️ **Xem phim chụp PACS** | `"Mở phim chụp MRI và X-quang của BN 0001666593"` | `his_view_pacs` |
+| 👥 **Biên bản hội chẩn** | `"Xem biên bản hội chẩn của BN 0001666593"`<br>`"Tạo hội chẩn chuyên khoa Nội tiết cho BN 0001666593"` | `his_debate_view`<br>`his_debate_create` |
+| 📑 **Lập biên bản PT-01** | `"Tạo biên bản thông qua mổ PT-01 cho BN 0001666593"` | `his_create_pt01` |
+| 📋 **Điền vỏ bệnh án EMR** | `"Điền vỏ bệnh án ngoại khoa EMR cho BN 0001666593"` | `his_emr_fill` |
+| 🩺 **Kiểm tra kết nối HIS** | `"Kiểm tra kết nối hệ thống HIS và token"` | `his_system_health` |
+
+
 
