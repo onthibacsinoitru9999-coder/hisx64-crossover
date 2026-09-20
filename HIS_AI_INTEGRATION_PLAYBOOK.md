@@ -600,11 +600,16 @@ Khi tạo Tờ điều trị mới trên MOS (`api/HisTracking/Create`), quy tr�
 
 ### 10.6. Phân Định Ranh Giới Kỹ Thuật & Điểm Nghẽn Ký Số EMR: Tờ Điều Trị vs Vỏ Bệnh Án
 * **TỔNG KẾT ĐIỂM NGHẼN KỸ THUẬT (ARCHITECTURAL BOTTLENECK ANALYSIS)**:
-  1. **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`) - [TẠM DỪNG KÝ SỐ QUA API]**:
-     - **Trạng thái**: TẠM DỪNG chức năng tự động ký số qua API theo yêu cầu của Bác sĩ điều trị cho tới khi có bản cập nhật mới.
-     - **Lý do**: Việc đẩy phôi PDF tối giản (dummy PDF) vào EMR tạo ra văn bản trắng chưa đạt chuẩn hiển thị đầy đủ của template tờ điều trị.
-     - **Quy trình hiện tại**: `HisTrackingCreator.exe` chỉ tạo bản ghi lâm sàng trên MOS (`api/HisTracking/Create`). Bác sĩ mở EMR Desktop hoặc HIS Client để in và ký trực tiếp tờ điều trị có đầy đủ định dạng bảng biểu.
-  2. **Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA` - Type 116 / Mps000030) - [RANH GIỚI BẮT BUỘC]**:
+  1. **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`) - [✅ ĐÃ BẬT LẠI - HYBRID A→B]**:
+     - **Trạng thái**: ĐÃ KÍCH HOẠT lại (commit `9fcae37`, 2026-09-20) — chiến lược **Hybrid A → B**.
+     - **Root cause gốc (đã fix)**: Dummy PDF trắng (`%PDF-1.4` rỗng) → EMR Desktop đọc và hiển thị trắng tinh.
+     - **Giải pháp Hybrid A → B**:
+       * **Bước A**: Query `api/EmrDocument/Get` (Type 7) xem EMR backend có tự sinh document sau `api/HisTracking/Create` không. Nếu có → ký ngay vào document đó (PDF đầy đủ do EMR sinh).
+       * **Bước B** (fallback): Sinh PDF tờ điều trị **có nội dung thật** bằng Aspose.Words (`GenerateTrackingPdf`): Header BV + Bảng BN + Bảng diễn biến (Ngày|Giờ|Diễn biến|Y lệnh|Chăm sóc) + Chân ký BS. Upload PDF thật → ký Cloud HSM → văn bản hiển thị đầy đủ.
+       * **Fallback cuối**: `GenerateMinimalTrackingPdf` (PDF thủ công có text stream, không trắng) → `UpdateSdo` nếu `SignPdfHsm` fail.
+     - **Tọa độ con dấu tờ điều trị**: `CoorXRectangle = 400.0f`, `CoorYRectangle = 700.0f`, `PageNumber = 1`, `MaxPageNumber = 1`.
+     - **Quy trình hiện tại**: `HisTrackingCreator.exe` tạo bản ghi MOS → tự động ký EMR với PDF có nội dung thật. Văn bản hiển thị đầy đủ trên EMR Desktop.
+  2. **Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA` - Type 116 / Mps000030) - [RANH GIỚI BẮT BUỘC - KHÔNG THAY ĐỔI]**:
      - **Bản chất**: Bệnh án ngoại khoa trên EMR Bạch Mai **không phải là file PDF upload tĩnh**. Nó là một phân hệ Client phức hợp (Form WinForm tích hợp engine báo cáo DevExpress / ActiveReports `rptVoBenhAn` kết nối trực tiếp CSDL Oracle `BENHANNGOAIKHOA` & `THONGTINDIEUTRI`).
      - **Điểm nghẽn**: Khi Bác sĩ mở nút "Bệnh án ngoại khoa" trên cây hồ sơ EMR Desktop, phần mềm tự render từ engine nội bộ của EMR Client chứ không đọc file PDF upload từ API bên ngoài. Nếu đẩy PDF rời qua API thì văn bản xem đính kèm có thể có dấu nhưng form bệnh án chính thức trên EMR vẫn ở trạng thái chưa ký hoặc báo lệch chuẩn.
      - **Quy chuẩn chốt hạ**:
