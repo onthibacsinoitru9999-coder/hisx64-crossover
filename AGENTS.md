@@ -18,11 +18,12 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 5. **CAM** bao thanh cong khi API tra null / Messages rong.
 
 ### BAT BUOC
-1. Ke thuoc / tu truc / Insulin → **chi** `HisAutoPrescribe.exe` (single/batch/GUI) hoac `HisClinicalCli.exe prescribe`.
-2. Tra cuu / orders / cancel → **chi** `HisClinicalCli.exe`.
-3. Chay exe **tu thu muc goc project** (sau `. .\set_env.ps1`), khong tu `.agents/...` neu playbook cam.
-4. Neu tool fail ≤ 2 lan: dung, in Messages+BugCodes, bao bac si — **khong** viet script thu-sai keo dai.
-5. Neu can sua bug tool: sua `HisAutoPrescribe.cs` / CLI san co, build lai exe, ghi playbook — **khong** fork sang file PrescribeTam.cs.
+1. Kê thuốc / vật tư / dinh dưỡng / Insulin từ **TỦ TRỰC** (`IS_CABINET = 1`) → **chỉ** `HisCabinetPrescribe.bat` (hoặc `HisAutoPrescribe.exe`).
+2. Kê đơn thuốc / dinh dưỡng **LĨNH TỪ KHO DƯỢC / CẤP PHÁT** (`IS_CABINET = 0`) → **chỉ** `HisWarehousePrescribe.bat`.
+3. Tra cứu / orders / cancel → **chỉ** `HisClinicalCli.exe`.
+4. Chạy exe/bat **từ thư mục gốc project** (sau `. .\set_env.ps1`), không tự ý viết file C# one-off.
+5. Nếu tool fail ≤ 2 lần: dừng, in Messages+BugCodes, báo bác sĩ — **không** viết script thử-sai kéo dài.
+6. Nếu cần sửa bug tool: sửa trực tiếp trong `HisCabinetPrescribe.cs` / `HisWarehousePrescribe.cs` / CLI sẵn có, build lại qua `build_all_cs_tools.ps1` — **không** fork sang file script tạm.
 
 ### Checklist truoc khi goi API ghi
 - [ ] Login `034727` (tru khi user chi dinh khac)
@@ -69,9 +70,8 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 📋 **Xem danh sách y lệnh & trạng thái màu sắc (trắng/vàng/xanh)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN>` | ❌ Không tự cào DB |
 | 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (chỉ định màu trắng)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
 | 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu y lệnh** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
-| 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa khách** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
-| 💊 **Kê đơn thuốc, tiêm Insulin, tủ trực, dinh dưỡng** | **`HisAutoPrescribe.exe`** | `.\HisAutoPrescribe.exe single ...` hoặc `--batch` | ❌ Không dùng tra cứu |
-| 📝 **Tạo tờ điều trị hàng ngày (Ghi diễn biến + y lệnh)** | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` (Tích hợp OpenRouter AI) | ❌ Không dùng kê đơn |
+| 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro, thay băng từ TỦ TRỰC** | **`HisCabinetPrescribe.exe`** | `.\HisCabinetPrescribe.bat single ...` hoặc `multi` hoặc `stock` | ❌ Không gọi API kê lĩnh 4210 |
+| 🏭 **Kê đơn thuốc nội trú thường quy, dinh dưỡng LĨNH KHO DƯỢC** | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` hoặc `multi` hoặc `search` | ❌ Không gọi API tủ trực (TakeBean) |
 | 📋 **Đối soát & kiểm tra thiếu Sơ kết 3 ngày / 7 ngày** | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |
 | 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
 | 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | **`HisGlucoseBedsideAssigner.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
@@ -86,7 +86,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | ⚡ **Ghi nhận & học thao tác UI (Click/Phím/Text)** | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` hoặc `.\HisUiWrapper.exe --launch` | ❌ Không ghi ứng dụng ngoài HIS |
 | 🔪 **Thao tác Tiểu phẫu & Thủ thuật (Rút đinh, Khâu...)** | **`his-minor-surgery`** | Skill `.agents/skills/his-minor-surgery/` | ❌ Không bỏ sót kíp mổ & xuất tủ trực |
 | 🔄 **Chuyển đổi UI Recording thành Agent Skill** | **`SynthesizeSkill.bat`** | `.\Tools\HisUiWrapper\SynthesizeSkill.bat [Folder]` | ❌ Không cấu hình thủ công sai chuẩn |
-| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR & Khởi tạo Trang bìa** | **`HisEmrFiller.exe`** | `.\HisEmrFiller.exe <MãBN> [--save]` | ❌ Không dùng cho ca Ngoại trú / Phòng khám |
+| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR & Khởi tạo Trang bìa** | **`his-inpatient-surgery-record`** / `HisEmrFiller.exe` | `.\HisEmrFiller.bat <MãBN> [--save] [--force]` | ❌ Không dùng cho ca Ngoại trú / Phòng khám |
 
 ### 🌟 QUY TẮC BẮT BUỘC: VỎ BỆNH ÁN NGOẠI KHOA CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ (INPATIENT ONLY)
 * **TUYỆT ĐỐI CẤM**: Không tạo Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA` / EMR) cho bệnh nhân khám ngoại trú / phòng khám (`TDL_TREATMENT_TYPE_ID != 3`).

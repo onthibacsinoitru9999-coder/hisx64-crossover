@@ -135,6 +135,8 @@ if (Test-Path $scriptDir) {
 
 # 4. Inventory of all 14 clinical tools
 $toolList = @(
+    @{ Name = "HisCabinetPrescribe";       Source = "HisCabinetPrescribe.cs" },
+    @{ Name = "HisWarehousePrescribe";     Source = "HisWarehousePrescribe.cs" },
     @{ Name = "HisLeanproAssigner";        Source = "HisLeanproAssigner.cs" },
     @{ Name = "HisClinicalCli";            Source = ".agents\skills\his-clinical-operations\scripts\HisClinicalCli.cs" },
     @{ Name = "HisAutoPrescribe";          Source = ".agents\skills\his-clinical-operations\scripts\HisAutoPrescribe.cs" },

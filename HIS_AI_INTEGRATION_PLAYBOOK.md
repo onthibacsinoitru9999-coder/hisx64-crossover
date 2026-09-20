@@ -1912,3 +1912,60 @@ Quy trình nạp và ký Biên bản Hội chẩn thông qua mổ (Biểu mẫu 
    # Làm mới toàn bộ các trường dữ liệu từ tờ điều trị & hội chẩn:
    .\HisEmrFiller.bat <MãBN|MãĐT> --force
    ```
+
+---
+
+## 34. HỆ THỐNG HÓA 2 BỘ CÔNG CỤ KÊ ĐỒ Y TẾ CHUYÊN BIỆT: KÊ TỦ TRỰC vs KÊ LĨNH KHO DƯỢC
+
+### 34.1. Bản Chất Nghiệp Vụ & Kiến Trúc Inventec MOS:
+Hệ thống HIS Inventec phân định nghiêm ngặt 2 nhóm kho với cơ chế xử lý dữ liệu và giao thức API backend hoàn toàn trái ngược nhau:
+
+| Tiêu Chí Phân Định | HỆ 1: KÊ TỦ TRỰC LÂM SÀNG (`HisCabinetPrescribe`) | HỆ 2: KÊ LĨNH KHO DƯỢC / CẤP PHÁT (`HisWarehousePrescribe`) |
+| :--- | :--- | :--- |
+| **Bản chất kho** | Kho tủ trực tại khoa lâm sàng (`IS_CABINET = 1`) | Kho Dược / Kho Cấp phát trung tâm (`IS_CABINET = 0`) |
+| **Mã kho quen thuộc** | **HN**: `810` (TT Khoa 57), `7787` (Tủ trực dinh dưỡng Khoa 57)<br>**CSNB**: `5142` (Tủ trực 3E), `5141` (Tủ trực 3D) | **HN**: `4210` (Kho thuốc viên), `4209` (Kho thuốc ống), `753` (Kho Dinh dưỡng), `796` (Kho Vật tư)<br>**CSNB**: `4854` (Kho Dược chính) |
+| **Quy trình API** | **Bắt buộc 2 bước**:<br>1. `POST api/HisMedicineBean/Take` (giữ lô tồn thực tế)<br>2. `POST api/HisServiceReq/OutPatientPresCreateList` (`IsCabinet = true`, truyền `MedicineBeanIds`) | **Quy trình 1 bước**:<br>`POST api/HisServiceReq/InPatientPresCreate` (`PrescriptionTypeId = 1`) |
+| **Giữ Bean (`TakeBean`)**| **BẮT BUỘC** (Nếu không gọi sẽ lỗi `MedicineBeanIds` rỗng) | **TUYỆT ĐỐI KHÔNG** (Dược sĩ kho sẽ duyệt xuất tổng hợp sau) |
+| **Lỗi cấm kỵ** | Cấm gọi `InPatientPresCreate` (bị lỗi `CacKhoLaTuTrucKhongChoPhepKe` hoặc trả null) | Cấm gọi `OutPatientPresCreateList` với `IsCabinet = true` (gây sai lệch kế toán kho) |
+| **Thuốc áp dụng** | Thuốc cấp cứu, kháng sinh, giảm đau, dịch truyền, viên nén tủ trực, Insulin, Leanpro trước mổ, vật tư thay băng | Thuốc điều trị nội trú dùng hàng ngày theo đơn lĩnh, dịch dinh dưỡng điều trị (753), vật tư lĩnh |
+
+### 34.2. Hướng Dẫn Sử Dụng Chi Tiết:
+
+#### 1. Hệ Kê Tủ Trực (`HisCabinetPrescribe.bat`):
+```powershell
+# Xem tồn kho các thuốc hiện có trong tủ trực 810 (hoặc 7787, 5142):
+.\HisCabinetPrescribe.bat stock 810
+.\HisCabinetPrescribe.bat stock 810 para
+
+# Kê 1 thuốc điều trị từ tủ trực:
+.\HisCabinetPrescribe.bat single 0001666593 "Paracetamol Kabi AD 1g/100ml" 1 810 "Truyền TM 40 giọt/phút lúc 09h"
+
+# Kê TOA THUỐC ĐIỀU TRỊ gồm nhiều thuốc trong 1 y lệnh tủ trực:
+.\HisCabinetPrescribe.bat multi 0001666593 "Paracetamol Kabi 1g|1|Truyền TM 40 giọt/phút|20" "Zinacef 750mg|2|Tiêm TM sáng 1 chiều 1|15" --stock 810
+
+# Shortcut tiêm Insulin chuẩn lâm sàng (tự quy đổi UI / 1000.0m):
+.\HisCabinetPrescribe.bat insulin 0001666593 8 R 17:00 810
+
+# Shortcut dịch dinh dưỡng Leanpro PreSur trước mổ (Tủ TTSPDD_9 - 7787, kiểm tra an toàn tuổi < 70 & không ĐTĐ):
+.\HisCabinetPrescribe.bat leanpro 0003976907,0003595506 6
+
+# Shortcut vật tư tiêu hao thay băng rửa vết thương (Povidone + Saline, IsExpend = true):
+.\HisCabinetPrescribe.bat dressing 0001666593 1 1 810
+```
+
+#### 2. Hệ Kê Lĩnh Kho Dược (`HisWarehousePrescribe.bat`):
+```powershell
+# Tra cứu thuốc trong danh mục Dược:
+.\HisWarehousePrescribe.bat search cefu
+.\HisWarehousePrescribe.bat search tramadol
+
+# Kê 1 thuốc lĩnh từ kho thuốc viên 4210:
+.\HisWarehousePrescribe.bat single 0001666593 "Cefuroxim 500mg" 2 4210 "Uống sáng 1 chiều 1 sau ăn" 1 "01::01"
+
+# Kê TOA THUỐC LĨNH gồm nhiều thuốc từ kho Dược trong 1 y lệnh:
+.\HisWarehousePrescribe.bat multi 0001666593 "Cefuroxim 500mg|2|Uống sáng 1 chiều 1 sau ăn|4210|1|01::01" "Lipitor 10mg|1|Uống tối 1 viên|4210|1|:::01"
+
+# Kê lĩnh sản phẩm dinh dưỡng điều trị từ Kho 753 (LA_TTDDLS):
+.\HisWarehousePrescribe.bat nutrition 0001666593 "Leanpro PreSur" 6 753 "Uống tối 4 chai 20h, sáng 2 chai 06h"
+```
+

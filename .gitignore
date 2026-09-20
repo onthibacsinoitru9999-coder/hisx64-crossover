@@ -38,6 +38,11 @@ tmp/
 !Templates/**
 !Tools/
 !Tools/**
-
+!mcp_servers/
+!mcp_servers/**
+mcp_servers/**/node_modules/
+mcp_servers/**/dist/
+mcp_servers/**/temp_test_logs/
+mcp_servers/**/*.log
 
 Data/Cache/

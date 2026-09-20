@@ -1622,8 +1622,36 @@ class Program
             }
 
             string csvPath = args[1];
-            string batchUser = args.Length > 2 ? args[2] : "vmc";
-            string batchPass = args.Length > 3 ? args[3] : "789789";
+            string batchUser = "vmc";
+            string batchPass = "789789";
+            long forcedStockId = 0;
+            for (int i = 2; i < args.Length; i++)
+            {
+                if ((args[i] == "-stock" || args[i] == "--stock") && i + 1 < args.Length)
+                {
+                    long.TryParse(args[i + 1], out forcedStockId);
+                    i++;
+                }
+                else if ((args[i] == "-time" || args[i] == "--time") && i + 1 < args.Length)
+                {
+                    i++;
+                }
+                else if ((args[i] == "-user" || args[i] == "--user") && i + 1 < args.Length)
+                {
+                    batchUser = args[i + 1];
+                    i++;
+                }
+                else if ((args[i] == "-pass" || args[i] == "--pass") && i + 1 < args.Length)
+                {
+                    batchPass = args[i + 1];
+                    i++;
+                }
+                else if (!args[i].StartsWith("-"))
+                {
+                    if (batchUser == "vmc") batchUser = args[i];
+                    else if (batchPass == "789789") batchPass = args[i];
+                }
+            }
 
             Console.WriteLine("===============================================================================");
             Console.WriteLine("  HIS AUTO PRESCRIBE - CHẾ ĐỘ KÊ ĐƠN HÀNG LOẠT (BATCH MODE)");
@@ -1789,7 +1817,9 @@ class Program
                             }
                         }
                         catch { }
-                        MedicineStockInfo targetStock = isNB ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == 5142) ?? MainForm.CommonStocks[0]) : MainForm.CommonStocks[0];
+                        MedicineStockInfo targetStock = forcedStockId > 0
+                            ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == forcedStockId) ?? new MedicineStockInfo(forcedStockId, "KHO_" + forcedStockId, "Kho " + forcedStockId, true))
+                            : (isNB ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == 5142) ?? MainForm.CommonStocks[0]) : MainForm.CommonStocks[0]);
 
                         // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
                         var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, targetDeptId, batchUser, batchUserName, instructionTime);

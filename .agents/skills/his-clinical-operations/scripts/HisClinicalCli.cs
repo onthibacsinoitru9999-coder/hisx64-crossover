@@ -4164,6 +4164,40 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void ShowCabinet810Stock()
+    {
+        InitSession();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("🏥 DANH MỤC THUỐC TỒN TẠI TỦ TRỰC KHOA 57 (STOCK 810)");
+        Console.WriteLine("===============================================================================");
+        HisMedicineBeanViewFilter bf = new HisMedicineBeanViewFilter { MEDI_STOCK_ID = 810, IS_ACTIVE = 1 };
+        var beans = myAdapter.FetchList<V_HIS_MEDICINE_BEAN>("api/HisMedicineBean/GetView", mosConsumer, bf, param);
+        if (beans == null || beans.Count == 0)
+        {
+            Console.WriteLine("Tủ trực 810 hiện không có thuốc tồn.");
+            return;
+        }
+
+        var grouped = beans.Where(b => b.AMOUNT > 0)
+                           .GroupBy(b => new { b.MEDICINE_TYPE_ID, b.MEDICINE_TYPE_NAME, b.SERVICE_UNIT_NAME })
+                           .Select(g => new { 
+                               Id = g.Key.MEDICINE_TYPE_ID, 
+                               Name = g.Key.MEDICINE_TYPE_NAME, 
+                               Unit = g.Key.SERVICE_UNIT_NAME,
+                               Total = g.Sum(x => x.AMOUNT) 
+                           })
+                           .OrderBy(x => x.Name)
+                           .ToList();
+
+        Console.WriteLine(string.Format("Tìm thấy {0} mặt hàng thuốc còn tồn:", grouped.Count));
+        for (int i = 0; i < grouped.Count; i++)
+        {
+            var item = grouped[i];
+            Console.WriteLine(string.Format("  {0,2}. [ID: {1,5}] {2} | Tồn: {3,5} {4}", i + 1, item.Id, item.Name, item.Total, item.Unit));
+        }
+        Console.WriteLine("===============================================================================");
+    }
+
     public static void RunCli(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -4208,6 +4242,10 @@ public class HisClinicalCli
             {
                 string dateStr = args.Length > 1 ? args[1] : "20260920";
                 AuditPostOpAntibiotics(dateStr);
+            }
+            else if (cmd == "stock-810" || cmd == "cabinet-stock" || cmd == "tu-truc-810" || cmd == "tu-truc")
+            {
+                ShowCabinet810Stock();
             }
             else if (cmd == "lookup")
             {
