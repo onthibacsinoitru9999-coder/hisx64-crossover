@@ -253,10 +253,9 @@ public class HisClinicalCli
         string envDoctor = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
 
         bool isNB = string.Equals(envFacility, "NB", StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrEmpty(envTokenFile) && envTokenFile.IndexOf("nb", StringComparison.OrdinalIgnoreCase) >= 0) ||
-                    string.Equals(envDoctor, "vmc", StringComparison.OrdinalIgnoreCase);
+                    (!string.IsNullOrEmpty(envTokenFile) && envTokenFile.IndexOf("nb", StringComparison.OrdinalIgnoreCase) >= 0);
 
-        string targetDoctor = isNB ? "vmc" : "034727";
+        string targetDoctor = !string.IsNullOrEmpty(envDoctor) ? envDoctor : "034727";
         string targetTokenFileName = isNB ? "doctor_nb.token" : "doctor_hn.token";
 
         // 1. Explicit env token file if specified
@@ -325,25 +324,16 @@ public class HisClinicalCli
             {
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                if (isNB)
+                string defaultPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                if (string.IsNullOrEmpty(defaultPass)) defaultPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                if (string.IsNullOrEmpty(defaultPass)) defaultPass = "981";
+
+                var token = tokenManager.Login(param, targetDoctor, defaultPass, "2.390.0");
+                if (token != null)
                 {
-                    var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-                    if (token != null)
-                    {
-                        tokenCode = token.TokenCode;
-                        currentDoctorLogin = "vmc";
-                        currentDoctorName = "BS Vũ Minh Cường";
-                    }
-                }
-                else
-                {
-                    var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
-                    if (token != null)
-                    {
-                        tokenCode = token.TokenCode;
-                        currentDoctorLogin = "034727";
-                        currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
-                    }
+                    tokenCode = token.TokenCode;
+                    currentDoctorLogin = targetDoctor;
+                    currentDoctorName = (targetDoctor == "vmc") ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
                 }
             }
             catch { }
@@ -415,11 +405,20 @@ public class HisClinicalCli
         string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
         try
         {
-            File.WriteAllText(cacheFile, currentToken + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin, Encoding.UTF8);
+            string payload = currentToken + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin;
+            File.WriteAllText(cacheFile, payload, Encoding.UTF8);
+
+            string hnToken = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_hn.token");
+            string nbToken = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_nb.token");
+            File.WriteAllText(hnToken, payload, Encoding.UTF8);
+            File.WriteAllText(nbToken, payload, Encoding.UTF8);
+
             string altCache = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
             if (Directory.Exists(Path.GetDirectoryName(altCache)))
             {
-                File.WriteAllText(altCache, currentToken + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin, Encoding.UTF8);
+                File.WriteAllText(altCache, payload, Encoding.UTF8);
+                File.WriteAllText(Path.Combine(Path.GetDirectoryName(altCache), "doctor_hn.token"), payload, Encoding.UTF8);
+                File.WriteAllText(Path.Combine(Path.GetDirectoryName(altCache), "doctor_nb.token"), payload, Encoding.UTF8);
             }
         }
         catch { }

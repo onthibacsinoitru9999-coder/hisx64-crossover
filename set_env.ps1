@@ -183,10 +183,18 @@ if ($rcloneFound) {
     $env:RCLONE = $rcloneFound
 }
 
+# ------------------------------------------------------------------------------
+# 5. HIS Doctor Authentication Defaults (Doctor 034727 across all facilities, Pass 981)
+# ------------------------------------------------------------------------------
+if (-not $env:HIS_DOCTOR_LOGIN) { $env:HIS_DOCTOR_LOGIN = "034727" }
+if (-not $env:HIS_PASSWORD) { $env:HIS_PASSWORD = "981" }
+
 $env:HIS_ENV_READY = "1"
 
 Write-Output "[set_env.ps1] Environment configured successfully."
-Write-Output "  - CSC:    $(if ($env:CSC) { $env:CSC } else { 'Not found' })"
-Write-Output "  - GIT:    $(if ($env:GIT) { $env:GIT } else { 'Not found' })"
-Write-Output "  - PYTHON: $(if ($env:PYTHON) { $env:PYTHON } else { 'Not found' })"
-Write-Output "  - RCLONE: $(if ($env:RCLONE) { $env:RCLONE } else { 'Not found' })"
+Write-Output "  - CSC:      $(if ($env:CSC) { $env:CSC } else { 'Not found' })"
+Write-Output "  - GIT:      $(if ($env:GIT) { $env:GIT } else { 'Not found' })"
+Write-Output "  - PYTHON:   $(if ($env:PYTHON) { $env:PYTHON } else { 'Not found' })"
+Write-Output "  - RCLONE:   $(if ($env:RCLONE) { $env:RCLONE } else { 'Not found' })"
+Write-Output "  - DOCTOR:   $env:HIS_DOCTOR_LOGIN (Current default pass: $env:HIS_PASSWORD)"
+

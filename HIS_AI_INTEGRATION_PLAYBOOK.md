@@ -56,9 +56,10 @@ Mọi giao tiếp đều đi qua mạng nội bộ bệnh viện (hoặc qua VPN
 
 Khi gửi request hoặc xây dựng kịch bản y lệnh, sử dụng thông tin định danh của phiên làm việc bác sĩ:
 
-* **Bác sĩ điều trị chính**: `034727` - **Ths.BS NGUYỄN HỮU SÂM** (Pass: `998199`)
+* **Bác sĩ điều trị mặc định**: `034727` - **Ths.BS NGUYỄN HỮU SÂM** (Áp dụng chung cho **TẤT CẢ các cơ sở** Hà Nội và Ninh Bình).
+* **Mật khẩu Bác sĩ**: Mật khẩu hiện tại là **`981`** (Bác sĩ thay đổi mật khẩu thường xuyên và sẽ thông báo khi bắt đầu phiên làm việc; hệ thống tự động nhận qua biến môi trường `$env:HIS_PASSWORD` hoặc fallback `981`).
 * **Bác sĩ phối hợp / Mời ký**: `ndh2` - **BS NGUYỄN ĐỨC HOÀNG**
-* **Tài khoản bác sĩ phụ trợ**: `vmc` - **BS VŨ MINH CƯỜNG** (Pass: `789789`)
+* **Tài khoản bác sĩ phụ trợ / kíp mổ**: `vmc` - **BS VŨ MINH CƯỜNG** (chỉ dùng khi có yêu cầu phụ mổ/kíp mổ cụ thể).
 * **Bác sĩ Khoa 57 / PTV**: 
   - `tmd2` / `tmd`: **BS TRỊNH MINH ĐỨC** *(Tuyệt đối không tự đoán tên từ ký hiệu viết tắt)*
   - `lvl12`: **BS LÊ VĂN LƯỢNG**
@@ -2259,22 +2260,23 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 ## 39. KIẾN TRÚC ĐIỀU PHỐI CHUYÊN BIỆT CƠ SỞ & CÁCH LY TOKEN TUYỆT ĐỐI (`his_hn` & `his_nb`)
 
 ### 39.1. Bối Cảnh & Vấn Đề Xung Đột Token Giữa Hai Cơ Sở (Facility Token Collision)
-* **Thực trạng**: Hệ thống Inventec phục vụ song song hai cơ sở y tế với phân quyền tài khoản bác sĩ và mã danh mục kho/dịch vụ hoàn toàn tách biệt:
+* **Thực trạng**: Hệ thống Inventec phục vụ song song hai cơ sở y tế với phân quyền khoa phòng và mã danh mục kho/dịch vụ hoàn toàn tách biệt, trong khi tài khoản Bác sĩ mặc định là **`034727` (Ths.BS Nguyễn Hữu Sâm)** tại cả hai cơ sở (mật khẩu hiện tại: **`981`**):
   - **Hà Nội (HN)**: Khoa 57 (CTCH & Cột sống, Branch 1), Phòng trực P734 (`5248`), Tủ trực **`810`** (`TT_KCTCHCS`), Kho dược **`4210`** / **`4209`** / **`753`**, Dịch vụ ĐMMM **`BM02426`** (`6217`), Bác sĩ **`034727`** (Ths.BS Nguyễn Hữu Sâm).
-  - **Ninh Bình (NB)**: Khoa 915 (Ngoại tổng hợp Tầng 3 Nhà E, Branch 81), Phòng TT P3E-05 (`18679`) / P3D-05 (`18681`), Tủ trực **`5142`** (`TTT_NBKP05.02`), Kho dược **`4854`**, Dịch vụ ĐMMM **`NB260620.6231`** (`74281`), Bác sĩ **`vmc`** (BS Vũ Minh Cường).
-* **Bẫy lỗi trước đây**: Tất cả các công cụ dùng chung 1 file cache `doctor_standalone.token`. Khi Agent hoặc bác sĩ thao tác ca bệnh ở Ninh Bình (đăng nhập `vmc`), token của `034727` (Hà Nội) bị ghi đè. Khi chuyển sang thao tác bệnh nhân Hà Nội, `vmc` không có quyền tại Khoa 57 khiến API từ chối hoặc ép relogin làm mất session. Ngược lại, kiểm tra healthcheck với Khoa 57 làm token của `vmc` bị coi là không hợp lệ (Healthcheck False Invalidation).
+  - **Ninh Bình (NB)**: Khoa 915 (Ngoại tổng hợp Tầng 3 Nhà E, Branch 81), Phòng TT P3E-05 (`18679`) / P3D-05 (`18681`), Tủ trực **`5142`** (`TTT_NBKP05.02`), Kho dược **`4854`**, Dịch vụ ĐMMM **`NB260620.6231`** (`74281`), Bác sĩ **`034727`** (Ths.BS Nguyễn Hữu Sâm).
+* **Bẫy lỗi trước đây**: Tất cả các công cụ dùng chung 1 file cache `doctor_standalone.token`. Khi phiên làm việc tại Ninh Bình kích hoạt phòng làm việc khoa 915, phiên Hà Nội bị đè token. Việc tách 2 file cache `doctor_hn.token` và `doctor_nb.token` giúp giữ trọn vẹn context phòng ban và buồng bệnh của mỗi cơ sở.
 
 ### 39.2. Kiến Trúc Cách Ly Token 2 File Riêng Biệt (`doctor_hn.token` vs `doctor_nb.token`)
 * **Cách ly bộ nhớ đệm (Cache Isolation)**:
   - **Hà Nội**: Lưu trữ độc quyền tại **`doctor_hn.token`** (định dạng `TokenCode|Ticks|034727`).
-  - **Ninh Bình**: Lưu trữ độc quyền tại **`doctor_nb.token`** (định dạng `TokenCode|Ticks|vmc`).
+  - **Ninh Bình**: Lưu trữ độc quyền tại **`doctor_nb.token`** (định dạng `TokenCode|Ticks|034727`).
   - Duy trì `doctor_standalone.token` để tương thích ngược các tool cũ.
 * **Biến môi trường định tuyến tiến trình con (Process Environment Injection)**:
   Khi MCP Server (`HisMcpServer`, `HisGlucoseMcpServer`, `HisDischargeMcpServer`) khởi chạy tiến trình CLI con (`HisClinicalCli.exe`, `HisCabinetPrescribe.exe`, `HisTrackingCreator.exe`), các biến môi trường sau được tự động tiêm vào:
   - `HIS_FACILITY`: `"HN"` hoặc `"NB"`
   - `HIS_TOKEN_FILE`: `"doctor_hn.token"` hoặc `"doctor_nb.token"`
-  - `HIS_DOCTOR_LOGIN`: `"034727"` hoặc `"vmc"`
-* **Khắc phục bẫy Healthcheck**: Trong `HisClinicalCli.cs`, kiểm tra sống còn bằng `ID = 915` nếu đang nhắm cơ sở Ninh Bình hoặc bác sĩ `vmc`, và `ID = 57` nếu nhắm cơ sở Hà Nội hoặc `034727`.
+  - `HIS_DOCTOR_LOGIN`: `"034727"` (hoặc bác sĩ được chỉ định qua `$env:HIS_DOCTOR_LOGIN`)
+  - `HIS_PASSWORD`: `"981"` (hoặc mật khẩu được cung cấp qua `$env:HIS_PASSWORD`)
+* **Khắc phục bẫy Healthcheck**: Trong `HisClinicalCli.cs`, kiểm tra sống còn bằng `ID = 915` nếu đang nhắm cơ sở Ninh Bình, và `ID = 57` nếu nhắm cơ sở Hà Nội.
 
 ### 39.3. Hai Cổng Điều Phối Chuyên Biệt: `his_hn` và `his_nb`
 Để Agent và LLM không cần phải ngồi viết lại code hay truyền tham số phức tạp, `HisMcpServer.exe` cung cấp 2 công cụ chuyên biệt cấp cao nhất:
@@ -2284,15 +2286,15 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
    - Tham số: `action` (`"lookup"`, `"orders"`, `"prescribe_cabinet"`, `"prescribe_warehouse"`, `"prescribe"`, `"tracking"`, `"glucose"`, `"discharge"`, `"emr"`, `"pacs"`, `"debate"`), `patientCode`, `room`, `items`, `note`, `glucoseValue`, `insulinType`, `units`, `timeSlot`, `dryRun`.
 
 2. **`his_nb` (Chuyên biệt Cơ sở Ninh Bình)**:
-   - Tự động nạp `doctor_nb.token`, bác sĩ `vmc`, phòng `18679`, tủ trực `5142`, kho `4854`.
+   - Tự động nạp `doctor_nb.token`, bác sĩ `034727`, phòng `18679`, tủ trực `5142`, kho `4854`.
    - Tham số tương tự, đảm bảo 100% không bao giờ bị ghi đè token Hà Nội.
 
 ### 39.4. Bảng Tổng Hợp Điều Phối Toàn Hệ Thống:
 | Cơ Sở | Cổng MCP Tổng | MCP Đường Huyết | MCP Ra Viện | Token Cache | Tài Khoản Bác Sĩ | Kho Tủ Trực | Dịch Vụ ĐMMM |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 🏥 **Hà Nội** | **`his_hn`** | **`his_glucose_hn`** | **`his_discharge_hn`** | `doctor_hn.token` | `034727` | `810` | `BM02426` (`6217`) |
-| 🏥 **Ninh Bình** | **`his_nb`** | **`his_glucose_nb`** | **`his_discharge_nb`** | `doctor_nb.token` | `vmc` | `5142` | `NB260620.6231` (`74281`) |
-| 🌐 **Tự động** | `his_*` (auto) | `his_execute_protocol_glucose` | `his_tho_lam_ra_vien` | Tự động dò theo từ khóa | Tự động dò theo BN | Tự động dò theo khoa | Tự động dò theo mã |
+| 🏥 **Ninh Bình** | **`his_nb`** | **`his_glucose_nb`** | **`his_discharge_nb`** | `doctor_nb.token` | `034727` | `5142` | `NB260620.6231` (`74281`) |
+| 🌐 **Tự động** | `his_*` (auto) | `his_execute_protocol_glucose` | `his_tho_lam_ra_vien` | Tự động dò theo từ khóa | `034727` (mặc định) | Tự động dò theo khoa | Tự động dò theo mã |
 
 
 

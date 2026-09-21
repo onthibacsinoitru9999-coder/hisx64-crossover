@@ -223,7 +223,7 @@ namespace HisGlucoseMcp
             // 2. his_glucose_nb (Chuyên biệt Cơ sở Ninh Bình)
             tools.Add(CreateTool(
                 "his_glucose_nb",
-                "Dac quyen 'Tho cho duong huyet' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH, DMMM NB260620.6231 phong 18679/18681, Tu truc 5142, BS Vu Minh Cuong vmc, token doctor_nb.token): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
+                "Dac quyen 'Tho cho duong huyet' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH, DMMM NB260620.6231 phong 18679/18681, Tu truc 5142, Ths.BS Nguyen Huu Sam 034727 mac dinh moi co so, token doctor_nb.token): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
                     "glucoseValue", Obj("type", "number", "description", "Ket qua duong huyet (mmol/L, VD: 11.4)"),
@@ -385,10 +385,12 @@ namespace HisGlucoseMcp
             }
 
             string insulinName = (insulinType == "R" ? "Actrapid" : (insulinType == "L" ? "Lantus" : "Mixtard"));
+            string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+            string docLogin = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
             var sb = new StringBuilder();
             sb.AppendLine("===============================================================================");
-            sb.AppendLine(string.Format("🩸 THỰC THI PROTOCOL 'THỢ CHO ĐƯỜNG HUYẾT' - CƠ SỞ {0} ({1})",
-                facility, facility == "NB" ? "NINH BÌNH (Khoa 915 - vmc)" : "HÀ NỘI (Khoa 57 - 034727)"));
+            sb.AppendLine(string.Format("🩸 THỰC THI PROTOCOL 'THỢ CHO ĐƯỜNG HUYẾT' - CƠ SỞ {0} ({1} - BS: {2})",
+                facility, facility == "NB" ? "NINH BÌNH (Khoa 915)" : "HÀ NỘI (Khoa 57)", docLogin));
             sb.AppendLine(string.Format("• Bệnh nhân   : {0}", pCode));
             sb.AppendLine(string.Format("• Mốc giờ     : {0}", slot));
             sb.AppendLine(string.Format("• Đường huyết : {0} mmol/L", glucose));
@@ -476,8 +478,7 @@ namespace HisGlucoseMcp
                 kw.IndexOf("3E-", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 kw.IndexOf("3D-", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 kw.IndexOf("Khoa 915", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                kw.IndexOf("5142", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                kw.IndexOf("vmc", StringComparison.OrdinalIgnoreCase) >= 0)
+                kw.IndexOf("5142", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return "NB";
             }
@@ -533,9 +534,16 @@ namespace HisGlucoseMcp
                 };
 
                 bool isNB = string.Equals(facility, "NB", StringComparison.OrdinalIgnoreCase);
+                string docLogin = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+                if (string.IsNullOrEmpty(docLogin)) docLogin = "034727";
+                string docPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                if (string.IsNullOrEmpty(docPass)) docPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                if (string.IsNullOrEmpty(docPass)) docPass = "981";
+
                 psi.EnvironmentVariables["HIS_FACILITY"] = isNB ? "NB" : "HN";
                 psi.EnvironmentVariables["HIS_TOKEN_FILE"] = isNB ? "doctor_nb.token" : "doctor_hn.token";
-                psi.EnvironmentVariables["HIS_DOCTOR_LOGIN"] = isNB ? "vmc" : "034727";
+                psi.EnvironmentVariables["HIS_DOCTOR_LOGIN"] = docLogin;
+                psi.EnvironmentVariables["HIS_PASSWORD"] = docPass;
 
                 using (var proc = Process.Start(psi))
                 {

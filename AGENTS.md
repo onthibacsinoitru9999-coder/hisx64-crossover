@@ -26,8 +26,10 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 ### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG MỌI NHIỆM VỤ & /GOAL
 1. **Ưu tiên số 1 (Chống rác file 100%)**: Sử dụng các công cụ **HIS MCP Server** (`his_*`) chạy qua giao thức JSON-RPC 2.0 (`HisMcpServer.exe`). Mọi dữ liệu vào/ra truyền qua RAM/stdio, **hoàn toàn không tạo bất kỳ file tạm nào trên đĩa**.
    - 🌟 **Cổng Điều Phối Chuyên Biệt Cơ Sở (Token Isolation 100% - KHÔNG LO ĐÈ TOKEN)**:
+     * **Tài khoản bác sĩ mặc định**: `034727` (Ths.BS Nguyễn Hữu Sâm) áp dụng chung cho **TẤT CẢ các cơ sở** (cả Hà Nội và Ninh Bình).
+     * **Mật khẩu**: Mật khẩu hiện tại là **`981`** (Bác sĩ thay đổi thường xuyên và sẽ báo khi có cập nhật; hệ thống tự động đọc từ biến môi trường `$env:HIS_PASSWORD` hoặc fallback `981`).
      * **`his_hn`**: Cổng chuyên biệt Hà Nội (Khoa 57, BS Nguyễn Hữu Sâm `034727`, P734/5248, Tủ trực 810, Kho 4210, Token file `doctor_hn.token`). Hỗ trợ mọi action: lookup, orders, prescribe, tracking, glucose, discharge, emr, pacs, debate...
-     * **`his_nb`**: Cổng chuyên biệt Ninh Bình (Khoa 915 Khu 3E, BS Vũ Minh Cường `vmc`, P3E-05/18679, Tủ trực 5142, Kho 4854, Token file `doctor_nb.token`). Hỗ trợ mọi action tương tự, tự động nạp đúng token Ninh Bình.
+     * **`his_nb`**: Cổng chuyên biệt Ninh Bình (Khoa 915 Khu 3E, BS Nguyễn Hữu Sâm `034727`, P3E-05/18679, Tủ trực 5142, Kho 4854, Token file `doctor_nb.token`). Hỗ trợ mọi action tương tự, tự động nạp đúng token Ninh Bình.
    - Tra cứu: `his_patient_lookup`, `his_get_orders`, `his_debate_view`
    - Kê đơn Tủ Trực (Thuốc, Insulin, Leanpro, Thay băng): `his_prescribe_cabinet`
    - Kê đơn Lĩnh Kho Dược (Thuốc viên, Thuốc ống, Dinh dưỡng 753): `his_prescribe_warehouse`
@@ -61,7 +63,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
    - Nếu cần sửa bug: Sửa trực tiếp code nguồn chuẩn (`HisMcpServer.cs`, `HisCabinetPrescribe.cs`, `HisClinicalCli.cs`), chạy `build_mcp_server.ps1` hoặc `build_all_cs_tools.ps1` và ghi playbook.
 
 ### Checklist trước khi gọi API ghi
-- [ ] Login `034727` (trừ khi user chỉ định khác)
+- [ ] Login `034727` (Pass hiện tại: `981` hoặc `$env:HIS_PASSWORD` - áp dụng cho mọi cơ sở)
 - [ ] `UpdateWorkInfo` (phòng trực 5248 + buồng BN)
 - [ ] Tủ trực HN: stock **810**; Tủ trực NB: stock **5142** + flow TakeBean → OutPatientPresCreateList + IsCabinet
 - [ ] TrackingId lấy từ EnsureTracking / tracking ngày — không hardcode

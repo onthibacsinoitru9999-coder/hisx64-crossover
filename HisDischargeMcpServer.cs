@@ -201,7 +201,7 @@ namespace HisDischargeMcp
             // 2. his_discharge_nb (Chuyên biệt Cơ sở Ninh Bình)
             tools.Add(CreateTool(
                 "his_discharge_nb",
-                "Dac quyen 'Tho lam ra vien' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH Khu 3E, BS Vu Minh Cuong vmc, token doctor_nb.token): Protocol 3 buoc: (1) Ra soat bo sung To DT SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve vmc (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
+                "Dac quyen 'Tho lam ra vien' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH Khu 3E, Ths.BS Nguyen Huu Sam 034727 mac dinh cac co so, token doctor_nb.token): Protocol 3 buoc: (1) Ra soat bo sung To DT SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve 034727 (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (VD: 0004018669)"),
                     "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - thuc thi that)")
@@ -212,7 +212,7 @@ namespace HisDischargeMcp
             // 3. his_tho_lam_ra_vien (Chính thức - Tự động điều hướng)
             tools.Add(CreateTool(
                 "his_tho_lam_ra_vien",
-                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol - Tu dong dieu huong HN/NB): Protocol 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve BS tiep nhan (HN: 034727, NB: vmc, Bao luu 4 nhom) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
+                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol - Tu dong dieu huong HN/NB): Protocol 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve BS tiep nhan (034727 mac dinh moi co so, Bao luu 4 nhom) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (VD: 0004018669)"),
                     "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
@@ -386,8 +386,9 @@ namespace HisDischargeMcp
                 return sb.ToString();
             }
 
-            string targetDoctor = isNB ? "vmc" : "034727";
-            string doctorName = isNB ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
+            string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+            string targetDoctor = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
+            string doctorName = (targetDoctor == "vmc") ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
             string deptName = isNB ? "Khoa Ngoại tổng hợp NB (Khoa 915 - Khu 3E)" : "Khoa CTCH & Cột sống HN (Khoa 57)";
 
             sb.AppendLine("===============================================================================");
@@ -1034,7 +1035,8 @@ namespace HisDischargeMcp
             if (isDryRun) sbArgs.Append(" --dry-run");
             else sbArgs.Append(" --save");
             sbArgs.Append(" --force-summary");
-            string doc = (facility == "NB") ? "vmc" : "034727";
+            string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+            string doc = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
             sbArgs.Append(" --doctor " + doc);
             sbArgs.Append(" --facility " + facility);
 
@@ -1070,24 +1072,24 @@ namespace HisDischargeMcp
                 {
                     ClientTokenManager tm = new ClientTokenManager("HIS");
                     CommonParam p = new CommonParam();
-                    if (isNB)
-                    {
-                        var tok = tm.Login(p, "vmc", "789789", "2.390.0");
-                        if (tok != null) token = tok.TokenCode;
-                    }
-                    else
-                    {
-                        var tok = tm.Login(p, "034727", "998199", "2.390.0");
-                        if (tok != null) token = tok.TokenCode;
-                    }
+                    string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+                    string targetDoc = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
+                    string defaultPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                    if (string.IsNullOrEmpty(defaultPass)) defaultPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                    if (string.IsNullOrEmpty(defaultPass)) defaultPass = "981";
+
+                    var tok = tm.Login(p, targetDoc, defaultPass, "2.390.0");
+                    if (tok != null) token = tok.TokenCode;
                 }
                 catch { }
             }
 
             if (string.IsNullOrEmpty(token))
             {
-                sb.AppendLine(string.Format("❌ Không tìm thấy TokenCode hợp lệ cho cơ sở {0}! Vui lòng đăng nhập phần mềm HIS Inventec ({1}).",
-                    isNB ? "Ninh Bình" : "Hà Nội", isNB ? "vmc" : "034727"));
+                string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+                string targetDoc = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
+                sb.AppendLine(string.Format("❌ Không tìm thấy TokenCode hợp lệ cho cơ sở {0}! Vui lòng kiểm tra đăng nhập tài khoản ({1}).",
+                    isNB ? "Ninh Bình" : "Hà Nội", targetDoc));
                 return false;
             }
 
@@ -1101,7 +1103,8 @@ namespace HisDischargeMcp
         private static string ReadLiveTokenForFacility(string facility)
         {
             bool isNB = (facility != null && facility.Trim().ToUpper() == "NB");
-            string targetDoc = isNB ? "vmc" : "034727";
+            string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+            string targetDoc = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
 
             // 1. Explicit env var override
             string envFile = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");

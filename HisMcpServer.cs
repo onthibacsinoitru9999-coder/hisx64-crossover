@@ -181,7 +181,7 @@ namespace HisMcp
             // 0b. his_nb (Chuyên biệt Cơ sở Ninh Bình)
             tools.Add(CreateTool(
                 "his_nb",
-                "CONG CU DIEU PHOI CHUYEN BIET CO SO NINH BINH (Bệnh viện Bạch Mai CS2 - Khoa 915 Ngoại tổng hợp Tầng 3 Nhà E, Buồng 3E/3D, Phòng TT P3E-05 ID 18679 / P3D-05 ID 18681, Tủ trực 5142 Khu 3E / 5141 Khu 3D, Kho Dược chính 4854, ĐMMM NB260620.6231 ID 74281, Token doctor_nb.token - BS Vũ Minh Cường vmc). Tự động cắm context và token Ninh Bình cho mọi tác vụ lâm sàng.",
+                "CONG CU DIEU PHOI CHUYEN BIET CO SO NINH BINH (Bệnh viện Bạch Mai CS2 - Khoa 915 Ngoại tổng hợp Tầng 3 Nhà E, Buồng 3E/3D, Phòng TT P3E-05 ID 18679 / P3D-05 ID 18681, Tủ trực 5142 Khu 3E / 5141 Khu 3D, Kho Dược chính 4854, ĐMMM NB260620.6231 ID 74281, Token doctor_nb.token - Ths.BS Nguyễn Hữu Sâm 034727 mặc định các cơ sở). Tự động cắm context và token Ninh Bình cho mọi tác vụ lâm sàng.",
                 Obj(
                     "action", Obj("type", "string", "description", "Tác vụ lâm sàng tại Ninh Bình: 'lookup' (tra cứu BN), 'orders' (xem y lệnh), 'cancel_order' (hủy y lệnh), 'cancel_service' (hủy dịch vụ lẻ), 'tracking' (tờ điều trị + DHST), 'cabinet' (kê tủ trực 5142/5141), 'warehouse' (kê kho dược 4854), 'ration' (suất ăn), 'leanpro' (dinh dưỡng trước mổ), 'pt01' (biên bản PT-01), 'pacs' (xem CĐHA), 'debate_view' (xem hội chẩn), 'debate_create' (tạo hội chẩn), 'emr_fill' (vỏ BA EMR), 'health' (kiểm tra kết nối), 'glucose' (thợ cho đường huyết NB), 'discharge' (thợ làm ra viện NB), 'raw_cli' (chạy CLI tùy biến)", "enum", Arr("lookup", "orders", "cancel_order", "cancel_service", "tracking", "cabinet", "warehouse", "ration", "leanpro", "pt01", "pacs", "debate_view", "debate_create", "emr_fill", "health", "glucose", "discharge", "raw_cli")),
                     "patientCode", Obj("type", "string", "description", "Mã bệnh nhân hoặc mã điều trị (VD: 24001234)"),
@@ -478,15 +478,14 @@ namespace HisMcp
                         val.IndexOf("Khoa 915", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         val.IndexOf("P3E-", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         val.IndexOf("3E-", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        val.IndexOf("5142", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        val.IndexOf("vmc", StringComparison.OrdinalIgnoreCase) >= 0)
+                        val.IndexOf("5142", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         return "NB";
                     }
                     if (val.IndexOf("Hà Nội", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         val.IndexOf("Khoa 57", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         val.IndexOf("P734", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        val.IndexOf("034727", StringComparison.OrdinalIgnoreCase) >= 0)
+                        val.IndexOf("810", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         return "HN";
                     }
@@ -629,6 +628,10 @@ namespace HisMcp
                 }
             }
 
+            string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+            string docLogin = !string.IsNullOrEmpty(envDoc) ? envDoc : "034727";
+            string docName = (docLogin == "vmc") ? "BS VŨ MINH CƯỜNG" : "Ths.BS NGUYỄN HỮU SÂM";
+
             string banner = string.Format(
                 "===============================================================================\n" +
                 "🏥 [HIS ROUTER -> CƠ SỞ: {0}]\n" +
@@ -640,8 +643,8 @@ namespace HisMcp
                 (facility == "NB" ? "P3E-05 (ID 18679) / P3D-05 (ID 18681)" : "P734 (ID 5248)"),
                 (facility == "NB" ? "5142 (Khu 3E) / 5141 (Khu 3D)" : "810 (TT_KCTCHCS) / 7787 (TTSPDD_9)"),
                 (facility == "NB" ? "4854 (Kho Dược chính CSNB)" : "4210 (Viên) / 4209 (Ống) / 753 (DD)"),
-                (facility == "NB" ? "BS VŨ MINH CƯỜNG" : "Ths.BS NGUYỄN HỮU SÂM"),
-                (facility == "NB" ? "vmc" : "034727"),
+                docName,
+                docLogin,
                 (facility == "NB" ? "doctor_nb.token" : "doctor_hn.token")
             );
 
@@ -1161,7 +1164,11 @@ namespace HisMcp
             try
             {
                 string tokenFile = (facility == "NB") ? Path.Combine(BaseDir, "doctor_nb.token") : Path.Combine(BaseDir, "doctor_hn.token");
-                string doctorLogin = (facility == "NB") ? "vmc" : "034727";
+                string doctorLogin = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+                if (string.IsNullOrEmpty(doctorLogin)) doctorLogin = "034727";
+                string doctorPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                if (string.IsNullOrEmpty(doctorPass)) doctorPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                if (string.IsNullOrEmpty(doctorPass)) doctorPass = "981";
 
                 var psi = new ProcessStartInfo
                 {
@@ -1179,6 +1186,7 @@ namespace HisMcp
                 psi.EnvironmentVariables["HIS_FACILITY"] = facility;
                 psi.EnvironmentVariables["HIS_TOKEN_FILE"] = tokenFile;
                 psi.EnvironmentVariables["HIS_DOCTOR_LOGIN"] = doctorLogin;
+                psi.EnvironmentVariables["HIS_PASSWORD"] = doctorPass;
 
                 using (var proc = Process.Start(psi))
                 {
