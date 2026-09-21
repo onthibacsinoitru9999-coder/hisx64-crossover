@@ -173,7 +173,6 @@ class HisEmrFiller
         bool forceSummary = false;
         bool forceAll = false;
         bool isReverseOutpatients = false;
-        bool signDoc = false;
         string customSummary = null;
 
         for (int i = 0; i < args.Length; i++)
@@ -183,8 +182,6 @@ class HisEmrFiller
                 dryRun = false;
             else if (a.Equals("--dry-run", StringComparison.OrdinalIgnoreCase) || a.Equals("--preview", StringComparison.OrdinalIgnoreCase))
                 dryRun = true;
-            else if (a.Equals("--sign", StringComparison.OrdinalIgnoreCase))
-                signDoc = true;
             else if (a.Equals("--reverse-outpatients", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("--reverse", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("reverse", StringComparison.OrdinalIgnoreCase) ||
@@ -292,7 +289,7 @@ class HisEmrFiller
 
         try
         {
-            return Run(input, dryRun, doctorCode, doctorName, forceSummary, forceAll, signDoc, customSummary);
+            return Run(input, dryRun, doctorCode, doctorName, forceSummary, forceAll, customSummary);
         }
         catch (Exception ex)
         {
@@ -312,7 +309,7 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // MAIN EXECUTION LOGIC
     // ──────────────────────────────────────────────────────────────
-    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false, bool forceAll = false, bool signDoc = false, string customSummary = null)
+    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false, bool forceAll = false, string customSummary = null)
     {
         string tokenCode = ReadLiveToken();
         var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
@@ -455,30 +452,6 @@ class HisEmrFiller
         }
 
         con.Close();
-
-        if (signDoc && !dryRun)
-        {
-            Console.WriteLine("\n" + new string('=', 75));
-            Console.WriteLine("🔏 Đang tiến hành tạo văn bản EMR và ký điện tử Cloud HSM tại chân ký trang 2...");
-            Console.WriteLine(new string('=', 75));
-            try
-            {
-                var p = new System.Diagnostics.Process();
-                p.StartInfo.FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HisDiagnosticDoctor.exe");
-                p.StartInfo.Arguments = "sign-ba " + ti.PatientCode;
-                p.StartInfo.UseShellExecute = false;
-                p.StartInfo.RedirectStandardOutput = true;
-                p.StartInfo.StandardOutputEncoding = Encoding.UTF8;
-                p.Start();
-                string outStr = p.StandardOutput.ReadToEnd();
-                p.WaitForExit();
-                Console.WriteLine(outStr);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("⚠️ Không thể tự động ký: " + ex.Message);
-            }
-        }
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("\n👉 HƯỚNG DẪN BÁC SĨ:");

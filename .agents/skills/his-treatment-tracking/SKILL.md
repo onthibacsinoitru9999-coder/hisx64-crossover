@@ -11,9 +11,10 @@ description: >-
 Skill này cung cấp quy trình và kịch bản thực thi tự động tạo **Tờ điều trị**, **Diễn biến bệnh**, **Y lệnh**, và **Ký số Cloud HSM EMR tự động 100%** trực tiếp qua API hệ thống HIS bệnh viện (Backend MOS `:1608`, EMR `:1415`, ACS `:1401`).
 
 > [!IMPORTANT]
-> **Chốt Ranh Giới Kỹ Thuật Ký Số**:
-> - ⚠️ **Tờ điều trị (`DOCUMENT_TYPE_ID = 7` / `Mps000062` / `HIS_TRACKING`)**: **TẠM DỪNG CHỨC NĂNG TỰ ĐỘNG KÝ SỐ QUA API THEO CHỈ ĐỊNH CỦA BÁC SĨ** cho tới khi có bản cập nhật mới. Hệ thống chỉ tạo tờ điều trị trên HIS/MOS (`api/HisTracking/Create`), không gọi `AutoSignTrackingEmr` để tránh tạo dummy PDF rỗng. Bác sĩ in và ký trực tiếp trên UI EMR Desktop Client.
-> - **Vỏ bệnh án ngoại khoa (`BENHANNGOAIKHOA`)**: Điền tự động dữ liệu vào Oracle EMR qua `HisEmrFiller.exe`. Bác sĩ ký 1-click trực tiếp trên giao diện EMR Desktop. Tuyệt đối không script ký API cho Vỏ bệnh án để tránh lệch engine báo cáo XtraReports của EMR Client.
+> **Quy Chuẩn Ký Số & In Ấn**:
+> - ⚠️ **GỠ BỎ HOÀN TOÀN TỰ ĐỘNG KÝ SỐ QUA API**: Toàn bộ chức năng ký số ngầm qua API (`SignPdfHsm`, `AutoSignTrackingEmr`, sinh PDF upload) đã bị **GỠ BỎ 100%**.
+> - Hệ thống tập trung tối đa vào việc tạo bản ghi tờ điều trị chuẩn xác, đầy đủ diễn biến lâm sàng trên HIS/MOS (`api/HisTracking/Create`).
+> - **In và ký**: Bác sĩ in và ký trực tiếp Tờ điều trị trên giao diện **HIS / EMR Desktop Client** tại máy trạm khoa phòng. Không can thiệp API ký ngầm.
 
 ---
 
@@ -21,54 +22,41 @@ Skill này cung cấp quy trình và kịch bản thực thi tự động tạo 
 - **ACS Auth URL**: `http://192.168.7.200:1401/`
 - **MOS Backend URL**: `http://192.168.7.236:1608/`
 - **EMR Document URL**: `http://192.168.7.239:1415/`
-- **Tài khoản bác sĩ**: `034727` / `998199` (Ths.BS NGUYỄN HỮU SÂM - Khoa CTCH & Cột sống, Khoa 57 / Mã khoa `9`, Phòng 714 / 716 / P734 `5248`).
+- **Tài khoản bác sĩ**: `034727` (Ths.BS NGUYỄN HỮU SÂM - Mật khẩu đọc từ `$env:HIS_PASSWORD` hoặc fallback `981`).
 
 ---
 
 ## 2. Công Cụ Thực Thi Siêu Tốc (`HisTrackingCreator.exe`)
 
-Công cụ `HisTrackingCreator.exe` đặt trực tiếp tại thư mục gốc HIS (`e:\his-x64-28-11fix GDYK\his-x64\`). Thực thi tạo và tự động ký trong **< 1 giây**.
+Công cụ `HisTrackingCreator.exe` đặt trực tiếp tại thư mục gốc HIS. Thực thi tạo tờ điều trị trong **< 1 giây**.
 
 ### Cú pháp lệnh chuẩn:
 ```powershell
-# 1. Tạo tờ điều trị và TỰ ĐỘNG KÝ SỐ Cloud HSM luôn
+# 1. Tạo tờ điều trị sạch sẽ trên MOS
 .\HisTrackingCreator.exe -p 0004051068 -time 08:00 -content "Bệnh nhân tỉnh, đau lưng giảm, vết mổ khô" -care "Chăm sóc cấp II. Ăn BT01" -med "Thuốc theo đơn"
 
-# 2. Kiểm tra trạng thái ký trên EMR
-.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe emr 0004051068
+# 2. Kiểm tra văn bản EMR (Chỉ đọc)
+.\HisClinicalCli.exe emr 0004051068
 ```
 
 ---
 
-## 3. Kiến Trúc 2 Bước Ký Số Tự Động (Cloud HSM Pipeline)
+## 3. Kiến Trúc Tạo Tờ Điều Trị MOS Chuẩn
 
 Khi `HisTrackingCreator.exe` tạo tờ điều trị:
-1. **Bước 1: Tạo bản ghi MOS (`POST api/HisTracking/Create`)**:
+1. **Tạo bản ghi MOS (`POST api/HisTracking/Create`)**:
    - DTO: `MOS.SDO.HisTrackingSDO` chứa `HIS_TRACKING` và `WorkingRoomId = 5248`.
    - Thuộc tính y lệnh bắt buộc là `MEDICAL_INSTRUCTION`.
-   - Sinh ra `TRACKING_ID` và `SHEET_ORDER`.
-2. **Bước 2: Tạo Lệnh In & Đóng Dấu Ký Số EMR (`AutoSignTrackingEmr`)**:
-   - Gọi `POST api/EmrDocument/CreateByTdo`:
-     * `DocumentTypeId = 7` (Phiếu yêu cầu in tờ điều trị).
-     * `HisCode = "Mps000062 TREATMENT_CODE:{treatmentCode} HIS_TRACKING:{trackingId}"`.
-     * `SignTDO`: Bác sĩ điều trị `034727` (ThS.BS NGUYỄN HỮU SÂM).
-   - Gọi `POST api/EmrSign/SignPdfHsm`:
-     * Tọa độ con dấu: `CoorXRectangle = 400.0f, CoorYRectangle = 100.0f, PageNumber = 1`.
-     * Kết quả: Văn bản chuyển sang trạng thái `🟢 ĐÃ KÝ ĐẦY ĐỦ` ngay lập tức.
+   - Sinh ra `TRACKING_ID` và `SHEET_ORDER` chuẩn xác.
+2. **Ký và In ấn**:
+   - Bác sĩ mở bệnh án trên UI Desktop, bấm In và Ký trực tiếp. Template `062-Tờ điều trị chuẩn.xlsx` tự nạp 100% dữ liệu.
 
 ---
 
-## 4. Kiểm Tra Đối Soát Sau Ký
+## 4. Kiểm Tra Danh Sách Văn Bản EMR (Chỉ Đọc)
 Sử dụng lệnh CLI:
 ```powershell
-.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe emr <MãBN>
-```
-Kết quả hiển thị:
-```text
-[1] DocID: 93372246 | Loại: 7   | 🟢 ĐÃ KÝ ĐẦY ĐỦ
-    Tên VB : Phiếu yêu cầu in tờ điều trị (4)
-    Mã VB  : 000093372352 | HIS_CODE: Mps000062 TREATMENT_CODE:... HIS_TRACKING:...
-      - Vị trí 1 (034727 - NGUYỄN HỮU SÂM): ✅ Đã ký
+.\HisClinicalCli.exe emr <MãBN>
 ```
 
 ---
@@ -85,5 +73,5 @@ Kết quả hiển thị:
 ## 6. Thực Thi Tạo Tờ Điều Trị Qua HIS MCP Server (Chống Rác File Trong /goal)
 Trong các phiên chạy tự động `/goal`, Agent **BẮT BUỘC** gọi qua công cụ MCP:
 - `his_create_tracking(patientCode, progressNote, pulse, bloodPressure, temperature, spO2, instructionTime)`
-- Mọi diễn biến lâm sàng được truyền qua tham số và ký số HSM tự động, tuyệt đối KHÔNG tạo script tạm.
+- Mọi diễn biến lâm sàng được truyền qua tham số trực tiếp, tuyệt đối KHÔNG tạo script tạm.
 

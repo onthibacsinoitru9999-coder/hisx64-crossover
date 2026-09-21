@@ -1025,14 +1025,31 @@ public class MainForm : Form
                     var p = row.Tag as PatientLookupInfo;
                     if (p == null) p = LookupPatientDirect(patCode);
 
-                    if (p == null) throw new Exception("Không tìm thấy đợt điều trị của BN!");
+                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
+                    long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
+                    long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
 
-                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : 5257;
+                    try
+                    {
+                        var wi = new WorkInfoSDO
+                        {
+                            Rooms = new List<RoomSDO>
+                            {
+                                new RoomSDO { RoomId = doctorWorkRoomId },
+                                new RoomSDO { RoomId = roomId },
+                                new RoomSDO { RoomId = 5248 },
+                                new RoomSDO { RoomId = 18679 },
+                                new RoomSDO { RoomId = 18681 }
+                            }
+                        };
+                        myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
+                    }
+                    catch { }
 
                     HIS_TRACKING tracking = new HIS_TRACKING
                     {
                         TREATMENT_ID = p.TreatmentId,
-                        DEPARTMENT_ID = 57,
+                        DEPARTMENT_ID = deptId,
                         ROOM_ID = roomId,
                         TRACKING_TIME = trackingTime,
                         CONTENT = content,
@@ -1047,7 +1064,7 @@ public class MainForm : Form
                     HisTrackingSDO sdo = new HisTrackingSDO
                     {
                         Tracking = tracking,
-                        WorkingRoomId = roomId,
+                        WorkingRoomId = doctorWorkRoomId,
                         Dhst = null // Do not inject forced vital signs to keep tracking clean
                     };
 
@@ -1061,12 +1078,9 @@ public class MainForm : Form
                         throw new Exception(errMsg);
                     }
 
-                    bool signed = AutoSignTrackingEmr(p.TreatmentCode, CurrentLoginName, created.ID, created.SHEET_ORDER, created.TRACKING_TIME, CurrentUserName);
-                    string signNote = signed ? " (Đã ký EMR)" : "";
-
                     this.Invoke(new Action(() =>
                     {
-                        row.Cells["Status"].Value = "✔ Thành công" + signNote;
+                        row.Cells["Status"].Value = "✔ Thành công";
                         row.Cells["Result"].Value = "ID: " + created.ID;
                         row.Cells["PatientInfo"].Value = string.Format("{0} ({1}) - {2}", p.TDL_PATIENT_NAME, p.TDL_PATIENT_GENDER_NAME, p.BedFull);
                     }));
@@ -1232,6 +1246,7 @@ public class MainForm : Form
         public string TDL_PATIENT_GENDER_NAME { get; set; }
         public string BedFull { get; set; }
         public long WorkingRoomId { get; set; }
+        public long DepartmentId { get; set; }
         public string IcdCode { get; set; }
         public string IcdName { get; set; }
         public string IcdSubCode { get; set; }
@@ -1368,14 +1383,15 @@ public class MainForm : Form
 
             try
             {
-                long[] dept57Rooms = new long[] {
+                long[] defaultRooms = new long[] {
                     931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                     5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                    5267, 6622, 6623
+                    5267, 6622, 6623,
+                    18679, 18681, 14759
                 };
                 var workInfo = new WorkInfoSDO
                 {
-                    Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList()
+                    Rooms = defaultRooms.Select(r => new RoomSDO { RoomId = r }).ToList()
                 };
                 var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
                 HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
@@ -1455,6 +1471,7 @@ public class MainForm : Form
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = !string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME,
             WorkingRoomId = 5257,
+            DepartmentId = 57,
             BedFull = "Phòng 724"
         };
 
@@ -1473,6 +1490,11 @@ public class MainForm : Form
             if (bRooms != null && bRooms.Count > 0)
             {
                 item.WorkingRoomId = bRooms[0].ROOM_ID;
+                if (bRooms[0].DEPARTMENT_ID > 0) item.DepartmentId = bRooms[0].DEPARTMENT_ID;
+            }
+            else if (b.DEPARTMENT_ID > 0)
+            {
+                item.DepartmentId = b.DEPARTMENT_ID;
             }
         }
 
@@ -1529,183 +1551,14 @@ public class MainForm : Form
                 IcdName = tr != null ? tr.ICD_NAME : "Thoát vị đĩa đệm",
                 IcdSubCode = tr != null ? tr.ICD_SUB_CODE : "",
                 IcdText = tr != null ? (!string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME) : "",
-                WorkingRoomId = 5257
+                WorkingRoomId = 5257,
+                DepartmentId = 57
             };
 
             results.Add(item);
         }
 
         return results.OrderBy(p => p.BedFull).ThenBy(p => p.TDL_PATIENT_NAME).ToList();
-    }
-
-    public static bool AutoSignTrackingEmr(string treatmentCode, string doctorLogin, long? trackingId = null, long? sheetOrder = null, long? trackingTime = null, string doctorName = null)
-    {
-        // TẠM DỪNG CHỨC NĂNG KÝ TỜ ĐIỀU TRỊ THEO YÊU CẦU CỦA BÁC SĨ (CHỜ CẬP NHẬT MỚI)
-        // Bác sĩ sẽ in và ký trực tiếp trên UI EMR Desktop Client.
-        return false;
-    }
-
-    private static bool Disabled_AutoSignTrackingEmr_Old(string treatmentCode, string doctorLogin, long? trackingId = null, long? sheetOrder = null, long? trackingTime = null, string doctorName = null)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(currentToken)) return false;
-            Inventec.Common.WebApiClient.ApiConsumer emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
-
-            string docLogin = !string.IsNullOrEmpty(doctorLogin) ? doctorLogin : CurrentLoginName;
-            if (string.IsNullOrEmpty(docLogin) || string.Equals(docLogin, "vmc", StringComparison.OrdinalIgnoreCase))
-            {
-                docLogin = "034727"; // Ưu tiên 034727 vì vmc không có Cloud HSM
-            }
-            string docUser = !string.IsNullOrEmpty(doctorName) ? doctorName : CurrentUserName;
-            if (string.IsNullOrEmpty(docUser) || docLogin == "034727") docUser = "NGUYỄN HỮU SÂM";
-
-            var docFilter = new EmrDocumentFilter 
-            { 
-                TREATMENT_CODE__EXACT = treatmentCode,
-                DOCUMENT_TYPE_ID = 7
-            };
-            CommonParam pDoc = new CommonParam();
-            var docs = myAdapter.FetchList<EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, pDoc);
-
-            EMR_DOCUMENT targetDoc = null;
-            if (trackingId.HasValue && docs != null)
-            {
-                string tag = "HIS_TRACKING:" + trackingId.Value;
-                targetDoc = docs.FirstOrDefault(d => d.HIS_CODE != null && d.HIS_CODE.Contains(tag));
-            }
-
-            // BƯỚC 1: TẠO LỆNH IN (EMR DOCUMENT) NẾU CHƯA CÓ
-            if (targetDoc == null && trackingId.HasValue)
-            {
-                string pdfTemplate = "%PDF-1.4\n" +
-                    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
-                    "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n" +
-                    "3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Resources<<>>>>endobj\n" +
-                    "xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000101 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF\n";
-                string base64Pdf = Convert.ToBase64String(Encoding.ASCII.GetBytes(pdfTemplate));
-
-                string docName = string.Format("Phiếu yêu cầu in tờ điều trị ({0})", sheetOrder ?? 1);
-                string hisCode = string.Format("Mps000062 TREATMENT_CODE:{0} HIS_TRACKING:{1}", treatmentCode, trackingId.Value);
-                long docTime = trackingTime ?? long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
-
-                var docTdo = new EMR.TDO.DocumentTDO
-                {
-                    TreatmentCode = treatmentCode,
-                    DocumentName = docName,
-                    DocumentTypeId = 7,
-                    HisCode = hisCode,
-                    DepartmentCode = "9",
-                    DocumentTime = docTime,
-                    Loginname = docLogin,
-                    PaperName = "A4",
-                    RawKind = 9,
-                    Width = 827.0m,
-                    Height = 1169.0m,
-                    IsSignParallel = true,
-                    Signs = new List<EMR.TDO.SignTDO>
-                    {
-                        new EMR.TDO.SignTDO
-                        {
-                            NumOrder = 1,
-                            Loginname = docLogin,
-                            Username = docUser,
-                            FullName = docUser,
-                            Title = "Ths.BS",
-                            DepartmentCode = "9",
-                            DepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống"
-                        }
-                    },
-                    OriginalVersion = new EMR.TDO.VersionTDO
-                    {
-                        Base64Data = base64Pdf
-                    },
-                    FileType = EMR.TDO.FileType.PDF
-                };
-
-                CommonParam pTdo = new CommonParam();
-                var docRes = myAdapter.PostData<EMR.TDO.DocumentTDO>("api/EmrDocument/CreateByTdo", emrConsumer, docTdo, pTdo);
-                if (docRes != null && docRes.DocumentId.HasValue)
-                {
-                    targetDoc = new EMR_DOCUMENT { ID = docRes.DocumentId.Value, DOCUMENT_CODE = docRes.DocumentCode };
-                }
-            }
-
-            if (targetDoc == null && docs != null)
-            {
-                targetDoc = docs.OrderByDescending(d => d.ID).FirstOrDefault(d => 
-                    !string.IsNullOrEmpty(d.NEXT_SIGNER) &&
-                    (string.Equals(d.NEXT_SIGNER, docLogin, StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(d.NEXT_SIGNER, "034727", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(d.NEXT_SIGNER, "vmc", StringComparison.OrdinalIgnoreCase)));
-            }
-
-            if (targetDoc == null) return false;
-
-            // BƯỚC 2: CHÈN LỆNH KÝ ĐIỆN TỬ TỰ ĐỘNG
-            var signFilter = new EmrSignFilter { DOCUMENT_ID = targetDoc.ID };
-            CommonParam pSign = new CommonParam();
-            var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
-            var mySign = signs != null ? signs.FirstOrDefault(s => 
-                (string.Equals(s.LOGINNAME, docLogin, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(s.LOGINNAME, targetDoc.NEXT_SIGNER, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(s.LOGINNAME, "034727", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(s.LOGINNAME, "vmc", StringComparison.OrdinalIgnoreCase) ||
-                 string.IsNullOrEmpty(s.LOGINNAME)) &&
-                (s.SIGN_TIME == null || s.SIGN_TIME == 0)
-            ) : null;
-
-            if (mySign == null) return false;
-
-            long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
-            var signSdo = new EmrSignHsmSDO
-            {
-                EmrDocumentId = targetDoc.ID,
-                EmrSignId = mySign.ID,
-                SignTime = signTime,
-                IsFinishSign = true,
-                IsSigning = true,
-                IsSignElectronic = true,
-                Description = "Ký điện tử Tờ điều trị Bác sĩ (Auto-Sign)",
-                RoomCode = "NQCTCHBB734",
-                RoomTypeCode = "GI",
-                WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
-                PointSign = new EMR.SDO.EmrPointSignSDO
-                {
-                    CoorXRectangle = 400.0f,
-                    CoorYRectangle = 100.0f,
-                    PageNumber = 1,
-                    MaxPageNumber = 1,
-                    WidthRectangle = 150.0f,
-                    HeightRectangle = 50.0f,
-                    SizeFont = 10,
-                    TypeDisplay = 3,
-                    FontName = "Times New Roman"
-                }
-            };
-
-            var resSign = myAdapter.PostData<EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSign);
-            if (resSign != null && resSign.EmrSign != null)
-            {
-                return true;
-            }
-            else
-            {
-                var updateSdo = new EmrSignUpdateSDO
-                {
-                    DocumentId = targetDoc.ID,
-                    Updates = new List<EMR_SIGN>
-                    {
-                        new EMR_SIGN { ID = mySign.ID, SIGN_TIME = signTime }
-                    }
-                };
-                return myAdapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSign);
-            }
-        }
-        catch
-        {
-            return false;
-        }
     }
 }
 
@@ -1851,12 +1704,31 @@ class Program
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
                 long trackingTime = long.Parse(fullDateTime.ToString("yyyyMMddHHmmss"));
 
-                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : 5257;
+                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
+                long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
+                long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
+
+                try
+                {
+                    var wi = new WorkInfoSDO
+                    {
+                        Rooms = new List<RoomSDO>
+                        {
+                            new RoomSDO { RoomId = doctorWorkRoomId },
+                            new RoomSDO { RoomId = roomId },
+                            new RoomSDO { RoomId = 5248 },
+                            new RoomSDO { RoomId = 18679 },
+                            new RoomSDO { RoomId = 18681 }
+                        }
+                    };
+                    MainForm.myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
+                }
+                catch { }
 
                 HIS_TRACKING tracking = new HIS_TRACKING
                 {
                     TREATMENT_ID = p.TreatmentId,
-                    DEPARTMENT_ID = 57,
+                    DEPARTMENT_ID = deptId,
                     ROOM_ID = roomId,
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
@@ -1871,7 +1743,7 @@ class Program
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
-                    WorkingRoomId = roomId,
+                    WorkingRoomId = doctorWorkRoomId,
                     Dhst = null // Do not inject forced vital signs to keep tracking clean
                 };
 
@@ -1882,13 +1754,12 @@ class Program
                     string errMsg = "Hệ thống MOS từ chối tạo!";
                     if (cp.Messages != null && cp.Messages.Count > 0) errMsg = string.Join("; ", cp.Messages);
                     else if (cp.BugCodes != null && cp.BugCodes.Count > 0) errMsg = string.Join("; ", cp.BugCodes);
+                    else errMsg += string.Format(" (RoomId: {0}, DeptId: {1})", roomId, deptId);
                     throw new Exception(errMsg);
                 }
 
-                bool signed = MainForm.AutoSignTrackingEmr(p.TreatmentCode, MainForm.CurrentLoginName, created.ID, created.SHEET_ORDER, created.TRACKING_TIME, MainForm.CurrentUserName);
-                string signText = signed ? " | [EMR ĐÃ KÝ]" : "";
-                Console.WriteLine(string.Format("✔ [{0} - {1}] Tạo Tờ điều trị THÀNH CÔNG! ID: {2} | {3}{4}",
-                    p.TDL_PATIENT_CODE, p.TDL_PATIENT_NAME, created.ID, p.BedFull, signText));
+                Console.WriteLine(string.Format("✔ [{0} - {1}] Tạo Tờ điều trị THÀNH CÔNG! ID: {2} | {3}",
+                    p.TDL_PATIENT_CODE, p.TDL_PATIENT_NAME, created.ID, p.BedFull));
                 successCount++;
             }
             catch (Exception ex)

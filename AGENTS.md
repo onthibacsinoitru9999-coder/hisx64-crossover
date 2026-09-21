@@ -118,7 +118,7 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 🛏️ **Đặc quyền 'Thợ trực buồng' (1-Click)** | `his_execute_protocol_ward_duty` *(hoặc `his_tho_truc_buong` qua MCP `his-ward-duty`)* | **`HisWardDutyMcpServer.exe`** / `HisWardDuty.bat` | `.\HisWardDuty.bat <MãBN> [HN\|NB] [--dry-run]` | ❌ Không gọi script tạm; không bỏ sót rà soát CLS 3 tháng |
 | 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
 | 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
-| 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
+| 👥 **Hội chẩn chuyên khoa (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
 | 📑 **Tạo Biên bản Hội chẩn thông qua mổ (PT-01)** | `his_create_pt01` | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN>` | ❌ Không phá vỡ docx |
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang)** | `his_view_pacs` | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
 | 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR Nội trú** | `his_emr_fill` | **`HisEmrFiller.exe`** | `.\HisEmrFiller.bat <MãBN> [--save] [--force]` | ❌ Không dùng cho Ngoại trú |
@@ -136,7 +136,11 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 * **Phạm vi áp dụng duy nhất**: Vỏ Bệnh Án Ngoại Khoa CHỈ dành riêng cho bệnh nhân **ĐIỀU TRỊ NỘI TRÚ** (`TDL_TREATMENT_TYPE_ID == 3` và nằm buồng bệnh nội trú Khoa 57 / Khoa 915).
 * **Chốt chặn an toàn trong Code**: `HisEmrFiller.exe` tự động chặn đứng và từ chối nếu bệnh nhân là diện ngoại trú / phòng khám. Khi quét bệnh nhân theo ngày (`--date YYYYMMDD`), công cụ tự động lọc bỏ 100% ca khám ngoại trú.
 * **Lệnh thu hồi khẩn cấp (Reverse)**: `.\HisEmrFiller.bat --reverse-outpatients` để xóa sạch vỏ bệnh án ngoại trú bị tạo nhầm trên DB Oracle EMR và bảo lưu nguyên vẹn 100% bệnh nhân nội trú.
-* **Quy chuẩn Ký số Vỏ bệnh án vs Tờ điều trị**: `HisEmrFiller.exe` tự động hóa 100% việc điền dữ liệu lâm sàng vào Oracle EMR (tiết kiệm thời gian gõ bệnh án). Khâu ký số Vỏ bệnh án Bác sĩ bấm **1-click trực tiếp trên UI EMR Desktop** để phần mềm EMR Client tự đóng gói chữ ký nội bộ. **Chức năng ký số Tờ điều trị qua API (Type 7 / AutoSignTrackingEmr) TẠM DỪNG theo chỉ định của Bác sĩ cho đến khi có cập nhật mới (Bác sĩ in và ký trực tiếp Tờ điều trị trên UI EMR Desktop Client)**. Ký số tự động 100% qua API & Cloud HSM hiện tại chỉ duy trì cho **BIÊN BẢN HỘI CHẨN (Type 17)**.
+* **QUY TẮC BẮT BUỘC: GỠ BỎ TOÀN BỘ CÁC CẤU PHẦN KÝ SỐ EMR QUA API (ZERO BACKGROUND SIGNING)**:
+  - Tuyệt đối **CẤM TỰ ĐỘNG KÝ SỐ EMR QUA API** trong mọi công cụ nền (Tờ điều trị, Hội chẩn, Vỏ bệnh án, Leanpro, v.v.).
+  - Toàn bộ các API `api/EmrSign/SignPdfHsm`, `api/EmrSign/UpdateSdo`, sinh PDF tạm upload `CreateByTdo`, lệnh CLI `sign-emr`, `sign-ba`, cờ `--sign` đã được **GỠ BỎ VĨNH VIỄN 100%** khỏi codebase.
+  - Các công cụ nền CHỈ làm nhiệm vụ tạo dữ liệu gốc sạch sẽ trên MOS/EMR (`api/HisTracking/Create`, `api/HisDebate/Create`, nạp Oracle DB `BENHANNGOAIKHOA`).
+  - **Khâu in và ký văn bản**: Bác sĩ in và ký trực tiếp trên giao diện phần mềm **EMR Desktop Client** hoặc trên giấy tại máy trạm khoa phòng. Không can thiệp ngầm.
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.

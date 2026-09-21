@@ -3084,148 +3084,6 @@ public class HisClinicalCli
         Console.WriteLine("\n===============================================================================");
     }
 
-    public static void AutoSignEmr(string keyword, long? targetDocId = null)
-    {
-        InitSession();
-        Console.WriteLine("===============================================================================");
-        Console.WriteLine("⚡ TỰ ĐỘNG KÝ ĐIỆN TỬ EMR (AUTO-SIGN ON DEMAND): " + keyword);
-        Console.WriteLine(string.Format("👤 Bác sĩ ký: {0} ({1})", currentDoctorName, currentDoctorLogin));
-        Console.WriteLine("===============================================================================");
-
-        var tr = FindTreatmentByKeyword(keyword);
-        if (tr == null)
-        {
-            Console.WriteLine("❌ Không tìm thấy hồ sơ điều trị cho từ khóa: " + keyword);
-            return;
-        }
-
-        Console.WriteLine(string.Format("👤 BỆNH NHÂN: {0} | Mã ĐT: {1}", tr.TDL_PATIENT_NAME, tr.TREATMENT_CODE));
-        var docFilter = new EmrDocumentFilter { TREATMENT_CODE__EXACT = tr.TREATMENT_CODE };
-        var docs = myAdapter.FetchList<EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, param);
-        if (docs == null || docs.Count == 0)
-        {
-            Console.WriteLine("ℹ️ Không tìm thấy văn bản EMR nào của bệnh nhân.");
-            Console.WriteLine("===============================================================================");
-            return;
-        }
-
-        var pendingDocs = docs.Where(d => 
-            targetDocId != null ? (d.ID == targetDocId.Value) :
-            (!string.IsNullOrEmpty(d.NEXT_SIGNER) &&
-             (string.Equals(d.NEXT_SIGNER, currentDoctorLogin, StringComparison.OrdinalIgnoreCase) ||
-              string.Equals(d.NEXT_SIGNER, "034727", StringComparison.OrdinalIgnoreCase) ||
-              string.Equals(d.NEXT_SIGNER, "vmc", StringComparison.OrdinalIgnoreCase)))
-        ).ToList();
-
-        if (pendingDocs.Count == 0)
-        {
-            Console.WriteLine(string.Format("✔ Không có văn bản nào đang chờ Bác sĩ ({0}) ký!", currentDoctorLogin));
-            Console.WriteLine("===============================================================================");
-            return;
-        }
-
-        Console.WriteLine(string.Format("📋 Tìm thấy {0} văn bản đang chờ ký. Bắt đầu tự động ký điện tử...", pendingDocs.Count));
-        long signTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
-        int successCount = 0;
-
-        foreach (var doc in pendingDocs)
-        {
-            Console.WriteLine(string.Format("\n👉 Đang ký văn bản ID {0}: {1}...", doc.ID, doc.DOCUMENT_NAME));
-
-            var signFilter = new EmrSignFilter { DOCUMENT_ID = doc.ID };
-            var signs = myAdapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, param);
-            var mySign = signs != null ? signs.FirstOrDefault(s => 
-                (string.Equals(s.LOGINNAME, currentDoctorLogin, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(s.LOGINNAME, doc.NEXT_SIGNER, StringComparison.OrdinalIgnoreCase) ||
-                 string.IsNullOrEmpty(s.LOGINNAME)) &&
-                (s.SIGN_TIME == null || s.SIGN_TIME == 0)
-            ) : null;
-
-            if (mySign == null)
-            {
-                Console.WriteLine("   ⚠️ Không tìm thấy lượt ký hợp lệ của Bác sĩ trong văn bản này!");
-                if (signs != null && signs.Count > 0)
-                {
-                    foreach (var s in signs)
-                    {
-                        Console.WriteLine(string.Format("      • Vị trí {0} ({1} - {2}): SIGN_TIME={3}", s.NUM_ORDER, s.LOGINNAME, s.USERNAME, s.SIGN_TIME));
-                    }
-                }
-                continue;
-            }
-
-            var signSdo = new EmrSignHsmSDO
-            {
-                EmrDocumentId = doc.ID,
-                EmrSignId = mySign.ID,
-                SignTime = signTime,
-                IsFinishSign = true,
-                IsSigning = true,
-                IsSignElectronic = true,
-                Description = "Ký điện tử Bác sĩ điều trị (Auto-Sign)",
-                RoomCode = "NQCTCHBB734",
-                RoomTypeCode = "GI",
-                WorkingDepartmentName = "Khoa Chấn thương Chỉnh hình và Cột sống",
-                PointSign = new EMR.SDO.EmrPointSignSDO
-                {
-                    CoorXRectangle = 400.0f,
-                    CoorYRectangle = 100.0f,
-                    PageNumber = 1,
-                    MaxPageNumber = 1,
-                    WidthRectangle = 150.0f,
-                    HeightRectangle = 50.0f,
-                    SizeFont = 10,
-                    TypeDisplay = 3,
-                    FontName = "Times New Roman"
-                }
-            };
-
-            CommonParam pSign = new CommonParam();
-            var res = myAdapter.PostData<EmrSignResultSDO>("api/EmrSign/SignPdfHsm", emrConsumer, signSdo, pSign);
-            if (res != null && res.EmrSign != null)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(string.Format("   ✅ KÝ ĐIỆN TỬ THÀNH CÔNG! SignID: {0} | Thời gian: {1}", res.EmrSign.ID, res.EmrSign.SIGN_TIME));
-                Console.ResetColor();
-                successCount++;
-            }
-            else
-            {
-                // Fallback qua UpdateSdo nếu SignPdfHsm cần cấu hình HSM
-                var updateSdo = new EmrSignUpdateSDO
-                {
-                    DocumentId = doc.ID,
-                    Updates = new List<EMR_SIGN>
-                    {
-                        new EMR_SIGN
-                        {
-                            ID = mySign.ID,
-                            SIGN_TIME = signTime
-                        }
-                    }
-                };
-                var resUp = myAdapter.PostData<bool>("api/EmrSign/UpdateSdo", emrConsumer, updateSdo, pSign);
-                if (resUp)
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("   ✅ KÝ ĐIỆN TỬ THÀNH CÔNG (qua UpdateSdo)!");
-                    Console.ResetColor();
-                    successCount++;
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("   ❌ KÝ THẤT BẠI: " + string.Join("; ", pSign.Messages ?? new List<string>()));
-                    Console.ResetColor();
-                }
-            }
-        }
-
-        Console.WriteLine("===============================================================================");
-        Console.WriteLine(string.Format("📊 HOÀN TẤT: Đã tự động ký thành công {0}/{1} văn bản EMR.", successCount, pendingDocs.Count));
-        Console.WriteLine("===============================================================================");
-    }
-
     public static void AuditClinicalDate(string dateParam = null)
     {
         InitSession();
@@ -4337,7 +4195,6 @@ public class HisClinicalCli
             Console.WriteLine("  assign-bilan <trId> <tkId> <spine|trauma|cement|hip|hand>  : Chỉ định gói Bilan 1-Click");
             Console.WriteLine("  debate <patientCode|treatmentCode>                         : Tra cứu biên bản hội chẩn & ý kiến các chuyên khoa");
             Console.WriteLine("  emr <patientCode|treatmentCode|name>                       : Tra cứu danh sách văn bản EMR & trạng thái ký");
-            Console.WriteLine("  sign-emr <patientCode|treatmentCode> [docId]               : Tự động ký điện tử EMR cho Bác sĩ điều trị");
             Console.WriteLine("===============================================================================");
             return;
         }
@@ -4589,9 +4446,8 @@ public class HisClinicalCli
             }
             else if (cmd == "sign-emr" || cmd == "auto-sign" || cmd == "ky-emr")
             {
-                if (args.Length < 2) throw new Exception("Thiếu từ khóa tra cứu BN hoặc mã ĐT!");
-                long? docId = args.Length > 2 ? (long?)long.Parse(args[2]) : null;
-                AutoSignEmr(args[1], docId);
+                Console.WriteLine("⚠️ Chức năng ký số EMR qua API đã được gỡ bỏ hoàn toàn theo chỉ đạo của Bác sĩ.");
+                Console.WriteLine("   Bác sĩ in và ký trực tiếp văn bản EMR trên phần mềm EMR Desktop Client.");
             }
             else
             {
