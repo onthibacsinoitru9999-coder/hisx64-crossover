@@ -1704,9 +1704,9 @@ class Program
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
                 long trackingTime = long.Parse(fullDateTime.ToString("yyyyMMddHHmmss"));
 
-                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
                 long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
                 long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
+                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (deptId == 915 ? 18679 : 5248);
 
                 try
                 {
@@ -1721,6 +1721,10 @@ class Program
                             new RoomSDO { RoomId = 18681 }
                         }
                     };
+                    if (p.WorkingRoomId > 0 && !wi.Rooms.Any(r => r.RoomId == p.WorkingRoomId))
+                    {
+                        wi.Rooms.Add(new RoomSDO { RoomId = p.WorkingRoomId });
+                    }
                     MainForm.myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
                 }
                 catch { }
@@ -1749,6 +1753,12 @@ class Program
 
                 CommonParam cp = new CommonParam();
                 var created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                if (created == null || created.ID == 0)
+                {
+                    sdo.WorkingRoomId = roomId;
+                    cp = new CommonParam();
+                    created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                }
                 if (created == null || created.ID == 0)
                 {
                     string errMsg = "Hệ thống MOS từ chối tạo!";

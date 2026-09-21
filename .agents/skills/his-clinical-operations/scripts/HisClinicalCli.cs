@@ -122,7 +122,7 @@ public class HisClinicalCli
             cur = cur.Parent;
         }
 
-        // 3. Chỉ nhận tiến trình HIS nếu nó chạy đúng từ preferredDir (TUYỆT ĐỐI không đọc từ thư mục HIS khác trên máy)
+        // 3. Quét tiến trình HIS đang chạy trên máy (tự động phát hiện thư mục đang mở)
         try
         {
             var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
@@ -133,11 +133,8 @@ public class HisClinicalCli
                     try
                     {
                         string exePath = p.MainModule.FileName;
-                        if (exePath.IndexOf("LBP2900_R150_V330_W64_uk_EN_2", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            string hisDir = Path.GetDirectoryName(exePath);
-                            candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
-                        }
+                        string hisDir = Path.GetDirectoryName(exePath);
+                        candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
                     }
                     catch { }
                 }
@@ -371,14 +368,12 @@ public class HisClinicalCli
 
         try
         {
-            long[] dept57Rooms = new long[] {
-                931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
-                5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                5267, 5539, 6622, 6623, 18679, 18681, 14759, 14787
-            };
+            long[] targetRooms = isNB ? 
+                new long[] { 18679, 18681, 15272, 17416, 14759, 14787 } :
+                new long[] { 931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 5267, 5539, 6622, 6623 };
             var workInfo = new WorkInfoSDO
             {
-                Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList()
+                Rooms = targetRooms.Select(r => new RoomSDO { RoomId = r }).ToList()
             };
             var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
         }
@@ -430,14 +425,14 @@ public class HisClinicalCli
 
         try
         {
-            long[] dept57Rooms = new long[] {
-                931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
-                5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                5267, 5539, 6622, 6623, 18679, 18681, 14759, 14787
-            };
+            string envFac = Environment.GetEnvironmentVariable("HIS_FACILITY");
+            bool isLoginNB = string.Equals(envFac, "NB", StringComparison.OrdinalIgnoreCase);
+            long[] targetRooms = isLoginNB ? 
+                new long[] { 18679, 18681, 15272, 17416, 14759, 14787 } :
+                new long[] { 931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 5267, 5539, 6622, 6623 };
             var workInfo = new WorkInfoSDO
             {
-                Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList()
+                Rooms = targetRooms.Select(r => new RoomSDO { RoomId = r }).ToList()
             };
             myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
         }
@@ -2259,12 +2254,16 @@ public class HisClinicalCli
         }
     }
 
-    public static void ScanWardRooms()
+    public static void ScanWardRooms(string facility = null)
     {
         InitSession();
+        long targetDeptId = (facility != null && facility.Equals("NB", StringComparison.OrdinalIgnoreCase)) ? 915 : 57;
+        string deptTitle = targetDeptId == 915 ? 
+            "KHOA NGOẠI TỔNG HỢP NINH BÌNH (KHOA 915 - KHU 3E/3D)" : 
+            "KHOA CTCH & CỘT SỐNG HÀ NỘI (KHOA 57 - CÁC BUỒNG 710 - 740)";
+
         Console.WriteLine("===============================================================================");
-        Console.WriteLine("🏥 QUÉT TOÀN BỘ DANH SÁCH BỆNH NHÂN NỘI TRÚ KHOA 57 (CÁC BUỒNG 710 - 740)");
-        Console.WriteLine("Phòng: Toàn bộ buồng bệnh Khoa 57 (P710 - P740)");
+        Console.WriteLine(string.Format("🏥 QUÉT TOÀN BỘ DANH SÁCH BỆNH NHÂN NỘI TRÚ {0}", deptTitle));
         Console.WriteLine("===============================================================================");
 
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter();
@@ -2278,13 +2277,14 @@ public class HisClinicalCli
             return;
         }
 
-        var dept57Beds = allBeds.Where(x => x.DEPARTMENT_ID == 57)
+        var deptBeds = allBeds.Where(x => x.DEPARTMENT_ID == targetDeptId || 
+            (targetDeptId == 915 && x.BED_ROOM_NAME != null && (x.BED_ROOM_NAME.Contains("3E") || x.BED_ROOM_NAME.Contains("3D"))))
             .OrderBy(x => x.BED_ROOM_NAME).ThenBy(x => x.BED_NAME).ToList();
 
-        Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân tại toàn bộ các buồng Khoa 57 (710 - 740):\n", dept57Beds.Count));
+        Console.WriteLine(string.Format("Tìm thấy {0} bệnh nhân tại {1}:\n", deptBeds.Count, deptTitle));
 
         // BATCH QUERY: Gom toàn bộ Treatment IDs vào 1 request HTTP duy nhất
-        var treatIds = dept57Beds.Select(b => b.TREATMENT_ID).Distinct().ToList();
+        var treatIds = deptBeds.Select(b => b.TREATMENT_ID).Distinct().ToList();
         var treatMap = new Dictionary<long, V_HIS_TREATMENT>();
         if (treatIds.Count > 0)
         {
@@ -2298,7 +2298,7 @@ public class HisClinicalCli
         }
 
         int stt = 1;
-        foreach (var b in dept57Beds)
+        foreach (var b in deptBeds)
         {
             var tr = treatMap.ContainsKey(b.TREATMENT_ID) ? treatMap[b.TREATMENT_ID] : null;
 
@@ -2312,14 +2312,272 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
-    public static void LocatePatients(string keywordsArg)
+    public static void ScanShiftReport(string facility = "NB", string dateParam = null)
     {
         InitSession();
+        long targetDeptId = (facility != null && facility.Equals("NB", StringComparison.OrdinalIgnoreCase)) ? 915 : 57;
+        bool isNB = targetDeptId == 915;
+        string deptName = isNB ? "KHOA NGOẠI TỔNG HỢP CS NINH BÌNH (KHOA 915 - KHU 3E/3D)" : "KHOA CTCH & CỘT SỐNG CS HÀ NỘI (KHOA 57)";
+
+        DateTime now = DateTime.Now;
+        DateTime shiftStartDt;
+        DateTime shiftEndDt;
+
+        if (!string.IsNullOrEmpty(dateParam))
+        {
+            DateTime parsed;
+            if (DateTime.TryParseExact(dateParam, new string[] { "yyyyMMdd", "dd/MM/yyyy", "yyyy-MM-dd" }, null, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                shiftStartDt = parsed.Date.AddHours(7);
+                shiftEndDt = parsed.Date.AddDays(1).AddHours(8);
+            }
+            else
+            {
+                shiftStartDt = now.Hour < 8 ? now.Date.AddDays(-1).AddHours(7) : now.Date.AddHours(7);
+                shiftEndDt = now;
+            }
+        }
+        else
+        {
+            shiftStartDt = now.Hour < 8 ? now.Date.AddDays(-1).AddHours(7) : now.Date.AddHours(7);
+            shiftEndDt = now;
+        }
+
+        long shiftStart = long.Parse(shiftStartDt.ToString("yyyyMMddHHmmss"));
+        long shiftEnd = long.Parse(shiftEndDt.ToString("yyyyMMddHHmmss"));
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🏥 BÁO CÁO GIAO BAN / CA TRỰC: {0}", deptName));
+        Console.WriteLine(string.Format("⏱️ Khung giờ rà soát ca trực: {0:dd/MM/yyyy HH:mm} -> {1:dd/MM/yyyy HH:mm}", shiftStartDt, shiftEndDt));
+        Console.WriteLine(string.Format("👨‍⚕️ Bác sĩ trực: {0} ({1})", currentDoctorName, currentDoctorLogin));
+        Console.WriteLine("===============================================================================");
+
+        // 1. Quét toàn bộ bệnh nhân đang nằm buồng
+        HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter
+        {
+            IS_IN_ROOM = true,
+            TREATMENT_IS_ACTIVE = true
+        };
+        var allBeds = myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", mosConsumer, tbrf, param);
+        if (allBeds == null || allBeds.Count == 0)
+        {
+            Console.WriteLine("Không tìm thấy bệnh nhân nào đang nằm buồng trong hệ thống!");
+            return;
+        }
+
+        var deptBeds = allBeds.Where(x => x.DEPARTMENT_ID == targetDeptId || 
+            (isNB && x.BED_ROOM_NAME != null && (x.BED_ROOM_NAME.Contains("3E") || x.BED_ROOM_NAME.Contains("3D"))))
+            .OrderBy(x => x.BED_ROOM_NAME).ThenBy(x => x.BED_NAME).ToList();
+
+        var allTreatIds = deptBeds.Select(b => b.TREATMENT_ID).Distinct().ToList();
+        Console.WriteLine(string.Format("📊 Tổng số bệnh nhân đang nằm buồng hiện tại: {0} bệnh nhân", deptBeds.Count));
+
+        // 2. Batch fetch Treatments
+        var treatMap = new Dictionary<long, V_HIS_TREATMENT>();
+        if (allTreatIds.Count > 0)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { IDs = allTreatIds };
+            var trList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
+            if (trList != null) foreach (var t in trList) treatMap[t.ID] = t;
+        }
+
+        // 3. Phân tích chi tiết từng bệnh nhân
+        var postOpList = new List<long>();
+        var newAdmissionList = new List<long>();
+        var preOpOrMedicalList = new List<long>();
+
+        var postOpDetails = new Dictionary<long, string>();
+        var admDetails = new Dictionary<long, string>();
+
+        foreach (var tId in allTreatIds)
+        {
+            var bed = deptBeds.FirstOrDefault(x => x.TREATMENT_ID == tId);
+            var tr = treatMap.ContainsKey(tId) ? treatMap[tId] : null;
+
+            // A. Check chuyển khoa (DepartmentTran)
+            HisDepartmentTranViewFilter dtf = new HisDepartmentTranViewFilter { TREATMENT_ID = tId };
+            var dts = myAdapter.FetchList<V_HIS_DEPARTMENT_TRAN>("api/HisDepartmentTran/GetView", mosConsumer, dtf, param);
+
+            // B. Check phẫu thuật / thủ thuật (ServiceReq Type 6, 7)
+            HisServiceReqViewFilter srf = new HisServiceReqViewFilter { TREATMENT_ID = tId };
+            var srs = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
+            var ptReqs = (srs != null) ? srs.Where(x => (x.SERVICE_REQ_TYPE_ID == 6 || x.SERVICE_REQ_TYPE_ID == 7) &&
+                ((x.INTRUCTION_TIME >= shiftStart && x.INTRUCTION_TIME <= shiftEnd) ||
+                 (x.START_TIME.HasValue && x.START_TIME.Value >= shiftStart && x.START_TIME.Value <= shiftEnd) ||
+                 (x.FINISH_TIME.HasValue && x.FINISH_TIME.Value >= shiftStart && x.FINISH_TIME.Value <= shiftEnd))).ToList() : null;
+
+            // C. Check chuyển khoa từ GMHS / Nhà mổ
+            var transFromGmhs = (dts != null) ? dts.Where(x => (x.DEPARTMENT_ID == targetDeptId) &&
+                ((x.PREVIOUS_DEPARTMENT_NAME ?? "").Contains("Gây mê") ||
+                 (x.PREVIOUS_DEPARTMENT_NAME ?? "").Contains("Phẫu thuật") ||
+                 (x.PREVIOUS_DEPARTMENT_NAME ?? "").Contains("Hồi tỉnh") ||
+                 (x.PREVIOUS_DEPARTMENT_NAME ?? "").Contains("GMHS")) &&
+                ((x.DEPARTMENT_IN_TIME.HasValue && x.DEPARTMENT_IN_TIME.Value >= shiftStart && x.DEPARTMENT_IN_TIME.Value <= shiftEnd) ||
+                 (x.CREATE_TIME.HasValue && x.CREATE_TIME.Value >= shiftStart && x.CREATE_TIME.Value <= shiftEnd))).ToList() : null;
+
+            // D. Check tờ điều trị hậu phẫu
+            HisTrackingViewFilter trkf = new HisTrackingViewFilter { TREATMENT_ID = tId };
+            var trks = myAdapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", mosConsumer, trkf, param);
+            var postOpTrks = (trks != null) ? trks.Where(x => x.TRACKING_TIME >= shiftStart && x.TRACKING_TIME <= shiftEnd &&
+                (x.CONTENT != null && (x.CONTENT.ToUpper().Contains("HẬU PHẪU") ||
+                                       x.CONTENT.ToUpper().Contains("MỔ VỀ") ||
+                                       x.CONTENT.ToUpper().Contains("SAU MỔ") ||
+                                       x.CONTENT.ToUpper().Contains("VỀ KHOA") ||
+                                       x.CONTENT.ToUpper().Contains("THOÁT MÊ") ||
+                                       x.CONTENT.ToUpper().Contains("BÀN GIAO")))).ToList() : null;
+
+            bool isPostOp = (ptReqs != null && ptReqs.Count > 0) || 
+                            (transFromGmhs != null && transFromGmhs.Count > 0) || 
+                            (postOpTrks != null && postOpTrks.Count > 0);
+
+            if (isPostOp)
+            {
+                postOpList.Add(tId);
+                StringBuilder sb = new StringBuilder();
+                if (ptReqs != null && ptReqs.Count > 0)
+                {
+                    var ptNames = ptReqs.Select(p => p.SERVICE_REQ_CODE + (!string.IsNullOrEmpty(p.ICD_NAME) ? (" (" + p.ICD_NAME + ")") : "")).ToList();
+                    sb.Append("PTTT: " + string.Join("; ", ptNames) + " | ");
+                }
+                if (transFromGmhs != null && transFromGmhs.Count > 0)
+                {
+                    sb.Append("GMHS chuyển về: " + transFromGmhs[0].DEPARTMENT_IN_TIME + " | ");
+                }
+                if (postOpTrks != null && postOpTrks.Count > 0)
+                {
+                    var lastTrk = postOpTrks.OrderByDescending(x => x.TRACKING_TIME).First();
+                    sb.Append("Tờ ĐT (" + lastTrk.TRACKING_TIME + "): " + (lastTrk.CONTENT ?? "").Replace("\r\n", " ").Replace("\n", " "));
+                }
+                postOpDetails[tId] = sb.ToString();
+            }
+            else
+            {
+                // Check nếu mới vào khoa trong ca trực
+                var transToDept = (dts != null) ? dts.Where(x => x.DEPARTMENT_ID == targetDeptId)
+                    .OrderByDescending(x => x.DEPARTMENT_IN_TIME ?? x.CREATE_TIME).FirstOrDefault() : null;
+
+                long inDeptTime = 0;
+                string prevDeptName = "Ngoài viện / Tiếp đón";
+                if (transToDept != null)
+                {
+                    inDeptTime = transToDept.DEPARTMENT_IN_TIME ?? transToDept.CREATE_TIME ?? 0;
+                    prevDeptName = transToDept.PREVIOUS_DEPARTMENT_NAME ?? "Khoa KB / Cấp cứu";
+                }
+                else if (tr != null)
+                {
+                    inDeptTime = tr.IN_TIME;
+                }
+
+                if (inDeptTime >= shiftStart && inDeptTime <= shiftEnd)
+                {
+                    newAdmissionList.Add(tId);
+                    string diag = tr != null ? (tr.IN_ICD_NAME ?? tr.ICD_NAME ?? "N/A") : "N/A";
+                    string admNote = string.Format("Vào khoa lúc {0} (từ: {1}) | Chẩn đoán vào: {2}", inDeptTime, prevDeptName, diag);
+                    if (trks != null && trks.Count > 0)
+                    {
+                        var fTrk = trks.OrderBy(x => x.TRACKING_TIME).First();
+                        admNote += " | Diễn biến lúc vào: " + (fTrk.CONTENT ?? "").Replace("\r\n", " ").Replace("\n", " ");
+                    }
+                    admDetails[tId] = admNote;
+                }
+                else
+                {
+                    preOpOrMedicalList.Add(tId);
+                }
+            }
+        }
+
+        // =========================================================================
+        // HIỂN THỊ KẾT QUẢ RÕ RÀNG
+        // =========================================================================
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🟢 1. DANH SÁCH BỆNH NHÂN SAU MỔ VỀ KHOA TRONG CA TRỰC: {0} CA", postOpList.Count));
+        Console.WriteLine("===============================================================================");
+        if (postOpList.Count > 0)
+        {
+            int idx1 = 1;
+            foreach (var tId in postOpList)
+            {
+                var bed = deptBeds.FirstOrDefault(x => x.TREATMENT_ID == tId);
+                var tr = treatMap.ContainsKey(tId) ? treatMap[tId] : null;
+                string patName = tr != null ? tr.TDL_PATIENT_NAME : (bed != null ? bed.TDL_PATIENT_NAME : "N/A");
+                string patCode = tr != null ? tr.TDL_PATIENT_CODE : (bed != null ? bed.TDL_PATIENT_CODE : "N/A");
+                string room = bed != null ? bed.BED_ROOM_NAME : "N/A";
+                string bName = bed != null ? bed.BED_NAME : "N/A";
+                string icd = tr != null ? string.Format("[{0}] {1}", tr.ICD_CODE, tr.ICD_NAME) : "-";
+
+                Console.WriteLine(string.Format("{0:D2}. [{1} - {2}] BN: {3} (Mã BN: {4}) | Mã ĐT: {5}", idx1++, room, bName, patName, patCode, tId));
+                Console.WriteLine(string.Format("    • Chẩn đoán: {0}", icd));
+                if (postOpDetails.ContainsKey(tId))
+                {
+                    Console.WriteLine(string.Format("    • Thông tin mổ về: {0}", postOpDetails[tId]));
+                }
+                Console.WriteLine();
+            }
+        }
+        else
+        {
+            Console.WriteLine("  (Không có ca mổ nào chuyển về khoa trong ca trực)");
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🟡 2. DANH SÁCH BỆNH NHÂN MỚI VÀO KHOA CHƯA MỔ TRONG CA TRỰC: {0} CA", newAdmissionList.Count));
+        Console.WriteLine("===============================================================================");
+        if (newAdmissionList.Count > 0)
+        {
+            int idx2 = 1;
+            foreach (var tId in newAdmissionList)
+            {
+                var bed = deptBeds.FirstOrDefault(x => x.TREATMENT_ID == tId);
+                var tr = treatMap.ContainsKey(tId) ? treatMap[tId] : null;
+                string patName = tr != null ? tr.TDL_PATIENT_NAME : (bed != null ? bed.TDL_PATIENT_NAME : "N/A");
+                string patCode = tr != null ? tr.TDL_PATIENT_CODE : (bed != null ? bed.TDL_PATIENT_CODE : "N/A");
+                string room = bed != null ? bed.BED_ROOM_NAME : "N/A";
+                string bName = bed != null ? bed.BED_NAME : "N/A";
+                string icd = tr != null ? string.Format("[{0}] {1}", tr.ICD_CODE, tr.ICD_NAME) : "-";
+
+                Console.WriteLine(string.Format("{0:D2}. [{1} - {2}] BN: {3} (Mã BN: {4}) | Mã ĐT: {5}", idx2++, room, bName, patName, patCode, tId));
+                Console.WriteLine(string.Format("    • Chẩn đoán: {0}", icd));
+                if (admDetails.ContainsKey(tId))
+                {
+                    Console.WriteLine(string.Format("    • Vào khoa: {0}", admDetails[tId]));
+                }
+                Console.WriteLine();
+            }
+        }
+        else
+        {
+            Console.WriteLine("  (Không có bệnh nhân mới nào vào khoa chưa mổ trong ca trực)");
+        }
+
+        Console.WriteLine("\n===============================================================================");
+        Console.WriteLine(string.Format("🔵 3. BỆNH NHÂN CŨ ĐANG ĐIỀU TRỊ / CHỜ MỔ TẠI KHOA TỪ TRƯỚC: {0} CA", preOpOrMedicalList.Count));
+        Console.WriteLine("===============================================================================");
+        int idx3 = 1;
+        foreach (var tId in preOpOrMedicalList)
+        {
+            var bed = deptBeds.FirstOrDefault(x => x.TREATMENT_ID == tId);
+            var tr = treatMap.ContainsKey(tId) ? treatMap[tId] : null;
+            string patName = tr != null ? tr.TDL_PATIENT_NAME : (bed != null ? bed.TDL_PATIENT_NAME : "N/A");
+            string patCode = tr != null ? tr.TDL_PATIENT_CODE : (bed != null ? bed.TDL_PATIENT_CODE : "N/A");
+            string room = bed != null ? bed.BED_ROOM_NAME : "N/A";
+            string bName = bed != null ? bed.BED_NAME : "N/A";
+            string icd = tr != null ? string.Format("[{0}] {1}", tr.ICD_CODE, tr.ICD_NAME) : "-";
+
+            Console.WriteLine(string.Format("{0:D2}. [{1} - {2}] BN: {3} ({4}) | CĐ: {5}", idx3++, room, bName, patName, patCode, icd));
+        }
+        Console.WriteLine("===============================================================================");
+    }
+
+    public static void LocatePatients(string keywordsArg, string facility = null)
+    {
+        InitSession();
+        long targetDeptId = (facility != null && facility.Equals("NB", StringComparison.OrdinalIgnoreCase)) ? 915 : 57;
         string[] rawList = keywordsArg.Split(new char[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries);
         var keywords = rawList.Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToList();
 
         Console.WriteLine("===============================================================================");
-        Console.WriteLine(string.Format("📍 ĐỊNH VỊ BỆNH NHÂN THEO DANH SÁCH / LỊCH MỔ ({0} BỆNH NHÂN)", keywords.Count));
+        Console.WriteLine(string.Format("📍 ĐỊNH VỊ BỆNH NHÂN THEO DANH SÁCH / LỊCH MỔ ({0} BỆNH NHÂN) [Cơ sở: {1}]", keywords.Count, (targetDeptId == 915 ? "Ninh Bình (Khoa 915)" : "Hà Nội (Khoa 57)")));
         Console.WriteLine("===============================================================================");
 
         HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter
@@ -2341,11 +2599,11 @@ public class HisClinicalCli
                 RemoveDiacritics(b.TDL_PATIENT_NAME).ToLower().Contains(searchNorm)
             ).ToList();
 
-            var bed57 = matches.FirstOrDefault(b => b.DEPARTMENT_ID == 57) ?? matches.FirstOrDefault();
-            if (bed57 != null)
+            var bedTarget = matches.FirstOrDefault(b => b.DEPARTMENT_ID == targetDeptId) ?? matches.FirstOrDefault();
+            if (bedTarget != null)
             {
-                matchedMap[kw] = bed57;
-                treatIdsToFetch.Add(bed57.TREATMENT_ID);
+                matchedMap[kw] = bedTarget;
+                treatIdsToFetch.Add(bedTarget.TREATMENT_ID);
             }
         }
 
@@ -2380,7 +2638,7 @@ public class HisClinicalCli
                 string patName = tr != null ? tr.TDL_PATIENT_NAME : bed.TDL_PATIENT_NAME;
                 string patCode = tr != null ? tr.TDL_PATIENT_CODE : bed.TDL_PATIENT_CODE;
                 string trCode = tr != null ? tr.TREATMENT_CODE : "N/A";
-                string dept = tr != null ? (tr.END_DEPARTMENT_NAME ?? "Khoa 57") : (bed.DEPARTMENT_ID == 57 ? "Khoa 57" : ("Khoa " + bed.DEPARTMENT_ID));
+                string dept = tr != null ? (tr.END_DEPARTMENT_NAME ?? ("Khoa " + bed.DEPARTMENT_ID)) : ("Khoa " + bed.DEPARTMENT_ID);
                 string icd = tr != null ? string.Format("[{0}] {1} {2}", tr.ICD_CODE, tr.ICD_NAME, !string.IsNullOrEmpty(tr.ICD_TEXT) ? ("(" + tr.ICD_TEXT + ")") : "") : "-";
 
                 Console.WriteLine(string.Format("{0:D2}. 🛏️ [{1}] BN: {2} ({3}t - {4}) | Mã BN: {5} | Mã ĐT: {6}",
@@ -2392,7 +2650,7 @@ public class HisClinicalCli
                 // Fallback: search treatment directly
                 var tf = new HisTreatmentViewFilter { KEY_WORD = kw, IS_PAUSE = false };
                 var trList = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tf, param);
-                var tr = trList != null ? (trList.FirstOrDefault(x => x.END_DEPARTMENT_ID == 57) ?? trList.FirstOrDefault()) : null;
+                var tr = trList != null ? (trList.FirstOrDefault(x => x.END_DEPARTMENT_ID == targetDeptId) ?? trList.FirstOrDefault()) : null;
 
                 if (tr != null)
                 {
@@ -4271,14 +4529,22 @@ public class HisClinicalCli
                 if (args.Length < 2) throw new Exception("Thiếu mã BN hoặc mã đợt điều trị!");
                 LookupConsultationDebate(args[1]);
             }
-            else if (cmd == "wardround")
+            else if (cmd == "wardround" || cmd == "ward" || cmd == "buong")
             {
-                ScanWardRooms();
+                string fac = args.Length > 1 ? args[1] : null;
+                ScanWardRooms(fac);
+            }
+            else if (cmd == "shift-report" || cmd == "shift" || cmd == "truc" || cmd == "giao-ban")
+            {
+                string fac = args.Length > 1 ? args[1] : "NB";
+                string dateStr = args.Length > 2 ? args[2] : null;
+                ScanShiftReport(fac, dateStr);
             }
             else if (cmd == "locate" || cmd == "locate-patients" || cmd == "batch-lookup")
             {
                 if (args.Length < 2) throw new Exception("Thiếu danh sách tên bệnh nhân (phân cách bằng dấu phẩy)!");
-                LocatePatients(args[1]);
+                string fac = args.Length > 2 ? args[2] : null;
+                LocatePatients(args[1], fac);
             }
             else if (cmd == "login" || cmd == "switch-user" || cmd == "auth")
             {
