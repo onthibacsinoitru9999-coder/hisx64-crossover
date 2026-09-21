@@ -17,6 +17,15 @@
                                             "env":  {
                                                         "HIS_BASE_DIR":  "F:\\NB\\LBP2900_R150_V330_W64_uk_EN_2\\x64\\MISC\\ANIMIMG\\his\\HIS CSNB"
                                                     }
+                                        },
+                       "his-glucose":   {
+                                            "command":  "F:\\NB\\LBP2900_R150_V330_W64_uk_EN_2\\x64\\MISC\\ANIMIMG\\his\\HIS CSNB\\HisGlucoseMcpServer.exe",
+                                            "args":  [
+
+                                                     ],
+                                            "env":  {
+                                                        "HIS_BASE_DIR":  "F:\\NB\\LBP2900_R150_V330_W64_uk_EN_2\\x64\\MISC\\ANIMIMG\\his\\HIS CSNB"
+                                                    }
                                         }
                    }
 }

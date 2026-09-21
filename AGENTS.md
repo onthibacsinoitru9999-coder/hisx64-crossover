@@ -30,7 +30,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
    - Kê đơn Lĩnh Kho Dược (Thuốc viên, Thuốc ống, Dinh dưỡng 753): `his_prescribe_warehouse`
    - Kê đơn điều phối tự động: `his_prescribe_medicine`
    - Tờ điều trị: `his_create_tracking`
-   - ĐMMM & Thợ đường huyết: `his_assign_bedside_glucose`, `his_execute_protocol_glucose`
+   - ĐMMM & Thợ đường huyết (Server độc lập `his-glucose`): `his_assign_bedside_glucose`, `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet`)*
    - Suất ăn & Dinh dưỡng: `his_assign_ration`, `his_assign_leanpro`
    - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
    - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
@@ -106,8 +106,8 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro, Thay băng từ TỦ TRỰC** | `his_prescribe_cabinet` *(hoặc `his_prescribe_medicine`)* | **`HisCabinetPrescribe.exe`** / `HisAutoPrescribe.exe` | `.\HisCabinetPrescribe.bat single ...` hoặc `.\HisAutoPrescribe.exe single` | ❌ Không gọi API kê lĩnh 4210 |
 | 🏭 **Kê đơn thuốc nội trú thường quy LĨNH KHO DƯỢC** | `his_prescribe_warehouse` *(hoặc `his_prescribe_medicine`)* | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` | ❌ Không gọi API tủ trực (TakeBean) |
 | 📝 **Tạo tờ điều trị hàng ngày (DHST + AI)** | `his_create_tracking` | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` | ❌ Không dùng kê đơn |
-| 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | `his_assign_bedside_glucose` | **`HisGlucoseBedsideAssigner.exe`** | `.\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
-| ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` | Pipeline 3 bước | Tự động Tờ ĐT -> CLS -> Thuốc +5p | ❌ Không đổi thứ tự |
+| 🩸 **Chỉ định ĐMMM tại giường (`BM02426` / `NB260620.6231`)** | `his_assign_bedside_glucose` (Server `his-glucose`) | **`HisGlucoseMcpServer.exe`** / `HisGlucoseBedsideAssigner.exe` | `.\HisGlucoseMcpServer.exe assign <MãBN>` | ❌ Không dùng kê thuốc |
+| ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet` qua MCP `his-glucose`)* | **`HisGlucoseMcpServer.exe`** | `.\HisGlucoseMcpServer.exe <MãBN> <DH> <Loại> <UI> <Mốc> [HN\|NB] [--dry-run]` | ❌ Không đổi thứ tự pipeline 3 bước |
 | 🏁 **Đặc quyền 'Thợ làm ra viện' (1-Click)** | `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien` qua MCP `his-discharge`)* | **`HisDischargeMcpServer.exe`** | `.\HisDischargeMcpServer.exe <MãBN> [HN\|NB] [--dry-run]` | ❌ Không nhồi nhét vào `HisClinicalCli.exe` gây quá tải; không bỏ sót 4 nhóm bảo lưu |
 | 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
 | 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
@@ -152,6 +152,7 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 * **Ý nghĩa an toàn:** Tránh nguy cơ phẫu thuật sai vị trí hoặc bỏ sót tổn thương cấp cần can thiệp.
 
 ## 5. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ CHO ĐƯỜNG HUYẾT" (DIABETES 1-CLICK PROTOCOL)
+* **Máy chủ chuyên trách độc lập:** Được đóng gói trọn vẹn trong MCP Server riêng **`his-glucose`** (`HisGlucoseMcpServer.exe`) qua tool **`his_execute_protocol_glucose`** (hoặc bí danh **`his_tho_cho_duong_huyet`**) hoặc CLI **`.\HisGlucoseMcpServer.exe <MãBN> <DH> <Loại> <UI> <Mốc> [HN|NB] [--dry-run]`**. Tinh giản và cách ly 100% khỏi `HisMcpServer.exe` tổng thể để chống phình to codebase.
 * **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin hoặc gửi ảnh báo cáo đường huyết và gọi/nhắc đến **"thợ cho đường huyết"**, Agent PHẢI tự động nhận diện và kích hoạt ngay luồng xử lý toàn diện mà **KHÔNG CẦN HỎI LẠI HAY TINH CHỈNH GÌ THÊM**:
   1. **Tự đọc & trích xuất dữ liệu:** Phân tích trực tiếp ảnh/bảng dữ liệu gửi kèm (Mã BN, Họ tên, ĐH các mốc 17h, 21h, 6h sáng hôm sau, liều Insulin tương ứng).
      - 💡 **Quy chuẩn ký hiệu viết tắt của Điều dưỡng (Bắt buộc ghi nhớ):**

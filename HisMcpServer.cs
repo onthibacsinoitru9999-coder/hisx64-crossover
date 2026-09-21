@@ -256,19 +256,7 @@ namespace HisMcp
                 Arr("patientCode", "medicines")
             ));
 
-            // 8. his_assign_bedside_glucose
-            tools.Add(CreateTool(
-                "his_assign_bedside_glucose",
-                "Chi dinh Dinh luong Glucose mau mao mach tai giuong (DMMM). HN: BM02426 (ID 6217) / NB: NB260620.6231 (ID 74281)",
-                Obj(
-                    "patientCodes", Obj("type", "string", "description", "Danh sach ma benh nhan cach nhau boi dau phay"),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
-                    "timeSlot", Obj("type", "string", "description", "Moc thoi gian: '17h', '21h', '6h'")
-                ),
-                Arr("patientCodes")
-            ));
-
-            // 9. his_assign_ration
+            // 8. his_assign_ration
             tools.Add(CreateTool(
                 "his_assign_ration",
                 "Chi dinh Suat an dinh duong benh ly (BT01, DD01, TM01...) cho toan bo benh nhan trong buong benh",
@@ -280,7 +268,7 @@ namespace HisMcp
                 Arr("room")
             ));
 
-            // 10. his_assign_leanpro
+            // 9. his_assign_leanpro
             tools.Add(CreateTool(
                 "his_assign_leanpro",
                 "Chi dinh Dinh duong truoc mo (Leanpro PreSur). Tu dong chan benh nhan >= 70 tuoi hoac Dai thao duong",
@@ -289,21 +277,6 @@ namespace HisMcp
                     "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB"))
                 ),
                 Arr("patientCodes")
-            ));
-
-            // 11. his_execute_protocol_glucose
-            tools.Add(CreateTool(
-                "his_execute_protocol_glucose",
-                "Dac quyen 'Tho cho duong huyet' (1-Click Protocol): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM -> Ke don Insulin lech +5 phut)",
-                Obj(
-                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
-                    "glucoseValue", Obj("type", "number", "description", "Ket qua duong huyet (mmol/L, VD: 11.4)"),
-                    "insulinType", Obj("type", "string", "description", "Loai Insulin: 'R', 'L', 'M'", "enum", Arr("R", "L", "M")),
-                    "units", Obj("type", "integer", "description", "So don vi Insulin (UI, VD: 6, 8)"),
-                    "timeSlot", Obj("type", "string", "description", "Moc gio: '17h', '21h', '6h'", "enum", Arr("17h", "21h", "6h")),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB"))
-                ),
-                Arr("patientCode", "glucoseValue", "insulinType", "units", "timeSlot")
             ));
 
             // 12. his_create_pt01
@@ -419,17 +392,11 @@ namespace HisMcp
                     case "his_prescribe_medicine":
                         output = ExecutePrescribe(args, out isError);
                         break;
-                    case "his_assign_bedside_glucose":
-                        output = ExecuteAssignBedsideGlucose(args, out isError);
-                        break;
                     case "his_assign_ration":
                         output = ExecuteAssignRation(args, out isError);
                         break;
                     case "his_assign_leanpro":
                         output = ExecuteAssignLeanpro(args, out isError);
-                        break;
-                    case "his_execute_protocol_glucose":
-                        output = ExecuteProtocolGlucose(args, out isError);
                         break;
                     case "his_create_pt01":
                         output = ExecuteCreatePt01(args, out isError);
@@ -764,26 +731,6 @@ namespace HisMcp
             return ExecutePrescribeWarehouse(args, out isError);
         }
 
-        private static string ExecuteAssignBedsideGlucose(JObject args, out bool isError)
-        {
-            string pCodes = args["patientCodes"] != null ? args["patientCodes"].ToString().Trim() : "";
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim() : "HN";
-            string slot = args["timeSlot"] != null ? args["timeSlot"].ToString().Trim() : "";
-
-            if (string.IsNullOrEmpty(pCodes))
-            {
-                isError = true;
-                return "Loi: patientCodes khong duoc de trong.";
-            }
-
-            string tool = ResolveToolPath("HisGlucoseBedsideAssigner.exe");
-            string cmdArgs = EscapeArg(pCodes);
-            if (!string.IsNullOrEmpty(facility)) cmdArgs += " --facility " + EscapeArg(facility);
-            if (!string.IsNullOrEmpty(slot)) cmdArgs += " --slot " + EscapeArg(slot);
-
-            return RunProcess(tool, cmdArgs, out isError);
-        }
-
         private static string ExecuteAssignRation(JObject args, out bool isError)
         {
             string room = args["room"] != null ? args["room"].ToString().Trim() : "";
@@ -817,60 +764,7 @@ namespace HisMcp
             return RunProcess(tool, cmdArgs, out isError);
         }
 
-        private static string ExecuteProtocolGlucose(JObject args, out bool isError)
-        {
-            string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
-            double glucose = args["glucoseValue"] != null ? (double)args["glucoseValue"] : 0;
-            string insulinType = args["insulinType"] != null ? args["insulinType"].ToString().Trim().ToUpper() : "R";
-            int units = args["units"] != null ? (int)args["units"] : 0;
-            string slot = args["timeSlot"] != null ? args["timeSlot"].ToString().Trim().ToLower() : "17h";
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "HN";
 
-            if (string.IsNullOrEmpty(pCode) || units <= 0)
-            {
-                isError = true;
-                return "Loi: patientCode khong duoc de trong va units phai > 0.";
-            }
-
-            var sb = new StringBuilder();
-            sb.AppendLine("=== THUC THI PROTOCOL 'THO CHO DUONG HUYET' (1-CLICK IN-MEMORY) ===");
-            sb.AppendLine(string.Format("Benh nhan: {0} | Co so: {1} | Moc: {2} | DH: {3} mmol/L | Tiem: {4}{5} UI",
-                pCode, facility, slot, glucose, units, insulinType));
-
-            // Buoc 1: Tao To dieu tri
-            sb.AppendLine("\n--- BUOC 1: TAO TO DIEU TRI ---");
-            string note = string.Format("Ket qua DMMM {0}: {1} mmol/L. Y lenh: Tiem {2} UI {3}.",
-                slot, glucose, units, (insulinType == "R" ? "Actrapid" : (insulinType == "L" ? "Lantus" : "Mixtard")));
-            
-            bool step1Error;
-            string toolTracking = ResolveToolPath("HisTrackingCreator.exe");
-            string res1 = RunProcess(toolTracking, string.Format("{0} --note {1}", EscapeArg(pCode), EscapeArg(note)), out step1Error);
-            sb.AppendLine(res1);
-
-            // Buoc 2: Chi dinh CLS DMMM
-            sb.AppendLine("\n--- BUOC 2: CHI DINH DMMM TAI GIUONG ---");
-            bool step2Error;
-            string toolGlucose = ResolveToolPath("HisGlucoseBedsideAssigner.exe");
-            string res2 = RunProcess(toolGlucose, string.Format("{0} --facility {1} --slot {2}", EscapeArg(pCode), EscapeArg(facility), EscapeArg(slot)), out step2Error);
-            sb.AppendLine(res2);
-
-            // Buoc 3: Ke don Insulin (tu truc 810 hoac 5142)
-            sb.AppendLine("\n--- BUOC 3: KE DON INSULIN TU TRUC (+5 PHUT OFFSET) ---");
-            bool step3Error;
-            long stockId = (facility == "NB") ? 5142 : 810;
-            string toolPrescribe = ResolveToolPath("HisCabinetPrescribe.exe");
-            string timeStr = (slot == "17h") ? "17:05" : (slot == "21h" ? "21:05" : "06:05");
-            string res3 = RunProcess(toolPrescribe, string.Format("insulin {0} {1} {2} {3} {4}",
-                EscapeArg(pCode), units, EscapeArg(insulinType), EscapeArg(timeStr), stockId), out step3Error);
-            sb.AppendLine(res3);
-
-            // BUG FIX: Dung || (OR) - bat ky buoc nao loi la bao loi.
-            // Truoc day dung && (AND) nen chi bao loi khi CA 3 buoc deu loi,
-            // gay ra tinh trang bao thanh cong gia khi Insulin chua duoc ke (NGUY HIEM LAM SANG!)
-            isError = step1Error || step2Error || step3Error;
-            sb.AppendLine("\n=== HOAN TAT PROTOCOL DUONG HUYET ===");
-            return sb.ToString();
-        }
 
         private static string ExecuteCreatePt01(JObject args, out bool isError)
         {

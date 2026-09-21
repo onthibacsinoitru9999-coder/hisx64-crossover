@@ -2057,15 +2057,14 @@ Khi Agent thực thi nhiệm vụ tự động hóa lâm sàng (đặc biệt tr
 7. `his_prescribe_cabinet`: Kê đơn thuốc điều trị, tiêm Insulin, Leanpro, thay băng từ TỦ TRỰC (HN Kho 810, TTSPDD_9 7787, NB 5142, 5141; flow TakeBean -> OutPatientPresCreateList; hỗ trợ xem tồn mode='stock').
 8. `his_prescribe_warehouse`: Kê đơn thuốc nội trú thường quy, dinh dưỡng LINH TỪ KHO DƯỢC / CẤP PHÁT (Kho viên 4210, Kho ống 4209, Kho SPDD 753, CSNB 4854; flow InPatientPresCreate; hỗ trợ tra cứu danh mục mode='search').
 9. `his_prescribe_medicine`: Kê đơn thuốc điều phối tự động (Router thông minh sang Cabinet hoặc Warehouse theo kho).
-10. `his_assign_bedside_glucose`: Chỉ định ĐMMM tại giường (HN BM02426 / NB NB260620.6231).
-11. `his_assign_ration`: Chỉ định suất ăn dinh dưỡng bệnh lý theo buồng (BT01, DD01...).
-12. `his_assign_leanpro`: Chỉ định dịch dinh dưỡng trước mổ Leanpro PreSur (chặn >=70t/ĐTĐ).
-13. `his_execute_protocol_glucose`: Đặc quyền 'Thợ cho đường huyết' 1-Click (Tờ ĐT -> CLS -> Thuốc +5p).
-14. `his_create_pt01`: Lập biên bản thông qua mổ MS: PT-01 chuẩn docx.
-15. `his_view_pacs`: Tra cứu PACS/RIS và lấy URL xem ảnh Web PACS.
-16. `his_debate_create`: Tạo phiếu chỉ định hội chẩn chuyên khoa Type 17 / Mps000019.
-17. `his_emr_fill`: Điền vỏ bệnh án EMR nội trú Khoa 57 / 915.
-18. `his_system_health`: Kiểm tra sức khỏe kết nối HIS, TokenCode và ping máy chủ.
+10. `his_assign_ration`: Chỉ định suất ăn dinh dưỡng bệnh lý theo buồng (BT01, DD01...).
+11. `his_assign_leanpro`: Chỉ định dịch dinh dưỡng trước mổ Leanpro PreSur (chặn >=70t/ĐTĐ).
+12. `his_create_pt01`: Lập biên bản thông qua mổ MS: PT-01 chuẩn docx.
+13. `his_view_pacs`: Tra cứu PACS/RIS và lấy URL xem ảnh Web PACS.
+14. `his_debate_create`: Tạo phiếu chỉ định hội chẩn chuyên khoa Type 17 / Mps000019.
+15. `his_emr_fill`: Điền vỏ bệnh án EMR nội trú Khoa 57 / 915.
+16. `his_system_health`: Kiểm tra sức khỏe kết nối HIS, TokenCode và ping máy chủ.
+*(Lưu ý: Hai cụm protocol lớn đã được tách thành MCP Server độc lập chuyên trách: `his-glucose` gồm `his_execute_protocol_glucose` & `his_assign_bedside_glucose`; và `his-discharge` gồm `his_execute_protocol_discharge`).*
 
 ### 35.4. Quy Định Về Quyền Tinh Chỉnh Tham Số & Cơ Chế Dừng Báo Cáo Kẹt (Circuit-Breaker):
 * **Quyền tinh chỉnh tham số của Agent**:
@@ -2094,9 +2093,9 @@ Bác sĩ chỉ cần gửi prompt tự nhiên, ngắn gọn; Agent sẽ tự đ�
 | 📝 **Tạo tờ điều trị hàng ngày** | `"Tạo tờ điều trị hôm nay cho BN 0001666593, mạch 80, HA 120/80, đau lưng giảm"` | `his_create_tracking` |
 | 💊 **Kê thuốc tủ trực** | `"Kê từ tủ trực cho BN 0001666593: Paracetamol Kabi 1 chai truyền TM"`<br>`"Kê tủ trực 3E: Cefuroxim 750mg 2 lọ tiêm TM"` | `his_prescribe_cabinet` |
 | 🏭 **Kê thuốc lĩnh kho dược** | `"Kê đơn lĩnh kho dược cho BN 0001666593: Cefuroxim 500mg 2 viên uống sáng 1 tối 1"` | `his_prescribe_warehouse` |
-| ⚡ **Thợ cho đường huyết (1-Click)** | `"Thợ cho đường huyết ca này: BN 0001666593 lúc 17h ĐH 12.4 tiêm 6R"`<br>*(Kèm ảnh sổ/bảng theo dõi ĐH)* | `his_execute_protocol_glucose` |
-| 🏁 **Thợ làm ra viện (1-Click)** | `"Thợ làm ra viện cho BN 0000476007"`<br>`"Ra viện ca này buồng P714"` | `his_execute_protocol_discharge` |
-| 🩸 **Chỉ định ĐMMM lẻ** | `"Chỉ định đường máu mao mạch tại giường cho BN 0001666593"` | `his_assign_bedside_glucose` |
+| ⚡ **Thợ cho đường huyết (1-Click)** | `"Thợ cho đường huyết ca này: BN 0001666593 lúc 17h ĐH 12.4 tiêm 6R"`<br>*(Kèm ảnh sổ/bảng theo dõi ĐH)* | `his_execute_protocol_glucose`<br>*(Server `his-glucose`)* |
+| 🏁 **Thợ làm ra viện (1-Click)** | `"Thợ làm ra viện cho BN 0000476007"`<br>`"Ra viện ca này buồng P714"` | `his_execute_protocol_discharge`<br>*(Server `his-discharge`)* |
+| 🩸 **Chỉ định ĐMMM lẻ** | `"Chỉ định đường máu mao mạch tại giường cho BN 0001666593"` | `his_assign_bedside_glucose`<br>*(Server `his-glucose`)* |
 | 🍲 **Chỉ định suất ăn** | `"Chỉ định suất ăn cơm thường BT01 cho buồng P714"`<br>`"Báo ăn buồng 3E-05 suất đái tháo đường"` | `his_assign_ration` |
 | 🥛 **Chỉ định Leanpro trước mổ** | `"Kê 6 chai Leanpro trước mổ cho BN 0001666593 mổ ngày mai"` | `his_assign_leanpro` |
 | 🖼️ **Xem phim chụp PACS** | `"Mở phim chụp MRI và X-quang của BN 0001666593"` | `his_view_pacs` |
