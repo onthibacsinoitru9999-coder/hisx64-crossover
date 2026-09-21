@@ -600,10 +600,10 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
-    public static long CreateTracking(long treatmentId, string content, long? pulse = null, decimal? temp = null, long? bpMax = null, long? bpMin = null)
+    public static long CreateTracking(long treatmentId, string content, long? pulse = null, decimal? temp = null, long? bpMax = null, long? bpMin = null, long? trackingTime = null)
     {
         InitSession();
-        long now = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+        long now = trackingTime.HasValue ? trackingTime.Value : long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
 
         HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
         tf.ID = treatmentId;
@@ -611,10 +611,14 @@ public class HisClinicalCli
         if (treatments == null || treatments.Count == 0) throw new Exception("Không tìm thấy đợt điều trị!");
         var tr = treatments[0];
 
+        long reqRoomId = ResolvePatientRoomId(treatmentId);
+        EnsureWorkInfoForRoom(reqRoomId);
+
         HIS_TRACKING tracking = new HIS_TRACKING
         {
             TREATMENT_ID = treatmentId,
             DEPARTMENT_ID = 57,
+            ROOM_ID = reqRoomId,
             TRACKING_TIME = now,
             CONTENT = content,
             ICD_CODE = tr.ICD_CODE,
@@ -625,7 +629,8 @@ public class HisClinicalCli
 
         HisTrackingSDO sdo = new HisTrackingSDO
         {
-            Tracking = tracking
+            Tracking = tracking,
+            WorkingRoomId = reqRoomId
         };
 
         if (pulse.HasValue || temp.HasValue || bpMax.HasValue || bpMin.HasValue)
@@ -643,11 +648,16 @@ public class HisClinicalCli
             };
         }
 
-        var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, param);
-        if (created == null) throw new Exception("Tạo tờ điều trị thất bại!");
+        var resTrk = myAdapter.PostData<HisTrackingSDO>("api/HisTracking/Create", mosConsumer, sdo, param);
+        if (resTrk == null || resTrk.Tracking == null || resTrk.Tracking.ID <= 0)
+        {
+            string errMsg = "Tạo tờ điều trị thất bại!";
+            if (param.Messages != null && param.Messages.Count > 0) errMsg += " " + string.Join("; ", param.Messages);
+            throw new Exception(errMsg);
+        }
 
-        Console.WriteLine(string.Format("✔ Đã tạo Tờ điều trị ID: {0} lúc {1}", created.ID, created.TRACKING_TIME));
-        return created.ID;
+        Console.WriteLine(string.Format("✔ Đã tạo Tờ điều trị ID: {0} lúc {1}", resTrk.Tracking.ID, resTrk.Tracking.TRACKING_TIME));
+        return resTrk.Tracking.ID;
     }
 
     public static void ViewPatientMeds(string keyword)
@@ -1353,7 +1363,12 @@ public class HisClinicalCli
             var curBed = bedRooms != null ? bedRooms.LastOrDefault(x => x.REMOVE_TIME == null || x.REMOVE_TIME == 0) : null;
             if (curBed != null && curBed.BED_ROOM_ID > 0)
             {
-                return curBed.BED_ROOM_ID;
+                HisBedRoomViewFilter brf = new HisBedRoomViewFilter { ID = curBed.BED_ROOM_ID };
+                var brList = myAdapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, brf, param);
+                if (brList != null && brList.Count > 0 && brList[0].ROOM_ID > 0)
+                {
+                    return brList[0].ROOM_ID;
+                }
             }
         }
         catch { }
@@ -1381,18 +1396,87 @@ public class HisClinicalCli
         catch { }
     }
 
-    public static void AssignClsService(long treatmentId, long trackingId, long serviceId, long roomId, string note, int patientTypeId = 1)
+    public static void AssignClsService(long treatmentId, long trackingId, long serviceId, long roomId, string note, int patientTypeId = 1, long? customInstructionTime = null)
     {
         InitSession();
 
-        HisTrackingFilter tf = new HisTrackingFilter();
-        tf.ID = trackingId;
-        var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, tf, param);
-        if (trackings == null || trackings.Count == 0) throw new Exception("Không tìm thấy tờ điều trị!");
-        var tr = trackings[0];
+        HIS_TRACKING tr = null;
+        if (trackingId > 0)
+        {
+            HisTrackingFilter tf = new HisTrackingFilter();
+            tf.ID = trackingId;
+            var trackings = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, tf, param);
+            if (trackings != null && trackings.Count > 0) tr = trackings[0];
+        }
 
         long reqRoomId = ResolvePatientRoomId(treatmentId);
         EnsureWorkInfoForRoom(reqRoomId);
+
+        if (tr == null)
+        {
+            HisTrackingFilter tfAll = new HisTrackingFilter { TREATMENT_ID = treatmentId };
+            var allTr = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, tfAll, param);
+            long targetDatePrefix = customInstructionTime.HasValue ? (customInstructionTime.Value / 1000000) : (long.Parse(DateTime.Now.ToString("yyyyMMdd")));
+
+            if (allTr != null && allTr.Count > 0)
+            {
+                tr = allTr.FirstOrDefault(x => x.TRACKING_TIME / 1000000 == targetDatePrefix);
+            }
+
+            if (tr == null)
+            {
+                long trTime = customInstructionTime.HasValue ? customInstructionTime.Value : long.Parse(DateTime.Now.ToString("yyyyMMdd080000"));
+                HisTreatmentViewFilter tfTreat = new HisTreatmentViewFilter { ID = treatmentId };
+                var treats = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfTreat, param);
+                if (treats == null || treats.Count == 0) throw new Exception("Không tìm thấy đợt điều trị!");
+                var tInfo = treats[0];
+
+                HIS_TRACKING newTr = new HIS_TRACKING
+                {
+                    TREATMENT_ID = treatmentId,
+                    DEPARTMENT_ID = 57,
+                    ROOM_ID = reqRoomId,
+                    TRACKING_TIME = trTime,
+                    CONTENT = "Bệnh nhân tỉnh, tiếp xúc tốt. Đau giảm, vết mổ khô. Chỉ định cận lâm sàng theo dõi.",
+                    MEDICAL_INSTRUCTION = "Chăm sóc cấp II. Thuốc theo đơn. Chỉ định X-quang kiểm tra.",
+                    ICD_CODE = tInfo.ICD_CODE,
+                    ICD_NAME = tInfo.ICD_NAME,
+                    ICD_SUB_CODE = tInfo.ICD_SUB_CODE,
+                    ICD_TEXT = tInfo.ICD_TEXT
+                };
+                HisTrackingSDO sdoTr = new HisTrackingSDO 
+                { 
+                    Tracking = newTr,
+                    WorkingRoomId = reqRoomId
+                };
+                var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdoTr, param);
+                if (created != null && created.ID > 0)
+                {
+                    tr = created;
+                }
+                else
+                {
+                    var resTrk = myAdapter.PostData<HisTrackingSDO>("api/HisTracking/Create", mosConsumer, sdoTr, param);
+                    if (resTrk != null && resTrk.Tracking != null && resTrk.Tracking.ID > 0)
+                    {
+                        tr = resTrk.Tracking;
+                    }
+                }
+
+                if (tr == null || tr.ID <= 0)
+                {
+                    string errMsg = "Tự động tạo tờ điều trị thất bại! " + param.GetMessage();
+                    if (param.Messages != null && param.Messages.Count > 0) errMsg += " " + string.Join("; ", param.Messages);
+                    if (param.BugCodes != null && param.BugCodes.Count > 0) errMsg += " (BugCodes: " + string.Join("; ", param.BugCodes) + ")";
+                    throw new Exception(errMsg);
+                }
+                Console.WriteLine(string.Format("✔ Đã tự động tạo Tờ điều trị mới ID: {0} lúc {1}", tr.ID, tr.TRACKING_TIME));
+            }
+        }
+
+        trackingId = tr.ID;
+        long instructionTime = customInstructionTime.HasValue ? customInstructionTime.Value : tr.TRACKING_TIME;
+        Console.WriteLine(string.Format("ℹ [DEBUG] RequestRoomId: {0} | ExecuteRoomId: {1} | TrackingId: {2} | InstructionTime: {3}", reqRoomId, roomId, trackingId, instructionTime));
 
         AssignServiceSDO sdo = new AssignServiceSDO
         {
@@ -1400,13 +1484,13 @@ public class HisClinicalCli
             RequestRoomId = reqRoomId,
             RequestLoginName = currentDoctorLogin,
             RequestUserName = currentDoctorName,
-            InstructionTime = tr.TRACKING_TIME,
-            InstructionTimes = new List<long> { tr.TRACKING_TIME },
-            UseTimes = new List<long> { tr.TRACKING_TIME },
+            InstructionTime = instructionTime,
+            InstructionTimes = new List<long> { instructionTime },
+            UseTimes = new List<long> { instructionTime },
             TrackingId = trackingId,
             TrackingInfos = new List<TrackingInfoSDO>
             {
-                new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = tr.TRACKING_TIME }
+                new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = instructionTime }
             },
             IcdCode = tr.ICD_CODE,
             IcdName = tr.ICD_NAME,
@@ -1432,13 +1516,20 @@ public class HisClinicalCli
         {
             foreach (var sr in res.ServiceReqs)
             {
-                Console.WriteLine(string.Format("✔ Chỉ định thành công! Mã y lệnh CLS: {0} (ID: {1})", sr.SERVICE_REQ_CODE, sr.ID));
+                Console.WriteLine("===============================================================================");
+                Console.WriteLine(string.Format("✔ CHỈ ĐỊNH THÀNH CÔNG! Mã phiếu y lệnh CLS: {0} (ID: {1})", sr.SERVICE_REQ_CODE, sr.ID));
+                Console.WriteLine(string.Format("  • Nơi thực hiện: {0} (Phòng ID: {1})", sr.EXECUTE_ROOM_NAME ?? roomId.ToString(), sr.EXECUTE_ROOM_ID));
+                Console.WriteLine(string.Format("  • Thời gian y lệnh: {0}", instructionTime));
+                Console.WriteLine("===============================================================================");
             }
         }
         else
         {
             string err = "Chỉ định CLS thất bại!";
-            if (param.Messages != null && param.Messages.Count > 0) err += " " + string.Join("; ", param.Messages);
+            if (!string.IsNullOrEmpty(param.GetMessage())) err += " Msg: " + param.GetMessage();
+            if (!string.IsNullOrEmpty(param.GetBugCode())) err += " BugCode: " + param.GetBugCode();
+            if (param.Messages != null && param.Messages.Count > 0) err += " Messages: " + string.Join("; ", param.Messages);
+            if (param.BugCodes != null && param.BugCodes.Count > 0) err += " BugCodes: " + string.Join("; ", param.BugCodes);
             throw new Exception(err);
         }
     }
@@ -2257,6 +2348,72 @@ public class HisClinicalCli
         Console.WriteLine("===============================================================================");
     }
 
+    public static void ListTrackings(string keyword)
+    {
+        InitSession();
+        List<V_HIS_TREATMENT> treatments = null;
+        string kw = keyword.Trim();
+        long numVal;
+        bool isNum = long.TryParse(kw, out numVal);
+
+        if (isNum)
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter();
+            tfCode.PATIENT_CODE__EXACT = kw.PadLeft(10, '0');
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+
+            if (treatments == null || treatments.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter();
+                tfCode.TREATMENT_CODE__EXACT = kw.PadLeft(12, '0');
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+            if (treatments == null || treatments.Count == 0)
+            {
+                tfCode = new HisTreatmentViewFilter();
+                tfCode.ID = numVal;
+                treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+            }
+        }
+        else
+        {
+            HisTreatmentViewFilter tfCode = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = kw };
+            treatments = myAdapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", mosConsumer, tfCode, param);
+        }
+
+        if (treatments == null || treatments.Count == 0)
+        {
+            Console.WriteLine(string.Format("❌ Không tìm thấy bệnh nhân nào khớp với từ khóa: {0}", keyword));
+            return;
+        }
+
+        var tr = treatments.LastOrDefault(x => x.IS_PAUSE != 1) ?? treatments.Last();
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("📝 DANH SÁCH TỜ ĐIỀU TRỊ: {0} (Mã BN: {1} | Mã ĐT: {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE));
+        Console.WriteLine("===============================================================================");
+
+        HisTrackingFilter trkFilter = new HisTrackingFilter { TREATMENT_ID = tr.ID };
+        var trkList = adapter.Get<List<HIS_TRACKING>>("api/HisTracking/Get", mosConsumer, trkFilter, param);
+        if (trkList == null || trkList.Count == 0)
+        {
+            Console.WriteLine("Bệnh nhân chưa có tờ điều trị nào.");
+            Console.WriteLine("===============================================================================");
+            return;
+        }
+
+        foreach (var t in trkList.OrderByDescending(x => x.TRACKING_TIME))
+        {
+            string tTime = t.TRACKING_TIME.ToString();
+            string timeStr = tTime.Length >= 12 
+                ? string.Format("{0}/{1}/{2} {3}:{4}", tTime.Substring(6, 2), tTime.Substring(4, 2), tTime.Substring(0, 4), tTime.Substring(8, 2), tTime.Substring(10, 2))
+                : tTime;
+            Console.WriteLine(string.Format("• ID: {0,-10} | Lúc: {1} | BS: {2}", t.ID, timeStr, t.CREATOR));
+            if (!string.IsNullOrEmpty(t.CONTENT)) Console.WriteLine(string.Format("  Diễn biến: {0}", t.CONTENT.Length > 120 ? t.CONTENT.Substring(0, 120) + "..." : t.CONTENT));
+            if (!string.IsNullOrEmpty(t.MEDICAL_INSTRUCTION)) Console.WriteLine(string.Format("  Y lệnh: {0}", t.MEDICAL_INSTRUCTION.Length > 120 ? t.MEDICAL_INSTRUCTION.Substring(0, 120) + "..." : t.MEDICAL_INSTRUCTION));
+            Console.WriteLine("-------------------------------------------------------------------------------");
+        }
+    }
+
     public static void CancelOrder(string orderKey, long? customRoomId = null)
     {
         InitSession();
@@ -2579,6 +2736,11 @@ public class HisClinicalCli
                 if (args.Length < 2) throw new Exception("Thiếu danh sách mã BN!");
                 ExportPt01Data(args[1]);
             }
+            else if (cmd == "trackings" || cmd == "list-trackings")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN, mã ĐT hoặc TreatmentId!");
+                ListTrackings(args[1]);
+            }
             else if (cmd == "create-tracking")
             {
                 long treatmentId = long.Parse(args[1]);
@@ -2587,7 +2749,8 @@ public class HisClinicalCli
                 decimal? temp = args.Length > 4 && !string.IsNullOrEmpty(args[4]) ? (decimal?)decimal.Parse(args[4]) : null;
                 long? bpMax = args.Length > 5 && !string.IsNullOrEmpty(args[5]) ? (long?)long.Parse(args[5]) : null;
                 long? bpMin = args.Length > 6 && !string.IsNullOrEmpty(args[6]) ? (long?)long.Parse(args[6]) : null;
-                CreateTracking(treatmentId, content, pulse, temp, bpMax, bpMin);
+                long? tTime = args.Length > 7 && !string.IsNullOrEmpty(args[7]) ? (long?)long.Parse(args[7]) : null;
+                CreateTracking(treatmentId, content, pulse, temp, bpMax, bpMin, tTime);
             }
             else if (cmd == "prescribe")
             {
@@ -2608,7 +2771,8 @@ public class HisClinicalCli
                 long roomId = long.Parse(args[4]);
                 string note = args.Length > 5 ? args[5] : "";
                 int ptId = args.Length > 6 ? int.Parse(args[6]) : 1;
-                AssignClsService(treatmentId, trackingId, serviceId, roomId, note, ptId);
+                long? customTime = args.Length > 7 && !string.IsNullOrEmpty(args[7]) ? (long?)long.Parse(args[7]) : null;
+                AssignClsService(treatmentId, trackingId, serviceId, roomId, note, ptId, customTime);
             }
             else if (cmd == "assign-bilan" || cmd == "assign-bilan-cement")
             {
