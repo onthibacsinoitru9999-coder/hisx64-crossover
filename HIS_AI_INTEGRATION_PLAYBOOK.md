@@ -1953,6 +1953,17 @@ Quy trình nạp và ký Biên bản Hội chẩn thông qua mổ (Biểu mẫu 
 3. **Sai tên DLL `EMR_MAIN.dll`**:
    - *Triệu chứng*: `Could not load file or assembly EMR_MAIN.Library.dll`.
    - *Khắc phục*: Tên DLL chuẩn trong `Integrate\EMR\` là `EMR_MAIN.dll`, lớp đối tượng là `EMR_MAIN.BenhAnNgoaiKhoa`.
+4. **Lỗi `ORA-12899: value too large for column "EMR_FINAL"."BENHANNGOAIKHOA"."TOMTATBENHAN" (maximum: 2048)`**:
+   - *Triệu chứng*: Khi lưu Bệnh án Ngoại khoa (`BenhAnNgoaiKhoaInsertOrUpdate`), Oracle ném lỗi `ORA-12899` do trường `TOMTATBENHAN` hoặc các trường `VARCHAR2(2048)` vượt quá 2048 bytes.
+   - *Nguyên nhân*: Cột `TOMTATBENHAN` trong bảng `BENHANNGOAIKHOA` có kiểu dữ liệu là `VARCHAR2(2048)` tính theo bytes AL32UTF8. Tiếng Việt có dấu chiếm 2-3 bytes/ký tự (ví dụ: chuỗi 700 ký tự có thể vượt quá 2048 bytes).
+   - *Khắc phục*: Thêm hàm `TruncateBytes(string text, int maxBytes)` cắt chuỗi an toàn theo byte UTF-8 tại ngưỡng 2000 bytes trước khi gán vào DTO lưu DB. Đồng thời tinh gọn số lượng triệu chứng trích xuất từ tờ điều trị (tối đa 3 ý, mỗi ý $\le 80$ ký tự) và kết luận CĐHA (tối đa 2 kết luận, mỗi kết luận $\le 120$ ký tự).
+5. **Kế thừa Template chéo giữa các mặt bệnh / vị trí giải phẫu khác nhau**:
+   - *Triệu chứng*: Bệnh nhân vào viện mổ rút nẹp cổ chân nhưng tóm tắt bệnh án và khám cơ xương khớp lại ra gãy cổ xương đùi / thay khớp háng do kế thừa mù quáng từ đợt điều trị trước hoặc template cùng mã khoa.
+   - *Nguyên nhân*: `FindTemplate` trước đây lấy bản ghi `BENHANNGOAIKHOA` cũ của chính bệnh nhân (`sqlPt`) mà không kiểm tra tính tương thích giải phẫu giữa ICD hiện tại và ICD cũ.
+   - *Khắc phục*: Bổ sung kiểm tra `IsTemplateCompatible(tmpl, ti)` và cơ chế `ShouldOverwrite(..., ti)` tự động phát hiện lệch vị trí giải phẫu (cột sống vs khớp gối/khoeo vs cổ chân/gân Achille vs khớp háng) để hủy template không tương thích và sinh nội dung lâm sàng chuẩn mực.
+6. **Ô nhiễm mẫu ca đa chấn thương chuyển từ Lào Cai/Việt Đức**:
+   - *Triệu chứng*: Bệnh nhân thoát vị đĩa đệm hoặc chấn thương thông thường bị điền nhầm quá trình bệnh lý "đa chấn thương tai nạn lao động, vỡ tạng rỗng, chấn thương thận độ III, chuyển từ Lào Cai...".
+   - *Khắc phục*: Bổ sung chốt chặn kép `hasLaoCai && hasPolytrauma`, đồng thời phát hiện bệnh nhân bị ô nhiễm từ trước (`isErroneousLaoCaiPatient`) để reset sạch các trường về `null` và tái tạo theo bệnh học thực tế của bệnh nhân.
 
 ---
 

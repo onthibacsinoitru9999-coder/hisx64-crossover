@@ -346,7 +346,8 @@ namespace HisMcp
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan noi tru"),
                     "save", Obj("type", "boolean", "description", "Luu vao Oracle EMR (mac dinh false - dry-run truoc)"),
-                    "force", Obj("type", "boolean", "description", "Ghi de toan bo cac truong du lieu (mac dinh false - chi cap nhat truong trong)")
+                    "force", Obj("type", "boolean", "description", "Ghi de toan bo cac truong du lieu (mac dinh false - chi cap nhat truong trong)"),
+                    "summary", Obj("type", "string", "description", "Noi dung Tom tat benh an tuy bien neu can override logic mac dinh")
                 ),
                 Arr("patientCode")
             ));
@@ -938,6 +939,7 @@ namespace HisMcp
             string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
             bool save = args["save"] != null && (bool)args["save"];
             bool force = args["force"] != null && (bool)args["force"];
+            string summary = args["summary"] != null ? args["summary"].ToString().Trim() : "";
 
             if (string.IsNullOrEmpty(pCode))
             {
@@ -950,6 +952,7 @@ namespace HisMcp
             sb.Append(EscapeArg(pCode));
             if (save) sb.Append(" --save");
             if (force) sb.Append(" --force");
+            if (!string.IsNullOrEmpty(summary)) sb.Append(" --summary ").Append(EscapeArg(summary));
             return RunProcess(tool, sb.ToString(), out isError);
         }
 
