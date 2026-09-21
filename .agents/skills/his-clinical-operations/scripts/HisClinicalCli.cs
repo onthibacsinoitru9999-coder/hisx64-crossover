@@ -2764,7 +2764,22 @@ public class HisClinicalCli
         }
 
         // RÀO CHẮN 4: Thực thi xóa ServiceReq qua API MOS Backend
-        long reqRoomId = customRoomId ?? (req.REQUEST_ROOM_ID > 0 ? req.REQUEST_ROOM_ID : 5248);
+        bool isNB = (req.REQUEST_DEPARTMENT_ID == 915 || req.REQUEST_ROOM_ID >= 10000);
+        long reqRoomId = customRoomId ?? (req.REQUEST_ROOM_ID > 0 ? req.REQUEST_ROOM_ID : (isNB ? 18679 : 5248));
+
+        try
+        {
+            var workInfo = new WorkInfoSDO
+            {
+                Rooms = new List<RoomSDO> { 
+                    new RoomSDO { RoomId = reqRoomId },
+                    new RoomSDO { RoomId = 18679 },
+                    new RoomSDO { RoomId = 5248 }
+                }
+            };
+            myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
+        }
+        catch { }
 
         var sdo = new HisServiceReqSDO
         {
@@ -2773,11 +2788,19 @@ public class HisClinicalCli
         };
 
         Console.WriteLine(string.Format("🚀 Đang gửi lệnh xóa y lệnh đến Backend MOS (RequestRoomId: {0})...", reqRoomId));
+        param = new CommonParam();
         bool isSuccess = myAdapter.PostData<bool>("api/HisServiceReq/Delete", mosConsumer, sdo, param);
 
-        if (!isSuccess && reqRoomId != 5248 && customRoomId == null)
+        if (!isSuccess && reqRoomId != 18679 && isNB && customRoomId == null)
         {
-            Console.WriteLine("⚠️ Thử lại lệnh xóa với Phòng làm việc chính (RequestRoomId: 5248)...");
+            Console.WriteLine("⚠️ Thử lại lệnh xóa với Phòng làm việc Ninh Bình (RequestRoomId: 18679)...");
+            sdo.RequestRoomId = 18679;
+            param = new CommonParam();
+            isSuccess = myAdapter.PostData<bool>("api/HisServiceReq/Delete", mosConsumer, sdo, param);
+        }
+        else if (!isSuccess && reqRoomId != 5248 && customRoomId == null)
+        {
+            Console.WriteLine("⚠️ Thử lại lệnh xóa với Phòng làm việc Hà Nội (RequestRoomId: 5248)...");
             sdo.RequestRoomId = 5248;
             param = new CommonParam();
             isSuccess = myAdapter.PostData<bool>("api/HisServiceReq/Delete", mosConsumer, sdo, param);
@@ -2801,8 +2824,41 @@ public class HisClinicalCli
         }
         else
         {
+            string errDetail = "";
+            if (param != null)
+            {
+                if (param.Messages != null && param.Messages.Count > 0)
+                    errDetail += "Messages: " + string.Join(" | ", param.Messages) + " ";
+                if (param.BugCodes != null && param.BugCodes.Count > 0)
+                    errDetail += "BugCodes: " + string.Join(", ", param.BugCodes) + " ";
+                
+                // Reflection dump
+                foreach (var p in param.GetType().GetProperties())
+                {
+                    try
+                    {
+                        var val = p.GetValue(param, null);
+                        if (val != null)
+                        {
+                            if (val is System.Collections.IEnumerable && !(val is string))
+                            {
+                                var items = new List<string>();
+                                foreach (var it in (System.Collections.IEnumerable)val) items.Add(it.ToString());
+                                if (items.Count > 0) errDetail += string.Format("[{0}: {1}] ", p.Name, string.Join(", ", items));
+                            }
+                            else
+                            {
+                                string s = val.ToString();
+                                if (!string.IsNullOrEmpty(s) && s != "False" && s != "0")
+                                    errDetail += string.Format("[{0}: {1}] ", p.Name, s);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
             Console.WriteLine("-------------------------------------------------------------------------------");
-            Console.WriteLine(string.Format("❌ XÓA THẤT BẠI: {0} (BugCode: {1})", param.GetMessage(), param.GetBugCode()));
+            Console.WriteLine(string.Format("❌ XÓA THẤT BẠI: {0}", string.IsNullOrEmpty(errDetail) ? "Backend từ chối (Có thể do liên kết tạm ứng / viện phí / khóa hồ sơ)" : errDetail));
             Console.WriteLine("===============================================================================");
         }
     }
