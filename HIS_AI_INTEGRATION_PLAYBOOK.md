@@ -2205,14 +2205,14 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 ```
 
 ### 38.2. Cấu Trúc Lệnh CLI & MCP Tool Call
-1. **Qua HIS MCP Server (Ưu tiên số 1 - Chống rác đĩa):**
+1. **Qua HIS Discharge MCP Server (Server độc lập chuyên trách `his-discharge` - Ưu tiên số 1):**
    ```json
    {
      "jsonrpc": "2.0",
      "id": 1,
      "method": "tools/call",
      "params": {
-       "name": "his_execute_protocol_discharge",
+       "name": "his_tho_lam_ra_vien",
        "arguments": {
          "patientCode": "0000476007",
          "facility": "HN",
@@ -2221,20 +2221,17 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
      }
    }
    ```
-   *(Bí danh `his_tho_lam_ra_vien` và `his_discharge_protocol` được hỗ trợ tương thích 100%)*
+   *(Được phục vụ bởi MCP Server độc lập `HisDischargeMcpServer.exe`. Bí danh `his_execute_protocol_discharge` được hỗ trợ tương thích 100%)*
 
-2. **Qua CLI Fallback (`HisClinicalCli.exe`):**
+2. **Qua CLI Trực Tiếp (`HisDischargeMcpServer.exe`):**
    ```powershell
    # Chạy toàn bộ quy trình 3 bước (Dry-run kiểm tra trước)
-   .\HisClinicalCli.exe discharge-protocol <MãBN> [HN|NB] --dry-run
+   .\HisDischargeMcpServer.exe <MãBN> [HN|NB] --dry-run
 
    # Thực thi thật toàn bộ quy trình
-   .\HisClinicalCli.exe discharge-protocol <MãBN> [HN|NB]
-
-   # Hoặc chạy từng phân hệ độc lập:
-   .\HisClinicalCli.exe ensure-discharge-tracking <MãBN> [HN|NB]
-   .\HisClinicalCli.exe transfer-white-orders <MãBN> [HN|NB] [NewDoctorLogin]
+   .\HisDischargeMcpServer.exe <MãBN> [HN|NB]
    ```
+   *(Lưu ý: `HisClinicalCli.exe` và `HisMcpServer.exe` đã được revert tinh giản, toàn bộ nghiệp vụ Thợ làm ra viện được chuyển giao trọn vẹn sang `HisDischargeMcpServer.exe` độc lập để tránh quá tải CLI).*
 
 ### 38.3. Bẫy Lỗi & Nguyên Tắc An Toàn Sống Còn
 1. **Mốc tính ngày sơ kết đợt điều trị:**
@@ -2243,7 +2240,7 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 2. **Bảo lưu tuyệt đối 4 nhóm y lệnh trong Bước 2:**
    - Tránh việc y lệnh giường, đồ vải phòng mổ, test đường huyết mao mạch hay đơn thuốc bị đổi người chỉ định hoặc hủy nhầm, gây rối loạn bàn giao điều dưỡng và kế toán viện phí.
 3. **Bảo vệ EMR bệnh nhân ngoại trú trong Bước 3:**
-   - Nếu bệnh nhân thuộc diện Ngoại trú (`TDL_TREATMENT_TYPE_ID != 3`), `HisEmrFiller.exe` và `RunDischargeProtocol` tự động bỏ qua Bước 3 kèm thông báo rõ ràng, tuyệt đối không tạo `BENHANNGOAIKHOA` rác trên hệ thống Oracle EMR.
+   - Nếu bệnh nhân thuộc diện Ngoại trú (`TDL_TREATMENT_TYPE_ID != 3`), `HisEmrFiller.exe` và `HisDischargeMcpServer` tự động bỏ qua Bước 3 kèm thông báo rõ ràng, tuyệt đối không tạo `BENHANNGOAIKHOA` rác trên hệ thống Oracle EMR.
 4. **Bẫy Đảo Ngược Thứ Tự Thời Gian Tờ Tổng Kết Ra Viện (Chronological Inversion Gotcha):**
    - **Bẫy**: Hardcode 08:00 AM cho Tờ Tổng kết ra viện khiến nó xuất hiện trước các tờ điều trị khám buổi sáng, và trước cả tờ Sơ kết 3 ngày (14:30) / 7 ngày (15:00) nếu lập cùng ngày. Nếu bệnh nhân vào viện buổi chiều (VD: 13:30), tờ tổng kết 08:00 sẽ có thời điểm trước cả lúc nhập viện!
    - **Quy chuẩn**: Tờ Tổng kết ra viện mặc định đặt lúc 16:00:00 (buổi chiều). Nếu trong ngày đã có tờ điều trị / y lệnh muộn hơn (hoặc vào viện muộn hơn), timestamp tự động lùi +5 phút sau thời điểm lớn nhất (`dtMax + 5 phút`). Nếu bệnh nhân đã có `OUT_TIME`, timestamp bị chặn trần không được vượt quá `OUT_TIME`.
@@ -2253,4 +2250,8 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 6. **Bổ Sung 6 Trường Bìa Tổng Kết Cuối Bệnh Án Ngoại Khoa Trên Oracle EMR:**
    - **Bẫy**: `HisEmrFiller.cs` trước đây chỉ điền Tab Hỏi bệnh & Khám bệnh và Tóm tắt bệnh án, để trống hoàn toàn 6 trường Bìa tổng kết cuối (`QuaTrinhBenhLyVaDienBien`, `TomTatKetQuaXetNghiem`, `PhuongPhapDieuTri`, `TinhTrangNguoiBenhRaVien`, `HuongDieuTriVaCacCheDoTiepTheo`, `NgayTongKet`, `BacSyDieuTri`, `TenBacSyDieuTri`, `LoiDanBacSi`).
    - **Quy chuẩn**: Tự động tổng hợp quá trình bệnh lý, kết quả CĐHA & XN, phương pháp điều trị chu phẫu/nội khoa, sinh hiệu và tình trạng ra viện, hướng điều trị tiếp theo và lời dặn bác sĩ; đồng thời cắt byte nghiêm ngặt (2000 bytes) chống lỗi ORA-12899.
+7. **Tách MCP Server Độc Lập Cho Protocol Liên Hoàn (Architecture Decoupling Gotcha):**
+   - **Bẫy**: Nhồi nhét các quy trình liên hoàn lớn (như Thợ làm ra viện 3 bước) vào `HisClinicalCli.cs` và `HisMcpServer.cs` gây quá tải codebase (>5400 dòng), tăng nguy cơ xung đột phụ thuộc và làm chậm CLI đa dụng.
+   - **Quy chuẩn**: Tách hẳn thành một MCP server và executable độc lập `HisDischargeMcpServer.cs` / `HisDischargeMcpServer.exe`, cấu hình riêng server `his-discharge` trong `mcp_config.json`. Giữ `HisClinicalCli.exe` và `HisMcpServer.exe` sạch sẽ, tập trung duy nhất vào các tác vụ đơn lẻ chuẩn lâm sàng.
+
 

@@ -360,30 +360,6 @@ namespace HisMcp
                 new JArray()
             ));
 
-            // 17. his_execute_protocol_discharge
-            tools.Add(CreateTool(
-                "his_execute_protocol_discharge",
-                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol): Tu dong thuc thi tuan tu 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien (tinh tu to DT dau tien tai khoa) -> (2) Chuyen toan bo chi dinh trang ve 034727 qua UpdateCommonInfo (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
-                Obj(
-                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
-                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu (mac dinh false - thuc thi that)")
-                ),
-                Arr("patientCode")
-            ));
-
-            // 18. his_tho_lam_ra_vien (Bi danh 'Tho lam ra vien')
-            tools.Add(CreateTool(
-                "his_tho_lam_ra_vien",
-                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol): Tu dong thuc thi tuan tu 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien (tinh tu to DT dau tien tai khoa) -> (2) Chuyen toan bo chi dinh trang ve 034727 qua UpdateCommonInfo (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
-                Obj(
-                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
-                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu (mac dinh false - thuc thi that)")
-                ),
-                Arr("patientCode")
-            ));
-
             var res = Obj("tools", tools);
             SendResponse(id, res);
         }
@@ -469,12 +445,6 @@ namespace HisMcp
                         break;
                     case "his_system_health":
                         output = ExecuteSystemHealth(out isError);
-                        break;
-                    case "his_execute_protocol_discharge":
-                    case "his_discharge_protocol":
-                    case "his_tho_lam_ra_vien":
-                    case "tho_lam_ra_vien":
-                        output = ExecuteProtocolDischarge(args, out isError);
                         break;
                     default:
                         SendError(id, -32602, "Unknown tool: " + toolName);
@@ -974,31 +944,6 @@ namespace HisMcp
         {
             string tool = ResolveToolPath("HisDiagnosticDoctor.exe");
             return RunProcess(tool, "health", out isError);
-        }
-
-        private static string ExecuteProtocolDischarge(JObject args, out bool isError)
-        {
-            string pCode = "";
-            if (args["patientCode"] != null) pCode = args["patientCode"].ToString().Trim();
-            if (string.IsNullOrEmpty(pCode) && args["treatmentCode"] != null) pCode = args["treatmentCode"].ToString().Trim();
-            if (string.IsNullOrEmpty(pCode) && args["keyword"] != null) pCode = args["keyword"].ToString().Trim();
-
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "HN";
-            bool dryRun = args["dryRun"] != null && (bool)args["dryRun"];
-
-            if (string.IsNullOrEmpty(pCode))
-            {
-                isError = true;
-                return "Loi: patientCode (hoac treatmentCode) khong duoc de trong.";
-            }
-
-            string toolCli = ResolveToolPath("HisClinicalCli.exe");
-            var sbArgs = new StringBuilder();
-            sbArgs.Append("discharge-protocol ").Append(EscapeArg(pCode));
-            sbArgs.Append(" ").Append(EscapeArg(facility));
-            if (dryRun) sbArgs.Append(" --dry-run");
-
-            return RunProcess(toolCli, sbArgs.ToString(), out isError);
         }
 
         #endregion
