@@ -1025,14 +1025,31 @@ public class MainForm : Form
                     var p = row.Tag as PatientLookupInfo;
                     if (p == null) p = LookupPatientDirect(patCode);
 
-                    if (p == null) throw new Exception("Không tìm thấy đợt điều trị của BN!");
+                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
+                    long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
+                    long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
 
-                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : 5257;
+                    try
+                    {
+                        var wi = new WorkInfoSDO
+                        {
+                            Rooms = new List<RoomSDO>
+                            {
+                                new RoomSDO { RoomId = doctorWorkRoomId },
+                                new RoomSDO { RoomId = roomId },
+                                new RoomSDO { RoomId = 5248 },
+                                new RoomSDO { RoomId = 18679 },
+                                new RoomSDO { RoomId = 18681 }
+                            }
+                        };
+                        myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
+                    }
+                    catch { }
 
                     HIS_TRACKING tracking = new HIS_TRACKING
                     {
                         TREATMENT_ID = p.TreatmentId,
-                        DEPARTMENT_ID = 57,
+                        DEPARTMENT_ID = deptId,
                         ROOM_ID = roomId,
                         TRACKING_TIME = trackingTime,
                         CONTENT = content,
@@ -1047,7 +1064,7 @@ public class MainForm : Form
                     HisTrackingSDO sdo = new HisTrackingSDO
                     {
                         Tracking = tracking,
-                        WorkingRoomId = roomId,
+                        WorkingRoomId = doctorWorkRoomId,
                         Dhst = null // Do not inject forced vital signs to keep tracking clean
                     };
 
@@ -1232,6 +1249,7 @@ public class MainForm : Form
         public string TDL_PATIENT_GENDER_NAME { get; set; }
         public string BedFull { get; set; }
         public long WorkingRoomId { get; set; }
+        public long DepartmentId { get; set; }
         public string IcdCode { get; set; }
         public string IcdName { get; set; }
         public string IcdSubCode { get; set; }
@@ -1368,14 +1386,15 @@ public class MainForm : Form
 
             try
             {
-                long[] dept57Rooms = new long[] {
+                long[] defaultRooms = new long[] {
                     931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                     5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                    5267, 6622, 6623
+                    5267, 6622, 6623,
+                    18679, 18681, 14759
                 };
                 var workInfo = new WorkInfoSDO
                 {
-                    Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList()
+                    Rooms = defaultRooms.Select(r => new RoomSDO { RoomId = r }).ToList()
                 };
                 var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
                 HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
@@ -1455,6 +1474,7 @@ public class MainForm : Form
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = !string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME,
             WorkingRoomId = 5257,
+            DepartmentId = 57,
             BedFull = "Phòng 724"
         };
 
@@ -1473,6 +1493,11 @@ public class MainForm : Form
             if (bRooms != null && bRooms.Count > 0)
             {
                 item.WorkingRoomId = bRooms[0].ROOM_ID;
+                if (bRooms[0].DEPARTMENT_ID > 0) item.DepartmentId = bRooms[0].DEPARTMENT_ID;
+            }
+            else if (b.DEPARTMENT_ID > 0)
+            {
+                item.DepartmentId = b.DEPARTMENT_ID;
             }
         }
 
@@ -1529,7 +1554,8 @@ public class MainForm : Form
                 IcdName = tr != null ? tr.ICD_NAME : "Thoát vị đĩa đệm",
                 IcdSubCode = tr != null ? tr.ICD_SUB_CODE : "",
                 IcdText = tr != null ? (!string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME) : "",
-                WorkingRoomId = 5257
+                WorkingRoomId = 5257,
+                DepartmentId = 57
             };
 
             results.Add(item);
@@ -2311,12 +2337,31 @@ class Program
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
                 long trackingTime = long.Parse(fullDateTime.ToString("yyyyMMddHHmmss"));
 
-                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : 5257;
+                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
+                long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
+                long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
+
+                try
+                {
+                    var wi = new WorkInfoSDO
+                    {
+                        Rooms = new List<RoomSDO>
+                        {
+                            new RoomSDO { RoomId = doctorWorkRoomId },
+                            new RoomSDO { RoomId = roomId },
+                            new RoomSDO { RoomId = 5248 },
+                            new RoomSDO { RoomId = 18679 },
+                            new RoomSDO { RoomId = 18681 }
+                        }
+                    };
+                    MainForm.myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
+                }
+                catch { }
 
                 HIS_TRACKING tracking = new HIS_TRACKING
                 {
                     TREATMENT_ID = p.TreatmentId,
-                    DEPARTMENT_ID = 57,
+                    DEPARTMENT_ID = deptId,
                     ROOM_ID = roomId,
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
@@ -2331,7 +2376,7 @@ class Program
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
-                    WorkingRoomId = roomId,
+                    WorkingRoomId = doctorWorkRoomId,
                     Dhst = null // Do not inject forced vital signs to keep tracking clean
                 };
 
@@ -2342,6 +2387,7 @@ class Program
                     string errMsg = "Hệ thống MOS từ chối tạo!";
                     if (cp.Messages != null && cp.Messages.Count > 0) errMsg = string.Join("; ", cp.Messages);
                     else if (cp.BugCodes != null && cp.BugCodes.Count > 0) errMsg = string.Join("; ", cp.BugCodes);
+                    else errMsg += string.Format(" (RoomId: {0}, DeptId: {1})", roomId, deptId);
                     throw new Exception(errMsg);
                 }
 
