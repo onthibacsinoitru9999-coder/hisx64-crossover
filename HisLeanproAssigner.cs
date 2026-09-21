@@ -12,6 +12,10 @@ using HIS.Desktop.LocalStorage.ConfigSystem;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
+using EMR.EFMODEL.DataModels;
+using EMR.Filter;
+using EMR.SDO;
+using EMR.TDO;
 
 public class MyAdapter : AdapterBase
 {
@@ -30,7 +34,7 @@ public class HisLeanproAssigner
 {
     public const long LEANPRO_MEDICINE_TYPE_ID = 26851;
     public const string LEANPRO_MEDICINE_TYPE_CODE = "SPBM25651";
-    public const long KHO_DINH_DUONG_STOCK_ID = 753; // Kho sản phẩm dinh dưỡng điều trị
+    public const long KHO_DINH_DUONG_STOCK_ID = 7787; // TTSPDD_9 - Tủ trực Sản phẩm dinh dưỡng - Khoa Chấn thương Chỉnh hình và Cột sống
     public const long PATIENT_TYPE_ID_VIEN_PHI = 42; // Viện phí
     public const string DEFAULT_TUTORIAL = "Ngày uống 4 chai buổi tối 20h 2 chai sáng 6h";
 
@@ -46,8 +50,13 @@ public class HisLeanproAssigner
             string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
             if (!File.Exists(cacheFile))
             {
-                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
-                if (File.Exists(alt)) cacheFile = alt;
+                string alt1 = Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token");
+                if (File.Exists(alt1)) cacheFile = alt1;
+                else
+                {
+                    string alt2 = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
+                    if (File.Exists(alt2)) cacheFile = alt2;
+                }
             }
             if (File.Exists(cacheFile))
             {
@@ -178,9 +187,35 @@ public class HisLeanproAssigner
         return true;
     }
 
-    public static long CreateTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long departmentId, out long trackingTime)
+    public static long CreateTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long departmentId, out long trackingTime, out long? sheetOrder)
     {
+        sheetOrder = null;
         trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+
+        // Kiểm tra xem hôm nay đã có tờ điều trị bổ sung dịch Leanpro chưa, nếu có thì tái sử dụng
+        long todayStart = long.Parse(DateTime.Today.ToString("yyyyMMdd") + "000000");
+        try
+        {
+            HisTrackingViewFilter tf = new HisTrackingViewFilter { TREATMENT_ID = tr.ID };
+            CommonParam cpCheck = new CommonParam();
+            var trkList = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", consumer, tf, cpCheck);
+            var existingTrk = trkList != null ? trkList
+                .Where(x => x.TRACKING_TIME >= todayStart && 
+                           ((x.CONTENT != null && x.CONTENT.ToLower().Contains("bổ sung dịch")) ||
+                            (x.MEDICAL_INSTRUCTION != null && x.MEDICAL_INSTRUCTION.ToLower().Contains("leanpro"))))
+                .OrderByDescending(x => x.TRACKING_TIME)
+                .FirstOrDefault() : null;
+
+            if (existingTrk != null)
+            {
+                trackingTime = existingTrk.TRACKING_TIME;
+                sheetOrder = existingTrk.SHEET_ORDER;
+                Console.WriteLine(string.Format("   ℹ️ Đã có Tờ điều trị Leanpro trước đó (ID: {0}, Sheet: {1}) -> Tái sử dụng!", existingTrk.ID, existingTrk.SHEET_ORDER));
+                return existingTrk.ID;
+            }
+        }
+        catch { }
+
         var tracking = new HIS_TRACKING
         {
             TREATMENT_ID = tr.ID,
@@ -205,6 +240,7 @@ public class HisLeanproAssigner
         var res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cp);
         if (res != null && res.ID > 0)
         {
+            sheetOrder = res.SHEET_ORDER;
             return res.ID;
         }
         return 0;
@@ -217,47 +253,97 @@ public class HisLeanproAssigner
         error = "";
         long nowTime = trackingTime > 0 ? trackingTime : long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
 
-        var presSdo = new InPatientPresSDO
+        // Lùi thời gian y lệnh 5 phút sau tờ điều trị theo quy tắc an toàn
+        long presInstructionTime = nowTime;
+        try
+        {
+            string timeStr = nowTime.ToString();
+            if (timeStr.Length == 14)
+            {
+                int y = int.Parse(timeStr.Substring(0, 4));
+                int m = int.Parse(timeStr.Substring(4, 2));
+                int d = int.Parse(timeStr.Substring(6, 2));
+                int h = int.Parse(timeStr.Substring(8, 2));
+                int min = int.Parse(timeStr.Substring(10, 2));
+                int s = int.Parse(timeStr.Substring(12, 2));
+                DateTime dt = new DateTime(y, m, d, h, min, s);
+                presInstructionTime = long.Parse(dt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+            }
+        }
+        catch { }
+
+        // BƯỚC 1: GIỮ BEAN TỦ TRỰC TTSPDD_9 (STOCK 7787)
+        string sessionKey = Guid.NewGuid().ToString();
+        var takeBean = new TakeBeanSDO
+        {
+            TypeId = LEANPRO_MEDICINE_TYPE_ID,
+            MediStockId = KHO_DINH_DUONG_STOCK_ID, // 7787 (TTSPDD_9)
+            PatientTypeId = PATIENT_TYPE_ID_VIEN_PHI, // 42 (Viện phí)
+            Amount = 6.0m,
+            ClientSessionKey = sessionKey,
+            ExpiredDate = null
+        };
+        CommonParam cpTake = new CommonParam();
+        var beans = adapter.PostData<List<HIS_MEDICINE_BEAN>>("api/HisMedicineBean/Take", consumer, takeBean, cpTake);
+        if (beans == null || beans.Count == 0)
+        {
+            // Thử lại với PatientTypeId của hồ sơ nếu 42 không khớp cấu hình tủ
+            takeBean.PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1;
+            beans = adapter.PostData<List<HIS_MEDICINE_BEAN>>("api/HisMedicineBean/Take", consumer, takeBean, cpTake);
+        }
+
+        if (beans == null || beans.Count == 0)
+        {
+            error = (cpTake.Messages != null && cpTake.Messages.Count > 0) ? string.Join("; ", cpTake.Messages) : "Không giữ được Leanpro trong tủ trực 7787 (TTSPDD_9)";
+            if (cpTake.BugCodes != null && cpTake.BugCodes.Count > 0) error += " | BugCodes: " + string.Join("; ", cpTake.BugCodes);
+            return false;
+        }
+
+        // BƯỚC 2: TẠO Y LỆNH TỦ TRỰC (OutPatientPresCreateList VỚI IsCabinet = true)
+        var outPresSDO = new OutPatientPresSDO
         {
             TreatmentId = tr.ID,
-            RequestRoomId = roomId,
+            InstructionTime = presInstructionTime,
+            UseTimes = new List<long> { presInstructionTime },
+            TrackingId = trackingId > 0 ? (long?)trackingId : null,
+            RequestRoomId = roomId > 0 ? roomId : 5248,
             RequestLoginName = "034727",
             RequestUserName = "Ths.BS NGUYỄN HỮU SÂM",
             IcdCode = tr.ICD_CODE,
             IcdName = tr.ICD_NAME,
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = tr.ICD_TEXT,
-            PrescriptionTypeId = (PrescriptionType)1, // Đơn nội trú
-            InstructionTimes = new List<long> { nowTime },
-            UseTimes = new List<long> { nowTime },
-            TrackingId = trackingId > 0 ? (long?)trackingId : null,
-            TrackingInfos = trackingId > 0 ? new List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = nowTime } } : null,
+            IsCabinet = true,
+            ClientSessionKey = sessionKey,
             Medicines = new List<PresMedicineSDO>
             {
                 new PresMedicineSDO
                 {
                     MedicineTypeId = LEANPRO_MEDICINE_TYPE_ID,
                     MediStockId = KHO_DINH_DUONG_STOCK_ID,
-                    PatientTypeId = PATIENT_TYPE_ID_VIEN_PHI,
                     Amount = 6.0m,
-                    Evening = "06",
+                    PresAmount = 6.0m,
+                    PatientTypeId = takeBean.PatientTypeId ?? PATIENT_TYPE_ID_VIEN_PHI,
                     Tutorial = DEFAULT_TUTORIAL,
-                    NumOfDays = 1
+                    MedicineUseFormId = 32, // Uống
+                    Evening = "06",
+                    NumOfDays = 1,
+                    MedicineBeanIds = beans.Select(b => b.ID).ToList()
                 }
             }
         };
 
         CommonParam cp = new CommonParam();
-        var presRes = adapter.PostData<InPatientPresResultSDO>("api/HisServiceReq/InPatientPresCreate", consumer, presSdo, cp);
-        if (presRes != null)
+        var outRes = adapter.PostData<OutPatientPresResultSDO>("api/HisServiceReq/OutPatientPresCreateList", consumer, new List<OutPatientPresSDO> { outPresSDO }, cp);
+        if (outRes != null)
         {
-            if (presRes.ServiceReqs != null && presRes.ServiceReqs.Count > 0)
+            if (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0)
             {
-                serviceReqCode = presRes.ServiceReqs[0].SERVICE_REQ_CODE;
+                serviceReqCode = outRes.ServiceReqs[0].SERVICE_REQ_CODE;
             }
-            if (presRes.ExpMests != null && presRes.ExpMests.Count > 0)
+            if (outRes.ExpMests != null && outRes.ExpMests.Count > 0)
             {
-                expMestCode = presRes.ExpMests[0].EXP_MEST_CODE;
+                expMestCode = outRes.ExpMests[0].EXP_MEST_CODE;
             }
             if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode))
             {
@@ -292,7 +378,7 @@ public class HisLeanproAssigner
         }
         else
         {
-            error = "Không xác nhận được bản ghi đơn thuốc trong cơ sở dữ liệu";
+            error = "Không xác nhận được bản ghi đơn thuốc tủ trực trong cơ sở dữ liệu";
         }
         return false;
     }
@@ -335,7 +421,7 @@ public class HisLeanproAssigner
         Console.WriteLine("🥛 QUY TRÌNH CHỈ ĐỊNH DỊCH DINH DƯỠNG LEANPRO PRESUR 12.5% CHO BỆNH NHÂN TRƯỚC MỔ");
         Console.WriteLine("   - Tiêu chuẩn: BN < 70 tuổi, KHÔNG Đái tháo đường");
         Console.WriteLine("   - Liều dùng : 6 chai (Tối uống 4 chai lúc 20h, sáng uống 2 chai lúc 06h)");
-        Console.WriteLine("   - Kho cấp   : Kho sản phẩm dinh dưỡng điều trị (MediStockId: 753)");
+        Console.WriteLine("   - Kho cấp   : Tủ trực Sản phẩm dinh dưỡng Khoa 57 (TTSPDD_9 - MediStockId: 7787)");
         Console.WriteLine("   - Tờ ĐT kèm : 'bổ sung dịch dinh dưỡng trước mổ'");
         Console.WriteLine(string.Format("   - Thời gian : {0} | Bác sĩ: Ths.BS Nguyễn Hữu Sâm (034727)", DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")));
         Console.WriteLine("=========================================================================================\n");
@@ -441,7 +527,8 @@ public class HisLeanproAssigner
             // 1. Tạo Tờ điều trị
             Console.WriteLine("   📝 Đang tạo Tờ điều trị: 'bn lịch mổ mai bổ sung dịch'...");
             long trackingTime;
-            long trackingId = CreateTracking(mosConsumer, tr, roomId, deptId, out trackingTime);
+            long? sheetOrder;
+            long trackingId = CreateTracking(mosConsumer, tr, roomId, deptId, out trackingTime, out sheetOrder);
             if (trackingId > 0)
             {
                 Console.WriteLine(string.Format("   ✔ Đã tạo Tờ điều trị thành công (Tracking ID: {0})", trackingId));
@@ -451,19 +538,21 @@ public class HisLeanproAssigner
                 Console.WriteLine("   ⚠️ Tạo tờ điều trị không thành công, tiếp tục tạo đơn thuốc...");
             }
 
-            // 2. Kê đơn Leanpro
-            Console.WriteLine("   💊 Đang kê đơn Leanpro PreSur 12.5% (6 chai) từ Kho dinh dưỡng (753)...");
+            // 2. Kê đơn Leanpro từ Tủ trực TTSPDD_9 (7787)
+            Console.WriteLine("   💊 Đang kê đơn Leanpro PreSur 12.5% (6 chai) từ Tủ trực TTSPDD_9 (7787)...");
             string sReqCode, expMestCode, err;
             bool ok = Prescribe(mosConsumer, tr, roomId, trackingId, trackingTime, out sReqCode, out expMestCode, out err);
             if (ok)
             {
-                Console.WriteLine(string.Format("   🎉 KÊ ĐƠN THÀNH CÔNG!"));
+                Console.WriteLine(string.Format("   🎉 KÊ ĐƠN TỦ TRỰC THÀNH CÔNG!"));
                 if (!string.IsNullOrEmpty(sReqCode)) Console.WriteLine(string.Format("      - Mã phiếu y lệnh: {0}", sReqCode));
                 if (!string.IsNullOrEmpty(expMestCode)) Console.WriteLine(string.Format("      - Mã phiếu xuất  : {0}", expMestCode));
                 Console.WriteLine(string.Format("      - Thuốc          : Leanpro PreSur 12.5% (SPBM25651) | SL: 6 Chai"));
                 Console.WriteLine(string.Format("      - HDSD           : {0}", DEFAULT_TUTORIAL));
-                Console.WriteLine(string.Format("      - Kho cấp        : Kho sản phẩm dinh dưỡng điều trị (753)"));
+                Console.WriteLine(string.Format("      - Kho cấp        : Tủ trực Sản phẩm dinh dưỡng Khoa 57 (TTSPDD_9 - ID: 7787)"));
                 successCount++;
+
+                Console.WriteLine("      💡 Bác sĩ in & ký Tờ điều trị trực tiếp trên HIS Client Desktop để render đầy đủ dữ liệu mẫu chuẩn.");
             }
             else
             {
@@ -477,20 +566,156 @@ public class HisLeanproAssigner
         Console.WriteLine("=========================================================================================");
     }
 
+    public static void SignExistingTrackings(List<string> patientOrTreatmentCodes)
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+        Console.WriteLine("⚠️ Chức năng ký số EMR qua API đã được gỡ bỏ hoàn toàn theo chỉ đạo của Bác sĩ.");
+        Console.WriteLine("   Bác sĩ in và ký trực tiếp Tờ điều trị trên phần mềm EMR Desktop Client.");
+    }
+
+    public static void DeleteBlankEmrDocs(List<string> docIdsOrCodes)
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+        string token = ReadLiveToken();
+        CommonParam param = new CommonParam();
+        if (string.IsNullOrEmpty(token))
+        {
+            try
+            {
+                Load.Init();
+                ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                var tk = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                if (tk == null) tk = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+                if (tk != null) token = tk.TokenCode;
+            }
+            catch { }
+        }
+
+        if (string.IsNullOrEmpty(token))
+        {
+            Console.WriteLine("❌ Không lấy được token đăng nhập!");
+            return;
+        }
+
+        ApiConsumer emrConsumer = new ApiConsumer("http://192.168.7.239:1415/", token, "HIS");
+        Console.WriteLine("=========================================================================================");
+        Console.WriteLine("🗑️ BẮT ĐẦU HỦY VĂN BẢN KÝ EMR TRẮNG...");
+        Console.WriteLine("=========================================================================================");
+
+        List<long> docIds = new List<long>();
+        if (docIdsOrCodes == null || docIdsOrCodes.Count == 0)
+        {
+            docIds.AddRange(new long[] { 93506998, 93507000, 93507001, 93507003, 93507004, 93507005, 93507006 });
+        }
+        else
+        {
+            foreach (var item in docIdsOrCodes)
+            {
+                long id;
+                if (long.TryParse(item, out id) && id > 90000000)
+                {
+                    docIds.Add(id);
+                }
+            }
+            if (docIds.Count == 0)
+            {
+                docIds.AddRange(new long[] { 93506998, 93507000, 93507001, 93507003, 93507004, 93507005, 93507006 });
+            }
+        }
+
+        int success = 0;
+        int fail = 0;
+        foreach (var docId in docIds)
+        {
+            try
+            {
+                // 1. Lấy thông tin chi tiết của Document
+                var filter = new EmrDocumentFilter { ID = docId };
+                CommonParam cpGet = new CommonParam();
+                var docs = adapter.FetchList<EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, filter, cpGet);
+                EMR_DOCUMENT doc = (docs != null && docs.Count > 0) ? docs[0] : null;
+
+                if (doc == null)
+                {
+                    Console.WriteLine(string.Format("   ℹ️ Văn bản EMR DocID {0} không tồn tại hoặc đã bị xóa trước đó.", docId));
+                    success++;
+                    continue;
+                }
+
+                Console.WriteLine(string.Format("   📄 Đang xử lý EMR DocID {0} ({1})...", docId, doc.DOCUMENT_NAME));
+
+                // 2. Kiểm tra và hủy chữ ký liên kết nếu có
+                try
+                {
+                    var signFilter = new EmrSignFilter { DOCUMENT_ID = docId };
+                    CommonParam cpSign = new CommonParam();
+                    var signs = adapter.FetchList<EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, cpSign);
+                    if (signs != null && signs.Count > 0)
+                    {
+                        foreach (var s in signs)
+                        {
+                            CommonParam cpDelSign = new CommonParam();
+                            bool delSignOk = adapter.PostData<bool>("api/EmrSign/Delete", emrConsumer, s, cpDelSign);
+                            Console.WriteLine(string.Format("      - Xóa chữ ký SignID {0}: {1}", s.ID, delSignOk ? "OK" : "K/thành công"));
+                        }
+                    }
+                }
+                catch { }
+
+                // 3. Xóa Document
+                CommonParam cp = new CommonParam();
+                bool ok = adapter.PostData<bool>("api/EmrDocument/Delete", emrConsumer, doc, cp);
+                if (ok)
+                {
+                    Console.WriteLine(string.Format("   ✔ Đã xóa thành công văn bản EMR ID {0}!", docId));
+                    success++;
+                }
+                else
+                {
+                    string msg = (cp.Messages != null && cp.Messages.Count > 0) ? string.Join("; ", cp.Messages) : "";
+                    if (cp.BugCodes != null && cp.BugCodes.Count > 0) msg += " | BugCodes: " + string.Join("; ", cp.BugCodes);
+                    if (string.IsNullOrEmpty(msg)) msg = "MOS/EMR từ chối (có thể do phân quyền hoặc trạng thái văn bản)";
+                    Console.WriteLine(string.Format("   ❌ Không thể xóa EMR ID {0}: {1}", docId, msg));
+                    fail++;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(string.Format("   ❌ Lỗi khi xóa EMR ID {0}: {1}", docId, ex.Message));
+                fail++;
+            }
+        }
+
+        Console.WriteLine("=========================================================================================");
+        Console.WriteLine(string.Format("📊 TỔNG KẾT XÓA VĂN BẢN EMR: Thành công: {0}/{1} | Thất bại: {2}", success, docIds.Count, fail));
+        Console.WriteLine("=========================================================================================\n");
+    }
+
     public static void Run(string[] args)
     {
         if (args.Length == 0)
         {
             Console.WriteLine("Cách sử dụng: HisLeanproAssigner.exe <MãBN1,MãBN2,...> hoặc -p <MãBN1,MãBN2,...>");
+            Console.WriteLine("             HisLeanproAssigner.exe --delete-emr [DocId1,DocId2,...]");
             Console.WriteLine("Ví dụ: HisLeanproAssigner.exe 0003976907,0003595506");
             return;
         }
 
+        bool isSignMode = false;
+        bool isDeleteEmrMode = false;
         List<string> codes = new List<string>();
         for (int i = 0; i < args.Length; i++)
         {
             string arg = args[i];
-            if (arg == "-p" || arg == "--patients" || arg == "-t" || arg == "--treatments")
+            if (arg == "--sign" || arg == "-s" || arg == "--sign-only")
+            {
+                isSignMode = true;
+            }
+            else if (arg == "--delete-emr" || arg == "--del-emr" || arg == "--clean-blank-emr" || arg == "--clean-emr")
+            {
+                isDeleteEmrMode = true;
+            }
+            else if (arg == "-p" || arg == "--patients" || arg == "-t" || arg == "--treatments")
             {
                 if (i + 1 < args.Length)
                 {
@@ -504,7 +729,18 @@ public class HisLeanproAssigner
             }
         }
 
-        ProcessPatients(codes);
+        if (isDeleteEmrMode)
+        {
+            DeleteBlankEmrDocs(codes);
+        }
+        else if (isSignMode)
+        {
+            SignExistingTrackings(codes);
+        }
+        else
+        {
+            ProcessPatients(codes);
+        }
     }
 }
 

@@ -5,20 +5,85 @@
 Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mới tạo, khung chat cũ tiếp tục, trên máy ổ E:\ hay ổ D:\) BẮT BUỘC phải tuân thủ nghiêm ngặt các quy tắc sau mà KHÔNG CẦN người dùng nhắc nhở:
 
 
+
+## 0. CAM FREESTYLE SCRIPT & QUY CHUẨN HIS MCP SERVER (BẮT BUỘC 100% — ĐỌC TRƯỚC MỌI THỨ)
+
+**Vấn đề thực tế 2026-09-16 & 2026-09-20:** Agent tự viết `Prescribe*.cs` / compile `csc` / tự tạo các file script tạm (`.ps1`, `.bat`, `.py`, payload `.json`) khi chạy nhiệm vụ `/goal` → Gây rác thư mục, dirty git repo, vỡ compilation, mất DLL Inventec; dễ kê nhầm kho 4210.
+
+### CẤM TUYỆT ĐỐI
+1. **CẤM** tạo file C# / PowerShell / Batch / Python tạm bợ một lần (`PrescribeXxx.cs`, `test.ps1`, `script.py`, payload `.json`) trong quá trình thực hiện nhiệm vụ hoặc chạy `/goal`.
+2. **CẤM** compile bằng `csc` cho nghiệp vụ lâm sàng hàng ngày khi tool hoặc MCP Server đã có sẵn.
+3. **CẤM** hardcode `TrackingId`.
+4. **CẤM** kê y lệnh tủ trực từ kho `4209` / `4210` (Kho dược). Hà Nội Khoa 57 = **`MediStockId 810`**; Ninh Bình Khu 3E = **`5142`**.
+5. **CẤM** báo thành công khi API trả null / Messages rỗng.
+6. **CẤM XÓA CÁC Y LỆNH BẢO LƯU QUẢN LÝ BUỒNG, THEO DÕI SINH HIỆU & ĐƠN THUỐC**: Tuyệt đối **KHÔNG ĐƯỢC XÓA** 4 nhóm y lệnh sau (dù đang ở trạng thái ⚪ màu trắng):
+   - 🛏️ **Y lệnh Giường** (Tất cả dịch vụ giường Nội khoa, Ngoại khoa, GMHS...).
+   - 👕 **Y lệnh Đồ vải** (Toan áo vải, chi phí giảm trừ đồ vải gói PT...).
+   - 🩸 **Y lệnh Thử đường huyết tại giường** (ĐMMM, Định lượng Glucose máu mao mạch).
+   - 💊 **Đơn điều trị / Đơn thuốc** (Đơn điều trị nội trú, đơn tủ trực, đơn kho dược... Tuyệt đối không xóa bằng công cụ hủy mẻ).
+
+
+### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG MỌI NHIỆM VỤ & /GOAL
+1. **Ưu tiên số 1 (Chống rác file 100%)**: Sử dụng các công cụ **HIS MCP Server** (`his_*`) chạy qua giao thức JSON-RPC 2.0 (`HisMcpServer.exe`). Mọi dữ liệu vào/ra truyền qua RAM/stdio, **hoàn toàn không tạo bất kỳ file tạm nào trên đĩa**.
+   - 🌟 **Cổng Điều Phối Chuyên Biệt Cơ Sở (Token Isolation 100% - KHÔNG LO ĐÈ TOKEN)**:
+     * **Tài khoản bác sĩ mặc định**: `034727` (Ths.BS Nguyễn Hữu Sâm) áp dụng chung cho **TẤT CẢ các cơ sở** (cả Hà Nội và Ninh Bình).
+     * **Mật khẩu**: Mật khẩu hiện tại là **`981`** (Bác sĩ thay đổi thường xuyên và sẽ báo khi có cập nhật; hệ thống tự động đọc từ biến môi trường `$env:HIS_PASSWORD` hoặc fallback `981`).
+     * **`his_hn`**: Cổng chuyên biệt Hà Nội (Khoa 57, BS Nguyễn Hữu Sâm `034727`, P734/5248, Tủ trực 810, Kho 4210, Token file `doctor_hn.token`). Hỗ trợ mọi action: lookup, orders, prescribe, tracking, glucose, discharge, emr, pacs, debate...
+     * **`his_nb`**: Cổng chuyên biệt Ninh Bình (Khoa 915 Khu 3E, BS Nguyễn Hữu Sâm `034727`, P3E-05/18679, Tủ trực 5142, Kho 4854, Token file `doctor_nb.token`). Hỗ trợ mọi action tương tự, tự động nạp đúng token Ninh Bình.
+   - Tra cứu: `his_patient_lookup`, `his_get_orders`, `his_debate_view`
+   - Kê đơn Tủ Trực (Thuốc, Insulin, Leanpro, Thay băng): `his_prescribe_cabinet`
+   - Kê đơn Lĩnh Kho Dược (Thuốc viên, Thuốc ống, Dinh dưỡng 753): `his_prescribe_warehouse`
+   - Kê đơn điều phối tự động: `his_prescribe_medicine`
+   - Tờ điều trị: `his_create_tracking`
+   - ĐMMM & Thợ đường huyết (Server độc lập `his-glucose`): `his_glucose_hn`, `his_glucose_nb`, `his_assign_bedside_glucose`, `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet`)*
+   - Suất ăn & Dinh dưỡng: `his_assign_ration`, `his_assign_leanpro`
+   - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
+   - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
+   - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
+   - Ra viện & Thợ làm ra viện (Server độc lập `his-discharge`): `his_discharge_hn`, `his_discharge_nb`, `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien`)*
+   - Tiếp đón & Thợ trực buồng (Server độc lập `his-ward-duty`): `his_ward_duty_hn`, `his_ward_duty_nb`, `his_execute_protocol_ward_duty` *(hoặc `his_tho_truc_buong`)*
+2. **Quyền hạn của Agent - Toàn quyền tinh chỉnh thông số (Parameters/Arguments)**:
+   - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
+     * *Liều lượng thuốc, cữ tiêm (sáng/trưa/chiều/tối), thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị)*.
+     * *Nội dung diễn biến lâm sàng, sinh hiệu DHST, cơ sở hoạt động (`HN` hoặc `NB`), buồng bệnh, phòng thực hiện*.
+     * *Chuyển đổi linh hoạt giữa Tủ trực (Kho 810 / 5142) và Kho Dược (4210 / 4209)* tùy theo yêu cầu chỉ định.
+   - **Tuyệt đối cấm**: Tự ý tạo mới các script/phần mềm lẻ tẻ rác (`.cs`, `.ps1`, `.bat`, `.py`, payload `.json`) khi đang làm nhiệm vụ.
+3. **Cơ chế Dừng Thao Tác & Báo Cáo Kẹt (Circuit-Breaker Pattern - BẮT BUỘC)**:
+   - Khi phát sinh nghiệp vụ lâm sàng mới nằm ngoài khả năng của 18 công cụ MCP hiện có, HOẶC khi công cụ MCP/API backend từ chối/báo lỗi $\le 2$ lần:
+     * ⛔ **DỪNG LẠI NGAY LẬP TỨC**: Tuyệt đối không được cố chấp viết file script tạm thử-sai kéo dài làm chậm trễ công việc lâm sàng và làm bẩn git repo.
+     * 📢 **BÁO CÁO RÕ RÀNG 4 ĐIỂM CHO BÁC SĨ**:
+       1. **Kẹt ở đâu**: Chỉ rõ bước và thao tác đang bị nghẽn (VD: giữ bean thuốc, tạo tờ điều trị, chỉ định CLS...).
+       2. **Mã lỗi & Thông báo API**: In nguyên văn `Messages`, `BugCodes` hoặc HTTP status code từ HIS Inventec backend.
+       3. **Nguyên nhân phán đoán**: Giải thích lý do (VD: kho hết tồn, sai mã dịch vụ giữa 2 cơ sở HN/NB, bệnh nhân chưa có tờ điều trị trong ngày, tài khoản chưa được phân quyền buồng bệnh...).
+       4. **Đề xuất giải pháp**: Đề xuất Bác sĩ thao tác trực tiếp trên UI HIS cho ca cấp bách, hoặc đề xuất bổ sung chuẩn hóa method/tool mới vào `HisMcpServer.cs` theo quy trình git.
+4. **Nếu gọi CLI ngoài MCP (Khi MCP Server không sẵn sàng)**:
+   - Kê tủ trực (`IS_CABINET = 1`) $\rightarrow$ `HisCabinetPrescribe.bat` / `HisAutoPrescribe.exe single`.
+   - Kê kho dược (`IS_CABINET = 0`) $\rightarrow$ `HisWarehousePrescribe.bat single`.
+   - Tra cứu / orders / cancel $\rightarrow$ `HisClinicalCli.exe`.
+   - Chạy trực tiếp file exe biên dịch sẵn từ thư mục gốc project (sau `. .\set_env.ps1`), không fork file mới.
+   - Nếu cần sửa bug: Sửa trực tiếp code nguồn chuẩn (`HisMcpServer.cs`, `HisCabinetPrescribe.cs`, `HisClinicalCli.cs`), chạy `build_mcp_server.ps1` hoặc `build_all_cs_tools.ps1` và ghi playbook.
+
+### Checklist trước khi gọi API ghi
+- [ ] Login `034727` (Pass hiện tại: `981` hoặc `$env:HIS_PASSWORD` - áp dụng cho mọi cơ sở)
+- [ ] `UpdateWorkInfo` (phòng trực 5248 + buồng BN)
+- [ ] Tủ trực HN: stock **810**; Tủ trực NB: stock **5142** + flow TakeBean → OutPatientPresCreateList + IsCabinet
+- [ ] TrackingId lấy từ EnsureTracking / tracking ngày — không hardcode
+
+---
 ## 1. QUY TẮC ĐẦU PHIÊN CHO MỌI KHUNG CHAT MỚI (PRE-FLIGHT SYNC - BẮT BUỘC 100%)
 * **Bất kỳ khung chat nào khi bắt đầu phiên làm việc**, trước khi xử lý yêu cầu của bác sĩ (kê đơn, tờ điều trị, chỉ định CLS, tra cứu, sửa code...), Agent PHẢI **CHỦ ĐỘNG CHẠY LỆNH PULL** bằng terminal để đồng bộ tri thức và công cụ mới nhất từ Git:
   ```powershell
   . .\set_env.ps1 ; git pull origin main
   ```
   *(Trường hợp thư mục mới chưa có `.git`, Agent tự động chạy lệnh tự phục hồi sau để liên kết ngay với repository: `git init ; git remote add origin https://github.com/onthibacsinoitru9999-coder/hisx64-crossover.git ; git fetch origin main ; git branch -M main ; git reset origin/main`)*
-* **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///f:/NB/LBP2900_R150_V330_W64_uk_EN_2/x64/MISC/ANIMIMG/his/HIS%20CSNB/HIS_AI_INTEGRATION_PLAYBOOK.md) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
+* **Nạp tri thức:** Sau khi pull, Agent tự động cập nhật ngữ cảnh từ [`HIS_AI_INTEGRATION_PLAYBOOK.md`](file:///HIS_AI_INTEGRATION_PLAYBOOK.md) (file trong thư mục gốc repo) và thư mục `.agents/skills/his-clinical-operations/` để đảm bảo nắm được toàn bộ danh mục thuốc, mã kho, bẫy lỗi và cấu trúc DTO mới nhất.
 
 ### 🌟 QUY TẮC CỨNG: BẮT BUỘC KHAI BÁO & NHẬN DIỆN CƠ SỞ ĐẦU PHIÊN (FACILITY PRE-FLIGHT DECLARATION)
 * **BẮT BUỘC 100%**: Ngay khi khởi động phiên làm việc mới (hoặc trước khi thực hiện bất kỳ y lệnh lâm sàng nào), Agent PHẢI **XÁC ĐỊNH & KHAI BÁO RÕ RÀNG** đang làm việc tại cơ sở nào:
   - 🏥 **Cơ sở Hà Nội (`ha-noi` / `HN`)**:
     * **Khoa**: Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 - `DEPARTMENT_ID = 57`)
     * **Branch**: Bệnh viện Bạch Mai - Hà Nội (`BRANCH_ID = 1`)
-    * **Buồng bệnh**: P712, P714, P716, P724, P725...
+    * **Buồng bệnh**: Toàn bộ các buồng từ P710 đến P740 (P710, P711, P712, P712A, P713, P714, P715, P716, P717, P718, P719, P720, P721, P722, P723, P724, P725, P726, P727, P728, P729, P730... P740). TUYỆT ĐỐI KHÔNG hardcode danh sách con vài buồng!
     * **Phòng làm việc / Tiểu phẫu**: P734 (`RoomId = 5248`) hoặc Tiểu phẫu Nhà Q (`ExecuteRoomId = 931`)
     * **Tủ trực thuốc**: **`810` (`TT_KCTCHCS`)**
     * **Dịch vụ ĐMMM tại giường**: **`BM02426`** (Service ID: **`6217`**)
@@ -38,27 +103,48 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   2. Nếu Bác sĩ chưa khai báo: Agent kiểm tra branch Git hiện tại (`git branch --show-current`). Nếu ở `ninh-binh` thì chạy cấu hình Ninh Bình; nếu ở `ha-noi` thì chạy cấu hình Hà Nội.
   3. TUYỆT ĐỐI CẤM tự ý áp dụng catalog Hà Nội cho bệnh nhân Ninh Bình (sẽ gây lỗi `Success: false` do mã `BM02426` không có trong hợp đồng BHYT Ninh Bình) hoặc ngược lại.
 
-## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC PHẦN MỀM CON (SINGLE RESPONSIBILITY CLI MATRIX)
-Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục đích chuyên biệt. **TUYỆT ĐỐI KHÔNG GỌI NHẦM CÔNG CỤ (Đặc biệt: Khi tra cứu thông tin CẤM gọi `HisAutoPrescribe.exe`)**:
+## 2. QUY TẮC PHÂN ĐỊNH RÕ RÀNG NHIỆM VỤ CÁC CÔNG CỤ (MCP TOOL & SINGLE RESPONSIBILITY CLI MATRIX)
+Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập. **ƯU TIÊN SỐ 1 TRONG /GOAL: GỌI TRỰC TIẾP MCP TOOL (KHÔNG TẠO FILE RÁC)**. Khi gọi CLI, chỉ dùng exe biên dịch sẵn:
 
-| Mục Đích / Yêu Cầu Của Bác Sĩ | Công Cụ DUY NHẤT Được Phép Gọi | Lệnh Mẫu Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
-| :--- | :--- | :--- | :--- |
-| 🔍 **Tra cứu thông tin BN, buồng, tiền sử, dịch vụ, đơn cũ** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
-| 📋 **Xem danh sách y lệnh & trạng thái màu sắc (trắng/vàng/xanh)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN>` | ❌ Không tự cào DB |
-| 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (chỉ định màu trắng)** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
-| 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu y lệnh** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
-| 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa khách** | **`HisClinicalCli.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
-| 💊 **Kê đơn thuốc, tiêm Insulin, tủ trực, dinh dưỡng** | **`HisAutoPrescribe.exe`** | `.\HisAutoPrescribe.exe single ...` hoặc `--batch` | ❌ Không dùng tra cứu |
-| 📝 **Tạo tờ điều trị hàng ngày (Ghi diễn biến + y lệnh)** | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` (Tích hợp OpenRouter AI) | ❌ Không dùng kê đơn |
-| 📋 **Đối soát & kiểm tra thiếu Sơ kết 3 ngày / 7 ngày** | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |
-| 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
-| 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | **`HisGlucoseBedsideAssigner.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
-| 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01, DD01, TM01`)** | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
-| 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro PreSur)** | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN1,MãBN2>"` | ❌ Không kê người >= 70t / ĐTĐ |
-| 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17 / Mps000019)** | **`HisDebateCreator.exe`** | `.\.agents\skills\his-clinical-operations\scripts\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
-| 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
-| 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
-| 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
+| Mục Đích / Yêu Cầu Của Bác Sĩ | MCP Tool (Ưu Tiên Số 1) | Công Cụ CLI Fallback | Lệnh Mẫu CLI Chuẩn | TUYỆT ĐỐI CẤM DÙNG |
+| :--- | :--- | :--- | :--- | :--- |
+| 🔍 **Tra cứu thông tin BN, buồng, tiền sử, đơn cũ** | `his_patient_lookup` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe lookup <MãBN>` | ❌ **`HisAutoPrescribe.exe`** |
+| 📋 **Xem danh sách y lệnh & trạng thái màu sắc** | `his_get_orders` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe orders <MãBN>` | ❌ Không tự cào DB |
+| 🗑️ **Hủy/Xóa y lệnh chưa thực hiện (màu trắng)** | `his_cancel_order` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe cancel-order <ID>` | ❌ Không xóa y lệnh đã làm |
+| 🗑️ **Hủy/Xóa dịch vụ con đơn lẻ trong phiếu** | `his_cancel_service` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe cancel-service <SS_ID>` | ❌ Không xóa y lệnh đã làm |
+| 👥 **Đọc Biên bản Hội chẩn & Ý kiến Chuyên khoa** | `his_debate_view` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe debate <MãBN>` | ❌ Không đoán mò |
+| 💊 **Kê thuốc điều trị, tiêm Insulin, Leanpro, Thay băng từ TỦ TRỰC** | `his_prescribe_cabinet` *(hoặc `his_prescribe_medicine`)* | **`HisCabinetPrescribe.exe`** / `HisAutoPrescribe.exe` | `.\HisCabinetPrescribe.bat single ...` hoặc `.\HisAutoPrescribe.exe single` | ❌ Không gọi API kê lĩnh 4210 |
+| 🏭 **Kê đơn thuốc nội trú thường quy LĨNH KHO DƯỢC** | `his_prescribe_warehouse` *(hoặc `his_prescribe_medicine`)* | **`HisWarehousePrescribe.exe`** | `.\HisWarehousePrescribe.bat single ...` | ❌ Không gọi API tủ trực (TakeBean) |
+| 📝 **Tạo tờ điều trị hàng ngày (DHST + AI)** | `his_create_tracking` | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` | ❌ Không dùng kê đơn |
+| 🩸 **Chỉ định ĐMMM tại giường (`BM02426` / `NB260620.6231`)** | `his_assign_bedside_glucose` (Server `his-glucose`) | **`HisGlucoseMcpServer.exe`** / `HisGlucoseBedsideAssigner.exe` | `.\HisGlucoseMcpServer.exe assign <MãBN>` | ❌ Không dùng kê thuốc |
+| ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet` qua MCP `his-glucose`)* | **`HisGlucoseMcpServer.exe`** | `.\HisGlucoseMcpServer.exe <MãBN> <DH> <Loại> <UI> <Mốc> [HN\|NB] [--dry-run]` | ❌ Không đổi thứ tự pipeline 3 bước |
+| 🏁 **Đặc quyền 'Thợ làm ra viện' (1-Click)** | `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien` qua MCP `his-discharge`)* | **`HisDischargeMcpServer.exe`** | `.\HisDischargeMcpServer.exe <MãBN> [HN\|NB] [--dry-run]` | ❌ Không nhồi nhét vào `HisClinicalCli.exe` gây quá tải; không bỏ sót 4 nhóm bảo lưu |
+| 🛏️ **Đặc quyền 'Thợ trực buồng' (1-Click)** | `his_execute_protocol_ward_duty` *(hoặc `his_tho_truc_buong` qua MCP `his-ward-duty`)* | **`HisWardDutyMcpServer.exe`** / `HisWardDuty.bat` | `.\HisWardDuty.bat <MãBN> [HN\|NB] [--dry-run]` | ❌ Không gọi script tạm; không bỏ sót rà soát CLS 3 tháng |
+| 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
+| 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
+| 👥 **Hội chẩn chuyên khoa (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
+| 📑 **Tạo Biên bản Hội chẩn thông qua mổ (PT-01)** | `his_create_pt01` | **`HisPt01Creator.exe`** | `.\HisPt01Creator.exe <MãBN>` | ❌ Không phá vỡ docx |
+| 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang)** | `his_view_pacs` | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
+| 📋 **Điền Vỏ Bệnh Án Ngoại Khoa EMR Nội trú** | `his_emr_fill` | **`HisEmrFiller.exe`** | `.\HisEmrFiller.bat <MãBN> [--save] [--force]` | ❌ Không dùng cho Ngoại trú |
+| 🩺 **Kiểm tra sức khỏe hệ thống & Ping server** | `his_system_health` | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
+| 📋 **Đối soát & kiểm tra thiếu Sơ kết 3/7 ngày** | - | **`HisSummaryTrackingDoctor.exe`** | `.\HisSummaryTrackingDoctor.bat "<Buồng>"` | ❌ Không tự cào log |
+| 📄 **Tạo tờ Sơ kết 3 ngày / 7 ngày tự động** | - | **`HisSummaryTrackingCreator.exe`** | `.\HisSummaryTrackingCreator.bat` | ❌ Không dùng kê đơn |
+| 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | - | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
+| 🚀 **Nạp & Ký số Biên bản PT-01 vào EMR UI** | - | **`HisPt01UiUploader.exe`** | `.\HisPt01UiUploader.bat <MãBN>` | ❌ Không ký thủ công lặp lại |
+| ⚡ **Ghi nhận & học thao tác UI (Click/Phím)** | - | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` | ❌ Không ghi ngoài HIS |
+| 🔪 **Thao tác Tiểu phẫu & Thủ thuật (Rút đinh)** | - | Skill `.agents/skills/his-minor-surgery/` | Skill minor surgery | ❌ Không bỏ sót kíp mổ |
+| 🚨 **Đăng ký Bệnh nhân Mổ Cấp Cứu (Hà Nội & Ninh Bình)** | `his_emergency_surgery` *(qua `his_hn`/`his_nb`)* | **`HisEmergencySurgery.bat`** | `.\HisEmergencySurgery.bat <MãBN> "<Cách thức mổ>" [HN\|NB] [--submit]` | ❌ Không điền nhầm form giữa 2 cơ sở |
+
+### 🌟 QUY TẮC BẮT BUỘC: VỎ BỆNH ÁN NGOẠI KHOA CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ (INPATIENT ONLY)
+* **TUYỆT ĐỐI CẤM**: Không tạo Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA` / EMR) cho bệnh nhân khám ngoại trú / phòng khám (`TDL_TREATMENT_TYPE_ID != 3`).
+* **Phạm vi áp dụng duy nhất**: Vỏ Bệnh Án Ngoại Khoa CHỈ dành riêng cho bệnh nhân **ĐIỀU TRỊ NỘI TRÚ** (`TDL_TREATMENT_TYPE_ID == 3` và nằm buồng bệnh nội trú Khoa 57 / Khoa 915).
+* **Chốt chặn an toàn trong Code**: `HisEmrFiller.exe` tự động chặn đứng và từ chối nếu bệnh nhân là diện ngoại trú / phòng khám. Khi quét bệnh nhân theo ngày (`--date YYYYMMDD`), công cụ tự động lọc bỏ 100% ca khám ngoại trú.
+* **Lệnh thu hồi khẩn cấp (Reverse)**: `.\HisEmrFiller.bat --reverse-outpatients` để xóa sạch vỏ bệnh án ngoại trú bị tạo nhầm trên DB Oracle EMR và bảo lưu nguyên vẹn 100% bệnh nhân nội trú.
+* **QUY TẮC BẮT BUỘC: GỠ BỎ TOÀN BỘ CÁC CẤU PHẦN KÝ SỐ EMR QUA API (ZERO BACKGROUND SIGNING)**:
+  - Tuyệt đối **CẤM TỰ ĐỘNG KÝ SỐ EMR QUA API** trong mọi công cụ nền (Tờ điều trị, Hội chẩn, Vỏ bệnh án, Leanpro, v.v.).
+  - Toàn bộ các API `api/EmrSign/SignPdfHsm`, `api/EmrSign/UpdateSdo`, sinh PDF tạm upload `CreateByTdo`, lệnh CLI `sign-emr`, `sign-ba`, cờ `--sign` đã được **GỠ BỎ VĨNH VIỄN 100%** khỏi codebase.
+  - Các công cụ nền CHỈ làm nhiệm vụ tạo dữ liệu gốc sạch sẽ trên MOS/EMR (`api/HisTracking/Create`, `api/HisDebate/Create`, nạp Oracle DB `BENHANNGOAIKHOA`).
+  - **Khâu in và ký văn bản**: Bác sĩ in và ký trực tiếp trên giao diện phần mềm **EMR Desktop Client** hoặc trên giấy tại máy trạm khoa phòng. Không can thiệp ngầm.
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
@@ -82,6 +168,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 * **Ý nghĩa an toàn:** Tránh nguy cơ phẫu thuật sai vị trí hoặc bỏ sót tổn thương cấp cần can thiệp.
 
 ## 5. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ CHO ĐƯỜNG HUYẾT" (DIABETES 1-CLICK PROTOCOL)
+* **Máy chủ chuyên trách độc lập:** Được đóng gói trọn vẹn trong MCP Server riêng **`his-glucose`** (`HisGlucoseMcpServer.exe`) qua tool **`his_execute_protocol_glucose`** (hoặc bí danh **`his_tho_cho_duong_huyet`**) hoặc CLI **`.\HisGlucoseMcpServer.exe <MãBN> <DH> <Loại> <UI> <Mốc> [HN|NB] [--dry-run]`**. Tinh giản và cách ly 100% khỏi `HisMcpServer.exe` tổng thể để chống phình to codebase.
 * **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin hoặc gửi ảnh báo cáo đường huyết và gọi/nhắc đến **"thợ cho đường huyết"**, Agent PHẢI tự động nhận diện và kích hoạt ngay luồng xử lý toàn diện mà **KHÔNG CẦN HỎI LẠI HAY TINH CHỈNH GÌ THÊM**:
   1. **Tự đọc & trích xuất dữ liệu:** Phân tích trực tiếp ảnh/bảng dữ liệu gửi kèm (Mã BN, Họ tên, ĐH các mốc 17h, 21h, 6h sáng hôm sau, liều Insulin tương ứng).
      - 💡 **Quy chuẩn ký hiệu viết tắt của Điều dưỡng (Bắt buộc ghi nhớ):**
@@ -92,18 +179,22 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
        * **Tại Hà Nội**: Tìm kiếm và đối chiếu hồ sơ tại **Khoa CTCH & Cột sống (`DEPARTMENT_ID = 57`)**.
        * **Tại Ninh Bình**: Tìm kiếm và đối chiếu hồ sơ tại **Khoa Ngoại tổng hợp - Tầng 3 Nhà E (`DEPARTMENT_ID = 915`)**.
        * Trường hợp không tìm thấy bệnh nhân tại khoa tương ứng, Agent PHẢI báo lại ngay cho Bác sĩ.
-  2. **Thực thi đồng thời 3 tác vụ y lệnh cho 100% bệnh nhân:**
-     - **Tác vụ 1 - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
-     - **Tác vụ 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):**
-       * **Tại Hà Nội**: Chỉ định mã **`BM02426`** (Service ID: `6217`), Phòng thực hiện `5248` (P734) hoặc `931` (Tiểu phẫu nhà Q).
-       * **Tại Ninh Bình**: Chỉ định mã **`NB260620.6231`** (Service ID: `74281` - "Định lượng Glucose [Máu] mao mạch"), Phòng thực hiện `18679` (P3E-05) hoặc `18681` (P3D-05).
-     - **Tác vụ 3 - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
-       * ⚠️ **Kho Tủ Trực Bắt Buộc**:
-         - **Tại Hà Nội**: Kê từ Tủ trực Khoa 57 (**`MediStockId = 810` - `TT_KCTCHCS`**).
-         - **Tại Ninh Bình**: Kê từ Tủ trực Khu 3E (**`MediStockId = 5142` - `TTT_NBKP05.02`**) hoặc Khu 3D (**`5141`**).
-         - **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
-       * **Quy chuẩn tỷ lệ quy đổi:** `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), `MedicineUseFormId = 15` (*Tiêm*), cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD: `"08"`), `IsExpend = false`.
-       * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
+  2. **Thực thi tuần tự 3 tác vụ y lệnh cho 100% bệnh nhân (Sequential Pipeline - BẮT BUỘC ĐÚNG THỨ TỰ):**
+      - 📝 **Bước 1 (BẮT BUỘC CHẠY TRƯỚC NHẤT) - Tờ điều trị (`HisTrackingCreator.exe`):** Tạo tờ điều trị ghi nhận kết quả ĐMMM và y lệnh tiêm insulin theo từng mốc giờ (17h, 21h, 6h).
+      - 🩸 **Bước 2 - Chỉ định CLS (`HisGlucoseBedsideAssigner.exe`):**
+        * **Tại Hà Nội**: Chỉ định mã **`BM02426`** (Service ID: `6217`), Phòng thực hiện `5248` (P734) hoặc `931` (Tiểu phẫu nhà Q).
+        * **Tại Ninh Bình**: Chỉ định mã **`NB260620.6231`** (Service ID: `74281` - "Định lượng Glucose [Máu] mao mạch"), Phòng thực hiện `18679` (P3E-05) hoặc `18681` (P3D-05).
+      - 💊 **Bước 3 (BẮT BUỘC CHẠY SAU CÙNG) - Kê đơn Insulin (`HisAutoPrescribe.exe --batch` hoặc CLI):**
+        * ⚠️ **Kho Tủ Trực Bắt Buộc**:
+          - **Tại Hà Nội**: Kê từ Tủ trực Khoa 57 (**`MediStockId = 810` - `TT_KCTCHCS`**).
+          - **Tại Ninh Bình**: Kê từ Tủ trực Khu 3E (**`MediStockId = 5142` - `TTT_NBKP05.02`**) hoặc Khu 3D (**`5141`**).
+          - **TUYỆT ĐỐI KHÔNG kê từ Kho Dược (4209/4210)**.
+        * 🕒 **Quy tắc lùi 5 phút sau Tờ điều trị (5-Minute Timing Offset Rule - CHỐNG NHẢY TỜ ĐIỀU TRỊ PHÍA TRƯỚC):**
+          - Kê đơn Insulin BẮT BUỘC thực hiện **SAU KHI ĐÃ CÓ TỜ ĐIỀU TRỊ** ở Bước 1.
+          - Thời gian y lệnh thuốc (`InstructionTime`) tự động **lùi +5 phút sau thời điểm Tờ điều trị** (`InstructionTime = TrackingTime + 5 phút`, ví dụ: Tờ điều trị lúc 17:00 $\rightarrow$ Y lệnh thuốc lúc 17:05).
+          - `EnsureTrackingForPrescription` kiểm tra độ lệch thời gian $\le 3$ giờ; tuyệt đối không để đơn 17h nhảy ngược vào tờ điều trị buổi sáng (10h).
+        * **Quy chuẩn tỷ lệ quy đổi:** `Amount = UI / 1000.0m` (VD: `8 UI` -> `0.0080 lọ`), `MedicineUseFormId = 15` (*Tiêm*), cữ tiêm `MORNING`/`NOON`/`EVENING` = chuỗi 2 chữ số (VD: `"08"`), `IsExpend = false`.
+        * Kê đơn tiêm Insulin (Actrapid / Lantus / Mixtard) đúng số đơn vị và hướng dẫn dùng chuẩn lâm sàng.
   3. **Quy chuẩn Báo cáo Y Lệnh & Hiển Thị UI (BẮT BUỘC):**
      * **MÃ PHIẾU Y LỆNH LÂM SÀNG (`ServiceReqCode`)**: Bắt buộc in đậm `ServiceReqCode` (VD: `000090054138`) trên bảng kết quả. TUYỆT ĐỐI KHÔNG báo mã xuất kho dược `ExpMestCode` (VD: `000028492583`) làm bác sĩ hoang mang không tìm thấy trên EMR.
      * **BỘ LỌC HIS UI**: Luôn nhắc Bác sĩ kiểm tra bộ lọc trên giao diện HIS là **"Tất cả bác sĩ"** (thay vì "Bác sĩ hiện tại") để xem trọn vẹn y lệnh do tài khoản liên thông (`vmc` / `034727`) tạo.
@@ -111,6 +202,48 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
      * Trong mọi tác vụ lâm sàng (đặc biệt khi bác sĩ đang trực tiếp xử lý bệnh nhân), nếu API backend từ chối hoặc trả `Success: false` quá 2 lần, Agent **PHẢI DỪNG VÒNG LẶP NGAY LẬP TỨC**.
      * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
   5. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
+
+## 5.1. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ LÀM RA VIỆN" (DISCHARGE 1-CLICK PROTOCOL)
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin yêu cầu **"thợ làm ra viện"** (kèm mã bệnh nhân hoặc mã điều trị), Agent PHẢI tự động nhận diện và kích hoạt ngay công cụ MCP `his_execute_protocol_discharge` hoặc CLI `HisClinicalCli.exe discharge-protocol <MãBN> [HN|NB]`:
+  1. **Thực thi tuần tự 3 tác vụ khép kín (Sequential Pipeline - BẮT BUỘC ĐÚNG THỨ TỰ):**
+     - 📝 **Bước 1 - Rà soát & Bổ sung Tờ điều trị (3 ngày, 7 ngày, Tổng kết ra viện):**
+       * Tính mốc thời gian **từ thời điểm có tờ điều trị đầu tiên tại khoa lâm sàng** (`DEPARTMENT_ID == 57` ở HN hoặc `915` ở NB), không lấy thời gian vào viện cấp cứu/phòng khám nếu chưa chuyển khoa.
+       * Nếu số ngày điều trị tại khoa $\ge 3$ ngày mà thiếu tờ Sơ kết 3 ngày $\rightarrow$ Tự động tạo tờ Sơ kết 3 ngày.
+       * Nếu số ngày điều trị tại khoa $\ge 7$ ngày mà thiếu tờ Sơ kết 7 ngày $\rightarrow$ Tự động tạo tờ Sơ kết 7 ngày.
+       * Tự động tạo **Tờ Tổng kết ra viện** (Treatment Summary) ghi nhận tóm tắt diễn biến, hướng điều trị và tiên lượng.
+       * Tự động điều chỉnh giờ tờ điều trị (`EnsureUniqueTrackingDateTime`) tránh trùng khớp timestamp với các tờ điều trị đã có.
+     - 🔄 **Bước 2 - Chuyển toàn bộ chỉ định trắng về 034727 (`UpdateCommonInfo`):**
+       * Quét toàn bộ y lệnh lâm sàng ở trạng thái Chưa thực hiện (màu trắng - `SERVICE_REQ_STT_ID == 1`).
+       * Chuyển người chỉ định sang Bác sĩ **`034727`** (ThS.BS Nguyễn Hữu Sâm - Thạc sỹ y học) qua API `api/HisServiceReq/UpdateCommonInfo` (vượt rào cản khóa tạm ứng viện phí `HisSereServDeposit`).
+       * ⚠️ **BẢO LƯU TUYỆT ĐỐI 4 NHÓM Y LỆNH**: Tuyệt đối không thay đổi/xóa 4 nhóm y lệnh:
+         1. 🛏️ **Y lệnh Giường** (`SERVICE_REQ_TYPE_ID == 8`).
+         2. 👕 **Y lệnh Đồ vải** (Toan áo vải, đồ vải gói phẫu thuật).
+         3. 🩸 **Y lệnh Thử đường huyết tại giường** (ĐMMM `BM02426` / `NB260620.6231`).
+         4. 💊 **Đơn điều trị / Đơn thuốc** (`SERVICE_REQ_TYPE_ID == 6, 7`).
+     - 📋 **Bước 3 - Tạo Vỏ Bệnh Án Ngoại Khoa EMR Nội trú:**
+       * Kiểm tra rào chắn: **CHỈ áp dụng cho bệnh nhân điều trị nội trú (`TDL_TREATMENT_TYPE_ID == 3`)**. Nếu là ngoại trú thì bỏ qua bước này.
+       * Điền đầy đủ: **Bìa khám ngoại khoa** (Hỏi bệnh & Khám bệnh), **Bìa tóm tắt bệnh án**, và **Bìa tổng kết cuối** của bệnh án ngoại khoa (`BENHANNGOAIKHOA` / EMR_FINAL) với bác sĩ làm bệnh án là `034727` (ThS.BS Nguyễn Hữu Sâm).
+  2. **Báo cáo kết quả 3 bước minh bạch:** In bảng kết quả rõ ràng từng bước (Số tờ điều trị bổ sung, số y lệnh chuyển người chỉ định, trạng thái bìa EMR).
+
+## 5.2. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ TRỰC BUỒNG" (WARD DUTY 1-CLICK PROTOCOL)
+* **Máy chủ chuyên trách độc lập:** Được đóng gói trọn vẹn trong MCP Server riêng **`his-ward-duty`** (`HisWardDutyMcpServer.exe`) qua tool **`his_execute_protocol_ward_duty`** (hoặc bí danh **`his_tho_truc_buong`**, **`his_ward_duty_hn`**, **`his_ward_duty_nb`**) hoặc CLI **`.\HisWardDuty.bat <MãBN|TênBN> [HN|NB] [BT01|DD01|TM01] [--dry-run]`**. Tinh giản, độc lập và cách ly 100% để chống phình to codebase.
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin yêu cầu **"thợ trực buồng"** (kèm mã bệnh nhân hoặc tên bệnh nhân mới vào viện), Agent PHẢI tự động nhận diện và kích hoạt ngay combo xử lý tiếp đón 4 bước:
+  1. 📝 **Bước 1 - Rà soát & Điền Vỏ Bệnh Án Ngoại Khoa EMR Nội trú:**
+     * Chỉ áp dụng cho bệnh nhân nội trú (`TDL_TREATMENT_TYPE_ID == 3`), từ chối ngoại trú.
+     * Tự động gọi engine `HisEmrFiller.exe <TDL_PATIENT_CODE> --save` để điền và lưu STB (chống tràn byte ORA-12899, tự động tổng hợp diễn biến, tiền sử, khám bệnh và tóm tắt bệnh án logic).
+  2. 📋 **Bước 2 - Rà soát & Tạo Tờ điều trị đầu tiên tại Khoa tiếp đón:**
+     * Kiểm tra `api/HisTracking/GetView` của Khoa tiếp đón (Khoa 57 ở HN, Khoa 915 ở NB).
+     * Nếu đã có tờ điều trị: Ghi nhận và bỏ qua, chống trùng lặp tờ điều trị.
+     * Nếu chưa có: Tạo tờ điều trị tiếp đón ban đầu với DHST chuẩn (Mạch 78, HA 120/80, T 36.5, NT 18, SpO2 98%), diễn biến tiếp đón, chăm sóc cấp 3 và y lệnh chuẩn bị mổ.
+  3. 🍲 **Bước 3 - Cấp Suất ăn dinh dưỡng 3 bữa ngày vào viện ($D_0$) và ngày kế tiếp ($D_1$) lúc 06:00 sáng:**
+     * Phân loại combo tự động theo ICD: `DD01` (Đái tháo đường), `TM01` (Tim mạch/THA), `BT01` (Ngoại khoa thường quy).
+     * Bắt buộc `PatientTypeId = 42` (Viện phí), `RoomId = 5809` (Nhà ăn).
+     * Giờ y lệnh chuẩn hóa: đúng **06:00:00 sáng** (`InstructionTime = YYYYMMDD060000`).
+     * Kiểm tra `api/HisSereServRation/GetView` để tránh kê trùng cho các ngày đã có suất ăn.
+  4. 🔬 **Bước 4 - Rà soát Cận lâm sàng 3 tháng (90 ngày) & Đề xuất Bilan thiếu:**
+     * Quét toàn bộ dịch vụ CLS của bệnh nhân trong 90 ngày qua từ tất cả các đợt khám/điều trị (`V_HIS_SERE_SERV`).
+     * Đối soát ma trận 8 nhóm Bilan mổ ngoại khoa: (1) CTM, (2) Đông máu, (3) Sinh hóa, (4) Nhóm máu ABO/Rh, (5) Vi sinh HIV/HBsAg/HCV, (6) XQ ngực thẳng, (7) Điện tim ECG, (8) CĐHA chuyên khoa tổn thương.
+     * Xuất bảng đối soát minh bạch các xét nghiệm đã có và đề xuất đích danh các chỉ định còn thiếu kèm **phòng thực hiện tương ứng theo cơ sở** (HN vs NB).
 
 ## 6. QUY TẮC MA TRẬN MÔ HÌNH OPENROUTER: ĐIỀU PHỐI ĐA TẦNG MIỄN PHÍ 100% (MULTI-TIER SMART FALLBACK)
 * **Khóa xác thực**: Tự động nạp từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).
@@ -150,7 +283,7 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
 
 ## 8. QUY TẮC BÁO CÁO BUỒNG BỆNH & ĐỒNG BỘ CLOUD DRIVE (WARD REPORT PROTOCOL)
 * **Kích hoạt tự động**: Khi Bác sĩ nhắn tin hoặc yêu cầu "báo cáo buồng", "tình hình buồng bệnh", "đi buồng":
-  1. **Thực thi 1-Click**: Agent chạy ngay công cụ [`HisWardReport.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisWardReport.bat) (mặc định quét các buồng trọng điểm `712, 714, 716, 724, 725, 712A` hoặc thêm `--all` để quét toàn bộ Khoa 57).
+  1. **Thực thi 1-Click**: Agent chạy ngay công cụ [`HisWardReport.bat`](file:///e:/his-x64-28-11fix%20GDYK/his-x64/HisWardReport.bat) (mặc định quét toàn bộ buồng bệnh Khoa 57 từ P710 đến P740).
   2. **Trích xuất đa chiều**:
      - Buồng - Giường, Mã BN, Mã ĐT, Họ tên, Tuổi, Giới tính.
      - Chẩn đoán chi tiết & mã ICD-10 (Đích danh tầng xẹp đốt sống, loại gãy xương, bệnh nền).
@@ -237,17 +370,63 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      ```powershell
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN|MãĐT|Tên>
      ```
-     - ⚪ **Màu trắng (`SERVICE_REQ_STT_ID == 1`)**: Chưa thực hiện 👉 **Được phép hủy/xóa**.
+     - ⚪ **Màu trắng (`SERVICE_REQ_STT_ID == 1`)**: Chưa thực hiện 👉 **Được phép hủy/xóa** (NGOẠI TRỪ 4 loại bảo lưu bên dưới).
      - 🟡 **Màu vàng (`SERVICE_REQ_STT_ID == 2`)**: Đang thực hiện / đã tiếp nhận mẫu 👉 **TUYỆT ĐỐI KHÔNG xóa** (phải liên hệ phòng thực hiện hủy tiếp nhận trước).
      - 🟢 **Màu xanh (`SERVICE_REQ_STT_ID == 3`)**: Đã hoàn thành / có kết quả 👉 **TUYỆT ĐỐI KHÔNG xóa**.
-  2. **Hủy toàn bộ phiếu y lệnh**:
+  2. **NGUYÊN TẮC CỨNG - 4 NHÓM Y LỆNH BẢO LƯU TUYỆT ĐỐI KHÔNG ĐƯỢC XÓA**:
+     * 🛏️ **Y lệnh Giường**: Dịch vụ giường điều trị nội trú, buồng mổ, GMHS... (Quản lý hồ sơ và thanh toán BHYT buồng bệnh).
+     * 👕 **Y lệnh Đồ vải**: Giảm trừ toan áo vải gói phẫu thuật...
+     * 🩸 **Y lệnh Thử đường huyết tại giường**: ĐMMM, Định lượng Glucose máu mao mạch.
+     * 💊 **Đơn điều trị / Đơn thuốc**: Đơn điều trị nội trú, đơn tủ trực, đơn kho dược.
+  3. **Hủy toàn bộ phiếu y lệnh**:
      ```powershell
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ServiceReqId|ServiceReqCode>
      ```
      - Script tự động kiểm tra rào chắn trạng thái trắng, tự động hủy văn bản ký EMR liên kết (nếu có), và gọi API `api/HisServiceReq/Delete` với `RequestRoomId` của khoa 57.
-  3. **Hủy dịch vụ con đơn lẻ trong phiếu**:
+  4. **Hủy dịch vụ con đơn lẻ trong phiếu**:
      ```powershell
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
      ```
 * **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.
 
+## 14. QUY TẮC TẠO BIÊN BẢN HỘI CHẨN THÔNG QUA MỔ (SURGICAL APPROVAL PROTOCOL - MS: PT-01)
+* **Bản chất nghiệp vụ**:
+  - Mọi bệnh nhân có chỉ định phẫu thuật phiên hoặc bán cấp tại Khoa CTCH & Cột sống (Khoa 57) hoặc Khoa Ngoại TH (Ninh Bình) bắt buộc phải có Biên bản Hội chẩn thông qua mổ theo mẫu chuẩn Bộ Y Tế / Bệnh viện Bạch Mai (**Biểu mẫu MS: PT-01**).
+* **Quy tắc bảo tồn định dạng mẫu (`mau pt01.docx`)**:
+  1. **TUYỆT ĐỐI CẤM phá vỡ layout, căn lề, bảng biểu hay kiểu chữ**: Chỉ được điền nội dung vào đúng các vị trí đánh dấu `<thay>` và cập nhật thông tin hành chính của bệnh nhân (Họ tên, Ngày sinh, Giới tính, Địa chỉ, Giờ vào viện, Chẩn đoán, Tiền sử).
+  2. **Trích xuất cận lâm sàng 2 tầng (2-Tier Clinical Fetch)**:
+     - Đối với bệnh nhân mới nhập viện trong ngày (vào sáng ngày mổ): Thường chưa có kết quả xét nghiệm/CĐHA trong đợt điều trị nội trú mới. Agent **BẮT BUỘC** phải tự động quét các đợt khám ngoại trú / phòng khám trước đó của bệnh nhân để lấy trọn vẹn Bilan phẫu thuật:
+       * Huyết học (WBC, RBC, HGB, HCT, PLT).
+       * Đông máu (PT-INR, APTT, Fibrinogen).
+       * Sinh hóa máu (Glucose, Ure, Creatinin, AST, ALT) & Điện giải đồ (Na, K, Cl).
+       * Nhóm máu (ABO, Rh) & Miễn dịch truyền nhiễm (HBsAg, HCV, HIV).
+       * CĐHA (X-quang, CT Scanner, MRI, Siêu âm): Trích xuất đích danh từng tầng tổn thương theo Quy tắc 4.
+  3. **Công cụ thực thi chuẩn**:
+     - Lệnh chạy 1-Click:
+       ```powershell
+       .\HisPt01Creator.exe <MãBN1,MãBN2,...>
+       ```
+     - Tự động nạp dữ liệu từ backend MOS, điền mẫu `mau pt01.docx`, và xuất file docx tại thư mục `Reports\BienBanHoiChan_PT01\PT01_XX_TENBN_MaBN.docx`.
+     - File sau khi sinh phải được kiểm tra đối soát, đảm bảo 0% còn sót lại thẻ `<thay>`.
+
+## 15. QUY TẮC ĐĂNG KÝ BỆNH NHÂN MỔ CẤP CỨU PHÂN LUỒNG HAI CƠ SỞ (EMERGENCY SURGERY PROTOCOL)
+* **Bản chất nghiệp vụ**:
+  - Khi có ca mổ cấp cứu phát sinh tại khoa nội trú hoặc tiếp nhận từ cấp cứu/phòng khám, Bác sĩ cần đăng ký nhanh bệnh nhân vào danh sách mổ cấp cứu trên Google Forms của bệnh viện để phòng mổ và kíp gây mê tiếp nhận kịp thời.
+  - Hai cơ sở sử dụng 2 Google Form hoàn toàn độc lập:
+    * 🏥 **Cơ sở Hà Nội**: Form Khoa 57 CTCH & Cột sống (`https://docs.google.com/forms/d/e/1FAIpQLScq1EcSA7Ff5mwU1GKQrC2h9jfFu-bObdeUKJNpeZIRrDoUEA/viewform`).
+    * 🏥 **Cơ sở Ninh Bình**: Form Khoa 915 Ngoại tổng hợp Tầng 3 Nhà E (`https://docs.google.com/forms/d/e/1FAIpQLScn9LfQxqVPL0A-uVcLRDFwTah6GpgKNDabhcONXycLJ8ALkQ/viewform`).
+* **Bác sĩ chỉ định mặc định**: **`034727`** - **Ths.BS Nguyễn Hữu Sâm** áp dụng chung cho cả hai cơ sở.
+* **Quy chuẩn thực thi**:
+  - Tự động trích xuất thông tin bệnh nhân từ HIS (`HisClinicalCli.exe lookup <MãBN>`): Họ tên, Tuổi, Giới, Mã ĐT, Buồng/Giường, Chẩn đoán ICD.
+  - Bác sĩ chỉ cần cung cấp: `<MãBN>` và `<Cách thức mổ dự kiến>`.
+  - Sinh đường dẫn 1-Click Pre-filled URL để kiểm tra trước hoặc gửi trực tiếp (`--submit`):
+    ```powershell
+    # Xem trước & lấy link 1-Click (Dry-Run):
+    .\HisEmergencySurgery.bat <MãBN> "<CáchThứcMổ>" [HN|NB] --dry-run
+
+    # Gửi trực tiếp lên danh sách mổ cấp cứu (--submit):
+    .\HisEmergencySurgery.bat <MãBN> "<CáchThứcMổ>" [HN|NB] --submit
+    ```
+  - Hoặc gọi trực tiếp qua MCP Server:
+    * Hà Nội: tool `his_hn` với `action="emergency_surgery"`, `patientCode`, `surgery`, `submit=true|false`.
+    * Ninh Bình: tool `his_nb` với `action="emergency_surgery"`, `patientCode`, `surgery`, `submit=true|false`.

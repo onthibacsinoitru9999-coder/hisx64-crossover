@@ -163,4 +163,15 @@ Khi chỉ định Cận lâm sàng cho Khoa Chấn thương Chỉnh hình & Cộ
 * **Cơ chế gom ống**: Gửi toàn bộ các kỹ thuật trong mảng `ServiceReqDetails`. MOS Backend tự động gom các dịch vụ cùng `RoomId` (Phòng thực hiện) thành **1 `HIS_SERVICE_REQ` duy nhất (1 Barcode / 1 Ống máu)**, tuyệt đối không gửi vòng lặp lẻ từng dịch vụ.
 * **Quy tắc an toàn**: `RequestRoomId` phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân nằm điều trị, và đã được kích hoạt qua `POST api/Token/UpdateWorkInfo`.
 
+---
+
+## ⚡ THỰC THI CHỈ ĐỊNH QUA HIS MCP SERVER (CHỐNG RÁC FILE TRONG /GOAL)
+
+Trong các phiên chạy tự động `/goal`, Agent **BẮT BUỘC** gọi qua các công cụ MCP:
+- **ĐMMM tại giường**: `his_assign_bedside_glucose(patientCodes, facility, timeSlot)`
+- **Suất ăn bệnh lý**: `his_assign_ration(room, rationType, facility)`
+- **Dinh dưỡng trước mổ**: `his_assign_leanpro(patientCodes, facility)` *(tự động kiểm tra và chặn người $\ge 70$ tuổi hoặc có bệnh nền Đái tháo đường)*
+- Tuyệt đối KHÔNG tự ý tạo file script `.cs`, `.ps1` hay `.bat` tạm bợ.
+
+
 

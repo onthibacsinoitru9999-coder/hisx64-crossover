@@ -306,6 +306,24 @@ public class MainForm : Form
             if (string.IsNullOrEmpty(tutorial) || tutorial == "Theo chỉ dẫn của bác sĩ") tutorial = "thay băng";
         }
 
+        // Lùi khoảng 5 phút sau khi có tờ điều trị đối với đơn Insulin theo Rule 5 / Protocol:
+        // Tờ điều trị ghi nhận lúc 17:00 -> Y lệnh thuốc tiêm lúc 17:05 để EMR liên kết trọn vẹn
+        long presInstructionTime = trackingTime;
+        if (isInsulin && trackingTime > 0)
+        {
+            try
+            {
+                string sTk = trackingTime.ToString();
+                if (sTk.Length == 14)
+                {
+                    DateTime dt = DateTime.ParseExact(sTk, "yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture);
+                    presInstructionTime = long.Parse(dt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+                    Console.WriteLine(string.Format("  [TIMING] Lùi 5 phút sau Tờ điều trị: Tracking {0} -> Đơn thuốc {1}", trackingTime, presInstructionTime));
+                }
+            }
+            catch { }
+        }
+
         bool isCabinetStock = (stock != null && stock.IsCabinet) || (stock != null && (stock.MediStockId == 810 || stock.MediStockId == 7787 || (stock.MediStockCode != null && stock.MediStockCode.StartsWith("TT"))));
         if (isCabinetStock)
         {
@@ -329,14 +347,16 @@ public class MainForm : Form
             var outPresSDO = new OutPatientPresSDO
             {
                 TreatmentId = tr.ID,
-                InstructionTime = trackingTime,
-                UseTimes = new System.Collections.Generic.List<long> { trackingTime },
+                InstructionTime = presInstructionTime,
+                UseTimes = new System.Collections.Generic.List<long> { presInstructionTime },
                 TrackingId = trackingId > 0 ? (long?)trackingId : null,
                 RequestRoomId = roomId > 0 ? roomId : 5248,
                 RequestLoginName = loginName,
                 RequestUserName = userName,
-                IcdCode = (tr.ICD_CODE ?? "") + (string.IsNullOrEmpty(tr.ICD_SUB_CODE) ? "" : "," + tr.ICD_SUB_CODE),
-                IcdName = (tr.ICD_NAME ?? "") + (string.IsNullOrEmpty(tr.ICD_TEXT) ? "" : " - " + tr.ICD_TEXT),
+                IcdCode = tr.ICD_CODE,
+                IcdName = tr.ICD_NAME,
+                IcdSubCode = tr.ICD_SUB_CODE,
+                IcdText = tr.ICD_TEXT,
                 IsCabinet = true,
                 ClientSessionKey = sessionKey,
                 Medicines = new System.Collections.Generic.List<PresMedicineSDO>
@@ -365,6 +385,7 @@ public class MainForm : Form
             if (outRes == null)
             {
                 string errMsg = (prm != null && prm.Messages != null && prm.Messages.Count > 0) ? string.Join("; ", prm.Messages) : "Kê đơn tủ trực thất bại (API trả về null)";
+                if (prm != null && prm.BugCodes != null && prm.BugCodes.Count > 0) errMsg += " | BugCodes: " + string.Join("; ", prm.BugCodes);
                 throw new Exception(errMsg);
             }
             string sReqCode = (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0) ? outRes.ServiceReqs[0].SERVICE_REQ_CODE : null;
@@ -378,10 +399,10 @@ public class MainForm : Form
             var presSDO = new InPatientPresSDO
             {
                 TreatmentId = tr.ID,
-                InstructionTimes = new System.Collections.Generic.List<long> { trackingTime },
-                UseTimes = new System.Collections.Generic.List<long> { trackingTime },
+                InstructionTimes = new System.Collections.Generic.List<long> { presInstructionTime },
+                UseTimes = new System.Collections.Generic.List<long> { presInstructionTime },
                 TrackingId = trackingId > 0 ? (long?)trackingId : null,
-                TrackingInfos = trackingId > 0 ? new System.Collections.Generic.List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime } } : null,
+                TrackingInfos = trackingId > 0 ? new System.Collections.Generic.List<TrackingInfoSDO> { new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = presInstructionTime } } : null,
                 RequestRoomId = roomId > 0 ? roomId : 5248,
                 RequestLoginName = loginName,
                 RequestUserName = userName,
@@ -460,14 +481,26 @@ public class MainForm : Form
                 var matched = sameDayTrackings.OrderBy(tk => Math.Abs(tk.TRACKING_TIME - desiredTime)).FirstOrDefault();
                 if (matched != null)
                 {
-                    Console.WriteLine(string.Format("  ✔ [TRACKING-LINK] Gán trực tiếp vào Tờ điều trị ID {0} lúc {1} (Ngày {2})",
-                        matched.ID, matched.TRACKING_TIME, targetDate));
-                    return new TrackingMatchResult
+                    // Kiểm tra độ lệch thời gian: nếu mốc mong muốn (vd: 17h, 21h) cách tờ điều trị gần nhất quá 3 tiếng,
+                    // chứng tỏ đó là tờ điều trị của ca trước (sáng/trưa) chứ chưa có tờ điều trị ca này.
+                    // Không tự ý gán vào tờ điều trị phía trước, mà tạo tờ điều trị mới đúng mốc giờ!
+                    long diffHours = Math.Abs(matched.TRACKING_TIME - desiredTime) / 10000;
+                    if (diffHours <= 3)
                     {
-                        TrackingId = matched.ID,
-                        TrackingTime = matched.TRACKING_TIME,
-                        IsNewlyCreated = false
-                    };
+                        Console.WriteLine(string.Format("  ✔ [TRACKING-LINK] Gán trực tiếp vào Tờ điều trị ID {0} lúc {1} (Ngày {2})",
+                            matched.ID, matched.TRACKING_TIME, targetDate));
+                        return new TrackingMatchResult
+                        {
+                            TrackingId = matched.ID,
+                            TrackingTime = matched.TRACKING_TIME,
+                            IsNewlyCreated = false
+                        };
+                    }
+                    else
+                    {
+                        Console.WriteLine(string.Format("  ⚠ [TRACKING-SEPARATE] Tờ điều trị gần nhất (ID {0} lúc {1}) cách mốc y lệnh {2} quá {3} giờ (thuộc ca khám trước). Đang tạo Tờ điều trị mới đúng mốc {2}...",
+                            matched.ID, matched.TRACKING_TIME, desiredTime, diffHours));
+                    }
                 }
             }
         }
@@ -1589,8 +1622,36 @@ class Program
             }
 
             string csvPath = args[1];
-            string batchUser = args.Length > 2 ? args[2] : "vmc";
-            string batchPass = args.Length > 3 ? args[3] : "789789";
+            string batchUser = "vmc";
+            string batchPass = "789789";
+            long forcedStockId = 0;
+            for (int i = 2; i < args.Length; i++)
+            {
+                if ((args[i] == "-stock" || args[i] == "--stock") && i + 1 < args.Length)
+                {
+                    long.TryParse(args[i + 1], out forcedStockId);
+                    i++;
+                }
+                else if ((args[i] == "-time" || args[i] == "--time") && i + 1 < args.Length)
+                {
+                    i++;
+                }
+                else if ((args[i] == "-user" || args[i] == "--user") && i + 1 < args.Length)
+                {
+                    batchUser = args[i + 1];
+                    i++;
+                }
+                else if ((args[i] == "-pass" || args[i] == "--pass") && i + 1 < args.Length)
+                {
+                    batchPass = args[i + 1];
+                    i++;
+                }
+                else if (!args[i].StartsWith("-"))
+                {
+                    if (batchUser == "vmc") batchUser = args[i];
+                    else if (batchPass == "789789") batchPass = args[i];
+                }
+            }
 
             Console.WriteLine("===============================================================================");
             Console.WriteLine("  HIS AUTO PRESCRIBE - CHẾ ĐỘ KÊ ĐƠN HÀNG LOẠT (BATCH MODE)");
@@ -1645,10 +1706,22 @@ class Program
                     long[] dept57Rooms = new long[] {
                         931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                         5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                        5267, 6622, 6623
+                        5267, 5539, 6622, 6623
                     };
                     var workInfo = new WorkInfoSDO { Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList() };
                     bad.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, bp);
+                }
+                catch { }
+
+                string batchUserName = batchUser.ToUpper();
+                try
+                {
+                    HisEmployeeFilter ef = new HisEmployeeFilter { LOGINNAME__EXACT = batchUser };
+                    var emps = bad.FetchList<HIS_EMPLOYEE>("api/HisEmployee/Get", ApiConsumers.MosConsumer, ef, bp);
+                    if (emps != null && emps.Count > 0 && !string.IsNullOrEmpty(emps[0].TDL_USERNAME))
+                    {
+                        batchUserName = emps[0].TDL_USERNAME;
+                    }
                 }
                 catch { }
 
@@ -1729,10 +1802,27 @@ class Program
                         bool isNB = (btr.BRANCH_ID == 81 || btr.END_DEPARTMENT_ID == 915);
                         long targetDeptId = isNB ? 915 : 57;
                         long targetRoomId = isNB ? 18679 : 5248;
-                        MedicineStockInfo targetStock = isNB ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == 5142) ?? MainForm.CommonStocks[0]) : MainForm.CommonStocks[0];
+                        try
+                        {
+                            var brf = new HisTreatmentBedRoomViewFilter { TREATMENT_ID = btr.ID, IS_IN_ROOM = true };
+                            var brs = bad.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, brf, bp);
+                            if (brs != null && brs.Count > 0)
+                            {
+                                HisBedRoomViewFilter brf2 = new HisBedRoomViewFilter { ID = brs.Last().BED_ROOM_ID };
+                                var brms = bad.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", ApiConsumers.MosConsumer, brf2, bp);
+                                if (brms != null && brms.Count > 0 && brms[0].ROOM_ID > 0)
+                                {
+                                    targetRoomId = brms[0].ROOM_ID;
+                                }
+                            }
+                        }
+                        catch { }
+                        MedicineStockInfo targetStock = forcedStockId > 0
+                            ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == forcedStockId) ?? new MedicineStockInfo(forcedStockId, "KHO_" + forcedStockId, "Kho " + forcedStockId, true))
+                            : (isNB ? (MainForm.CommonStocks.FirstOrDefault(s => s.MediStockId == 5142) ?? MainForm.CommonStocks[0]) : MainForm.CommonStocks[0]);
 
                         // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
-                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, targetDeptId, batchUser, batchUser.ToUpper(), instructionTime);
+                        var tkResult = MainForm.EnsureTrackingForPrescription(bad, bp, btr, targetDeptId, batchUser, batchUserName, instructionTime);
                         long bTkId   = tkResult.TrackingId;
                         long bTkTime = tkResult.TrackingTime;
 
@@ -1745,7 +1835,7 @@ class Program
                         var bMed = medicineCache[medKey];
 
                         // 4. Tạo đơn thuốc nội trú từ Kho Tủ Trực (810 cho HN hoặc 5142 cho NB)
-                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUser.ToUpper(), targetRoomId, btr, bMed, targetStock, bAmount, bTut, bTkTime, bTkId);
+                        string bCode = MainForm.ExecutePrescription(bad, bp, batchUser, batchUserName, targetRoomId, btr, bMed, targetStock, bAmount, bTut, bTkTime, bTkId);
 
                         string facTag = isNB ? "CS Ninh Bình" : "Khoa 57 HN";
                         Console.WriteLine(string.Format("  ✔ [{0}] {1} | {2} {3} đv | {4} | Mã Y Lệnh: {5} [{6} - {7}]",
@@ -1869,14 +1959,39 @@ class Program
                     tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, tr.END_DEPARTMENT_NAME ?? "Khoa 57"));
 
                 // 2. Tìm hoặc tạo tờ điều trị cùng ngày và gán y lệnh trực tiếp để BS ký 1-click
-                var tkResult = MainForm.EnsureTrackingForPrescription(ad, p, tr, 57, user, user.ToUpper(), null);
+                long? targetTkTime = null;
+                if (!string.IsNullOrEmpty(tut))
+                {
+                    var matchHour = System.Text.RegularExpressions.Regex.Match(tut, @"(\d{1,2})\s*h", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (matchHour.Success)
+                    {
+                        int h;
+                        if (int.TryParse(matchHour.Groups[1].Value, out h) && h >= 0 && h <= 23)
+                        {
+                            targetTkTime = long.Parse(DateTime.Today.ToString("yyyyMMdd") + h.ToString("D2") + "0000");
+                        }
+                    }
+                }
+                var tkResult = MainForm.EnsureTrackingForPrescription(ad, p, tr, 57, user, user.ToUpper(), targetTkTime);
                 long tkId = tkResult.TrackingId;
                 long tkTime = tkResult.TrackingTime;
 
                 // 3. Tra cứu thuốc tồn thực tế trong tủ trực (Stock-Aware)
                 var med = MainForm.FindMedicineWithStock(ad, p, medKw, MainForm.CommonStocks[0]);
 
-                string code = MainForm.ExecutePrescription(ad, p, user, user.ToUpper(), 5248, tr, med, MainForm.CommonStocks[0], amount, tut, tkTime, tkId);
+                long singleRoomId = 5248;
+                try
+                {
+                    var brf = new HisTreatmentBedRoomViewFilter { TREATMENT_ID = tr.ID, IS_IN_ROOM = true };
+                    var brs = ad.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, brf, p);
+                    if (brs != null && brs.Count > 0)
+                    {
+                        singleRoomId = brs.Last().BED_ROOM_ID;
+                    }
+                }
+                catch { }
+
+                string code = MainForm.ExecutePrescription(ad, p, user, user.ToUpper(), singleRoomId, tr, med, MainForm.CommonStocks[0], amount, tut, tkTime, tkId);
                 Console.WriteLine(string.Format("✔ Kê đơn thành công! Mã y lệnh / phiếu xuất: {0}", code));
             }
             catch (Exception ex)

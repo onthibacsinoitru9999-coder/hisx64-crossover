@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Globalization;
@@ -13,6 +13,9 @@ using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
+using EMR.EFMODEL.DataModels;
+using EMR.Filter;
+using EMR.SDO;
 
 public class Program
 {
@@ -605,6 +608,7 @@ public class HisDebateCreator
             Console.WriteLine(string.Format("   - Đề xuất CK   : {0}", discussion));
             Console.WriteLine("   - Biểu mẫu in  : Mps000019 (Trích biên bản hội chẩn) - EMR Type 17");
             Console.WriteLine("==========================================================================");
+            Console.WriteLine("💡 Bác sĩ/Thư ký ký biên bản hội chẩn trực tiếp trên giao diện phần mềm EMR Desktop Client.");
             Console.ResetColor();
         }
         else

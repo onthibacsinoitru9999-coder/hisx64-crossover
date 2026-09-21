@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -205,7 +205,7 @@ public class HisRationAssigner
         }
     }
 
-    public static void ProcessRooms(string roomListStr = "712,714")
+    public static void ProcessRooms(string roomListStr = "all")
     {
         Console.OutputEncoding = Encoding.UTF8;
         string token = ReadLiveToken();
@@ -254,8 +254,17 @@ public class HisRationAssigner
         HisBedRoomViewFilter bf = new HisBedRoomViewFilter { DEPARTMENT_ID = 57 };
         var bList = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", mosConsumer, bf, p);
 
-        var filters = roomListStr.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
-        var targetRooms = bList.Where(r => r.BED_ROOM_NAME != null && filters.Any(f => r.BED_ROOM_NAME.Contains(f))).ToList();
+        List<V_HIS_BED_ROOM> targetRooms;
+        if (string.IsNullOrEmpty(roomListStr) || roomListStr.ToLower() == "all")
+        {
+            targetRooms = bList.OrderBy(x => x.BED_ROOM_NAME).ToList();
+            roomListStr = "Toàn khoa (710 - 740)";
+        }
+        else
+        {
+            var filters = roomListStr.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+            targetRooms = bList.Where(r => r.BED_ROOM_NAME != null && filters.Any(f => r.BED_ROOM_NAME.Contains(f))).OrderBy(x => x.BED_ROOM_NAME).ToList();
+        }
 
         DateTime today = DateTime.Today;
         DateTime tomorrow = today.AddDays(1);
@@ -356,7 +365,7 @@ public class HisRationAssigner
 
     public static void Run(string[] args)
     {
-        string rooms = "712,714";
+        string rooms = "all";
         if (args.Length > 0 && !args[0].StartsWith("-"))
         {
             rooms = args[0];

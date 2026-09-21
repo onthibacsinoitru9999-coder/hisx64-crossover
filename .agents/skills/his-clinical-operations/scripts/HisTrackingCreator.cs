@@ -18,6 +18,10 @@ using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
+using EMR.EFMODEL.DataModels;
+using EMR.Filter;
+using EMR.SDO;
+using EMR.TDO;
 
 public class MyAdapter : AdapterBase
 {
@@ -227,8 +231,8 @@ public class MainForm : Form
     public static MyAdapter myAdapter = new MyAdapter();
     public static CommonParam param = new CommonParam();
     public static string currentToken = null;
-    public static string CurrentLoginName = "vmc";
-    public static string CurrentUserName = "Vũ Minh Cường";
+    public static string CurrentLoginName = "034727";
+    public static string CurrentUserName = "NGUYỄN HỮU SÂM";
 
     // Header Controls
     private Panel pnlHeader;
@@ -261,7 +265,7 @@ public class MainForm : Form
 
     public static List<ClinicalTemplate> ClinicalTemplates = new List<ClinicalTemplate>();
 
-    public MainForm(string loginName = "vmc", string tokenCode = "")
+    public MainForm(string loginName = "034727", string tokenCode = "")
     {
         CurrentLoginName = loginName;
         currentToken = tokenCode;
@@ -1021,14 +1025,31 @@ public class MainForm : Form
                     var p = row.Tag as PatientLookupInfo;
                     if (p == null) p = LookupPatientDirect(patCode);
 
-                    if (p == null) throw new Exception("Không tìm thấy đợt điều trị của BN!");
+                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
+                    long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
+                    long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
 
-                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : 5257;
+                    try
+                    {
+                        var wi = new WorkInfoSDO
+                        {
+                            Rooms = new List<RoomSDO>
+                            {
+                                new RoomSDO { RoomId = doctorWorkRoomId },
+                                new RoomSDO { RoomId = roomId },
+                                new RoomSDO { RoomId = 5248 },
+                                new RoomSDO { RoomId = 18679 },
+                                new RoomSDO { RoomId = 18681 }
+                            }
+                        };
+                        myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
+                    }
+                    catch { }
 
                     HIS_TRACKING tracking = new HIS_TRACKING
                     {
                         TREATMENT_ID = p.TreatmentId,
-                        DEPARTMENT_ID = 57,
+                        DEPARTMENT_ID = deptId,
                         ROOM_ID = roomId,
                         TRACKING_TIME = trackingTime,
                         CONTENT = content,
@@ -1043,7 +1064,7 @@ public class MainForm : Form
                     HisTrackingSDO sdo = new HisTrackingSDO
                     {
                         Tracking = tracking,
-                        WorkingRoomId = roomId,
+                        WorkingRoomId = doctorWorkRoomId,
                         Dhst = null // Do not inject forced vital signs to keep tracking clean
                     };
 
@@ -1225,6 +1246,7 @@ public class MainForm : Form
         public string TDL_PATIENT_GENDER_NAME { get; set; }
         public string BedFull { get; set; }
         public long WorkingRoomId { get; set; }
+        public long DepartmentId { get; set; }
         public string IcdCode { get; set; }
         public string IcdName { get; set; }
         public string IcdSubCode { get; set; }
@@ -1234,7 +1256,48 @@ public class MainForm : Form
     public static string ReadLiveTokenFast()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
+        try
+        {
+            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
+            if (!File.Exists(cacheFile))
+            {
+                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
+                if (File.Exists(alt)) cacheFile = alt;
+            }
+            if (File.Exists(cacheFile))
+            {
+                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                if (parts.Length >= 2)
+                {
+                    long savedTime;
+                    if (long.TryParse(parts[1], out savedTime))
+                    {
+                        DateTime savedDt = new DateTime(savedTime);
+                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        {
+                            if (parts.Length >= 3 && !string.IsNullOrEmpty(parts[2]))
+                            {
+                                CurrentLoginName = parts[2];
+                                if (CurrentLoginName == "034727") CurrentUserName = "NGUYỄN HỮU SÂM";
+                                else if (CurrentLoginName == "vmc") CurrentUserName = "VŨ MINH CƯỜNG";
+                            }
+                            return parts[0];
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
         List<string> candidates = new List<string>();
+        string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
+        if (Directory.Exists(preferredDir))
+        {
+            candidates.Add(Path.Combine(preferredDir, "Logs", "LogSystem.txt"));
+        }
+
         DirectoryInfo cur = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5; i++)
         {
@@ -1258,13 +1321,24 @@ public class MainForm : Form
                     byte[] buffer = new byte[bufferSize];
                     int read = fs.Read(buffer, 0, bufferSize);
                     string chunk = Encoding.UTF8.GetString(buffer, 0, read);
+
+                    if (chunk.Contains("IsLostToken:true") || chunk.Contains("isLogouter:true"))
+                    {
+                        continue;
+                    }
+
+                    // BẢO VỆ DANH TÍNH: Phải thuộc 034727 hoặc vmc
                     int idx = chunk.LastIndexOf("TokenCode|");
                     if (idx >= 0)
                     {
                         int start = idx + 10;
                         if (chunk.Length >= start + 64)
                         {
-                            return chunk.Substring(start, 64);
+                            string tok = chunk.Substring(start, 64);
+                            if (chunk.Contains("034727") || chunk.Contains("vmc"))
+                            {
+                                return tok;
+                            }
                         }
                     }
                 }
@@ -1290,10 +1364,12 @@ public class MainForm : Form
                 try
                 {
                     ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                    var token = tokenManager.Login(param, CurrentLoginName, "789789", "2.390.0");
+                    var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                    if (token == null) token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
                     if (token != null)
                     {
                         currentToken = token.TokenCode;
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), currentToken + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8); } catch { }
                     }
                 }
                 catch { }
@@ -1307,14 +1383,15 @@ public class MainForm : Form
 
             try
             {
-                long[] dept57Rooms = new long[] {
+                long[] defaultRooms = new long[] {
                     931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                     5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                    5267, 6622, 6623
+                    5267, 6622, 6623,
+                    18679, 18681, 14759
                 };
                 var workInfo = new WorkInfoSDO
                 {
-                    Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList()
+                    Rooms = defaultRooms.Select(r => new RoomSDO { RoomId = r }).ToList()
                 };
                 var workPlaces = myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, workInfo, param);
                 HIS.Desktop.LocalStorage.LocalData.WorkPlace.WorkPlaceSDO = workPlaces;
@@ -1394,6 +1471,7 @@ public class MainForm : Form
             IcdSubCode = tr.ICD_SUB_CODE,
             IcdText = !string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME,
             WorkingRoomId = 5257,
+            DepartmentId = 57,
             BedFull = "Phòng 724"
         };
 
@@ -1412,6 +1490,11 @@ public class MainForm : Form
             if (bRooms != null && bRooms.Count > 0)
             {
                 item.WorkingRoomId = bRooms[0].ROOM_ID;
+                if (bRooms[0].DEPARTMENT_ID > 0) item.DepartmentId = bRooms[0].DEPARTMENT_ID;
+            }
+            else if (b.DEPARTMENT_ID > 0)
+            {
+                item.DepartmentId = b.DEPARTMENT_ID;
             }
         }
 
@@ -1468,7 +1551,8 @@ public class MainForm : Form
                 IcdName = tr != null ? tr.ICD_NAME : "Thoát vị đĩa đệm",
                 IcdSubCode = tr != null ? tr.ICD_SUB_CODE : "",
                 IcdText = tr != null ? (!string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME) : "",
-                WorkingRoomId = 5257
+                WorkingRoomId = 5257,
+                DepartmentId = 57
             };
 
             results.Add(item);
@@ -1540,6 +1624,7 @@ class Program
 
         string rawPatients = "";
         string rawTime = "17:00";
+        string rawDate = "";
         string content = "";
         string medInstruction = "";
         string careInstruction = "";
@@ -1549,6 +1634,13 @@ class Program
         {
             if ((args[i] == "-p" || args[i] == "--patient") && i + 1 < args.Length) rawPatients = args[i + 1];
             if ((args[i] == "-time" || args[i] == "-t") && i + 1 < args.Length) rawTime = args[i + 1];
+            if ((args[i] == "-date" || args[i] == "-d") && i + 1 < args.Length) rawDate = args[i + 1];
+            if ((args[i] == "-u" || args[i] == "-user" || args[i] == "--user") && i + 1 < args.Length)
+            {
+                MainForm.CurrentLoginName = args[i + 1].Trim();
+                if (MainForm.CurrentLoginName == "vmc") MainForm.CurrentUserName = "VŨ MINH CƯỜNG";
+                else if (MainForm.CurrentLoginName == "034727") MainForm.CurrentUserName = "NGUYỄN HỮU SÂM";
+            }
             if ((args[i] == "-content" || args[i] == "-c") && i + 1 < args.Length) content = args[i + 1];
             if ((args[i] == "-med" || args[i] == "-m") && i + 1 < args.Length) medInstruction = args[i + 1];
             if ((args[i] == "-care") && i + 1 < args.Length) careInstruction = args[i + 1];
@@ -1573,7 +1665,9 @@ class Program
         var codes = rawPatients.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(c => c.Trim()).ToList();
 
         Console.WriteLine(string.Format("• Số lượng bệnh nhân: {0}", codes.Count));
+        if (!string.IsNullOrEmpty(rawDate)) Console.WriteLine(string.Format("• Ngày chỉ định: {0}", rawDate));
         Console.WriteLine(string.Format("• Mốc giờ: {0}", rawTime));
+        Console.WriteLine(string.Format("• Bác sĩ: {0} ({1})", MainForm.CurrentUserName, MainForm.CurrentLoginName));
         Console.WriteLine(string.Format("• Nội dung: {0}", content));
         Console.WriteLine(string.Format("• Chăm sóc: {0}", careInstruction));
         Console.WriteLine(string.Format("• Y lệnh: {0}", medInstruction));
@@ -1597,17 +1691,44 @@ class Program
                 }
 
                 DateTime date = DateTime.Today;
+                if (!string.IsNullOrEmpty(rawDate))
+                {
+                    DateTime parsedDate;
+                    if (DateTime.TryParseExact(rawDate, new string[] { "yyyyMMdd", "yyyy-MM-dd", "dd/MM/yyyy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsedDate))
+                        date = parsedDate;
+                    else if (DateTime.TryParse(rawDate, out parsedDate))
+                        date = parsedDate;
+                }
                 TimeSpan tSpan;
                 if (!TimeSpan.TryParse(rawTime, out tSpan)) tSpan = new TimeSpan(17, 0, 0);
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
                 long trackingTime = long.Parse(fullDateTime.ToString("yyyyMMddHHmmss"));
 
-                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : 5257;
+                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
+                long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
+                long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
+
+                try
+                {
+                    var wi = new WorkInfoSDO
+                    {
+                        Rooms = new List<RoomSDO>
+                        {
+                            new RoomSDO { RoomId = doctorWorkRoomId },
+                            new RoomSDO { RoomId = roomId },
+                            new RoomSDO { RoomId = 5248 },
+                            new RoomSDO { RoomId = 18679 },
+                            new RoomSDO { RoomId = 18681 }
+                        }
+                    };
+                    MainForm.myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
+                }
+                catch { }
 
                 HIS_TRACKING tracking = new HIS_TRACKING
                 {
                     TREATMENT_ID = p.TreatmentId,
-                    DEPARTMENT_ID = 57,
+                    DEPARTMENT_ID = deptId,
                     ROOM_ID = roomId,
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
@@ -1622,7 +1743,7 @@ class Program
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
-                    WorkingRoomId = roomId,
+                    WorkingRoomId = doctorWorkRoomId,
                     Dhst = null // Do not inject forced vital signs to keep tracking clean
                 };
 
@@ -1633,6 +1754,7 @@ class Program
                     string errMsg = "Hệ thống MOS từ chối tạo!";
                     if (cp.Messages != null && cp.Messages.Count > 0) errMsg = string.Join("; ", cp.Messages);
                     else if (cp.BugCodes != null && cp.BugCodes.Count > 0) errMsg = string.Join("; ", cp.BugCodes);
+                    else errMsg += string.Format(" (RoomId: {0}, DeptId: {1})", roomId, deptId);
                     throw new Exception(errMsg);
                 }
 

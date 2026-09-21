@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Collections.Generic;
@@ -13,6 +13,8 @@ using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
+using Aspose.Words;
+using Aspose.Words.Saving;
 
 public class MyAdapter : AdapterBase
 {
@@ -129,29 +131,39 @@ public class HisDiagnosticDoctor
         try { Load.Init(); } catch { }
         param = new CommonParam();
 
-        // 1. Kiểm tra cache token độc lập (hạn 6 tiếng)
-        string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+        // 1. Kiểm tra cache token độc lập (hạn 6 tiếng) từ tất cả các thư mục chuẩn
         string tokenCode = null;
-        try
+        List<string> tokenCandidates = new List<string>
         {
-            if (File.Exists(cacheFile))
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token"),
+            @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB\doctor_standalone.token"
+        };
+
+        foreach (var cacheFile in tokenCandidates)
+        {
+            try
             {
-                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
-                if (parts.Length >= 2)
+                if (File.Exists(cacheFile))
                 {
-                    long savedTime;
-                    if (long.TryParse(parts[1], out savedTime))
+                    string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                    if (parts.Length >= 2)
                     {
-                        DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        long savedTime;
+                        if (long.TryParse(parts[1], out savedTime))
                         {
-                            tokenCode = parts[0];
+                            DateTime savedDt = new DateTime(savedTime);
+                            if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                            {
+                                tokenCode = parts[0];
+                                break;
+                            }
                         }
                     }
                 }
             }
+            catch { }
         }
-        catch { }
 
         // 2. Thử đọc Live Token từ HIS chuẩn (chỉ nhận nick 034727/vmc)
         if (string.IsNullOrEmpty(tokenCode))
@@ -180,7 +192,7 @@ public class HisDiagnosticDoctor
                 {
                     try
                     {
-                        File.WriteAllText(cacheFile, tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8);
+                        File.WriteAllText(tokenCandidates[0], tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8);
                     }
                     catch { }
                 }
@@ -409,6 +421,118 @@ public class HisDiagnosticDoctor
         {
             string t = ReadLiveToken();
             Console.WriteLine("Token: " + (t ?? "NULL"));
+        }
+        else if (args[0].ToLower() == "sign-ba")
+        {
+            Console.WriteLine("⚠️ Chức năng ký số Bệnh án qua API đã được gỡ bỏ hoàn toàn theo chỉ đạo của Bác sĩ.");
+            Console.WriteLine("   Bác sĩ bấm ký trực tiếp trên giao diện phần mềm EMR Desktop Client.");
+        }
+        else if (args[0].ToLower() == "verify-doc" || args[0].ToLower() == "inspect-doc")
+        {
+            try
+            {
+                long docId = args.Length > 1 ? long.Parse(args[1]) : 93425965;
+                InitSession();
+                var emrConsumer = new Inventec.Common.WebApiClient.ApiConsumer("http://192.168.7.239:1415/", currentToken, "HIS");
+
+                Console.WriteLine("===============================================================================");
+                Console.WriteLine("🔍 KIỂM TRA ĐỐI SOÁT CHI TIẾT VĂN BẢN EMR: " + docId);
+                Console.WriteLine("===============================================================================");
+
+                // 1. EMR_DOCUMENT
+                var docFilter = new EMR.Filter.EmrDocumentFilter { ID = docId };
+                var pDoc = new CommonParam();
+                var docs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_DOCUMENT>("api/EmrDocument/Get", emrConsumer, docFilter, pDoc);
+                if (docs != null && docs.Count > 0)
+                {
+                    var doc = docs[0];
+                    Console.WriteLine("📄 [EMR_DOCUMENT]");
+                    foreach (var prop in doc.GetType().GetProperties())
+                    {
+                        var val = prop.GetValue(doc, null);
+                        if (val != null && !string.IsNullOrEmpty(val.ToString()))
+                        {
+                            Console.WriteLine(string.Format("   {0,-22}: {1}", prop.Name, val));
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Không tìm thấy EMR_DOCUMENT ID: " + docId);
+                }
+
+                // 2. EMR_SIGN
+                var signFilter = new EMR.Filter.EmrSignFilter { DOCUMENT_ID = docId };
+                var pSign = new CommonParam();
+                var signs = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_SIGN>("api/EmrSign/Get", emrConsumer, signFilter, pSign);
+                if (signs != null && signs.Count > 0)
+                {
+                    Console.WriteLine("\n✍️ [DANH SÁCH CHỮ KÝ - EMR_SIGN] (Tổng: " + signs.Count + "):");
+                    foreach (var s in signs)
+                    {
+                        Console.WriteLine("--------------------------------------------------");
+                        foreach (var prop in s.GetType().GetProperties())
+                        {
+                            var val = prop.GetValue(s, null);
+                            if (val != null && !string.IsNullOrEmpty(val.ToString()))
+                            {
+                                if (val is byte[])
+                                {
+                                    byte[] bArr = (byte[])val;
+                                    Console.WriteLine(string.Format("   {0,-22}: [byte[] {1} bytes]", prop.Name, bArr.Length));
+                                }
+                                else
+                                {
+                                    Console.WriteLine(string.Format("   {0,-22}: {1}", prop.Name, val));
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Không tìm thấy bản ghi EMR_SIGN cho docId: " + docId);
+                }
+
+                // 3. EMR_VERSION
+                try
+                {
+                    var verFilter = new EMR.Filter.EmrVersionFilter { DOCUMENT_ID = docId };
+                    var pVer = new CommonParam();
+                    var vers = myAdapter.FetchList<EMR.EFMODEL.DataModels.EMR_VERSION>("api/EmrVersion/Get", emrConsumer, verFilter, pVer);
+                    if (vers != null && vers.Count > 0)
+                    {
+                        Console.WriteLine("\n📦 [PHIÊN BẢN VĂN BẢN - EMR_VERSION] (Tổng: " + vers.Count + "):");
+                        foreach (var v in vers)
+                        {
+                            Console.WriteLine("--------------------------------------------------");
+                            foreach (var prop in v.GetType().GetProperties())
+                            {
+                                var val = prop.GetValue(v, null);
+                                if (val != null && !string.IsNullOrEmpty(val.ToString()))
+                                {
+                                    if (val is byte[])
+                                    {
+                                        byte[] bArr = (byte[])val;
+                                        Console.WriteLine(string.Format("   {0,-22}: [byte[] {1} bytes]", prop.Name, bArr.Length));
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine(string.Format("   {0,-22}: {1}", prop.Name, val));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                Console.WriteLine("===============================================================================");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.ToString());
+            }
         }
         else
         {

@@ -34,7 +34,7 @@ echo Dang bien dich tu %ROOT_DIR%...
 
 echo /reference:System.dll /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Data.dll /reference:System.Xml.dll /reference:System.Net.Http.dll > "%SCRIPTS_DIR%\refs.rsp"
 
-for %%f in ("%ROOT_DIR%\ReferencedAssemblies\Inventec.*.dll" "%ROOT_DIR%\ReferencedAssemblies\HIS.*.dll" "%ROOT_DIR%\ReferencedAssemblies\MOS.*.dll" "%ROOT_DIR%\*.EFMODEL.dll" "%ROOT_DIR%\Inventec.*.dll" "%ROOT_DIR%\MOS.*.dll" "%ROOT_DIR%\HIS.*.dll") do (
+for %%f in ("%ROOT_DIR%\ReferencedAssemblies\Inventec.*.dll" "%ROOT_DIR%\ReferencedAssemblies\HIS.*.dll" "%ROOT_DIR%\ReferencedAssemblies\MOS.*.dll") do (
     if exist "%%~f" echo /reference:"%%~f" >> "%SCRIPTS_DIR%\refs.rsp"
 )
 

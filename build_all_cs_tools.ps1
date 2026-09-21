@@ -135,6 +135,8 @@ if (Test-Path $scriptDir) {
 
 # 4. Inventory of all 14 clinical tools
 $toolList = @(
+    @{ Name = "HisCabinetPrescribe";       Source = "HisCabinetPrescribe.cs" },
+    @{ Name = "HisWarehousePrescribe";     Source = "HisWarehousePrescribe.cs" },
     @{ Name = "HisLeanproAssigner";        Source = "HisLeanproAssigner.cs" },
     @{ Name = "HisClinicalCli";            Source = ".agents\skills\his-clinical-operations\scripts\HisClinicalCli.cs" },
     @{ Name = "HisAutoPrescribe";          Source = ".agents\skills\his-clinical-operations\scripts\HisAutoPrescribe.cs" },
@@ -148,7 +150,8 @@ $toolList = @(
     @{ Name = "HisSummaryTrackingDoctor";  Source = "HisSummaryTrackingDoctor.cs" },
     @{ Name = "HisDressingOrder";          Source = ".agents\skills\his-clinical-operations\scripts\HisDressingOrder.cs" },
     @{ Name = "HospitalShiftReporter";     Source = ".agents\skills\his-clinical-operations\scripts\HospitalShiftReporter.cs" },
-    @{ Name = "HisClsCtchTracker";         Source = "HisClsCtchTracker.cs" }
+    @{ Name = "HisClsCtchTracker";         Source = "HisClsCtchTracker.cs" },
+    @{ Name = "HisMcpServer";              Source = "HisMcpServer.cs" }
 )
 
 if ($TargetTool) {
