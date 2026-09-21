@@ -25,10 +25,14 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
   - 🏥 **Cơ sở Ninh Bình (`ninh-binh` / `NB`)**:
     * **Khoa**: Khoa Ngoại tổng hợp - Tầng 3 Nhà E (Khoa 915 - `DEPARTMENT_ID = 915`)
     * **Branch**: Bệnh viện Bạch Mai Cơ sở 2 - Ninh Bình (`BRANCH_ID = 81`)
-    * **Buồng bệnh**: Khu 3E (Phòng 3E-01 đến 3E-33), Khu 3D
+    * **Buồng bệnh**: Khu 3E (Phòng 3E-01 đến 3E-39), Khu 3D (Phòng 3D-01 đến 3D-38)
     * **Phòng làm việc / Thực hiện CLS**: P3E-05 (`18679` - Phòng TT Khoa CTCH & CS) hoặc P3D-05 (`18681` - Phòng TT Khoa PT tiêu hóa)
     * **Tủ trực thuốc**: **`5142` (`TTT_NBKP05.02` - Tủ trực khu 3E)** hoặc **`5141` (`TTT_NBKP05.01` - Tủ trực khu 3D)**
     * **Dịch vụ ĐMMM tại giường**: **`NB260620.6231`** (Service ID: **`74281`** - "Định lượng Glucose [Máu] mao mạch")
+    * 🌟 **QUY TẮC CỨNG (HARD FORK) - ĐỐI CHIẾU DANH SÁCH BỆNH NHÂN NINH BÌNH**:
+      - **Link Google Sheet**: [Danh Sách Bệnh Nhân Ninh Bình](https://docs.google.com/spreadsheets/d/1m9VoSwkHVwKpqI9ucIMoMm_ulE77Ab6pf0wXJZ-HPEM/edit?usp=drivesdk)
+      - **Tab Danh Sách BN**: `gid=914015390` | **CSV Export Trực Tiếp**: `https://docs.google.com/spreadsheets/d/1m9VoSwkHVwKpqI9ucIMoMm_ulE77Ab6pf0wXJZ-HPEM/export?format=csv&gid=914015390`
+      - **Bản chất nghiệp vụ khác biệt**: Khác với Hà Nội bệnh nhân tập trung từ 710 - 740 là xong, tại Ninh Bình bệnh nhân nằm rải rác, lẻ tẻ nhiều phòng khác nhau (Khu 3E & 3D). **Khi nhắc tới bệnh nhân ở Ninh Bình, Agent BẮT BUỘC phải đối chiếu với danh sách trong Google Sheet này trước tiên** để xác định đúng buồng, giường, mã BN, mã ĐT và bác sĩ phụ trách.
 * **Cơ chế nhận diện & Điều phối tự động:**
   1. Nếu Bác sĩ khai báo cụ thể ("ở Ninh Bình", "3E-24", "tủ trực NB", "ở Hà Nội", "phòng 714"): Kích hoạt ngay cấu hình cơ sở tương ứng.
   2. Nếu Bác sĩ chưa khai báo: Agent kiểm tra branch Git hiện tại (`git branch --show-current`). Nếu ở `ninh-binh` thì chạy cấu hình Ninh Bình; nếu ở `ha-noi` thì chạy cấu hình Hà Nội.
@@ -180,7 +184,8 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   3. **Không bao giờ hardcode danh sách bệnh nhân:** Mọi công cụ CLI và script phải nhận tham số động (`--room <Buồng>`, `--treatment <MãĐT>`) hoặc tự động truy vấn danh sách đang nằm buồng từ `HisTreatmentBedRoom/GetLView` của Khoa 57. Tuyệt đối không gán cứng mảng ID trong code `.cs`.
   4. **Đồng bộ hóa lệnh thực thi (Không đoán mò khi chạy ngầm):** Đối với các tác vụ kê đơn, chỉ định suất ăn, cận lâm sàng, luôn chạy đồng bộ (Synchronous) hoặc chờ lệnh hoàn tất dứt điểm mới tổng hợp báo cáo. Tuyệt đối không vừa bấm lệnh vừa tự bịa kết quả để trả lời trước.
 
-## 11. QUY TẮC BẢO MẬT & ĐỐI SOÁT GOOGLE SHEET BÁO CÁO HOẠT ĐỘNG & HÀNH CHÍNH (STRICT READ-ONLY PROTOCOL)
+## 11. QUY TẮC BẢO MẬT & ĐỐI SOÁT GOOGLE SHEET BÁO CÁO HOẠT ĐỘNG & HÀNH CHÍNH
+### 11.1. Cơ Sở Hà Nội: Báo Cáo Hoạt Động & Hành Chính Khoa CTCH & Cột Sống (Khoa 57)
 * **File nguồn chuẩn hóa**: [Báo Cáo Hoạt Động & Hành Chính Khoa CTCH & Cột Sống - Cơ Sở Hà Nội](https://docs.google.com/spreadsheets/d/1z8Stz0XnEA4-s2AxKSzMijoiZxLxxOlkbYfqSiRwU28/edit?gid=340181132#gid=340181132)
 * **Quy tắc cứng BẤT KHẢ XÂM PHẠM (STRICT READ-ONLY - 100%)**:
   - **TUYỆT ĐỐI CẤM** ghi chép, chỉnh sửa, xóa, thêm hàng/cột, cập nhật hay can thiệp bất kỳ dữ liệu nào vào file Google Sheet này dưới mọi hình thức.
@@ -196,6 +201,19 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
   7. 📋 **`BÁO CÁO TRỰC`** (`gid=779922548`): Báo cáo số liệu giao ban của kíp trực (Bác sĩ trực, Điều dưỡng trực, tổng số bệnh nhân).
   8. 📚 **`DANH MỤC`** (`gid=258386294`): Danh mục chuẩn hóa phân loại BN, bilan mổ, phương pháp mổ, danh sách PTV, phân loại chăm sóc, phòng mổ.
   9. 📂 **`RA VIỆN`** (`gid=351678517`): Lưu trữ dữ liệu hồ sơ bệnh nhân đã ra viện / chuyển khoa / chuyển viện.
+
+### 11.2. Cơ Sở Ninh Bình: Danh Sách Bệnh Nhân Khoa Ngoại Tổng Hợp (Khoa 915) — 🌟 QUY TẮC CỨNG (HARD FORK)
+* **File nguồn chuẩn hóa**: [Danh Sách Bệnh Nhân Ninh Bình (Google Sheet)](https://docs.google.com/spreadsheets/d/1m9VoSwkHVwKpqI9ucIMoMm_ulE77Ab6pf0wXJZ-HPEM/edit?usp=drivesdk)
+  - **Tab Danh Sách BN**: `gid=914015390`
+  - **CSV Export Trực Tiếp (1-Click, không cần API key)**: `https://docs.google.com/spreadsheets/d/1m9VoSwkHVwKpqI9ucIMoMm_ulE77Ab6pf0wXJZ-HPEM/export?format=csv&gid=914015390`
+  - **Form điền tiếp nhận BN mới**: [Google Form Tiếp Nhận BN Ninh Bình](https://docs.google.com/forms/d/e/1FAIpQLSeWar3VqZElU1unVs_JQL68BYUi_R7zgGJ8RYhWzi-OInMO2A/viewform)
+* **Quy tắc cứng BẤT KHẢ XÂM PHẠM (HARD FORK - 100%)**:
+  1. **Đặc thù buồng bệnh Ninh Bình**: Khác với Hà Nội bệnh nhân tập trung trong dãy buồng `710 - 740` (Khoa 57), tại Cơ sở 2 Ninh Bình bệnh nhân phân bố **lẻ tẻ, rải rác trên rất nhiều phòng** thuộc Khu 3E (`3E-16` đến `3E-39`) và Khu 3D (`3D-13` đến `3D-38`).
+  2. **Bắt buộc đối chiếu trước khi thực thi**: **Bất cứ khi nào Bác sĩ nhắc tới hoặc xử lý bệnh nhân ở Ninh Bình, Agent BẮT BUỘC phải đối chiếu với danh sách trong Google Sheet này trước tiên** để:
+     - Xác định chính xác bệnh nhân có đang nằm trong danh sách quản lý của Khoa không.
+     - Lấy đích danh Buồng bệnh (`3E-XX`) và Giường bệnh (`GXX`) thật.
+     - Đối soát Mã BN (`TDL_PATIENT_CODE`), Mã ĐT (`TREATMENT_CODE`) và Chẩn đoán chính để không bị nhầm lẫn bệnh nhân trùng tên.
+  3. **Thao tác thêm BN mới vào danh sách**: Sử dụng script `submit_form_ninh_binh.py` hoặc POST trực tiếp `formResponse` của Google Form Ninh Bình (`1FAIpQLSeWar3VqZElU1unVs_JQL68BYUi_R7zgGJ8RYhWzi-OInMO2A`) để dữ liệu tự động cập nhật ngay vào Google Sheet.
 
 ## 12. QUY TẮC XỬ LÝ DẤU TIẾNG VIỆT KHI TRA CỨU TÊN BỆNH NHÂN: "HÒA" VS "HOÀ" (VIETNAMESE ACCENT & TONE VARIANT SEARCH PROTOCOL)
 * **Bản chất kỹ thuật (Gotcha)**:
