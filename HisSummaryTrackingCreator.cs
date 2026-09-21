@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -139,7 +139,7 @@ public class HisSummaryTrackingCreator
         }
     }
 
-    public static void Run()
+    public static void Run(string[] args = null)
     {
         Console.OutputEncoding = Encoding.UTF8;
         string token = ReadLiveToken();
@@ -182,20 +182,27 @@ public class HisSummaryTrackingCreator
         }
         catch { }
 
-        // Danh sách 5 bệnh nhân trong ảnh được Bác sĩ yêu cầu
-        var targets = new List<TargetPatientSpec>
+        var targets = new List<TargetPatientSpec>();
+        if (args != null && args.Length > 0 && !string.IsNullOrEmpty(args[0]))
         {
-            new TargetPatientSpec { PatientCode = "0003925371", PatientName = "QUÁCH MINH THÀNH", Create3Day = false, Create7Day = true },
-            new TargetPatientSpec { PatientCode = "0003974080", PatientName = "LÊ QUANG MINH", Create3Day = true, Create7Day = true },
-            new TargetPatientSpec { PatientCode = "0003972226", PatientName = "NGUYỄN VĂN KIỂM", Create3Day = true, Create7Day = true },
-            new TargetPatientSpec { PatientCode = "0003989737", PatientName = "ĐỖ THỊ THUÂN", Create3Day = true, Create7Day = false },
-            new TargetPatientSpec { PatientCode = "0001501165", PatientName = "NGUYỄN THỊ KÝ", Create3Day = true, Create7Day = false }
-        };
+            targets.Add(new TargetPatientSpec { PatientCode = args[0].Trim(), PatientName = "", Create3Day = true, Create7Day = true });
+        }
+        else
+        {
+            targets = new List<TargetPatientSpec>
+            {
+                new TargetPatientSpec { PatientCode = "0003925371", PatientName = "QUÁCH MINH THÀNH", Create3Day = false, Create7Day = true },
+                new TargetPatientSpec { PatientCode = "0003974080", PatientName = "LÊ QUANG MINH", Create3Day = true, Create7Day = true },
+                new TargetPatientSpec { PatientCode = "0003972226", PatientName = "NGUYỄN VĂN KIỂM", Create3Day = true, Create7Day = true },
+                new TargetPatientSpec { PatientCode = "0003989737", PatientName = "ĐỖ THỊ THUÂN", Create3Day = true, Create7Day = false },
+                new TargetPatientSpec { PatientCode = "0001501165", PatientName = "NGUYỄN THỊ KÝ", Create3Day = true, Create7Day = false }
+            };
+        }
 
         DateTime today = DateTime.Today;
 
         Console.WriteLine("==========================================================================================================");
-        Console.WriteLine("📝 BỔ SUNG TỜ ĐIỀU TRỊ SƠ KẾT 3 NGÀY & 7 NGÀY CHO 5 BỆNH NHÂN TRONG ẢNH");
+        Console.WriteLine(string.Format("📝 BỔ SUNG TỜ ĐIỀU TRỊ SƠ KẾT 3 NGÀY & 7 NGÀY CHO {0} BỆNH NHÂN", targets.Count));
         Console.WriteLine(string.Format("Thời gian: {0} | Bác sĩ: Ths.BS Nguyễn Hữu Sâm (034727)", DateTime.Now.ToString("dd/MM/yyyy HH:mm")));
         Console.WriteLine("==========================================================================================================\n");
 
@@ -218,8 +225,26 @@ public class HisSummaryTrackingCreator
             var bedList = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", mosConsumer, tbrf, param);
             string bedInfo = bedList != null && bedList.Count > 0 ? string.Format("{0} - {1}", bedList[0].BED_ROOM_NAME, bedList[0].BED_NAME) : "Khoa 57";
 
+            // Kiểm tra các tờ sơ kết đã có
+            HisTrackingFilter trkFilter = new HisTrackingFilter { TREATMENT_ID = tr.ID };
+            var existingTrks = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, trkFilter, param);
+            if (existingTrks == null) existingTrks = new List<HIS_TRACKING>();
+
+            // Ưu tiên tính từ thời điểm có tờ điều trị đầu tiên ở khoa
             DateTime inDate = today;
-            if (tr.IN_TIME > 0)
+            var deptTrks = existingTrks.Where(x => x.DEPARTMENT_ID == 57 || x.DEPARTMENT_ID == 915).OrderBy(x => x.TRACKING_TIME).ToList();
+            if (deptTrks.Count > 0 && deptTrks[0].TRACKING_TIME > 0)
+            {
+                string s = deptTrks[0].TRACKING_TIME.ToString();
+                if (s.Length >= 8)
+                {
+                    int y = int.Parse(s.Substring(0, 4));
+                    int m = int.Parse(s.Substring(4, 2));
+                    int d = int.Parse(s.Substring(6, 2));
+                    inDate = new DateTime(y, m, d);
+                }
+            }
+            else if (tr.IN_TIME > 0)
             {
                 string s = tr.IN_TIME.ToString();
                 if (s.Length >= 8)
@@ -233,12 +258,7 @@ public class HisSummaryTrackingCreator
             int days = (int)(today - inDate).TotalDays + 1;
 
             Console.WriteLine(string.Format("👉 [{0}] {1} (Mã BN: {2} | TrID: {3})", bedInfo, tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.ID));
-            Console.WriteLine(string.Format("   Vào viện: {0} ({1} ngày điều trị) | Chẩn đoán: [{2}] {3}", inDate.ToString("dd/MM/yyyy"), days, tr.ICD_CODE, tr.ICD_NAME));
-
-            // Kiểm tra các tờ sơ kết đã có
-            HisTrackingFilter trkFilter = new HisTrackingFilter { TREATMENT_ID = tr.ID };
-            var existingTrks = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, trkFilter, param);
-            if (existingTrks == null) existingTrks = new List<HIS_TRACKING>();
+            Console.WriteLine(string.Format("   Bắt đầu tại khoa: {0} ({1} ngày điều trị) | Chẩn đoán: [{2}] {3}", inDate.ToString("dd/MM/yyyy"), days, tr.ICD_CODE, tr.ICD_NAME));
 
             // 1. Tạo Sơ kết 3 ngày
             if (t.Create3Day)
@@ -330,7 +350,7 @@ public class HisSummaryTrackingCreator
 
 class Program
 {
-    static void Main()
+    static void Main(string[] args)
     {
         AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
         {
@@ -343,6 +363,6 @@ class Program
             return null;
         };
 
-        HisSummaryTrackingCreator.Run();
+        HisSummaryTrackingCreator.Run(args);
     }
 }

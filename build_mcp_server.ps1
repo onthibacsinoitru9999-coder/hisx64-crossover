@@ -13,6 +13,10 @@ if (-not $rootDir) { $rootDir = (Get-Location).Path }
 
 Write-Host "=== BIEN DICH HIS MCP SERVER (64-BIT) ===" -ForegroundColor Cyan
 
+# 0. Terminate running HisMcpServer instance if any to release file locks
+Get-Process HisMcpServer -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 300
+
 # 1. Resolve csc.exe
 $csc = if ($env:CSC -and (Test-Path $env:CSC)) {
     $env:CSC

@@ -35,6 +35,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
    - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
    - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
    - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
+   - Ra viện & Thợ làm ra viện: `his_execute_protocol_discharge`
 2. **Quyền hạn của Agent - Toàn quyền tinh chỉnh thông số (Parameters/Arguments)**:
    - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
      * *Liều lượng thuốc, cữ tiêm (sáng/trưa/chiều/tối), thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị)*.
@@ -42,7 +43,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
      * *Chuyển đổi linh hoạt giữa Tủ trực (Kho 810 / 5142) và Kho Dược (4210 / 4209)* tùy theo yêu cầu chỉ định.
    - **Tuyệt đối cấm**: Tự ý tạo mới các script/phần mềm lẻ tẻ rác (`.cs`, `.ps1`, `.bat`, `.py`, payload `.json`) khi đang làm nhiệm vụ.
 3. **Cơ chế Dừng Thao Tác & Báo Cáo Kẹt (Circuit-Breaker Pattern - BẮT BUỘC)**:
-   - Khi phát sinh nghiệp vụ lâm sàng mới nằm ngoài khả năng của 16 công cụ MCP hiện có, HOẶC khi công cụ MCP/API backend từ chối/báo lỗi $\le 2$ lần:
+   - Khi phát sinh nghiệp vụ lâm sàng mới nằm ngoài khả năng của 18 công cụ MCP hiện có, HOẶC khi công cụ MCP/API backend từ chối/báo lỗi $\le 2$ lần:
      * ⛔ **DỪNG LẠI NGAY LẬP TỨC**: Tuyệt đối không được cố chấp viết file script tạm thử-sai kéo dài làm chậm trễ công việc lâm sàng và làm bẩn git repo.
      * 📢 **BÁO CÁO RÕ RÀNG 4 ĐIỂM CHO BÁC SĨ**:
        1. **Kẹt ở đâu**: Chỉ rõ bước và thao tác đang bị nghẽn (VD: giữ bean thuốc, tạo tờ điều trị, chỉ định CLS...).
@@ -107,6 +108,7 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 📝 **Tạo tờ điều trị hàng ngày (DHST + AI)** | `his_create_tracking` | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` | ❌ Không dùng kê đơn |
 | 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | `his_assign_bedside_glucose` | **`HisGlucoseBedsideAssigner.exe`** | `.\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
 | ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` | Pipeline 3 bước | Tự động Tờ ĐT -> CLS -> Thuốc +5p | ❌ Không đổi thứ tự |
+| 🏁 **Đặc quyền 'Thợ làm ra viện' (1-Click)** | `his_execute_protocol_discharge` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe discharge-protocol <MãBN> [HN\|NB] [--dry-run]` | ❌ Không bỏ sót 4 nhóm bảo lưu |
 | 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
 | 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
 | 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
@@ -183,6 +185,28 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
      * Trong mọi tác vụ lâm sàng (đặc biệt khi bác sĩ đang trực tiếp xử lý bệnh nhân), nếu API backend từ chối hoặc trả `Success: false` quá 2 lần, Agent **PHẢI DỪNG VÒNG LẶP NGAY LẬP TỨC**.
      * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
   5. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
+
+## 5.1. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ LÀM RA VIỆN" (DISCHARGE 1-CLICK PROTOCOL)
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin yêu cầu **"thợ làm ra viện"** (kèm mã bệnh nhân hoặc mã điều trị), Agent PHẢI tự động nhận diện và kích hoạt ngay công cụ MCP `his_execute_protocol_discharge` hoặc CLI `HisClinicalCli.exe discharge-protocol <MãBN> [HN|NB]`:
+  1. **Thực thi tuần tự 3 tác vụ khép kín (Sequential Pipeline - BẮT BUỘC ĐÚNG THỨ TỰ):**
+     - 📝 **Bước 1 - Rà soát & Bổ sung Tờ điều trị (3 ngày, 7 ngày, Tổng kết ra viện):**
+       * Tính mốc thời gian **từ thời điểm có tờ điều trị đầu tiên tại khoa lâm sàng** (`DEPARTMENT_ID == 57` ở HN hoặc `915` ở NB), không lấy thời gian vào viện cấp cứu/phòng khám nếu chưa chuyển khoa.
+       * Nếu số ngày điều trị tại khoa $\ge 3$ ngày mà thiếu tờ Sơ kết 3 ngày $\rightarrow$ Tự động tạo tờ Sơ kết 3 ngày.
+       * Nếu số ngày điều trị tại khoa $\ge 7$ ngày mà thiếu tờ Sơ kết 7 ngày $\rightarrow$ Tự động tạo tờ Sơ kết 7 ngày.
+       * Tự động tạo **Tờ Tổng kết ra viện** (Treatment Summary) ghi nhận tóm tắt diễn biến, hướng điều trị và tiên lượng.
+       * Tự động điều chỉnh giờ tờ điều trị (`EnsureUniqueTrackingDateTime`) tránh trùng khớp timestamp với các tờ điều trị đã có.
+     - 🔄 **Bước 2 - Chuyển toàn bộ chỉ định trắng về 034727 (`UpdateCommonInfo`):**
+       * Quét toàn bộ y lệnh lâm sàng ở trạng thái Chưa thực hiện (màu trắng - `SERVICE_REQ_STT_ID == 1`).
+       * Chuyển người chỉ định sang Bác sĩ **`034727`** (ThS.BS Nguyễn Hữu Sâm - Thạc sỹ y học) qua API `api/HisServiceReq/UpdateCommonInfo` (vượt rào cản khóa tạm ứng viện phí `HisSereServDeposit`).
+       * ⚠️ **BẢO LƯU TUYỆT ĐỐI 4 NHÓM Y LỆNH**: Tuyệt đối không thay đổi/xóa 4 nhóm y lệnh:
+         1. 🛏️ **Y lệnh Giường** (`SERVICE_REQ_TYPE_ID == 8`).
+         2. 👕 **Y lệnh Đồ vải** (Toan áo vải, đồ vải gói phẫu thuật).
+         3. 🩸 **Y lệnh Thử đường huyết tại giường** (ĐMMM `BM02426` / `NB260620.6231`).
+         4. 💊 **Đơn điều trị / Đơn thuốc** (`SERVICE_REQ_TYPE_ID == 6, 7`).
+     - 📋 **Bước 3 - Tạo Vỏ Bệnh Án Ngoại Khoa EMR Nội trú:**
+       * Kiểm tra rào chắn: **CHỈ áp dụng cho bệnh nhân điều trị nội trú (`TDL_TREATMENT_TYPE_ID == 3`)**. Nếu là ngoại trú thì bỏ qua bước này.
+       * Điền đầy đủ: **Bìa khám ngoại khoa** (Hỏi bệnh & Khám bệnh), **Bìa tóm tắt bệnh án**, và **Bìa tổng kết cuối** của bệnh án ngoại khoa (`BENHANNGOAIKHOA` / EMR_FINAL) với bác sĩ làm bệnh án là `034727` (ThS.BS Nguyễn Hữu Sâm).
+  2. **Báo cáo kết quả 3 bước minh bạch:** In bảng kết quả rõ ràng từng bước (Số tờ điều trị bổ sung, số y lệnh chuyển người chỉ định, trạng thái bìa EMR).
 
 ## 6. QUY TẮC MA TRẬN MÔ HÌNH OPENROUTER: ĐIỀU PHỐI ĐA TẦNG MIỄN PHÍ 100% (MULTI-TIER SMART FALLBACK)
 * **Khóa xác thực**: Tự động nạp từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).

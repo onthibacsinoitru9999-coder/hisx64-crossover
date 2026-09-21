@@ -34,6 +34,7 @@
 35. [Quy Chuẩn HIS MCP Server (Bộ Công Cụ 18-in-1)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#35-quy-chuẩn-his-mcp-server-bộ-công-cụ-18-in-1-chuẩn-hóa-giao-thức-json-rpc-20)
 36. [Bẫy Lỗi & Quy Chuẩn Kê Insulin Tủ Trực (Cabinet Insulin Prescribing)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#36-bẫy-lỗi--quy-chuẩn-kê-insulin-tủ-trực-cabinet-insulin-prescribing)
 37. [Bẫy Lỗi & Quy Chuẩn Đổi Người Chỉ Định Y Lệnh Trắng (Change Order Doctor)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#37-bẫy-lỗi--quy-chuẩn-đổi-người-chỉ-định-y-lệnh-trắng-change-order-doctor)
+38. [Quy Chuẩn Protocol 'Thợ Làm Ra Viện' (1-Click Discharge Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#38-quy-chuẩn-protocol-thợ-làm-ra-viện-1-click-discharge-protocol)
 
 ---
 
@@ -2083,6 +2084,7 @@ Bác sĩ chỉ cần gửi prompt tự nhiên, ngắn gọn; Agent sẽ tự đ�
 | 💊 **Kê thuốc tủ trực** | `"Kê từ tủ trực cho BN 0001666593: Paracetamol Kabi 1 chai truyền TM"`<br>`"Kê tủ trực 3E: Cefuroxim 750mg 2 lọ tiêm TM"` | `his_prescribe_cabinet` |
 | 🏭 **Kê thuốc lĩnh kho dược** | `"Kê đơn lĩnh kho dược cho BN 0001666593: Cefuroxim 500mg 2 viên uống sáng 1 tối 1"` | `his_prescribe_warehouse` |
 | ⚡ **Thợ cho đường huyết (1-Click)** | `"Thợ cho đường huyết ca này: BN 0001666593 lúc 17h ĐH 12.4 tiêm 6R"`<br>*(Kèm ảnh sổ/bảng theo dõi ĐH)* | `his_execute_protocol_glucose` |
+| 🏁 **Thợ làm ra viện (1-Click)** | `"Thợ làm ra viện cho BN 0000476007"`<br>`"Ra viện ca này buồng P714"` | `his_execute_protocol_discharge` |
 | 🩸 **Chỉ định ĐMMM lẻ** | `"Chỉ định đường máu mao mạch tại giường cho BN 0001666593"` | `his_assign_bedside_glucose` |
 | 🍲 **Chỉ định suất ăn** | `"Chỉ định suất ăn cơm thường BT01 cho buồng P714"`<br>`"Báo ăn buồng 3E-05 suất đái tháo đường"` | `his_assign_ration` |
 | 🥛 **Chỉ định Leanpro trước mổ** | `"Kê 6 chai Leanpro trước mổ cho BN 0001666593 mổ ngày mai"` | `his_assign_leanpro` |
@@ -2143,6 +2145,91 @@ Khi quét và đổi người chỉ định hàng loạt, tuyệt đối KHÔNG 
 3. 🩸 **Y lệnh Thử đường huyết tại giường** (ĐMMM `BM02426` / `NB260620.6231`).
 4. 💊 **Đơn điều trị / Đơn thuốc** (`SERVICE_REQ_TYPE_ID == 6, 7`).
 
+---
 
+## 38. QUY CHUẨN PROTOCOL 'THỢ LÀM RA VIỆN' (1-CLICK DISCHARGE PROTOCOL)
 
+### 38.1. Ý Nghĩa Lâm Sàng & Khó Khăn Thực Tế
+Khi bệnh nhân chuẩn bị ra viện, Bác sĩ điều trị đối mặt với hàng loạt thủ tục hành chính - pháp lý phức tạp và mất rất nhiều thời gian:
+1. Thiếu tờ sơ kết 3 ngày, 7 ngày hoặc tờ tổng kết ra viện $\rightarrow$ Hồ sơ bệnh án bị phòng Kế hoạch Tổng hợp từ chối, trừ điểm bảo hiểm.
+2. Các y lệnh cận lâm sàng/thủ thuật chưa thực hiện (màu trắng) do bác sĩ khác hoặc bác sĩ trực chỉ định không được xử lý chuyển về bác sĩ chính $\rightarrow$ Kẹt rào cản tài chính tạm ứng viện phí (`HisSereServDeposit`), không thể hủy/đóng hồ sơ viện phí.
+3. Thiếu bìa khám bệnh ngoại khoa, bìa tóm tắt bệnh án, hoặc bìa tổng kết ra viện trong hồ sơ Bệnh án Ngoại khoa EMR $\rightarrow$ Không đủ điều kiện hoàn thành bệnh án để trình duyệt giám đốc và lưu trữ.
 
+Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích hợp 3 kỹ năng cốt lõi thành quy trình tự động 1-Click khép kín:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    QUY TRÌNH 'THỢ LÀM RA VIỆN' (3 BƯỚC)                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  [BƯỚC 1] RÀ SOÁT & BỔ SUNG TỜ ĐIỀU TRỊ                                 │
+│  • Mốc thời gian: Tính từ tờ điều trị ĐẦU TIÊN tại khoa (Khoa 57 / 915) │
+│  • Bổ sung Sơ kết 3 ngày (nếu >= 3 ngày và chưa có)                     │
+│  • Bổ sung Sơ kết 7 ngày (nếu >= 7 ngày và chưa có)                     │
+│  • Tự động tạo Tờ Tổng kết ra viện (Treatment Summary)                  │
+│  • EnsureUniqueTrackingDateTime: Chống va chạm timestamp tờ cũ          │
+│                                │                                        │
+│                                ▼                                        │
+│  [BƯỚC 2] CHUYỂN TOÀN BỘ CHỈ ĐỊNH TRẮNG VỀ 034727                      │
+│  • Quét toàn bộ y lệnh SERVICE_REQ_STT_ID == 1                          │
+│  • POST api/HisServiceReq/UpdateCommonInfo -> BS Nguyễn Hữu Sâm         │
+│  • Bypass khóa tạm ứng viện phí HisSereServDeposit                      │
+│  • BẢO LƯU TUYỆT ĐỐI 4 NHÓM:                                            │
+│    - 🛏️ Giường (SERVICE_REQ_TYPE_ID == 8)                               │
+│    - 👕 Đồ vải (Toan áo gói PT)                                         │
+│    - 🩸 ĐMMM tại giường (BM02426 / NB260620.6231)                       │
+│    - 💊 Đơn thuốc (SERVICE_REQ_TYPE_ID == 6, 7)                         │
+│                                │                                        │
+│                                ▼                                        │
+│  [BƯỚC 3] TẠO BÌA BỆNH ÁN NGOẠI KHOA EMR                                │
+│  • Rào chắn nghiêm ngặt: CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ             │
+│    (TDL_TREATMENT_TYPE_ID == 3). Ngoại trú tự động bỏ qua an toàn.      │
+│  • Kết nối Oracle DB EMR_FINAL thông qua HisEmrFiller.exe               │
+│  • Tự động điền 3 phần bìa cốt lõi:                                     │
+│    - Bìa Khám ngoại khoa (Hỏi bệnh, Toàn thân, Bệnh ngoại khoa)         │
+│    - Bìa Tóm tắt bệnh án (Tiền sử, Lâm sàng, Cận lâm sàng)              │
+│    - Bìa Tổng kết cuối (Hướng điều trị, Tiên lượng, Bác sĩ 034727)      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 38.2. Cấu Trúc Lệnh CLI & MCP Tool Call
+1. **Qua HIS MCP Server (Ưu tiên số 1 - Chống rác đĩa):**
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "id": 1,
+     "method": "tools/call",
+     "params": {
+       "name": "his_execute_protocol_discharge",
+       "arguments": {
+         "patientCode": "0000476007",
+         "facility": "HN",
+         "dryRun": false
+       }
+     }
+   }
+   ```
+   *(Bí danh `his_discharge_protocol` cũng được hỗ trợ tương thích ngược)*
+
+2. **Qua CLI Fallback (`HisClinicalCli.exe`):**
+   ```powershell
+   # Chạy toàn bộ quy trình 3 bước (Dry-run kiểm tra trước)
+   .\HisClinicalCli.exe discharge-protocol <MãBN> [HN|NB] --dry-run
+
+   # Thực thi thật toàn bộ quy trình
+   .\HisClinicalCli.exe discharge-protocol <MãBN> [HN|NB]
+
+   # Hoặc chạy từng phân hệ độc lập:
+   .\HisClinicalCli.exe ensure-discharge-tracking <MãBN> [HN|NB]
+   .\HisClinicalCli.exe transfer-white-orders <MãBN> [HN|NB] [NewDoctorLogin]
+   ```
+
+### 38.3. Bẫy Lỗi & Nguyên Tắc An Toàn Sống Còn
+1. **Mốc tính ngày sơ kết đợt điều trị:**
+   - **Bẫy**: Nếu lấy `IN_TIME` từ phòng khám hoặc khoa cấp cứu, số ngày điều trị có thể bị tính thừa (ví dụ bệnh nhân nằm lưu cấp cứu 2 ngày rồi mới chuyển khoa Ngoại).
+   - **Quy chuẩn**: Luôn quét `HIS_TRACKING` lấy `TRACKING_TIME` nhỏ nhất có `DEPARTMENT_ID == 57` (hoặc `915`) làm ngày bắt đầu điều trị thực tế tại khoa.
+2. **Bảo lưu tuyệt đối 4 nhóm y lệnh trong Bước 2:**
+   - Tránh việc y lệnh giường, đồ vải phòng mổ, test đường huyết mao mạch hay đơn thuốc bị đổi người chỉ định hoặc hủy nhầm, gây rối loạn bàn giao điều dưỡng và kế toán viện phí.
+3. **Bảo vệ EMR bệnh nhân ngoại trú trong Bước 3:**
+   - Nếu bệnh nhân thuộc diện Ngoại trú (`TDL_TREATMENT_TYPE_ID != 3`), `HisEmrFiller.exe` và `RunDischargeProtocol` tự động bỏ qua Bước 3 kèm thông báo rõ ràng, tuyệt đối không tạo `BENHANNGOAIKHOA` rác trên hệ thống Oracle EMR.

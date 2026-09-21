@@ -1,12 +1,12 @@
 ﻿{
     "mcpServers":  {
                        "his-clinical":  {
-                                            "command":  "E:\\his-x64-28-11fix GDYK\\his-x64\\HisMcpServer.exe",
+                                            "command":  "F:\\NB\\LBP2900_R150_V330_W64_uk_EN_2\\x64\\MISC\\ANIMIMG\\his\\HIS CSNB\\HisMcpServer.exe",
                                             "args":  [
 
                                                      ],
                                             "env":  {
-                                                        "HIS_BASE_DIR":  "E:\\his-x64-28-11fix GDYK\\his-x64"
+                                                        "HIS_BASE_DIR":  "F:\\NB\\LBP2900_R150_V330_W64_uk_EN_2\\x64\\MISC\\ANIMIMG\\his\\HIS CSNB"
                                                     }
                                         }
                    }
