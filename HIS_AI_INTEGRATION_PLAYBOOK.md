@@ -37,6 +37,7 @@
 38. [Quy Chuẩn Protocol 'Thợ Làm Ra Viện' (1-Click Discharge Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#38-quy-chuẩn-protocol-thợ-làm-ra-viện-1-click-discharge-protocol)
 39. [Kiến Trúc Điều Phối Chuyên Biệt Cơ Sở & Cách Ly Token Tuyệt Đối (`his_hn` & `his_nb`)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#39-kiến-trúc-điều-phối-chuyên-biệt-cơ-sở--cách-ly-token-tuyệt-đối-facility-specialized-routers--token-isolation-his_hn--his_nb)
 40. [Quy Chuẩn Protocol 'Thợ Trực Buồng' (1-Click Ward Duty Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#40-quy-chuẩn-protocol-thợ-trực-buồng-1-click-ward-duty-protocol)
+41. [Quy Trình Đăng Ký Bệnh Nhân Mổ Cấp Cứu Phân Luồng Cơ Sở (Emergency Surgery Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#41-quy-trình-đăng-ký-bệnh-nhân-mổ-cấp-cứu-google-forms-phân-luồng-cơ-sở-emergency-surgery-protocol)
 
 ---
 
@@ -2336,7 +2337,59 @@ Tương tự `his-glucose` và `his-discharge`, module được đóng gói thà
      * **Ninh Bình**: XN Máu (Tầng 1 Nhà E), X-quang (Nhà E CS2), CT/MRI (Nhà E CS2), Điện tim (TDCN Nhà E CS2).
      * **Hà Nội**: XN Đông máu (P626 Nhà Q), Sinh hóa/Huyết học (Nhà Q), X-quang/CT/MRI (Trung tâm Điện quang), Điện tim (P734/TDCN).
 
+---
 
+## 41. QUY TRÌNH ĐĂNG KÝ BỆNH NHÂN MỔ CẤP CỨU GOOGLE FORMS PHÂN LUỒNG CƠ SỞ (EMERGENCY SURGERY PROTOCOL)
 
+### 41.1. Bối cảnh & Mục đích
+- Khi tiếp nhận ca mổ cấp cứu tại khoa nội trú hoặc từ phòng khám / cấp cứu, Bác sĩ cần đăng ký vào danh sách mổ cấp cứu của bệnh viện để phòng mổ và kíp gây mê tiếp nhận kịp thời.
+- Hai cơ sở của Bệnh viện Bạch Mai sử dụng 2 Google Form hoàn toàn độc lập:
+  * 🏥 **Cơ sở Hà Nội**: Form mổ cấp cứu Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57): `https://docs.google.com/forms/d/e/1FAIpQLScq1EcSA7Ff5mwU1GKQrC2h9jfFu-bObdeUKJNpeZIRrDoUEA/viewform`
+  * 🏥 **Cơ sở Ninh Bình**: Form mổ cấp cứu Khoa Ngoại tổng hợp Tầng 3 Nhà E (Khoa 915): `https://docs.google.com/forms/d/e/1FAIpQLScn9LfQxqVPL0A-uVcLRDFwTah6GpgKNDabhcONXycLJ8ALkQ/viewform`
+- Bác sĩ chỉ định mặc định: **`034727`** - **Ths.BS Nguyễn Hữu Sâm** (áp dụng chung cho cả hai cơ sở).
 
+### 41.2. Bảng ánh xạ trường dữ liệu (Field Mapping Schema)
+| Trường dữ liệu | Google Form Ninh Bình (`NB`) | Google Form Hà Nội (`HN`) | Ghi chú & Giá trị mặc định |
+| :--- | :--- | :--- | :--- |
+| **Vị trí bệnh nhân** | *(Không có)* | `entry.1771260210` | Mặc định: `Nội trú tại khoa CTCH & CS` |
+| **Khoa điều trị** | *(Không có)* | `entry.1225676642` | Mặc định: `Khoa 57 - CTCH & Cột sống` |
+| **Họ và tên BN** | `entry.744010330` *(Bắt buộc)* | `entry.1876536986` *(Bắt buộc)* | Tự động trích xuất từ `HisClinicalCli.exe lookup` |
+| **Tuổi BN** | `entry.1326381732` *(Bắt buộc)* | `entry.2076581334` *(Bắt buộc)* | Số nguyên (int) |
+| **Giới tính** | `entry.1146288352` (`Nam`/`Nữ`) | `entry.688804617` (`Nam`/`Nữ`) | `Nam` hoặc `Nữ` |
+| **Mã BN** | `entry.938074737` *(Bắt buộc)* | `entry.1034142534` *(Bắt buộc)* | Mã bệnh nhân |
+| **Mã điều trị** | *(Không có)* | `entry.1407489499` *(Bắt buộc)* | Mã đợt điều trị (TrCode) |
+| **Buồng / Giường** | `entry.300014506` *(Bắt buộc)* | `entry.1681626113` *(Bắt buộc)* | Format HN: `Khoa 57 / Phòng ... / Giường ...` |
+| **Chẩn đoán** | `entry.732172205` *(Bắt buộc)* | `entry.1982187638` *(Bắt buộc)* | Trích xuất từ Chẩn đoán ICD |
+| **Cách thức mổ dự kiến** | `entry.437609881` *(Bắt buộc)* | `entry.1121377833` *(Bắt buộc)* | Bắt buộc, mô tả cụ thể phẫu thuật |
+| **Phân loại cấp cứu** | *(Không có)* | `entry.777442342` | Mặc định: `Cấp cứu` |
+| **BS chỉ định** | `entry.961181856` | `entry.716253062` | Mặc định: `Ths.BS Nguyễn Hữu Sâm (034727)` |
+| **PTV chính** | *(Không có)* | `entry.1993991632` | Tùy chọn |
+| **PTV phụ** | *(Không có)* | `entry.1769648167` | Tùy chọn |
+| **Ghi chú** | `entry.1922640834` | `entry.1348503941` | Tùy chọn |
 
+### 41.3. Công cụ & Lệnh thực thi
+- **Bộ công cụ thực thi**:
+  * Script lõi: `.agents\skills\his-emergency-surgery\scripts\his_emergency_surgery.py`
+  * CLI Batch wrapper: `.\HisEmergencySurgery.bat`
+  * MCP Routing Tool: `his_hn` và `his_nb` với `action="emergency_surgery"`.
+- **Cú pháp CLI**:
+  ```powershell
+  # Chế độ kiểm tra & sinh link 1-Click (Dry Run):
+  .\HisEmergencySurgery.bat 0004060486 "Phẫu thuật kết hợp xương kim Kirschner ngón 5 bàn tay phải" HN --dry-run
+  .\HisEmergencySurgery.bat 0004060486 "Phẫu thuật kết hợp xương ngón 5 tay phải" NB --dry-run
+
+  # Đăng ký trực tiếp vào Google Form qua HTTP POST (--submit):
+  .\HisEmergencySurgery.bat 0004060486 "Phẫu thuật kết hợp xương kim Kirschner ngón 5 bàn tay phải" HN --submit
+  ```
+- **Tích hợp MCP Tool**:
+  ```json
+  {
+    "name": "his_hn",
+    "arguments": {
+      "action": "emergency_surgery",
+      "patientCode": "0004060486",
+      "surgery": "Phẫu thuật kết hợp xương kim Kirschner ngón 5 bàn tay phải",
+      "submit": true
+    }
+  }
+  ```

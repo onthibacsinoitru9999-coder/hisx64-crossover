@@ -142,7 +142,7 @@ namespace HisMcp
                 "his_hn",
                 "CONG CU DIEU PHOI CHUYEN BIET CO SO HA NOI (Bệnh viện Bạch Mai - Khoa 57 CTCH & Cột sống, P710-P740, Phòng 5248, Tủ trực 810/7787, Kho 4210/4209/753, ĐMMM BM02426, Token doctor_hn.token - Ths.BS Nguyễn Hữu Sâm 034727). Tự động cắm context và token Hà Nội cho mọi tác vụ lâm sàng.",
                 Obj(
-                    "action", Obj("type", "string", "description", "Tác vụ lâm sàng tại Hà Nội: 'lookup' (tra cứu BN), 'orders' (xem y lệnh), 'cancel_order' (hủy y lệnh), 'cancel_service' (hủy dịch vụ lẻ), 'tracking' (tờ điều trị + DHST), 'cabinet' (kê tủ trực 810), 'warehouse' (kê kho dược 4210/4209/753), 'ration' (suất ăn), 'leanpro' (dinh dưỡng trước mổ), 'pt01' (biên bản PT-01), 'pacs' (xem CĐHA), 'debate_view' (xem hội chẩn), 'debate_create' (tạo hội chẩn), 'emr_fill' (vỏ BA EMR), 'health' (kiểm tra kết nối), 'glucose' (thợ cho đường huyết HN), 'discharge' (thợ làm ra viện HN), 'raw_cli' (chạy CLI tùy biến)", "enum", Arr("lookup", "orders", "cancel_order", "cancel_service", "tracking", "cabinet", "warehouse", "ration", "leanpro", "pt01", "pacs", "debate_view", "debate_create", "emr_fill", "health", "glucose", "discharge", "raw_cli")),
+                    "action", Obj("type", "string", "description", "Tác vụ lâm sàng tại Hà Nội: 'lookup' (tra cứu BN), 'orders' (xem y lệnh), 'cancel_order' (hủy y lệnh), 'cancel_service' (hủy dịch vụ lẻ), 'tracking' (tờ điều trị + DHST), 'cabinet' (kê tủ trực 810), 'warehouse' (kê kho dược 4210/4209/753), 'ration' (suất ăn), 'leanpro' (dinh dưỡng trước mổ), 'pt01' (biên bản PT-01), 'pacs' (xem CĐHA), 'debate_view' (xem hội chẩn), 'debate_create' (tạo hội chẩn), 'emr_fill' (vỏ BA EMR), 'health' (kiểm tra kết nối), 'glucose' (thợ cho đường huyết HN), 'discharge' (thợ làm ra viện HN), 'emergency_surgery' (đăng ký mổ cấp cứu HN), 'raw_cli' (chạy CLI tùy biến)", "enum", Arr("lookup", "orders", "cancel_order", "cancel_service", "tracking", "cabinet", "warehouse", "ration", "leanpro", "pt01", "pacs", "debate_view", "debate_create", "emr_fill", "health", "glucose", "discharge", "emergency_surgery", "raw_cli")),
                     "patientCode", Obj("type", "string", "description", "Mã bệnh nhân hoặc mã điều trị (VD: 24001234)"),
                     "mode", Obj("type", "string", "description", "Chế độ phụ: cabinet ('single', 'multi', 'insulin', 'leanpro', 'dressing', 'stock') hoặc warehouse ('single', 'multi', 'nutrition', 'search')"),
                     "medicineName", Obj("type", "string", "description", "Tên thuốc hoặc từ khóa tra cứu"),
@@ -172,6 +172,12 @@ namespace HisMcp
                     "summary", Obj("type", "string", "description", "Tóm tắt bệnh án tùy biến"),
                     "openBrowser", Obj("type", "boolean", "description", "Mở trình duyệt xem ảnh PACS"),
                     "glucoseValue", Obj("type", "number", "description", "Giá trị đường huyết mmol/L (khi action='glucose')"),
+                    "surgery", Obj("type", "string", "description", "Cách thức mổ dự kiến (khi action='emergency_surgery')"),
+                    "urgency", Obj("type", "string", "description", "Phân loại cấp cứu (khi action='emergency_surgery' HN: 'Cấp cứu', 'Cấp cứu (nặng)', 'Cấp cứu có trì hoãn', 'Mổ phiên hữu trùng')"),
+                    "surgeon", Obj("type", "string", "description", "Phẫu thuật viên chính (khi action='emergency_surgery')"),
+                    "assistant", Obj("type", "string", "description", "Phẫu thuật viên phụ (khi action='emergency_surgery')"),
+                    "note", Obj("type", "string", "description", "Ghi chú lâm sàng (khi action='emergency_surgery')"),
+                    "submit", Obj("type", "boolean", "description", "Gửi trực tiếp vào Google Form (khi action='emergency_surgery')"),
                     "dryRun", Obj("type", "boolean", "description", "Chế độ chạy thử kiểm tra trước"),
                     "command", Obj("type", "string", "description", "Lệnh CLI tùy biến khi action='raw_cli'")
                 ),
@@ -183,7 +189,7 @@ namespace HisMcp
                 "his_nb",
                 "CONG CU DIEU PHOI CHUYEN BIET CO SO NINH BINH (Bệnh viện Bạch Mai CS2 - Khoa 915 Ngoại tổng hợp Tầng 3 Nhà E, Buồng 3E/3D, Phòng TT P3E-05 ID 18679 / P3D-05 ID 18681, Tủ trực 5142 Khu 3E / 5141 Khu 3D, Kho Dược chính 4854, ĐMMM NB260620.6231 ID 74281, Token doctor_nb.token - Ths.BS Nguyễn Hữu Sâm 034727 mặc định các cơ sở). Tự động cắm context và token Ninh Bình cho mọi tác vụ lâm sàng.",
                 Obj(
-                    "action", Obj("type", "string", "description", "Tác vụ lâm sàng tại Ninh Bình: 'lookup' (tra cứu BN), 'orders' (xem y lệnh), 'cancel_order' (hủy y lệnh), 'cancel_service' (hủy dịch vụ lẻ), 'tracking' (tờ điều trị + DHST), 'cabinet' (kê tủ trực 5142/5141), 'warehouse' (kê kho dược 4854), 'ration' (suất ăn), 'leanpro' (dinh dưỡng trước mổ), 'pt01' (biên bản PT-01), 'pacs' (xem CĐHA), 'debate_view' (xem hội chẩn), 'debate_create' (tạo hội chẩn), 'emr_fill' (vỏ BA EMR), 'health' (kiểm tra kết nối), 'glucose' (thợ cho đường huyết NB), 'discharge' (thợ làm ra viện NB), 'raw_cli' (chạy CLI tùy biến)", "enum", Arr("lookup", "orders", "cancel_order", "cancel_service", "tracking", "cabinet", "warehouse", "ration", "leanpro", "pt01", "pacs", "debate_view", "debate_create", "emr_fill", "health", "glucose", "discharge", "raw_cli")),
+                    "action", Obj("type", "string", "description", "Tác vụ lâm sàng tại Ninh Bình: 'lookup' (tra cứu BN), 'orders' (xem y lệnh), 'cancel_order' (hủy y lệnh), 'cancel_service' (hủy dịch vụ lẻ), 'tracking' (tờ điều trị + DHST), 'cabinet' (kê tủ trực 5142/5141), 'warehouse' (kê kho dược 4854), 'ration' (suất ăn), 'leanpro' (dinh dưỡng trước mổ), 'pt01' (biên bản PT-01), 'pacs' (xem CĐHA), 'debate_view' (xem hội chẩn), 'debate_create' (tạo hội chẩn), 'emr_fill' (vỏ BA EMR), 'health' (kiểm tra kết nối), 'glucose' (thợ cho đường huyết NB), 'discharge' (thợ làm ra viện NB), 'emergency_surgery' (đăng ký mổ cấp cứu NB), 'raw_cli' (chạy CLI tùy biến)", "enum", Arr("lookup", "orders", "cancel_order", "cancel_service", "tracking", "cabinet", "warehouse", "ration", "leanpro", "pt01", "pacs", "debate_view", "debate_create", "emr_fill", "health", "glucose", "discharge", "emergency_surgery", "raw_cli")),
                     "patientCode", Obj("type", "string", "description", "Mã bệnh nhân hoặc mã điều trị (VD: 24001234)"),
                     "mode", Obj("type", "string", "description", "Chế độ phụ: cabinet ('single', 'multi', 'insulin', 'leanpro', 'dressing', 'stock') hoặc warehouse ('single', 'multi', 'nutrition', 'search')"),
                     "medicineName", Obj("type", "string", "description", "Tên thuốc hoặc từ khóa tra cứu"),
@@ -213,6 +219,12 @@ namespace HisMcp
                     "summary", Obj("type", "string", "description", "Tóm tắt bệnh án tùy biến"),
                     "openBrowser", Obj("type", "boolean", "description", "Mở trình duyệt xem ảnh PACS"),
                     "glucoseValue", Obj("type", "number", "description", "Giá trị đường huyết mmol/L (khi action='glucose')"),
+                    "surgery", Obj("type", "string", "description", "Cách thức mổ dự kiến (khi action='emergency_surgery')"),
+                    "urgency", Obj("type", "string", "description", "Phân loại cấp cứu (khi action='emergency_surgery' HN: 'Cấp cứu', 'Cấp cứu (nặng)', 'Cấp cứu có trì hoãn', 'Mổ phiên hữu trùng')"),
+                    "surgeon", Obj("type", "string", "description", "Phẫu thuật viên chính (khi action='emergency_surgery')"),
+                    "assistant", Obj("type", "string", "description", "Phẫu thuật viên phụ (khi action='emergency_surgery')"),
+                    "note", Obj("type", "string", "description", "Ghi chú lâm sàng (khi action='emergency_surgery')"),
+                    "submit", Obj("type", "boolean", "description", "Gửi trực tiếp vào Google Form (khi action='emergency_surgery')"),
                     "dryRun", Obj("type", "boolean", "description", "Chế độ chạy thử kiểm tra trước"),
                     "command", Obj("type", "string", "description", "Lệnh CLI tùy biến khi action='raw_cli'")
                 ),
@@ -702,6 +714,9 @@ namespace HisMcp
                 case "discharge":
                     result = ExecuteDischargeProtocol(args, out isError, facility);
                     break;
+                case "emergency_surgery":
+                    result = ExecuteEmergencySurgeryProtocol(args, out isError, facility);
+                    break;
                 case "raw_cli":
                     string cmd = args["command"] != null ? args["command"].ToString() : "";
                     if (string.IsNullOrEmpty(cmd))
@@ -718,6 +733,39 @@ namespace HisMcp
             }
 
             return banner + result;
+        }
+
+        private static string ExecuteEmergencySurgeryProtocol(JObject args, out bool isError, string facility)
+        {
+            string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
+            string surgery = args["surgery"] != null ? args["surgery"].ToString().Trim() : (args["surgeryName"] != null ? args["surgeryName"].ToString().Trim() : "");
+            string urgency = args["urgency"] != null ? args["urgency"].ToString().Trim() : "";
+            string surgeon = args["surgeon"] != null ? args["surgeon"].ToString().Trim() : "";
+            string assistant = args["assistant"] != null ? args["assistant"].ToString().Trim() : "";
+            string note = args["note"] != null ? args["note"].ToString().Trim() : "";
+            bool submit = args["submit"] != null && (bool)args["submit"];
+            bool dryRun = args["dryRun"] != null && (bool)args["dryRun"];
+
+            string scriptPath = Path.Combine(BaseDir, @".agents\skills\his-emergency-surgery\scripts\his_emergency_surgery.py");
+            string pythonExe = "python";
+            if (File.Exists(@"C:\Users\HP\AppData\Local\Programs\Python\Python312\python.exe"))
+            {
+                pythonExe = @"C:\Users\HP\AppData\Local\Programs\Python\Python312\python.exe";
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendFormat("\"{0}\"", scriptPath);
+            if (!string.IsNullOrEmpty(pCode)) sb.AppendFormat(" --patient {0}", EscapeArg(pCode));
+            if (!string.IsNullOrEmpty(surgery)) sb.AppendFormat(" --surgery {0}", EscapeArg(surgery));
+            sb.AppendFormat(" --facility {0}", facility);
+            if (!string.IsNullOrEmpty(urgency)) sb.AppendFormat(" --urgency {0}", EscapeArg(urgency));
+            if (!string.IsNullOrEmpty(surgeon)) sb.AppendFormat(" --surgeon {0}", EscapeArg(surgeon));
+            if (!string.IsNullOrEmpty(assistant)) sb.AppendFormat(" --assistant {0}", EscapeArg(assistant));
+            if (!string.IsNullOrEmpty(note)) sb.AppendFormat(" --note {0}", EscapeArg(note));
+            if (submit) sb.Append(" --submit");
+            if (dryRun) sb.Append(" --dry-run");
+
+            return RunProcess(pythonExe, sb.ToString(), out isError, facility);
         }
 
         private static string ExecuteGlucoseProtocol(JObject args, out bool isError, string facility)

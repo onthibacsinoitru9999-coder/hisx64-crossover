@@ -129,6 +129,7 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 🚀 **Nạp & Ký số Biên bản PT-01 vào EMR UI** | - | **`HisPt01UiUploader.exe`** | `.\HisPt01UiUploader.bat <MãBN>` | ❌ Không ký thủ công lặp lại |
 | ⚡ **Ghi nhận & học thao tác UI (Click/Phím)** | - | **`HisUiWrapper.exe`** | `.\HisUiWrapper.bat` | ❌ Không ghi ngoài HIS |
 | 🔪 **Thao tác Tiểu phẫu & Thủ thuật (Rút đinh)** | - | Skill `.agents/skills/his-minor-surgery/` | Skill minor surgery | ❌ Không bỏ sót kíp mổ |
+| 🚨 **Đăng ký Bệnh nhân Mổ Cấp Cứu (Hà Nội & Ninh Bình)** | `his_emergency_surgery` *(qua `his_hn`/`his_nb`)* | **`HisEmergencySurgery.bat`** | `.\HisEmergencySurgery.bat <MãBN> "<Cách thức mổ>" [HN\|NB] [--submit]` | ❌ Không điền nhầm form giữa 2 cơ sở |
 
 ### 🌟 QUY TẮC BẮT BUỘC: VỎ BỆNH ÁN NGOẠI KHOA CHỈ ÁP DỤNG CHO BỆNH NHÂN NỘI TRÚ (INPATIENT ONLY)
 * **TUYỆT ĐỐI CẤM**: Không tạo Vỏ Bệnh Án Ngoại Khoa (`BENHANNGOAIKHOA` / EMR) cho bệnh nhân khám ngoại trú / phòng khám (`TDL_TREATMENT_TYPE_ID != 3`).
@@ -386,4 +387,24 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      - Tự động nạp dữ liệu từ backend MOS, điền mẫu `mau pt01.docx`, và xuất file docx tại thư mục `Reports\BienBanHoiChan_PT01\PT01_XX_TENBN_MaBN.docx`.
      - File sau khi sinh phải được kiểm tra đối soát, đảm bảo 0% còn sót lại thẻ `<thay>`.
 
+## 15. QUY TẮC ĐĂNG KÝ BỆNH NHÂN MỔ CẤP CỨU PHÂN LUỒNG HAI CƠ SỞ (EMERGENCY SURGERY PROTOCOL)
+* **Bản chất nghiệp vụ**:
+  - Khi có ca mổ cấp cứu phát sinh tại khoa nội trú hoặc tiếp nhận từ cấp cứu/phòng khám, Bác sĩ cần đăng ký nhanh bệnh nhân vào danh sách mổ cấp cứu trên Google Forms của bệnh viện để phòng mổ và kíp gây mê tiếp nhận kịp thời.
+  - Hai cơ sở sử dụng 2 Google Form hoàn toàn độc lập:
+    * 🏥 **Cơ sở Hà Nội**: Form Khoa 57 CTCH & Cột sống (`https://docs.google.com/forms/d/e/1FAIpQLScq1EcSA7Ff5mwU1GKQrC2h9jfFu-bObdeUKJNpeZIRrDoUEA/viewform`).
+    * 🏥 **Cơ sở Ninh Bình**: Form Khoa 915 Ngoại tổng hợp Tầng 3 Nhà E (`https://docs.google.com/forms/d/e/1FAIpQLScn9LfQxqVPL0A-uVcLRDFwTah6GpgKNDabhcONXycLJ8ALkQ/viewform`).
+* **Bác sĩ chỉ định mặc định**: **`034727`** - **Ths.BS Nguyễn Hữu Sâm** áp dụng chung cho cả hai cơ sở.
+* **Quy chuẩn thực thi**:
+  - Tự động trích xuất thông tin bệnh nhân từ HIS (`HisClinicalCli.exe lookup <MãBN>`): Họ tên, Tuổi, Giới, Mã ĐT, Buồng/Giường, Chẩn đoán ICD.
+  - Bác sĩ chỉ cần cung cấp: `<MãBN>` và `<Cách thức mổ dự kiến>`.
+  - Sinh đường dẫn 1-Click Pre-filled URL để kiểm tra trước hoặc gửi trực tiếp (`--submit`):
+    ```powershell
+    # Xem trước & lấy link 1-Click (Dry-Run):
+    .\HisEmergencySurgery.bat <MãBN> "<CáchThứcMổ>" [HN|NB] --dry-run
 
+    # Gửi trực tiếp lên danh sách mổ cấp cứu (--submit):
+    .\HisEmergencySurgery.bat <MãBN> "<CáchThứcMổ>" [HN|NB] --submit
+    ```
+  - Hoặc gọi trực tiếp qua MCP Server:
+    * Hà Nội: tool `his_hn` với `action="emergency_surgery"`, `patientCode`, `surgery`, `submit=true|false`.
+    * Ninh Bình: tool `his_nb` với `action="emergency_surgery"`, `patientCode`, `surgery`, `submit=true|false`.
