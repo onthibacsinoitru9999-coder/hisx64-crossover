@@ -100,7 +100,7 @@ public class HisClinicalCli
         { "XRAY_CLAVICLE", new ServiceTarget(58094, 17552, "BM00245.260119", "Chụp Xquang xương đòn thẳng, nghiêng hoặc chếch [Không in phim]", "Chụp Xquang xương đòn thẳng, nghiêng hoặc chếch [Không in phim]") }
     };
 
-    public static string ReadLiveTokenFast()
+    public static string ReadLiveTokenFast(string targetDoc = null)
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         List<string> candidates = new List<string>();
@@ -175,7 +175,16 @@ public class HisClinicalCli
                         if (chunk.Length >= start + 64)
                         {
                             string candidateToken = chunk.Substring(start, 64);
-                            if (chunk.Contains("034727") || chunk.Contains("vmc"))
+                            if (!string.IsNullOrEmpty(targetDoc))
+                            {
+                                if (chunk.IndexOf(targetDoc, StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    currentDoctorLogin = targetDoc;
+                                    currentDoctorName = targetDoc == "vmc" ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
+                                    return candidateToken;
+                                }
+                            }
+                            else if (chunk.Contains("034727") || chunk.Contains("vmc"))
                             {
                                 if (chunk.Contains("vmc"))
                                 {
@@ -198,6 +207,40 @@ public class HisClinicalCli
         return null;
     }
 
+    private static string ReadTokenFromCachePath(string path, string targetDoctor = null)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                string[] parts = File.ReadAllText(path, Encoding.UTF8).Split('|');
+                if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]) && parts[0].Length == 64)
+                {
+                    string docInFile = parts.Length >= 3 ? parts[2] : "";
+                    if (!string.IsNullOrEmpty(targetDoctor) && !string.IsNullOrEmpty(docInFile) &&
+                        !string.Equals(docInFile, targetDoctor, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return null; // Mismatched doctor
+                    }
+
+                    long savedTime;
+                    if (long.TryParse(parts[1], out savedTime))
+                    {
+                        DateTime savedDt = new DateTime(savedTime);
+                        if ((DateTime.Now - savedDt).TotalHours < 6.0)
+                        {
+                            currentDoctorLogin = !string.IsNullOrEmpty(docInFile) ? docInFile : (targetDoctor ?? "034727");
+                            currentDoctorName = currentDoctorLogin == "vmc" ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
+                            return parts[0];
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
     public static void InitSession(bool forceRefresh = false)
     {
         if (!forceRefresh && !string.IsNullOrEmpty(currentToken)) return;
@@ -205,51 +248,63 @@ public class HisClinicalCli
         param = new CommonParam();
         string tokenCode = null;
 
-        // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
-        string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
-        if (!File.Exists(cacheFile))
+        string envFacility = Environment.GetEnvironmentVariable("HIS_FACILITY");
+        string envTokenFile = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+        string envDoctor = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+
+        bool isNB = string.Equals(envFacility, "NB", StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(envTokenFile) && envTokenFile.IndexOf("nb", StringComparison.OrdinalIgnoreCase) >= 0) ||
+                    string.Equals(envDoctor, "vmc", StringComparison.OrdinalIgnoreCase);
+
+        string targetDoctor = isNB ? "vmc" : "034727";
+        string targetTokenFileName = isNB ? "doctor_nb.token" : "doctor_hn.token";
+
+        // 1. Explicit env token file if specified
+        if (!string.IsNullOrEmpty(envTokenFile))
         {
-            string altCache = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
-            if (File.Exists(altCache)) cacheFile = altCache;
+            string p = Path.IsPathRooted(envTokenFile) ? envTokenFile : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, envTokenFile);
+            tokenCode = ReadTokenFromCachePath(p, targetDoctor);
         }
 
-        try
-        {
-            if (File.Exists(cacheFile))
-            {
-                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
-                if (parts.Length >= 2)
-                {
-                    long savedTime;
-                    if (long.TryParse(parts[1], out savedTime))
-                    {
-                        DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
-                        {
-                            tokenCode = parts[0];
-                            currentDoctorLogin = parts.Length >= 3 ? parts[2] : "034727";
-                            currentDoctorName = currentDoctorLogin == "vmc" ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
-                        }
-                    }
-                }
-            }
-        }
-        catch { }
-
-        // 2. Thử đọc Live Token từ HIS chuẩn (chỉ nhận nick 034727/vmc)
+        // 2. Read facility-specific token file (doctor_nb.token / doctor_hn.token)
         if (string.IsNullOrEmpty(tokenCode))
         {
-            tokenCode = ReadLiveTokenFast();
+            string p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, targetTokenFileName);
+            tokenCode = ReadTokenFromCachePath(p, targetDoctor);
+            if (string.IsNullOrEmpty(tokenCode))
+            {
+                string altP = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", targetTokenFileName);
+                tokenCode = ReadTokenFromCachePath(altP, targetDoctor);
+            }
         }
 
-        // 2b. Kiểm tra tính sống còn của Token (Healthcheck Guard)
+        // 3. Fallback standalone token if matching target doctor
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+            tokenCode = ReadTokenFromCachePath(cacheFile, targetDoctor);
+            if (string.IsNullOrEmpty(tokenCode))
+            {
+                string altCache = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
+                tokenCode = ReadTokenFromCachePath(altCache, targetDoctor);
+            }
+        }
+
+        // 4. Read Live Token from HIS logs for target doctor
+        if (string.IsNullOrEmpty(tokenCode))
+        {
+            tokenCode = ReadLiveTokenFast(targetDoctor);
+        }
+
+        // 5. Healthcheck Guard (test department: 915 for NB / 57 for HN)
         bool tokenValid = false;
         if (!string.IsNullOrEmpty(tokenCode))
         {
             try
             {
                 var testConsumer = new ApiConsumer("http://192.168.7.236:1608/", tokenCode, "HIS");
-                var testDeps = myAdapter.FetchList<V_HIS_DEPARTMENT>("api/HisDepartment/GetView", testConsumer, new HisDepartmentViewFilter { ID = 57 }, param);
+                long testDeptId = isNB ? 915 : 57;
+                var testDeps = myAdapter.FetchList<V_HIS_DEPARTMENT>("api/HisDepartment/GetView", testConsumer, new HisDepartmentViewFilter { ID = testDeptId }, param);
                 if (testDeps != null && testDeps.Count > 0)
                 {
                     tokenValid = true;
@@ -260,26 +315,19 @@ public class HisClinicalCli
 
         if (!tokenValid)
         {
-            tokenCode = null; // Ép đăng nhập mới qua ACS!
+            tokenCode = null; // Force new login via ACS
         }
 
-        // 3. Tự động ĐĂNG NHẬP ĐỘC LẬP qua ACS bằng nick 034727
+        // 6. ACS login for target doctor if still empty
         if (string.IsNullOrEmpty(tokenCode))
         {
             try
             {
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
-                if (token != null)
+                if (isNB)
                 {
-                    tokenCode = token.TokenCode;
-                    currentDoctorLogin = "034727";
-                    currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
-                }
-                else
-                {
-                    token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+                    var token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
                     if (token != null)
                     {
                         tokenCode = token.TokenCode;
@@ -287,14 +335,15 @@ public class HisClinicalCli
                         currentDoctorName = "BS Vũ Minh Cường";
                     }
                 }
-
-                if (!string.IsNullOrEmpty(tokenCode))
+                else
                 {
-                    try
+                    var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                    if (token != null)
                     {
-                        File.WriteAllText(cacheFile, tokenCode + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin, Encoding.UTF8);
+                        tokenCode = token.TokenCode;
+                        currentDoctorLogin = "034727";
+                        currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
                     }
-                    catch { }
                 }
             }
             catch { }
@@ -302,14 +351,26 @@ public class HisClinicalCli
 
         if (string.IsNullOrEmpty(currentDoctorLogin))
         {
-            currentDoctorLogin = "034727";
-            currentDoctorName = "Ths.BS Nguyễn Hữu Sâm";
+            currentDoctorLogin = targetDoctor;
+            currentDoctorName = targetDoctor == "vmc" ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
         }
 
         if (string.IsNullOrEmpty(tokenCode))
         {
-            throw new Exception("Không thể lấy Token xác thực HIS từ cả Live Log và ACS Login!");
+            throw new Exception(string.Format("Không thể lấy Token xác thực HIS cho cơ sở {0} ({1})!", isNB ? "Ninh Bình" : "Hà Nội", targetDoctor));
         }
+
+        // 7. Save to token files
+        try
+        {
+            string payload = tokenCode + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin;
+            string specPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, targetTokenFileName);
+            File.WriteAllText(specPath, payload, Encoding.UTF8);
+
+            string standPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+            File.WriteAllText(standPath, payload, Encoding.UTF8);
+        }
+        catch { }
 
         currentToken = tokenCode;
         try { ApiConsumers.SetConsunmer(currentToken); } catch { }

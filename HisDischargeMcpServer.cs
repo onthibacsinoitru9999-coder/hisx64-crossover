@@ -75,6 +75,8 @@ namespace HisDischargeMcp
         private static readonly string BaseDir = AppDomain.CurrentDomain.BaseDirectory;
         private static MyAdapter adapter = new MyAdapter();
         private static ApiConsumer mosConsumer;
+        private static ApiConsumer mosConsumerHN;
+        private static ApiConsumer mosConsumerNB;
         private static CommonParam param = new CommonParam();
 
         public static int Run(string[] args)
@@ -95,7 +97,7 @@ namespace HisDischargeMcp
         private static int RunCli(string[] args)
         {
             string keyword = args[0].Trim();
-            string facility = "HN";
+            string facility = "";
             bool dryRun = false;
 
             for (int i = 1; i < args.Length; i++)
@@ -103,6 +105,11 @@ namespace HisDischargeMcp
                 string a = args[i].Trim().ToUpper();
                 if (a == "NB" || a == "HN") facility = a;
                 else if (a == "--DRY-RUN" || a == "-N" || a == "--PREVIEW") dryRun = true;
+            }
+
+            if (string.IsNullOrEmpty(facility))
+            {
+                facility = DetectFacilityFromContext(keyword, null);
             }
 
             bool isError;
@@ -170,7 +177,7 @@ namespace HisDischargeMcp
                 ),
                 "serverInfo", Obj(
                     "name", "his-discharge",
-                    "version", "1.0.0"
+                    "version", "1.1.0"
                 )
             );
             SendResponse(id, res);
@@ -180,25 +187,47 @@ namespace HisDischargeMcp
         {
             var tools = new JArray();
 
-            // 1. his_tho_lam_ra_vien (Chính thức)
+            // 1. his_discharge_hn (Chuyên biệt Cơ sở Hà Nội)
             tools.Add(CreateTool(
-                "his_tho_lam_ra_vien",
-                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol): Tu dong thuc thi tuan tu 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien (tinh tu to DT dau tien tai khoa) -> (2) Chuyen toan bo chi dinh trang ve 034727 qua UpdateCommonInfo (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
+                "his_discharge_hn",
+                "Dac quyen 'Tho lam ra vien' CHUYEN BIET CO SO HA NOI (Khoa 57 CTCH, BS Nguyen Huu Sam 034727, token doctor_hn.token): Protocol 3 buoc: (1) Ra soat bo sung To DT SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve 034727 (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (VD: 0004018669)"),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (mac dinh 'HN')", "enum", Arr("HN", "NB")),
                     "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - thuc thi that)")
                 ),
                 Arr("patientCode")
             ));
 
-            // 2. his_execute_protocol_discharge (Bí danh tương thích ngược)
+            // 2. his_discharge_nb (Chuyên biệt Cơ sở Ninh Bình)
+            tools.Add(CreateTool(
+                "his_discharge_nb",
+                "Dac quyen 'Tho lam ra vien' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH Khu 3E, BS Vu Minh Cuong vmc, token doctor_nb.token): Protocol 3 buoc: (1) Ra soat bo sung To DT SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve vmc (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
+                Obj(
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (VD: 0004018669)"),
+                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - thuc thi that)")
+                ),
+                Arr("patientCode")
+            ));
+
+            // 3. his_tho_lam_ra_vien (Chính thức - Tự động điều hướng)
+            tools.Add(CreateTool(
+                "his_tho_lam_ra_vien",
+                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol - Tu dong dieu huong HN/NB): Protocol 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien -> (2) Chuyen toan bo chi dinh trang ve BS tiep nhan (HN: 034727, NB: vmc, Bao luu 4 nhom) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
+                Obj(
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri (VD: 0004018669)"),
+                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
+                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - thuc thi that)")
+                ),
+                Arr("patientCode")
+            ));
+
+            // 4. his_execute_protocol_discharge (Bí danh tương thích ngược)
             tools.Add(CreateTool(
                 "his_execute_protocol_discharge",
-                "Bi danh cua his_tho_lam_ra_vien: Protocol 'Tho lam ra vien' 1-Click toan dien 3 buoc",
+                "Bi danh cua his_tho_lam_ra_vien: Protocol 'Tho lam ra vien' 1-Click toan dien 3 buoc (Tu dong dieu huong HN/NB)",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
+                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
                     "dryRun", Obj("type", "boolean", "description", "Che do chay thu (mac dinh false - thuc thi that)")
                 ),
                 Arr("patientCode")
@@ -236,6 +265,16 @@ namespace HisDischargeMcp
 
                 switch (toolName)
                 {
+                    case "his_discharge_hn":
+                    case "discharge_hn":
+                        args["facility"] = "HN";
+                        output = ExecuteProtocolMcp(args, out isError);
+                        break;
+                    case "his_discharge_nb":
+                    case "discharge_nb":
+                        args["facility"] = "NB";
+                        output = ExecuteProtocolMcp(args, out isError);
+                        break;
                     case "his_tho_lam_ra_vien":
                     case "tho_lam_ra_vien":
                     case "his_execute_protocol_discharge":
@@ -283,7 +322,11 @@ namespace HisDischargeMcp
             if (string.IsNullOrEmpty(pCode) && args["treatmentCode"] != null) pCode = args["treatmentCode"].ToString().Trim();
             if (string.IsNullOrEmpty(pCode) && args["keyword"] != null) pCode = args["keyword"].ToString().Trim();
 
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "HN";
+            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "";
+            if (string.IsNullOrEmpty(facility))
+            {
+                facility = DetectFacilityFromContext(pCode, args);
+            }
             bool dryRun = args["dryRun"] != null && (bool)args["dryRun"];
 
             if (string.IsNullOrEmpty(pCode))
@@ -295,6 +338,27 @@ namespace HisDischargeMcp
             return ExecuteProtocol(pCode, facility, dryRun, out isError);
         }
 
+        private static string DetectFacilityFromContext(string keyword, JObject args)
+        {
+            string envFac = Environment.GetEnvironmentVariable("HIS_FACILITY");
+            if (!string.IsNullOrEmpty(envFac)) return envFac.Trim().ToUpper();
+
+            string envTok = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+            if (!string.IsNullOrEmpty(envTok) && envTok.IndexOf("nb", StringComparison.OrdinalIgnoreCase) >= 0) return "NB";
+
+            string kw = (keyword ?? "") + " " + (args != null ? args.ToString() : "");
+            if (kw.IndexOf("NB", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("Ninh Binh", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("3E-", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("3D-", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("Khoa 915", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("vmc", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "NB";
+            }
+            return "HN";
+        }
+
         #endregion
 
         #region Protocol "Thợ Làm Ra Viện" (Core Clinical Pipeline)
@@ -304,7 +368,10 @@ namespace HisDischargeMcp
             isError = false;
             var sb = new StringBuilder();
 
-            bool initOk = InitSession(sb);
+            bool isNB = (facility != null && facility.Trim().ToUpper() == "NB");
+            facility = isNB ? "NB" : "HN";
+
+            bool initOk = InitSession(facility, sb);
             if (!initOk)
             {
                 isError = true;
@@ -319,17 +386,23 @@ namespace HisDischargeMcp
                 return sb.ToString();
             }
 
+            string targetDoctor = isNB ? "vmc" : "034727";
+            string doctorName = isNB ? "BS Vũ Minh Cường" : "Ths.BS Nguyễn Hữu Sâm";
+            string deptName = isNB ? "Khoa Ngoại tổng hợp NB (Khoa 915 - Khu 3E)" : "Khoa CTCH & Cột sống HN (Khoa 57)";
+
             sb.AppendLine("===============================================================================");
-            sb.AppendLine("⚡ THỰC THI PROTOCOL 'THỢ LÀM RA VIỆN' (STANDALONE MCP SERVER)");
-            sb.AppendLine(string.Format("Bệnh nhân: {0} ({1}) | Mã ĐT: {2} | Cơ sở: {3} | Chế độ: {4}",
-                tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, facility, (dryRun ? "DRY-RUN" : "EXECUTE")));
+            sb.AppendLine(string.Format("⚡ THỰC THI PROTOCOL 'THỢ LÀM RA VIỆN' - CƠ SỞ {0} ({1})", facility, isNB ? "NINH BÌNH" : "HÀ NỘI"));
+            sb.AppendLine(string.Format("Bệnh nhân: {0} ({1}) | Mã ĐT: {2} | Khoa: {3}",
+                tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE, deptName));
+            sb.AppendLine(string.Format("Bác sĩ tiếp nhận: {0} ({1}) | Chế độ: {2}",
+                doctorName, targetDoctor, (dryRun ? "DRY-RUN" : "EXECUTE")));
             sb.AppendLine("===============================================================================\n");
 
             // BƯỚC 1: Rà soát và bổ sung tờ điều trị
             bool step1Ok = EnsureDischargeTracking(tr, facility, dryRun, sb);
 
-            // BƯỚC 2: Chuyển chỉ định trắng về 034727 (Bảo lưu 4 nhóm)
-            bool step2Ok = TransferWhiteOrders(tr, "034727", dryRun, sb);
+            // BƯỚC 2: Chuyển chỉ định trắng về bác sĩ đích (034727 cho HN, vmc cho NB)
+            bool step2Ok = TransferWhiteOrders(tr, targetDoctor, dryRun, sb);
 
             // BƯỚC 3: Tạo bìa tóm tắt bệnh án, bìa tổng kết cuối, bìa khám ngoại khoa EMR
             bool step3Ok = EnsureEmrCover(tr, facility, dryRun, sb);
@@ -734,8 +807,8 @@ namespace HisDischargeMcp
                 sb.AppendLine("   Backend MOS có thể khóa không cho phép sửa y lệnh.");
             }
 
-            string targetDoctorName = "NGUYỄN HỮU SÂM";
-            string targetDoctorTitle = "Thạc sỹ y học";
+            string targetDoctorName = (string.Equals(targetDoctorLogin, "vmc", StringComparison.OrdinalIgnoreCase)) ? "VŨ MINH CƯỜNG" : "NGUYỄN HỮU SÂM";
+            string targetDoctorTitle = (string.Equals(targetDoctorLogin, "vmc", StringComparison.OrdinalIgnoreCase)) ? "Bác sĩ" : "Thạc sỹ y học";
 
             sb.AppendLine(string.Format("• Bệnh nhân   : {0} (Mã BN: {1} | Mã ĐT: {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE));
             sb.AppendLine(string.Format("• BS Tiếp nhận : {0} ({1}) - {2}", targetDoctorName, targetDoctorLogin, targetDoctorTitle));
@@ -961,8 +1034,9 @@ namespace HisDischargeMcp
             if (isDryRun) sbArgs.Append(" --dry-run");
             else sbArgs.Append(" --save");
             sbArgs.Append(" --force-summary");
-            sbArgs.Append(" --doctor 034727");
-            if (facility == "NB") sbArgs.Append(" --facility NB");
+            string doc = (facility == "NB") ? "vmc" : "034727";
+            sbArgs.Append(" --doctor " + doc);
+            sbArgs.Append(" --facility " + facility);
 
             bool emrErr;
             string emrOutput = RunExternalProcess(emrExe, sbArgs.ToString(), out emrErr);
@@ -975,56 +1049,99 @@ namespace HisDischargeMcp
 
         #region Session & Helper Methods
 
-        private static bool InitSession(StringBuilder sb)
+        private static bool InitSession(string facility, StringBuilder sb)
         {
-            if (mosConsumer != null) return true;
+            bool isNB = (facility != null && facility.Trim().ToUpper() == "NB");
+            if (isNB && mosConsumerNB != null)
+            {
+                mosConsumer = mosConsumerNB;
+                return true;
+            }
+            if (!isNB && mosConsumerHN != null)
+            {
+                mosConsumer = mosConsumerHN;
+                return true;
+            }
 
-            string token = ReadLiveTokenFast();
+            string token = ReadLiveTokenForFacility(isNB ? "NB" : "HN");
             if (string.IsNullOrEmpty(token))
             {
                 try
                 {
                     ClientTokenManager tm = new ClientTokenManager("HIS");
                     CommonParam p = new CommonParam();
-                    var tok = tm.Login(p, "034727", "998199", "2.390.0");
-                    if (tok != null) token = tok.TokenCode;
+                    if (isNB)
+                    {
+                        var tok = tm.Login(p, "vmc", "789789", "2.390.0");
+                        if (tok != null) token = tok.TokenCode;
+                    }
+                    else
+                    {
+                        var tok = tm.Login(p, "034727", "998199", "2.390.0");
+                        if (tok != null) token = tok.TokenCode;
+                    }
                 }
                 catch { }
             }
 
             if (string.IsNullOrEmpty(token))
             {
-                sb.AppendLine("❌ Không tìm thấy TokenCode hợp lệ! Vui lòng đăng nhập phần mềm HIS Inventec.");
+                sb.AppendLine(string.Format("❌ Không tìm thấy TokenCode hợp lệ cho cơ sở {0}! Vui lòng đăng nhập phần mềm HIS Inventec ({1}).",
+                    isNB ? "Ninh Bình" : "Hà Nội", isNB ? "vmc" : "034727"));
                 return false;
             }
 
             mosConsumer = new ApiConsumer(MOS_BASE, token, "HIS");
+            if (isNB) mosConsumerNB = mosConsumer;
+            else mosConsumerHN = mosConsumer;
+
             return true;
         }
 
-        private static string ReadLiveTokenFast()
+        private static string ReadLiveTokenForFacility(string facility)
         {
-            // 1. Check cache file
-            string cachePath = Path.Combine(BaseDir, "doctor_standalone.token");
+            bool isNB = (facility != null && facility.Trim().ToUpper() == "NB");
+            string targetDoc = isNB ? "vmc" : "034727";
+
+            // 1. Explicit env var override
+            string envFile = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+            if (!string.IsNullOrEmpty(envFile))
+            {
+                string path = Path.IsPathRooted(envFile) ? envFile : Path.Combine(BaseDir, envFile);
+                string tok = ReadTokenFromPath(path);
+                if (!string.IsNullOrEmpty(tok)) return tok;
+            }
+
+            // 2. Specialized token file for facility
+            string specFile = Path.Combine(BaseDir, isNB ? "doctor_nb.token" : "doctor_hn.token");
+            string specTok = ReadTokenFromPath(specFile);
+            if (!string.IsNullOrEmpty(specTok)) return specTok;
+
+            // 3. Fallback standalone token if matching target doctor
+            string standFile = Path.Combine(BaseDir, "doctor_standalone.token");
             try
             {
-                if (File.Exists(cachePath))
+                if (File.Exists(standFile))
                 {
-                    string content = File.ReadAllText(cachePath, Encoding.UTF8).Trim();
+                    string content = File.ReadAllText(standFile, Encoding.UTF8).Trim();
                     var parts = content.Split('|');
-                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]))
+                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]) && parts[0].Length == 64)
                     {
-                        long ticks = long.Parse(parts[1]);
-                        if ((DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(4).Ticks)
+                        string docInFile = parts.Length >= 3 ? parts[2] : "";
+                        if (string.IsNullOrEmpty(docInFile) || string.Equals(docInFile, targetDoc, StringComparison.OrdinalIgnoreCase))
                         {
-                            return parts[0];
+                            long ticks;
+                            if (long.TryParse(parts[1], out ticks) && (DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(6).Ticks)
+                            {
+                                return parts[0];
+                            }
                         }
                     }
                 }
             }
             catch { }
 
-            // 2. Scan LogSystem.txt tail 128KB
+            // 4. Scan LogSystem.txt tail 128KB filtered by doctor identity
             List<string> logCandidates = new List<string>
             {
                 Path.Combine(BaseDir, "Logs", "LogSystem.txt"),
@@ -1061,7 +1178,16 @@ namespace HisDischargeMcp
                             int start = idx + 10;
                             if (chunk.Length >= start + 64)
                             {
-                                return chunk.Substring(start, 64);
+                                string candidateToken = chunk.Substring(start, 64);
+                                if (chunk.IndexOf(targetDoc, StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    try
+                                    {
+                                        File.WriteAllText(specFile, candidateToken + "|" + DateTime.UtcNow.Ticks + "|" + targetDoc, Encoding.UTF8);
+                                    }
+                                    catch { }
+                                    return candidateToken;
+                                }
                             }
                         }
                     }
@@ -1069,6 +1195,28 @@ namespace HisDischargeMcp
                 catch { }
             }
 
+            return null;
+        }
+
+        private static string ReadTokenFromPath(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    string content = File.ReadAllText(path, Encoding.UTF8).Trim();
+                    var parts = content.Split('|');
+                    if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[0]) && parts[0].Length == 64)
+                    {
+                        long ticks;
+                        if (long.TryParse(parts[1], out ticks) && (DateTime.UtcNow.Ticks - ticks) < TimeSpan.FromHours(6).Ticks)
+                        {
+                            return parts[0];
+                        }
+                    }
+                }
+            }
+            catch { }
             return null;
         }
 

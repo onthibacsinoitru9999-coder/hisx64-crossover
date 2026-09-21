@@ -25,17 +25,20 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 
 ### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG MỌI NHIỆM VỤ & /GOAL
 1. **Ưu tiên số 1 (Chống rác file 100%)**: Sử dụng các công cụ **HIS MCP Server** (`his_*`) chạy qua giao thức JSON-RPC 2.0 (`HisMcpServer.exe`). Mọi dữ liệu vào/ra truyền qua RAM/stdio, **hoàn toàn không tạo bất kỳ file tạm nào trên đĩa**.
+   - 🌟 **Cổng Điều Phối Chuyên Biệt Cơ Sở (Token Isolation 100% - KHÔNG LO ĐÈ TOKEN)**:
+     * **`his_hn`**: Cổng chuyên biệt Hà Nội (Khoa 57, BS Nguyễn Hữu Sâm `034727`, P734/5248, Tủ trực 810, Kho 4210, Token file `doctor_hn.token`). Hỗ trợ mọi action: lookup, orders, prescribe, tracking, glucose, discharge, emr, pacs, debate...
+     * **`his_nb`**: Cổng chuyên biệt Ninh Bình (Khoa 915 Khu 3E, BS Vũ Minh Cường `vmc`, P3E-05/18679, Tủ trực 5142, Kho 4854, Token file `doctor_nb.token`). Hỗ trợ mọi action tương tự, tự động nạp đúng token Ninh Bình.
    - Tra cứu: `his_patient_lookup`, `his_get_orders`, `his_debate_view`
    - Kê đơn Tủ Trực (Thuốc, Insulin, Leanpro, Thay băng): `his_prescribe_cabinet`
    - Kê đơn Lĩnh Kho Dược (Thuốc viên, Thuốc ống, Dinh dưỡng 753): `his_prescribe_warehouse`
    - Kê đơn điều phối tự động: `his_prescribe_medicine`
    - Tờ điều trị: `his_create_tracking`
-   - ĐMMM & Thợ đường huyết (Server độc lập `his-glucose`): `his_assign_bedside_glucose`, `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet`)*
+   - ĐMMM & Thợ đường huyết (Server độc lập `his-glucose`): `his_glucose_hn`, `his_glucose_nb`, `his_assign_bedside_glucose`, `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet`)*
    - Suất ăn & Dinh dưỡng: `his_assign_ration`, `his_assign_leanpro`
    - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
    - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
    - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
-   - Ra viện & Thợ làm ra viện (Server độc lập `his-discharge`): `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien`)*
+   - Ra viện & Thợ làm ra viện (Server độc lập `his-discharge`): `his_discharge_hn`, `his_discharge_nb`, `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien`)*
 2. **Quyền hạn của Agent - Toàn quyền tinh chỉnh thông số (Parameters/Arguments)**:
    - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
      * *Liều lượng thuốc, cữ tiêm (sáng/trưa/chiều/tối), thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị)*.

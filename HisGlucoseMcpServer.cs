@@ -205,23 +205,53 @@ namespace HisGlucoseMcp
         {
             var tools = new JArray();
 
-            // 1. his_execute_protocol_glucose
+            // 1. his_glucose_hn (Chuyên biệt Cơ sở Hà Nội)
             tools.Add(CreateTool(
-                "his_execute_protocol_glucose",
-                "Dac quyen 'Tho cho duong huyet' (1-Click Protocol): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
+                "his_glucose_hn",
+                "Dac quyen 'Tho cho duong huyet' CHUYEN BIET CO SO HA NOI (Khoa 57 CTCH, DMMM BM02426 phong 5248/931, Tu truc 810, BS Nguyen Huu Sam 034727, token doctor_hn.token): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
                     "glucoseValue", Obj("type", "number", "description", "Ket qua duong huyet (mmol/L, VD: 11.4)"),
                     "insulinType", Obj("type", "string", "description", "Loai Insulin: 'R' (Actrapid), 'L' (Lantus), 'M' (Mixtard)", "enum", Arr("R", "L", "M")),
                     "units", Obj("type", "integer", "description", "So don vi Insulin (UI, VD: 6, 8, 10)"),
                     "timeSlot", Obj("type", "string", "description", "Moc gio: '17h', '21h', '6h'", "enum", Arr("17h", "21h", "6h")),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
                     "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - ghi that)")
                 ),
                 Arr("patientCode", "glucoseValue", "insulinType", "units", "timeSlot")
             ));
 
-            // 2. his_tho_cho_duong_huyet (Bi danh)
+            // 2. his_glucose_nb (Chuyên biệt Cơ sở Ninh Bình)
+            tools.Add(CreateTool(
+                "his_glucose_nb",
+                "Dac quyen 'Tho cho duong huyet' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH, DMMM NB260620.6231 phong 18679/18681, Tu truc 5142, BS Vu Minh Cuong vmc, token doctor_nb.token): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
+                Obj(
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
+                    "glucoseValue", Obj("type", "number", "description", "Ket qua duong huyet (mmol/L, VD: 11.4)"),
+                    "insulinType", Obj("type", "string", "description", "Loai Insulin: 'R' (Actrapid), 'L' (Lantus), 'M' (Mixtard)", "enum", Arr("R", "L", "M")),
+                    "units", Obj("type", "integer", "description", "So don vi Insulin (UI, VD: 6, 8, 10)"),
+                    "timeSlot", Obj("type", "string", "description", "Moc gio: '17h', '21h', '6h'", "enum", Arr("17h", "21h", "6h")),
+                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - ghi that)")
+                ),
+                Arr("patientCode", "glucoseValue", "insulinType", "units", "timeSlot")
+            ));
+
+            // 3. his_execute_protocol_glucose (Chính thức - Tự động điều hướng)
+            tools.Add(CreateTool(
+                "his_execute_protocol_glucose",
+                "Dac quyen 'Tho cho duong huyet' (1-Click Protocol - Tu dong dieu huong HN/NB): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
+                Obj(
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
+                    "glucoseValue", Obj("type", "number", "description", "Ket qua duong huyet (mmol/L, VD: 11.4)"),
+                    "insulinType", Obj("type", "string", "description", "Loai Insulin: 'R' (Actrapid), 'L' (Lantus), 'M' (Mixtard)", "enum", Arr("R", "L", "M")),
+                    "units", Obj("type", "integer", "description", "So don vi Insulin (UI, VD: 6, 8, 10)"),
+                    "timeSlot", Obj("type", "string", "description", "Moc gio: '17h', '21h', '6h'", "enum", Arr("17h", "21h", "6h")),
+                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
+                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - ghi that)")
+                ),
+                Arr("patientCode", "glucoseValue", "insulinType", "units", "timeSlot")
+            ));
+
+            // 4. his_tho_cho_duong_huyet (Bi danh)
             tools.Add(CreateTool(
                 "his_tho_cho_duong_huyet",
                 "Bi danh cua 'Tho cho duong huyet' (1-Click Protocol): Tu dong thuc thi tuan tu 3 buoc (To dieu tri -> Chi dinh DMMM tai giuong -> Ke don Insulin tu truc lech +5 phut)",
@@ -231,19 +261,19 @@ namespace HisGlucoseMcp
                     "insulinType", Obj("type", "string", "description", "Loai Insulin: 'R', 'L', 'M'", "enum", Arr("R", "L", "M")),
                     "units", Obj("type", "integer", "description", "So don vi Insulin (UI, VD: 6, 8, 10)"),
                     "timeSlot", Obj("type", "string", "description", "Moc gio: '17h', '21h', '6h'", "enum", Arr("17h", "21h", "6h")),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
+                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
                     "dryRun", Obj("type", "boolean", "description", "Che do chay thu kiem tra truoc (mac dinh false - ghi that)")
                 ),
                 Arr("patientCode", "glucoseValue", "insulinType", "units", "timeSlot")
             ));
 
-            // 3. his_assign_bedside_glucose
+            // 5. his_assign_bedside_glucose
             tools.Add(CreateTool(
                 "his_assign_bedside_glucose",
                 "Chi dinh Dinh luong Glucose mau mao mach tai giuong (DMMM). HN: BM02426 (ID 6217, phong 5248/931) / NB: NB260620.6231 (ID 74281, phong 18679/18681)",
                 Obj(
                     "patientCodes", Obj("type", "string", "description", "Danh sach ma benh nhan cach nhau boi dau phay"),
-                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
+                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
                     "timeSlot", Obj("type", "string", "description", "Moc thoi gian: '17h', '21h', '6h'")
                 ),
                 Arr("patientCodes")
@@ -271,6 +301,16 @@ namespace HisGlucoseMcp
             {
                 switch (toolName)
                 {
+                    case "his_glucose_hn":
+                    case "glucose_hn":
+                        args["facility"] = "HN";
+                        output = ExecuteProtocolGlucose(args, out isError);
+                        break;
+                    case "his_glucose_nb":
+                    case "glucose_nb":
+                        args["facility"] = "NB";
+                        output = ExecuteProtocolGlucose(args, out isError);
+                        break;
                     case "his_execute_protocol_glucose":
                     case "his_tho_cho_duong_huyet":
                     case "tho_cho_duong_huyet":
@@ -303,7 +343,11 @@ namespace HisGlucoseMcp
         private static string ExecuteAssignBedsideGlucose(JObject args, out bool isError)
         {
             string pCodes = args["patientCodes"] != null ? args["patientCodes"].ToString().Trim() : "";
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim() : "HN";
+            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "";
+            if (string.IsNullOrEmpty(facility))
+            {
+                facility = DetectFacilityFromContext(pCodes, args);
+            }
             string slot = args["timeSlot"] != null ? args["timeSlot"].ToString().Trim() : "";
 
             if (string.IsNullOrEmpty(pCodes))
@@ -317,7 +361,7 @@ namespace HisGlucoseMcp
             if (!string.IsNullOrEmpty(facility)) cmdArgs += " --facility " + EscapeArg(facility);
             if (!string.IsNullOrEmpty(slot)) cmdArgs += " --slot " + EscapeArg(slot);
 
-            return RunProcess(tool, cmdArgs, out isError);
+            return RunProcess(tool, cmdArgs, out isError, facility);
         }
 
         private static string ExecuteProtocolGlucose(JObject args, out bool isError)
@@ -327,7 +371,11 @@ namespace HisGlucoseMcp
             string insulinType = args["insulinType"] != null ? args["insulinType"].ToString().Trim().ToUpper() : "R";
             int units = args["units"] != null ? (int)args["units"] : 0;
             string slot = args["timeSlot"] != null ? args["timeSlot"].ToString().Trim().ToLower() : "17h";
-            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "HN";
+            string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "";
+            if (string.IsNullOrEmpty(facility))
+            {
+                facility = DetectFacilityFromContext(pCode, args);
+            }
             bool dryRun = args["dryRun"] != null && (bool)args["dryRun"];
 
             if (string.IsNullOrEmpty(pCode) || units <= 0)
@@ -339,9 +387,9 @@ namespace HisGlucoseMcp
             string insulinName = (insulinType == "R" ? "Actrapid" : (insulinType == "L" ? "Lantus" : "Mixtard"));
             var sb = new StringBuilder();
             sb.AppendLine("===============================================================================");
-            sb.AppendLine("🩸 THỰC THI PROTOCOL 'THỢ CHO ĐƯỜNG HUYẾT' (1-CLICK GLUCOSE PROTOCOL)");
+            sb.AppendLine(string.Format("🩸 THỰC THI PROTOCOL 'THỢ CHO ĐƯỜNG HUYẾT' - CƠ SỞ {0} ({1})",
+                facility, facility == "NB" ? "NINH BÌNH (Khoa 915 - vmc)" : "HÀ NỘI (Khoa 57 - 034727)"));
             sb.AppendLine(string.Format("• Bệnh nhân   : {0}", pCode));
-            sb.AppendLine(string.Format("• Cơ sở       : {0} ({1})", facility, facility == "NB" ? "Cơ sở Ninh Bình - Khoa 915" : "Bệnh viện Bạch Mai - Khoa 57"));
             sb.AppendLine(string.Format("• Mốc giờ     : {0}", slot));
             sb.AppendLine(string.Format("• Đường huyết : {0} mmol/L", glucose));
             sb.AppendLine(string.Format("• Y lệnh tiêm : {0} UI {1} ({2})", units, insulinName, insulinType));
@@ -378,14 +426,14 @@ namespace HisGlucoseMcp
 
             bool step1Error;
             string toolTracking = ResolveToolPath("HisTrackingCreator.exe");
-            string res1 = RunProcess(toolTracking, string.Format("{0} --note {1}", EscapeArg(pCode), EscapeArg(note)), out step1Error);
+            string res1 = RunProcess(toolTracking, string.Format("{0} --note {1}", EscapeArg(pCode), EscapeArg(note)), out step1Error, facility);
             sb.AppendLine(res1);
 
             // BƯỚC 2: Chỉ định CLS DMMM
             sb.AppendLine("\n--- BƯỚC 2: CHỈ ĐỊNH ĐMMM TẠI GIƯỜNG ---");
             bool step2Error;
             string toolGlucose = ResolveToolPath("HisGlucoseBedsideAssigner.exe");
-            string res2 = RunProcess(toolGlucose, string.Format("{0} --facility {1} --slot {2}", EscapeArg(pCode), EscapeArg(facility), EscapeArg(slot)), out step2Error);
+            string res2 = RunProcess(toolGlucose, string.Format("{0} --facility {1} --slot {2}", EscapeArg(pCode), EscapeArg(facility), EscapeArg(slot)), out step2Error, facility);
             sb.AppendLine(res2);
 
             // BƯỚC 3: Kê đơn Insulin tủ trực (810 tại HN / 5142 tại NB) lệch +5 phút
@@ -395,7 +443,7 @@ namespace HisGlucoseMcp
             string toolPrescribe = ResolveToolPath("HisCabinetPrescribe.exe");
             string timeStr = (slot == "17h") ? "17:05" : (slot == "21h" ? "21:05" : "06:05");
             string res3 = RunProcess(toolPrescribe, string.Format("insulin {0} {1} {2} {3} {4}",
-                EscapeArg(pCode), units, EscapeArg(insulinType), EscapeArg(timeStr), stockId), out step3Error);
+                EscapeArg(pCode), units, EscapeArg(insulinType), EscapeArg(timeStr), stockId), out step3Error, facility);
             sb.AppendLine(res3);
 
             // CIRCUIT-BREAKER: Bất kỳ bước nào lỗi là báo lỗi (OR)
@@ -412,6 +460,28 @@ namespace HisGlucoseMcp
             }
             sb.AppendLine("===============================================================================");
             return sb.ToString();
+        }
+
+        private static string DetectFacilityFromContext(string keyword, JObject args)
+        {
+            string envFac = Environment.GetEnvironmentVariable("HIS_FACILITY");
+            if (!string.IsNullOrEmpty(envFac)) return envFac.Trim().ToUpper();
+
+            string envTok = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+            if (!string.IsNullOrEmpty(envTok) && envTok.IndexOf("nb", StringComparison.OrdinalIgnoreCase) >= 0) return "NB";
+
+            string kw = (keyword ?? "") + " " + (args != null ? args.ToString() : "");
+            if (kw.IndexOf("NB", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("Ninh Binh", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("3E-", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("3D-", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("Khoa 915", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("5142", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                kw.IndexOf("vmc", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "NB";
+            }
+            return "HN";
         }
 
         #endregion
@@ -444,7 +514,7 @@ namespace HisGlucoseMcp
             return exeName;
         }
 
-        private static string RunProcess(string exePath, string arguments, out bool isError)
+        private static string RunProcess(string exePath, string arguments, out bool isError, string facility = "HN")
         {
             isError = false;
             try
@@ -461,6 +531,11 @@ namespace HisGlucoseMcp
                     StandardOutputEncoding = new UTF8Encoding(false),
                     StandardErrorEncoding = new UTF8Encoding(false)
                 };
+
+                bool isNB = string.Equals(facility, "NB", StringComparison.OrdinalIgnoreCase);
+                psi.EnvironmentVariables["HIS_FACILITY"] = isNB ? "NB" : "HN";
+                psi.EnvironmentVariables["HIS_TOKEN_FILE"] = isNB ? "doctor_nb.token" : "doctor_hn.token";
+                psi.EnvironmentVariables["HIS_DOCTOR_LOGIN"] = isNB ? "vmc" : "034727";
 
                 using (var proc = Process.Start(psi))
                 {
