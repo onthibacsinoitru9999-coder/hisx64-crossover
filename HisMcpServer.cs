@@ -964,14 +964,18 @@ namespace HisMcp
 
         private static string ExecuteProtocolDischarge(JObject args, out bool isError)
         {
-            string pCode = args["patientCode"] != null ? args["patientCode"].ToString().Trim() : "";
+            string pCode = "";
+            if (args["patientCode"] != null) pCode = args["patientCode"].ToString().Trim();
+            if (string.IsNullOrEmpty(pCode) && args["treatmentCode"] != null) pCode = args["treatmentCode"].ToString().Trim();
+            if (string.IsNullOrEmpty(pCode) && args["keyword"] != null) pCode = args["keyword"].ToString().Trim();
+
             string facility = args["facility"] != null ? args["facility"].ToString().Trim().ToUpper() : "HN";
             bool dryRun = args["dryRun"] != null && (bool)args["dryRun"];
 
             if (string.IsNullOrEmpty(pCode))
             {
                 isError = true;
-                return "Loi: patientCode khong duoc de trong.";
+                return "Loi: patientCode (hoac treatmentCode) khong duoc de trong.";
             }
 
             string toolCli = ResolveToolPath("HisClinicalCli.exe");

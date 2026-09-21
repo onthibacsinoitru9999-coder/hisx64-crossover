@@ -2244,3 +2244,13 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
    - Tránh việc y lệnh giường, đồ vải phòng mổ, test đường huyết mao mạch hay đơn thuốc bị đổi người chỉ định hoặc hủy nhầm, gây rối loạn bàn giao điều dưỡng và kế toán viện phí.
 3. **Bảo vệ EMR bệnh nhân ngoại trú trong Bước 3:**
    - Nếu bệnh nhân thuộc diện Ngoại trú (`TDL_TREATMENT_TYPE_ID != 3`), `HisEmrFiller.exe` và `RunDischargeProtocol` tự động bỏ qua Bước 3 kèm thông báo rõ ràng, tuyệt đối không tạo `BENHANNGOAIKHOA` rác trên hệ thống Oracle EMR.
+4. **Bẫy Đảo Ngược Thứ Tự Thời Gian Tờ Tổng Kết Ra Viện (Chronological Inversion Gotcha):**
+   - **Bẫy**: Hardcode 08:00 AM cho Tờ Tổng kết ra viện khiến nó xuất hiện trước các tờ điều trị khám buổi sáng, và trước cả tờ Sơ kết 3 ngày (14:30) / 7 ngày (15:00) nếu lập cùng ngày. Nếu bệnh nhân vào viện buổi chiều (VD: 13:30), tờ tổng kết 08:00 sẽ có thời điểm trước cả lúc nhập viện!
+   - **Quy chuẩn**: Tờ Tổng kết ra viện mặc định đặt lúc 16:00:00 (buổi chiều). Nếu trong ngày đã có tờ điều trị / y lệnh muộn hơn (hoặc vào viện muộn hơn), timestamp tự động lùi +5 phút sau thời điểm lớn nhất (`dtMax + 5 phút`). Nếu bệnh nhân đã có `OUT_TIME`, timestamp bị chặn trần không được vượt quá `OUT_TIME`.
+5. **Cách Ly CommonParam & Đăng Ký Phòng (UpdateCommonInfo Loop Gotcha):**
+   - **Bẫy**: Dùng chung một biến `CommonParam param` tĩnh trong vòng lặp chuyển chỉ định. Nếu một y lệnh bị lỗi (ví dụ do phòng chỉ định đặc thù), `param.HasException = true` sẽ khiến tất cả các y lệnh tiếp theo bị báo lỗi ảo dù backend đã lưu thành công. Ngoài ra, thiếu `EnsureWorkInfoForRoom(req.REQUEST_ROOM_ID)` khiến token thiếu quyền phòng chỉ định.
+   - **Quy chuẩn**: Khởi tạo `var cpUpd = new CommonParam()` độc lập cho mỗi lệnh `UpdateCommonInfo`, và luôn gọi `EnsureWorkInfoForRoom(req.REQUEST_ROOM_ID)` trước khi cập nhật.
+6. **Bổ Sung 6 Trường Bìa Tổng Kết Cuối Bệnh Án Ngoại Khoa Trên Oracle EMR:**
+   - **Bẫy**: `HisEmrFiller.cs` trước đây chỉ điền Tab Hỏi bệnh & Khám bệnh và Tóm tắt bệnh án, để trống hoàn toàn 6 trường Bìa tổng kết cuối (`QuaTrinhBenhLyVaDienBien`, `TomTatKetQuaXetNghiem`, `PhuongPhapDieuTri`, `TinhTrangNguoiBenhRaVien`, `HuongDieuTriVaCacCheDoTiepTheo`, `NgayTongKet`, `BacSyDieuTri`, `TenBacSyDieuTri`, `LoiDanBacSi`).
+   - **Quy chuẩn**: Tự động tổng hợp quá trình bệnh lý, kết quả CĐHA & XN, phương pháp điều trị chu phẫu/nội khoa, sinh hiệu và tình trạng ra viện, hướng điều trị tiếp theo và lời dặn bác sĩ; đồng thời cắt byte nghiêm ngặt (2000 bytes) chống lỗi ORA-12899.
+

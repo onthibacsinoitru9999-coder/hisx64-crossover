@@ -3025,6 +3025,19 @@ public class HisClinicalCli
             }
         }
 
+        if (!hasFirstDeptTracking && tr.CLINICAL_IN_TIME.HasValue && tr.CLINICAL_IN_TIME.Value > 0)
+        {
+            string sTime = tr.CLINICAL_IN_TIME.Value.ToString();
+            if (sTime.Length >= 8)
+            {
+                int y = int.Parse(sTime.Substring(0, 4));
+                int m = int.Parse(sTime.Substring(4, 2));
+                int d = int.Parse(sTime.Substring(6, 2));
+                startDate = new DateTime(y, m, d);
+                hasFirstDeptTracking = true;
+            }
+        }
+
         if (!hasFirstDeptTracking && tr.IN_TIME > 0)
         {
             string sTime = tr.IN_TIME.ToString();
@@ -3037,8 +3050,22 @@ public class HisClinicalCli
             }
         }
 
-        int deptDays = Math.Max(1, (int)(DateTime.Today - startDate).TotalDays + 1);
-        Console.WriteLine(string.Format("• Ngày bắt đầu điều trị tại khoa: {0} ({1} ngày điều trị)", startDate.ToString("dd/MM/yyyy"), deptDays));
+        DateTime endDate = DateTime.Today;
+        if (tr.OUT_TIME.HasValue && tr.OUT_TIME.Value > 0)
+        {
+            string sOut = tr.OUT_TIME.Value.ToString();
+            if (sOut.Length >= 8)
+            {
+                int y = int.Parse(sOut.Substring(0, 4));
+                int m = int.Parse(sOut.Substring(4, 2));
+                int d = int.Parse(sOut.Substring(6, 2));
+                endDate = new DateTime(y, m, d);
+            }
+        }
+
+        int deptDays = Math.Max(1, (int)(endDate.Date - startDate.Date).TotalDays + 1);
+        Console.WriteLine(string.Format("• Ngày bắt đầu điều trị tại khoa: {0} (Khoảng điều trị: {1} đến {2} - {3} ngày)",
+            startDate.ToString("dd/MM/yyyy"), startDate.ToString("dd/MM/yyyy"), endDate.ToString("dd/MM/yyyy"), deptDays));
         Console.WriteLine(string.Format("• Hiện có {0} tờ điều trị trên hệ thống.", existingTrks.Count));
 
         var usedTimes = new HashSet<long>(existingTrks.Select(x => x.TRACKING_TIME));
@@ -3056,7 +3083,7 @@ public class HisClinicalCli
             if (!hasSk3)
             {
                 DateTime sk3Date = startDate.AddDays(2);
-                if (sk3Date > DateTime.Today) sk3Date = DateTime.Today;
+                if (sk3Date > endDate.Date) sk3Date = endDate.Date;
                 DateTime sk3Dt = new DateTime(sk3Date.Year, sk3Date.Month, sk3Date.Day, 14, 30, 0);
                 while (usedTimes.Contains(long.Parse(sk3Dt.ToString("yyyyMMddHHmmss"))))
                 {
@@ -3116,7 +3143,7 @@ public class HisClinicalCli
             if (!hasSk7)
             {
                 DateTime sk7Date = startDate.AddDays(6);
-                if (sk7Date > DateTime.Today) sk7Date = DateTime.Today;
+                if (sk7Date > endDate.Date) sk7Date = endDate.Date;
                 DateTime sk7Dt = new DateTime(sk7Date.Year, sk7Date.Month, sk7Date.Day, 15, 0, 0);
                 while (usedTimes.Contains(long.Parse(sk7Dt.ToString("yyyyMMddHHmmss"))))
                 {
@@ -3177,8 +3204,63 @@ public class HisClinicalCli
 
         if (!hasDischarge)
         {
-            DateTime disDate = DateTime.Today;
-            DateTime disDt = new DateTime(disDate.Year, disDate.Month, disDate.Day, 8, 0, 0);
+            DateTime disDate = endDate.Date;
+
+            // Xác định mốc thời gian tối thiểu trong ngày ra viện (phải sau giờ vào viện và sau mọi tờ điều trị cùng ngày)
+            DateTime minDt = new DateTime(disDate.Year, disDate.Month, disDate.Day, 0, 0, 0);
+            if (tr.IN_TIME > 0)
+            {
+                string sIn = tr.IN_TIME.ToString();
+                if (sIn.Length >= 14 && sIn.StartsWith(disDate.ToString("yyyyMMdd")))
+                {
+                    int hh = int.Parse(sIn.Substring(8, 2));
+                    int mm = int.Parse(sIn.Substring(10, 2));
+                    int ss = int.Parse(sIn.Substring(12, 2));
+                    var dtIn = new DateTime(disDate.Year, disDate.Month, disDate.Day, hh, mm, ss);
+                    if (dtIn > minDt) minDt = dtIn;
+                }
+            }
+
+            var sameDayTimes = existingTrks.Where(x => {
+                string st = x.TRACKING_TIME.ToString();
+                return st.Length >= 14 && st.StartsWith(disDate.ToString("yyyyMMdd"));
+            }).Select(x => x.TRACKING_TIME).ToList();
+
+            if (sameDayTimes.Count > 0)
+            {
+                long maxSame = sameDayTimes.Max();
+                string sMax = maxSame.ToString();
+                int hh = int.Parse(sMax.Substring(8, 2));
+                int mm = int.Parse(sMax.Substring(10, 2));
+                int ss = int.Parse(sMax.Substring(12, 2));
+                var dtMax = new DateTime(disDate.Year, disDate.Month, disDate.Day, hh, mm, ss);
+                if (dtMax > minDt) minDt = dtMax;
+            }
+
+            // Mặc định Tổng kết ra viện vào buổi chiều lúc 16:00 (hoặc sau y lệnh/tờ điều trị cuối cùng trong ngày + 5 phút)
+            DateTime disDt = new DateTime(disDate.Year, disDate.Month, disDate.Day, 16, 0, 0);
+            if (minDt >= disDt)
+            {
+                disDt = minDt.AddMinutes(5);
+            }
+
+            // Nếu bệnh nhân đã có OUT_TIME thì không được vượt quá OUT_TIME
+            if (tr.OUT_TIME.HasValue && tr.OUT_TIME.Value > 0)
+            {
+                string sOut = tr.OUT_TIME.Value.ToString();
+                if (sOut.Length >= 14 && sOut.StartsWith(disDate.ToString("yyyyMMdd")))
+                {
+                    int hh = int.Parse(sOut.Substring(8, 2));
+                    int mm = int.Parse(sOut.Substring(10, 2));
+                    int ss = int.Parse(sOut.Substring(12, 2));
+                    var dtOut = new DateTime(disDate.Year, disDate.Month, disDate.Day, hh, mm, ss);
+                    if (disDt > dtOut)
+                    {
+                        disDt = dtOut;
+                    }
+                }
+            }
+
             while (usedTimes.Contains(long.Parse(disDt.ToString("yyyyMMddHHmmss"))))
             {
                 disDt = disDt.AddMinutes(1);
@@ -3364,16 +3446,23 @@ public class HisClinicalCli
             {
                 try
                 {
+                    if (req.REQUEST_ROOM_ID > 0)
+                    {
+                        EnsureWorkInfoForRoom(req.REQUEST_ROOM_ID);
+                    }
+
                     var rawFilter = new HisServiceReqFilter { ID = req.ID };
-                    var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawFilter, param);
+                    var cpGet = new CommonParam();
+                    var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawFilter, cpGet);
                     if (rawList != null && rawList.Count > 0)
                     {
                         var rawReq = rawList[0];
                         rawReq.REQUEST_LOGINNAME = targetDoctorLogin;
                         rawReq.REQUEST_USERNAME = targetDoctorName;
                         rawReq.REQUEST_USER_TITLE = targetDoctorTitle;
-                        var updRes = myAdapter.PostData<HIS_SERVICE_REQ>("api/HisServiceReq/UpdateCommonInfo", mosConsumer, rawReq, param);
-                        if (updRes != null && !param.HasException)
+                        var cpUpd = new CommonParam();
+                        var updRes = myAdapter.PostData<HIS_SERVICE_REQ>("api/HisServiceReq/UpdateCommonInfo", mosConsumer, rawReq, cpUpd);
+                        if (updRes != null && !cpUpd.HasException)
                         {
                             Console.WriteLine(string.Format("   ✔ ĐÃ CHUYỂN: Y lệnh ID {0} (Mã: {1} | {2}) từ {3} ({4}) sang {5} ({6})",
                                 req.ID, req.SERVICE_REQ_CODE, req.SERVICE_REQ_TYPE_NAME, req.REQUEST_USERNAME, req.REQUEST_LOGINNAME, targetDoctorName, targetDoctorLogin));
@@ -3381,9 +3470,14 @@ public class HisClinicalCli
                         }
                         else
                         {
-                            Console.WriteLine(string.Format("   ❌ THẤT BẠI chuyển Y lệnh ID {0}: {1}", req.ID, param.GetMessage()));
+                            Console.WriteLine(string.Format("   ❌ THẤT BẠI chuyển Y lệnh ID {0}: {1}", req.ID, cpUpd.GetMessage()));
                             failCount++;
                         }
+                    }
+                    else
+                    {
+                        Console.WriteLine(string.Format("   ❌ THẤT BẠI: Không thể lấy thông tin chi tiết Y lệnh ID {0} từ API: {1}", req.ID, cpGet.GetMessage()));
+                        failCount++;
                     }
                 }
                 catch (Exception exUpd)
@@ -3421,13 +3515,20 @@ public class HisClinicalCli
             return true;
         }
 
-        // Kiểm tra qua dịch vụ con (Đồ vải & ĐMMM)
+        // Kiểm tra qua dịch vụ con (Đồ vải, ĐMMM, Giường, Thuốc/vật tư)
         if (ssList != null && ssList.Count > 0)
         {
             foreach (var s in ssList)
             {
                 string sName = (s.TDL_SERVICE_NAME ?? "").ToLower();
                 string sCode = (s.TDL_SERVICE_CODE ?? "").ToUpper();
+
+                // 1. Dịch vụ Giường
+                if (s.TDL_SERVICE_TYPE_ID == 8 || sName.Contains("giường"))
+                {
+                    reason = string.Format("Dịch vụ Giường bệnh ({0})", s.TDL_SERVICE_NAME);
+                    return true;
+                }
 
                 // 2. Đồ vải
                 if (sName.Contains("toan") || sName.Contains("áo") || sName.Contains("vải") ||
@@ -3443,6 +3544,14 @@ public class HisClinicalCli
                     sName.Contains("glucose [máu] mao mạch") || sName.Contains("dmmm"))
                 {
                     reason = string.Format("Định lượng Glucose mao mạch tại giường ({0} - {1})", sCode, s.TDL_SERVICE_NAME);
+                    return true;
+                }
+
+                // 4. Thuốc / Dược / Máu / Vật tư
+                if (s.MEDICINE_ID.HasValue || s.MATERIAL_ID.HasValue || s.BLOOD_ID.HasValue ||
+                    s.TDL_SERVICE_TYPE_ID == 6 || s.TDL_SERVICE_TYPE_ID == 7)
+                {
+                    reason = string.Format("Dịch vụ Thuốc / Vật tư / Máu ({0})", s.TDL_SERVICE_NAME);
                     return true;
                 }
             }
@@ -3508,6 +3617,7 @@ public class HisClinicalCli
             sbArgs.Append(EscapeCliArg(tr.TDL_PATIENT_CODE));
             if (dryRun) sbArgs.Append(" --dry-run");
             else sbArgs.Append(" --save");
+            sbArgs.Append(" --force-summary");
             sbArgs.Append(" --doctor 034727");
             if (facility == "NB") sbArgs.Append(" --facility NB");
 
