@@ -1773,7 +1773,8 @@ class HisEmrFiller
         string dir = AppDomain.CurrentDomain.BaseDirectory;
         string emrDir = Path.Combine(dir, "Integrate", "EMR");
         _mdbLib = Assembly.LoadFrom(Path.Combine(emrDir, "MDB.dll"));
-        _emrMainLib = Assembly.LoadFrom(Path.Combine(emrDir, "EMR_MAIN.dll"));
+        _emrMainLib = Assembly.LoadFrom(Path.Combine(emrDir, "EMR_MAIN.Library.dll"));
+        try { Assembly.LoadFrom(Path.Combine(emrDir, "EMR_MAIN.dll")); } catch { }
         try { Assembly.LoadFrom(Path.Combine(emrDir, "Oracle.ManagedDataAccess.dll")); } catch { }
 
         _mdbConnType = _mdbLib.GetType("MDB.MDBConnection");
