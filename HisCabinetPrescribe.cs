@@ -9,6 +9,7 @@ using Inventec.Common.Adapter;
 using Inventec.Common.WebApiClient;
 using Inventec.Token.ClientSystem;
 using HIS.Desktop.LocalStorage.ConfigSystem;
+using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
@@ -22,7 +23,29 @@ public class MyAdapter : AdapterBase
 
     public T PostData<T>(string uri, ApiConsumer consumer, object data, CommonParam param)
     {
-        return Post<T>(uri, consumer, data, param);
+        var ro = PostRO<T>(uri, consumer, data, param);
+        if (ro == null)
+        {
+            Console.WriteLine(string.Format("   [ADAPTER PostRO NULL] {0} -> StatusCode: {1} | ErrorFormat: {2}",
+                uri, this.StatusCode, this.ErrorFormat));
+            return default(T);
+        }
+        if (!ro.Success)
+        {
+            var p = ro.Param ?? param;
+            Console.WriteLine(string.Format("   [ADAPTER PostRO FAIL] {0} -> Success: False | Messages: {1} | BugCodes: {2} | MessageCodes: {3}",
+                uri,
+                string.Join(";", p.Messages ?? new List<string>()),
+                string.Join(";", p.BugCodes ?? new List<string>()),
+                string.Join(";", p.MessageCodes ?? new List<string>())));
+            if (param != null && p != param)
+            {
+                if (p.Messages != null) param.Messages = p.Messages;
+                if (p.BugCodes != null) param.BugCodes = p.BugCodes;
+            }
+            return default(T);
+        }
+        return ro.Data;
     }
 }
 
@@ -61,7 +84,7 @@ public class HisCabinetPrescribe
                     if (long.TryParse(parts[1], out savedTime))
                     {
                         DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        if ((DateTime.Now - savedDt).TotalHours < 24.0 && parts[0].Length == 64)
                         {
                             return parts[0];
                         }
@@ -72,6 +95,7 @@ public class HisCabinetPrescribe
         catch { }
 
         List<string> candidates = new List<string>();
+        candidates.Add(@"D:\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt");
         string preferredDir = @"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB";
         if (Directory.Exists(preferredDir))
         {
@@ -125,19 +149,33 @@ public class HisCabinetPrescribe
         return null;
     }
 
-    public static void UpdateWorkInfo(ApiConsumer consumer, long roomId)
+    public static void UpdateWorkInfo(ApiConsumer consumer, long roomId, bool isNB = false)
     {
         try
         {
-            List<long> roomIds = new List<long> { 931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 5257, 5258, 5259, 18679, 18681 };
+            List<long> roomIds;
+            if (isNB || roomId == 18679 || roomId == 18681 || roomId == 15272 || roomId == 17416 || roomId == 14759 || roomId == 14787)
+            {
+                // Chỉ các phòng thuộc Chi nhánh Ninh Bình (Branch 81)
+                roomIds = new List<long> { 18679, 18681, 15272, 17416, 14759, 14787 };
+            }
+            else
+            {
+                // Chỉ các phòng thuộc Chi nhánh Hà Nội (Branch 1)
+                roomIds = new List<long> { 931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 5257, 5258, 5259 };
+            }
             if (roomId > 0 && !roomIds.Contains(roomId)) roomIds.Add(roomId);
 
             var workInfo = new WorkInfoSDO
             {
-                Rooms = roomIds.Select(r => new RoomSDO { RoomId = r }).ToList()
+                Rooms = roomIds.Distinct().Select(r => new RoomSDO { RoomId = r }).ToList()
             };
             CommonParam cp = new CommonParam();
-            adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", consumer, workInfo, cp);
+            var res = adapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", consumer, workInfo, cp);
+            if (res != null && res.Count > 0)
+            {
+                Console.WriteLine("   ✔ UpdateWorkInfo thành công cho " + res.Count + " phòng (Chi nhánh: " + (isNB ? "Ninh Bình 81" : "Hà Nội 1") + ")");
+            }
         }
         catch { }
     }
@@ -175,18 +213,19 @@ public class HisCabinetPrescribe
         return inPatient;
     }
 
-    public static void GetPatientLocation(ApiConsumer consumer, long treatmentId, out long roomId, out long deptId, out string bedName, out string roomName)
+    public static void GetPatientLocation(ApiConsumer consumer, long treatmentId, out long roomId, out long deptId, out string bedName, out string roomName, V_HIS_TREATMENT tr = null)
     {
-        roomId = 5248; // P716 / P734 CTCH
-        deptId = 57;
+        bool isNB = (tr != null && (tr.BRANCH_ID == 81 || (tr.END_DEPARTMENT_ID.HasValue && tr.END_DEPARTMENT_ID.Value == 915)));
+        roomId = isNB ? 18679 : 5248; // Phòng TT 3E CSNB hoặc P716 / P734 CTCH HN
+        deptId = isNB ? 915 : 57;
         bedName = "Chưa rõ giường";
-        roomName = "Khoa 57";
+        roomName = isNB ? "Khoa Ngoại TH (NB)" : "Khoa 57";
 
         try
         {
-            HisTreatmentBedRoomLViewFilter tbrf = new HisTreatmentBedRoomLViewFilter { TREATMENT_ID = treatmentId, IS_IN_ROOM = true };
+            HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter { TREATMENT_IDs = new List<long> { treatmentId }, IS_IN_ROOM = true };
             CommonParam cp = new CommonParam();
-            var inBedList = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetLView", consumer, tbrf, cp);
+            var inBedList = adapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", consumer, tbrf, cp);
             if (inBedList != null && inBedList.Count > 0)
             {
                 var curBed = inBedList.First();
@@ -195,32 +234,87 @@ public class HisCabinetPrescribe
 
                 HisBedRoomViewFilter brf = new HisBedRoomViewFilter { ID = curBed.BED_ROOM_ID };
                 var brList = adapter.FetchList<V_HIS_BED_ROOM>("api/HisBedRoom/GetView", consumer, brf, cp);
-                if (brList != null && brList.Count > 0 && brList[0].ROOM_ID > 0)
+                if (brList != null && brList.Count > 0)
                 {
                     roomId = brList[0].ROOM_ID;
                     deptId = brList[0].DEPARTMENT_ID;
+                    Console.WriteLine(string.Format("   [DEBUG Location] BedRoom: {0} ({1}) | RoomId: {2} | Dept: {3}", curBed.BED_ROOM_ID, curBed.BED_ROOM_NAME, roomId, deptId));
                 }
+                else
+                {
+                    roomId = curBed.BED_ROOM_ID;
+                }
+                UpdateWorkInfo(consumer, roomId, isNB);
             }
         }
         catch { }
     }
 
-    public static long EnsureTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long deptId, string content, string instruction, ref long instructionTime)
+    public static long EnsureTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long deptId, string content, string instruction, ref long instructionTime, string timeStr = null)
     {
-        long todayStart = long.Parse(DateTime.Today.ToString("yyyyMMdd") + "000000");
+        DateTime targetDt = DateTime.Now;
+        if (!string.IsNullOrEmpty(timeStr) && timeStr.Contains(":"))
+        {
+            try
+            {
+                string[] tp = timeStr.Split(':');
+                targetDt = DateTime.Today.AddHours(int.Parse(tp[0])).AddMinutes(int.Parse(tp[1]));
+                if (targetDt > DateTime.Now)
+                {
+                    targetDt = targetDt.AddDays(-1); // Ca trực đêm / mốc giờ trước đó
+                }
+            }
+            catch { }
+        }
+
+        long dayStart = long.Parse(targetDt.ToString("yyyyMMdd") + "000000");
+        long dayEnd = dayStart + 235959;
+
+        V_HIS_TRACKING baseTrk = null;
         try
         {
             HisTrackingViewFilter tf = new HisTrackingViewFilter { TREATMENT_ID = tr.ID };
             CommonParam cpCheck = new CommonParam();
             var trkList = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", consumer, tf, cpCheck);
-            if (trkList != null)
+            if (trkList != null && trkList.Count > 0)
             {
-                var existing = trkList.Where(x => x.TRACKING_TIME >= todayStart).OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
-                if (existing != null)
+                Console.WriteLine("   [DEBUG TrkList] Total: " + trkList.Count);
+                var todayTrks = trkList.Where(x => x.TRACKING_TIME >= dayStart && x.TRACKING_TIME <= dayEnd).OrderBy(x => x.TRACKING_TIME).ToList();
+                Console.WriteLine("   [DEBUG Today Trks Count]: " + todayTrks.Count);
+                foreach (var t in todayTrks)
                 {
-                    // Lùi thời gian y lệnh thuốc 5 phút sau thời điểm tờ điều trị
+                    Console.WriteLine(string.Format("      -> ID: {0} | Time: {1} | Dept: {2} | Room: {3} | Content: {4}", t.ID, t.TRACKING_TIME, t.DEPARTMENT_ID, t.ROOM_ID, t.CONTENT));
+                }
+
+                // Ưu tiên tờ điều trị trong ngày có độ lệch thời gian <= 1.5 giờ so với targetDt
+                var candidates = todayTrks;
+                V_HIS_TRACKING matched = null;
+                double minDiffHours = double.MaxValue;
+                foreach (var t in candidates)
+                {
+                    string s = t.TRACKING_TIME.ToString();
+                    if (s.Length == 14)
+                    {
+                        int y = int.Parse(s.Substring(0, 4));
+                        int m = int.Parse(s.Substring(4, 2));
+                        int d = int.Parse(s.Substring(6, 2));
+                        int h = int.Parse(s.Substring(8, 2));
+                        int min = int.Parse(s.Substring(10, 2));
+                        int sec = int.Parse(s.Substring(12, 2));
+                        DateTime dt = new DateTime(y, m, d, h, min, sec);
+                        double diff = Math.Abs((dt - targetDt).TotalHours);
+                        if (diff <= 1.5 && diff < minDiffHours)
+                        {
+                            minDiffHours = diff;
+                            matched = t;
+                        }
+                    }
+                }
+
+                if (matched != null)
+                {
                     DateTime tDt = DateTime.Now;
-                    string s = existing.TRACKING_TIME.ToString();
+                    string s = matched.TRACKING_TIME.ToString();
                     if (s.Length == 14)
                     {
                         int y = int.Parse(s.Substring(0, 4));
@@ -232,36 +326,93 @@ public class HisCabinetPrescribe
                         tDt = new DateTime(y, m, d, h, min, sec);
                     }
                     instructionTime = long.Parse(tDt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
-                    return existing.ID;
+                    Console.WriteLine(string.Format("   [DEBUG Matched Trk] Dùng Tracking ID {0} lúc {1} (Y lệnh: {2})", matched.ID, matched.TRACKING_TIME, instructionTime));
+                    return matched.ID;
                 }
+
+                baseTrk = trkList.OrderByDescending(x => x.TRACKING_TIME).First();
             }
         }
         catch { }
 
-        // Tạo mới tờ điều trị
-        long trackTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+        long targetDeptId = (deptId > 0 && deptId != 57) ? deptId : ((baseTrk != null && baseTrk.DEPARTMENT_ID.HasValue && baseTrk.DEPARTMENT_ID.Value > 0) ? baseTrk.DEPARTMENT_ID.Value : (tr.BRANCH_ID == 81 ? 915 : 57));
+        long doctorWorkRoomId = (targetDeptId == 915 || tr.BRANCH_ID == 81) ? 18679 : 5248;
+        long targetTrkRoom = (roomId > 0) ? roomId : doctorWorkRoomId;
+
+        long trackTime = long.Parse(targetDt.ToString("yyyyMMddHHmmss"));
+        Console.WriteLine(string.Format("   [DEBUG EnsureTracking] TrId: {0} | Branch: {1} | Dept: {2} | TrkRoom: {3} | WorkRoom: {4} | Time: {5}",
+            tr.ID, tr.BRANCH_ID, targetDeptId, targetTrkRoom, doctorWorkRoomId, trackTime));
+
         var tracking = new HIS_TRACKING
         {
             TREATMENT_ID = tr.ID,
             TRACKING_TIME = trackTime,
-            ICD_CODE = tr.ICD_CODE,
-            ICD_NAME = tr.ICD_NAME,
+            ICD_CODE = !string.IsNullOrEmpty(tr.ICD_CODE) ? tr.ICD_CODE : "M81.0",
+            ICD_NAME = !string.IsNullOrEmpty(tr.ICD_NAME) ? tr.ICD_NAME : "Loãng xương",
             ICD_SUB_CODE = tr.ICD_SUB_CODE,
             ICD_TEXT = tr.ICD_TEXT,
             CONTENT = !string.IsNullOrEmpty(content) ? content : "Diễn biến bệnh ổn định. Theo dõi và dùng thuốc theo y lệnh.",
             MEDICAL_INSTRUCTION = !string.IsNullOrEmpty(instruction) ? instruction : "Dùng thuốc theo y lệnh tủ trực.",
-            DEPARTMENT_ID = deptId > 0 ? deptId : 57,
-            ROOM_ID = roomId
+            CARE_INSTRUCTION = (baseTrk != null && !string.IsNullOrEmpty(baseTrk.CARE_INSTRUCTION)) ? baseTrk.CARE_INSTRUCTION : "Chăm sóc cấp II. Theo dõi sinh hiệu và đường huyết.",
+            DEPARTMENT_ID = targetDeptId,
+            ROOM_ID = targetTrkRoom
         };
 
-        var sdo = new HisTrackingSDO { Tracking = tracking, WorkingRoomId = roomId };
+        var sdo = new HisTrackingSDO { Tracking = tracking, WorkingRoomId = doctorWorkRoomId, Dhst = null };
         CommonParam cpCreate = new CommonParam();
-        var res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cpCreate);
-        if (res != null && res.ID > 0)
+        var resTrk = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", consumer, sdo, cpCreate);
+        if (resTrk != null && resTrk.Tracking != null && resTrk.Tracking.ID > 0)
         {
-            DateTime dt = DateTime.Now;
-            instructionTime = long.Parse(dt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
-            return res.ID;
+            instructionTime = long.Parse(targetDt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+            Console.WriteLine("   ✔ Tạo tờ điều trị thành công (SDO)! ID = " + resTrk.Tracking.ID);
+            return resTrk.Tracking.ID;
+        }
+
+        // Thử fallback direct HIS_TRACKING
+        cpCreate = new CommonParam();
+        var created = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cpCreate);
+        if (created != null && created.ID > 0)
+        {
+            instructionTime = long.Parse(targetDt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+            Console.WriteLine("   ✔ Tạo tờ điều trị thành công (Direct)! ID = " + created.ID);
+            return created.ID;
+        }
+
+        // Thử fallback cả ROOM_ID và WorkingRoomId = doctorWorkRoomId (18679)
+        sdo.WorkingRoomId = doctorWorkRoomId;
+        sdo.Tracking.ROOM_ID = doctorWorkRoomId;
+        cpCreate = new CommonParam();
+        resTrk = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", consumer, sdo, cpCreate);
+        if (resTrk != null && resTrk.Tracking != null && resTrk.Tracking.ID > 0)
+        {
+            instructionTime = long.Parse(targetDt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+            Console.WriteLine("   ✔ Tạo tờ điều trị thành công (FB doctorRoom SDO)! ID = " + resTrk.Tracking.ID);
+            return resTrk.Tracking.ID;
+        }
+
+        Console.WriteLine(string.Format("   [DEBUG Create Tracking Fail] Messages: {0} | BugCodes: {1} | HasException: {2}",
+            string.Join(";", cpCreate.Messages ?? new List<string>()),
+            string.Join(";", cpCreate.BugCodes ?? new List<string>()),
+            cpCreate.HasException));
+
+        // Fallback 2: Nếu không tạo được mới, dùng tờ điều trị mới nhất của BN và lùi 5p theo tờ đó
+        if (baseTrk != null)
+        {
+            DateTime tDt = DateTime.Now;
+            string s = baseTrk.TRACKING_TIME.ToString();
+            if (s.Length == 14)
+            {
+                int y = int.Parse(s.Substring(0, 4));
+                int m = int.Parse(s.Substring(4, 2));
+                int d = int.Parse(s.Substring(6, 2));
+                int h = int.Parse(s.Substring(8, 2));
+                int min = int.Parse(s.Substring(10, 2));
+                int sec = int.Parse(s.Substring(12, 2));
+                tDt = new DateTime(y, m, d, h, min, sec);
+            }
+            instructionTime = long.Parse(tDt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+            Console.WriteLine(string.Format("   [DEBUG Trk Fallback] Dùng Tracking ID {0} lúc {1} (Y lệnh: {2})", baseTrk.ID, baseTrk.TRACKING_TIME, instructionTime));
+            return baseTrk.ID;
         }
 
         return 0;
@@ -342,11 +493,12 @@ public class HisCabinetPrescribe
         for (int i = 0; i < items.Count; i++)
         {
             var item = items[i];
+            long patTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1L;
             var takeBean = new TakeBeanSDO
             {
                 TypeId = item.Medicine.ID,
                 MediStockId = stockId,
-                PatientTypeId = 42, // Thử viện phí trước
+                PatientTypeId = patTypeId,
                 Amount = item.Amount,
                 ClientSessionKey = sessionKey,
                 ExpiredDate = null
@@ -356,7 +508,7 @@ public class HisCabinetPrescribe
             var beans = adapter.PostData<List<HIS_MEDICINE_BEAN>>("api/HisMedicineBean/Take", consumer, takeBean, cpTake);
             if (beans == null || beans.Count == 0)
             {
-                takeBean.PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1;
+                takeBean.PatientTypeId = (patTypeId == 1L ? 42L : 1L);
                 beans = adapter.PostData<List<HIS_MEDICINE_BEAN>>("api/HisMedicineBean/Take", consumer, takeBean, cpTake);
             }
 
@@ -393,6 +545,10 @@ public class HisCabinetPrescribe
             });
         }
 
+        long reqRoom = roomId > 0 ? roomId : ((stockId == STOCK_TU_TRUC_3E_NB || stockId == STOCK_TU_TRUC_3D_NB || tr.BRANCH_ID == 81 || (tr.END_DEPARTMENT_ID.HasValue && tr.END_DEPARTMENT_ID.Value == 915))
+            ? 18679
+            : 5248);
+
         // BƯỚC 2: TẠO 1 Y LỆNH TỦ TRỰC DUY NHẤT CHỨA TẤT CẢ CÁC THUỐC
         var outPresSDO = new OutPatientPresSDO
         {
@@ -400,17 +556,18 @@ public class HisCabinetPrescribe
             InstructionTime = instructionTime,
             UseTimes = new List<long> { instructionTime },
             TrackingId = trackingId > 0 ? (long?)trackingId : null,
-            RequestRoomId = roomId > 0 ? roomId : 5248,
+            RequestRoomId = reqRoom,
             RequestLoginName = doctorLogin,
             RequestUserName = doctorName,
             IcdCode = tr.ICD_CODE,
             IcdName = tr.ICD_NAME,
-            IcdSubCode = tr.ICD_SUB_CODE,
-            IcdText = tr.ICD_TEXT,
             IsCabinet = true,
             ClientSessionKey = sessionKey,
             Medicines = presMeds
         };
+
+        Console.WriteLine(string.Format("   [DEBUG] ReqRoom: {0} | Stock: {1} | TrkId: {2} | InsTime: {3} | MedBeans: {4}",
+            reqRoom, stockId, trackingId, instructionTime, string.Join(",", presMeds[0].MedicineBeanIds)));
 
         CommonParam cpOut = new CommonParam();
         var outRes = adapter.PostData<OutPatientPresResultSDO>("api/HisServiceReq/OutPatientPresCreateList", consumer, new List<OutPatientPresSDO> { outPresSDO }, cpOut);
@@ -424,9 +581,35 @@ public class HisCabinetPrescribe
             if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode)) return true;
         }
 
-        if (cpOut.Messages != null && cpOut.Messages.Count > 0) error = string.Join("; ", cpOut.Messages);
-        else if (cpOut.BugCodes != null && cpOut.BugCodes.Count > 0) error = string.Join("; ", cpOut.BugCodes);
-        else error = "Tạo y lệnh tủ trực thất bại (API trả về null)";
+        Console.WriteLine(string.Format("   [DEBUG OutPres Result] HasException: {0} | Messages: {1} | BugCodes: {2}",
+            cpOut.HasException,
+            string.Join(";", cpOut.Messages ?? new List<string>()),
+            string.Join(";", cpOut.BugCodes ?? new List<string>())));
+
+        // Thử fallback RequestRoomId = 18679 (Phòng TT Khoa Ngoại TH Ninh Bình)
+        if (outRes == null && reqRoom != 18679 && (stockId == STOCK_TU_TRUC_3E_NB || stockId == STOCK_TU_TRUC_3D_NB || tr.BRANCH_ID == 81))
+        {
+            outPresSDO.RequestRoomId = 18679;
+            cpOut = new CommonParam();
+            outRes = adapter.PostData<OutPatientPresResultSDO>("api/HisServiceReq/OutPatientPresCreateList", consumer, new List<OutPatientPresSDO> { outPresSDO }, cpOut);
+            if (outRes != null)
+            {
+                if (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0)
+                    serviceReqCode = outRes.ServiceReqs[0].SERVICE_REQ_CODE;
+                if (outRes.ExpMests != null && outRes.ExpMests.Count > 0)
+                    expMestCode = outRes.ExpMests[0].EXP_MEST_CODE;
+
+                if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode)) return true;
+            }
+        }
+
+        if (cpOut != null)
+        {
+            if (cpOut.Messages != null && cpOut.Messages.Count > 0) error = string.Join("; ", cpOut.Messages);
+            else if (cpOut.BugCodes != null && cpOut.BugCodes.Count > 0) error = string.Join("; ", cpOut.BugCodes);
+            if (cpOut.HasException) error += " [HasException=True]";
+        }
+        if (string.IsNullOrEmpty(error)) error = "Tạo y lệnh tủ trực thất bại (API trả về null)";
 
         return false;
     }
@@ -448,7 +631,11 @@ public class HisCabinetPrescribe
         out string serviceReqCode,
         out string expMestCode,
         out string error,
-        V_HIS_MEDICINE_TYPE medTypeObj = null)
+        V_HIS_MEDICINE_TYPE medTypeObj = null,
+        string doseMorning = null,
+        string doseNoon = null,
+        string doseAfternoon = null,
+        string doseEvening = null)
     {
         var item = new CabinetPrescribeItem
         {
@@ -456,7 +643,11 @@ public class HisCabinetPrescribe
             Amount = amount,
             Tutorial = tutorial,
             UseFormId = useFormId,
-            IsExpend = isExpend
+            IsExpend = isExpend,
+            Morning = doseMorning,
+            Noon = doseNoon,
+            Afternoon = doseAfternoon,
+            Evening = doseEvening
         };
         return PrescribeCabinetItemList(consumer, tr, roomId, stockId, new List<CabinetPrescribeItem> { item }, trackingId, instructionTime, doctorLogin, doctorName, out serviceReqCode, out expMestCode, out error);
     }
@@ -567,15 +758,16 @@ public class HisCabinetPrescribe
         if (med == null) { Console.WriteLine("❌ Không tìm thấy thuốc trong danh mục: " + medKw); return; }
 
         long insTime = 0;
-        long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Bệnh nhân dùng thuốc tủ trực theo y lệnh.", med.MEDICINE_TYPE_NAME + " x " + amount + " (" + tutorial + ")", ref insTime);
+        long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Bệnh nhân dùng thuốc tủ trực theo y lệnh.", med.MEDICINE_TYPE_NAME + " x " + amount + " (" + tutorial + ")", ref insTime, timeStr);
 
-        if (!string.IsNullOrEmpty(timeStr) && timeStr.Contains(":"))
+        if (insTime == 0 && !string.IsNullOrEmpty(timeStr) && timeStr.Contains(":"))
         {
             try
             {
                 string[] tp = timeStr.Split(':');
                 DateTime dt = DateTime.Today.AddHours(int.Parse(tp[0])).AddMinutes(int.Parse(tp[1]));
-                insTime = long.Parse(dt.ToString("yyyyMMddHHmmss"));
+                if (dt > DateTime.Now) dt = dt.AddDays(-1);
+                insTime = long.Parse(dt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
             }
             catch { }
         }
@@ -701,15 +893,16 @@ public class HisCabinetPrescribe
         }
 
         long insTime = 0;
-        long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Bệnh nhân dùng thuốc điều trị từ tủ trực theo y lệnh.", trackingInstruction.ToString().TrimEnd(), ref insTime);
+        long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Bệnh nhân dùng thuốc điều trị từ tủ trực theo y lệnh.", trackingInstruction.ToString().TrimEnd(), ref insTime, customTimeStr);
 
-        if (!string.IsNullOrEmpty(customTimeStr) && customTimeStr.Contains(":"))
+        if (insTime == 0 && !string.IsNullOrEmpty(customTimeStr) && customTimeStr.Contains(":"))
         {
             try
             {
                 string[] tp = customTimeStr.Split(':');
                 DateTime dt = DateTime.Today.AddHours(int.Parse(tp[0])).AddMinutes(int.Parse(tp[1]));
-                insTime = long.Parse(dt.ToString("yyyyMMddHHmmss"));
+                if (dt > DateTime.Now) dt = dt.AddDays(-1);
+                insTime = long.Parse(dt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
             }
             catch { }
         }
@@ -755,7 +948,7 @@ public class HisCabinetPrescribe
         decimal ui = decimal.Parse(args[2]);
         string typeStr = args[3].ToUpper();
         string timeStr = args.Length > 4 ? args[4] : "21:00";
-        long stockId = args.Length > 5 ? long.Parse(args[5]) : STOCK_TU_TRUC_CTCH_HN;
+        long stockId = args.Length > 5 ? long.Parse(args[5]) : 0;
 
         string medKw = "14956";
         string medDisplay = "Lantus";
@@ -768,6 +961,7 @@ public class HisCabinetPrescribe
         Console.OutputEncoding = Encoding.UTF8;
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode!"); return; }
+        try { ApiConsumers.SetConsunmer(token); } catch { }
 
         ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
         var tr = FindTreatment(consumer, patKey);
@@ -775,17 +969,56 @@ public class HisCabinetPrescribe
 
         long roomId, deptId;
         string bedName, roomName;
-        GetPatientLocation(consumer, tr.ID, out roomId, out deptId, out bedName, out roomName);
-        UpdateWorkInfo(consumer, roomId);
+        GetPatientLocation(consumer, tr.ID, out roomId, out deptId, out bedName, out roomName, tr);
+        bool isNB = (tr.BRANCH_ID == 81 || (tr.END_DEPARTMENT_ID.HasValue && tr.END_DEPARTMENT_ID.Value == 915) || deptId == 915);
+        UpdateWorkInfo(consumer, roomId, isNB);
+
+        if (stockId == 0)
+        {
+            stockId = (tr.BRANCH_ID == 81 || (tr.END_DEPARTMENT_ID.HasValue && tr.END_DEPARTMENT_ID.Value == 915) || deptId == 915)
+                ? STOCK_TU_TRUC_3E_NB
+                : STOCK_TU_TRUC_CTCH_HN;
+        }
 
         var med = FindMedicine(consumer, medKw);
         if (med == null) { Console.WriteLine("❌ Không tìm thấy thuốc Insulin: " + medKw); return; }
 
         long insTime = 0;
-        long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Theo dõi đường huyết và tiêm Insulin", tutorial, ref insTime);
+        long trkId = EnsureTracking(consumer, tr, roomId, deptId, "Theo dõi đường huyết và tiêm Insulin", tutorial, ref insTime, timeStr);
+
+        if (insTime == 0 && !string.IsNullOrEmpty(timeStr) && timeStr.Contains(":"))
+        {
+            try
+            {
+                string[] tp = timeStr.Split(':');
+                DateTime dt = DateTime.Today.AddHours(int.Parse(tp[0])).AddMinutes(int.Parse(tp[1]));
+                if (dt > DateTime.Now) dt = dt.AddDays(-1);
+                insTime = long.Parse(dt.AddMinutes(5).ToString("yyyyMMddHHmmss"));
+            }
+            catch { }
+        }
+
+        string doseMorning = null, doseNoon = null, doseAfternoon = null, doseEvening = null;
+        string doseStr = ((int)ui).ToString();
+        if (timeStr.StartsWith("17") || timeStr.StartsWith("18") || timeStr.StartsWith("19") || timeStr.StartsWith("20") || timeStr.StartsWith("21"))
+        {
+            doseEvening = doseStr;
+        }
+        else if (timeStr.StartsWith("06") || timeStr.StartsWith("07") || timeStr.StartsWith("08"))
+        {
+            doseMorning = doseStr;
+        }
+        else if (timeStr.StartsWith("11") || timeStr.StartsWith("12"))
+        {
+            doseNoon = doseStr;
+        }
+        else
+        {
+            doseEvening = doseStr;
+        }
 
         string sCode, eCode, err;
-        bool ok = PrescribeCabinetItem(consumer, tr, roomId, stockId, med.ID, presAmount, tutorial, 15, false, trkId, insTime, "034727", "Ths.BS NGUYỄN HỮU SÂM", out sCode, out eCode, out err, med);
+        bool ok = PrescribeCabinetItem(consumer, tr, roomId, stockId, med.ID, presAmount, tutorial, 15, false, trkId, insTime, "034727", "Ths.BS NGUYỄN HỮU SÂM", out sCode, out eCode, out err, med, doseMorning, doseNoon, doseAfternoon, doseEvening);
         if (ok)
         {
             Console.WriteLine("===============================================================================");
