@@ -1658,7 +1658,9 @@ public class HisClinicalCli
                 new RoomSDO { RoomId = 5248 },
                 new RoomSDO { RoomId = 5252 },
                 new RoomSDO { RoomId = 5251 },
-                new RoomSDO { RoomId = 5257 }
+                new RoomSDO { RoomId = 5257 },
+                new RoomSDO { RoomId = 18679 },
+                new RoomSDO { RoomId = 18681 }
             };
             var workInfo = new WorkInfoSDO
             {
