@@ -41,6 +41,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
    - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
    - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
    - Ra viện & Thợ làm ra viện (Server độc lập `his-discharge`): `his_discharge_hn`, `his_discharge_nb`, `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien`)*
+   - Tiếp đón & Thợ trực buồng (Server độc lập `his-ward-duty`): `his_ward_duty_hn`, `his_ward_duty_nb`, `his_execute_protocol_ward_duty` *(hoặc `his_tho_truc_buong`)*
 2. **Quyền hạn của Agent - Toàn quyền tinh chỉnh thông số (Parameters/Arguments)**:
    - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
      * *Liều lượng thuốc, cữ tiêm (sáng/trưa/chiều/tối), thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị)*.
@@ -114,6 +115,7 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 🩸 **Chỉ định ĐMMM tại giường (`BM02426` / `NB260620.6231`)** | `his_assign_bedside_glucose` (Server `his-glucose`) | **`HisGlucoseMcpServer.exe`** / `HisGlucoseBedsideAssigner.exe` | `.\HisGlucoseMcpServer.exe assign <MãBN>` | ❌ Không dùng kê thuốc |
 | ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` *(hoặc `his_tho_cho_duong_huyet` qua MCP `his-glucose`)* | **`HisGlucoseMcpServer.exe`** | `.\HisGlucoseMcpServer.exe <MãBN> <DH> <Loại> <UI> <Mốc> [HN\|NB] [--dry-run]` | ❌ Không đổi thứ tự pipeline 3 bước |
 | 🏁 **Đặc quyền 'Thợ làm ra viện' (1-Click)** | `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien` qua MCP `his-discharge`)* | **`HisDischargeMcpServer.exe`** | `.\HisDischargeMcpServer.exe <MãBN> [HN\|NB] [--dry-run]` | ❌ Không nhồi nhét vào `HisClinicalCli.exe` gây quá tải; không bỏ sót 4 nhóm bảo lưu |
+| 🛏️ **Đặc quyền 'Thợ trực buồng' (1-Click)** | `his_execute_protocol_ward_duty` *(hoặc `his_tho_truc_buong` qua MCP `his-ward-duty`)* | **`HisWardDutyMcpServer.exe`** / `HisWardDuty.bat` | `.\HisWardDuty.bat <MãBN> [HN\|NB] [--dry-run]` | ❌ Không gọi script tạm; không bỏ sót rà soát CLS 3 tháng |
 | 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
 | 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
 | 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |
@@ -213,6 +215,26 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
        * Kiểm tra rào chắn: **CHỈ áp dụng cho bệnh nhân điều trị nội trú (`TDL_TREATMENT_TYPE_ID == 3`)**. Nếu là ngoại trú thì bỏ qua bước này.
        * Điền đầy đủ: **Bìa khám ngoại khoa** (Hỏi bệnh & Khám bệnh), **Bìa tóm tắt bệnh án**, và **Bìa tổng kết cuối** của bệnh án ngoại khoa (`BENHANNGOAIKHOA` / EMR_FINAL) với bác sĩ làm bệnh án là `034727` (ThS.BS Nguyễn Hữu Sâm).
   2. **Báo cáo kết quả 3 bước minh bạch:** In bảng kết quả rõ ràng từng bước (Số tờ điều trị bổ sung, số y lệnh chuyển người chỉ định, trạng thái bìa EMR).
+
+## 5.2. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ TRỰC BUỒNG" (WARD DUTY 1-CLICK PROTOCOL)
+* **Máy chủ chuyên trách độc lập:** Được đóng gói trọn vẹn trong MCP Server riêng **`his-ward-duty`** (`HisWardDutyMcpServer.exe`) qua tool **`his_execute_protocol_ward_duty`** (hoặc bí danh **`his_tho_truc_buong`**, **`his_ward_duty_hn`**, **`his_ward_duty_nb`**) hoặc CLI **`.\HisWardDuty.bat <MãBN|TênBN> [HN|NB] [BT01|DD01|TM01] [--dry-run]`**. Tinh giản, độc lập và cách ly 100% để chống phình to codebase.
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ nhắn tin yêu cầu **"thợ trực buồng"** (kèm mã bệnh nhân hoặc tên bệnh nhân mới vào viện), Agent PHẢI tự động nhận diện và kích hoạt ngay combo xử lý tiếp đón 4 bước:
+  1. 📝 **Bước 1 - Rà soát & Điền Vỏ Bệnh Án Ngoại Khoa EMR Nội trú:**
+     * Chỉ áp dụng cho bệnh nhân nội trú (`TDL_TREATMENT_TYPE_ID == 3`), từ chối ngoại trú.
+     * Tự động gọi engine `HisEmrFiller.exe <TDL_PATIENT_CODE> --save` để điền và lưu STB (chống tràn byte ORA-12899, tự động tổng hợp diễn biến, tiền sử, khám bệnh và tóm tắt bệnh án logic).
+  2. 📋 **Bước 2 - Rà soát & Tạo Tờ điều trị đầu tiên tại Khoa tiếp đón:**
+     * Kiểm tra `api/HisTracking/GetView` của Khoa tiếp đón (Khoa 57 ở HN, Khoa 915 ở NB).
+     * Nếu đã có tờ điều trị: Ghi nhận và bỏ qua, chống trùng lặp tờ điều trị.
+     * Nếu chưa có: Tạo tờ điều trị tiếp đón ban đầu với DHST chuẩn (Mạch 78, HA 120/80, T 36.5, NT 18, SpO2 98%), diễn biến tiếp đón, chăm sóc cấp 3 và y lệnh chuẩn bị mổ.
+  3. 🍲 **Bước 3 - Cấp Suất ăn dinh dưỡng 3 bữa ngày vào viện ($D_0$) và ngày kế tiếp ($D_1$) lúc 06:00 sáng:**
+     * Phân loại combo tự động theo ICD: `DD01` (Đái tháo đường), `TM01` (Tim mạch/THA), `BT01` (Ngoại khoa thường quy).
+     * Bắt buộc `PatientTypeId = 42` (Viện phí), `RoomId = 5809` (Nhà ăn).
+     * Giờ y lệnh chuẩn hóa: đúng **06:00:00 sáng** (`InstructionTime = YYYYMMDD060000`).
+     * Kiểm tra `api/HisSereServRation/GetView` để tránh kê trùng cho các ngày đã có suất ăn.
+  4. 🔬 **Bước 4 - Rà soát Cận lâm sàng 3 tháng (90 ngày) & Đề xuất Bilan thiếu:**
+     * Quét toàn bộ dịch vụ CLS của bệnh nhân trong 90 ngày qua từ tất cả các đợt khám/điều trị (`V_HIS_SERE_SERV`).
+     * Đối soát ma trận 8 nhóm Bilan mổ ngoại khoa: (1) CTM, (2) Đông máu, (3) Sinh hóa, (4) Nhóm máu ABO/Rh, (5) Vi sinh HIV/HBsAg/HCV, (6) XQ ngực thẳng, (7) Điện tim ECG, (8) CĐHA chuyên khoa tổn thương.
+     * Xuất bảng đối soát minh bạch các xét nghiệm đã có và đề xuất đích danh các chỉ định còn thiếu kèm **phòng thực hiện tương ứng theo cơ sở** (HN vs NB).
 
 ## 6. QUY TẮC MA TRẬN MÔ HÌNH OPENROUTER: ĐIỀU PHỐI ĐA TẦNG MIỄN PHÍ 100% (MULTI-TIER SMART FALLBACK)
 * **Khóa xác thực**: Tự động nạp từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).

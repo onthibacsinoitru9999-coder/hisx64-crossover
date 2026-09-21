@@ -36,6 +36,7 @@
 37. [Bẫy Lỗi & Quy Chuẩn Đổi Người Chỉ Định Y Lệnh Trắng (Change Order Doctor)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#37-bẫy-lỗi--quy-chuẩn-đổi-người-chỉ-định-y-lệnh-trắng-change-order-doctor)
 38. [Quy Chuẩn Protocol 'Thợ Làm Ra Viện' (1-Click Discharge Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#38-quy-chuẩn-protocol-thợ-làm-ra-viện-1-click-discharge-protocol)
 39. [Kiến Trúc Điều Phối Chuyên Biệt Cơ Sở & Cách Ly Token Tuyệt Đối (`his_hn` & `his_nb`)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#39-kiến-trúc-điều-phối-chuyên-biệt-cơ-sở--cách-ly-token-tuyệt-đối-facility-specialized-routers--token-isolation-his_hn--his_nb)
+40. [Quy Chuẩn Protocol 'Thợ Trực Buồng' (1-Click Ward Duty Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#40-quy-chuẩn-protocol-thợ-trực-buồng-1-click-ward-duty-protocol)
 
 ---
 
@@ -2292,9 +2293,49 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 ### 39.4. Bảng Tổng Hợp Điều Phối Toàn Hệ Thống:
 | Cơ Sở | Cổng MCP Tổng | MCP Đường Huyết | MCP Ra Viện | Token Cache | Tài Khoản Bác Sĩ | Kho Tủ Trực | Dịch Vụ ĐMMM |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 🏥 **Hà Nội** | **`his_hn`** | **`his_glucose_hn`** | **`his_discharge_hn`** | `doctor_hn.token` | `034727` | `810` | `BM02426` (`6217`) |
-| 🏥 **Ninh Bình** | **`his_nb`** | **`his_glucose_nb`** | **`his_discharge_nb`** | `doctor_nb.token` | `034727` | `5142` | `NB260620.6231` (`74281`) |
-| 🌐 **Tự động** | `his_*` (auto) | `his_execute_protocol_glucose` | `his_tho_lam_ra_vien` | Tự động dò theo từ khóa | `034727` (mặc định) | Tự động dò theo khoa | Tự động dò theo mã |
+---
+
+## 40. QUY CHUẨN PROTOCOL 'THỢ TRỰC BUỒNG' (1-CLICK WARD DUTY PROTOCOL)
+
+### 40.1. Bối Cảnh & Mục Tiêu Nghiệp Vụ Lâm Sàng
+Khi tiếp nhận bệnh nhân nhập viện nội trú tại Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 Hà Nội) hoặc Khoa Ngoại tổng hợp Khu 3E (Khoa 915 Ninh Bình), Bác sĩ và Điều dưỡng trực phải hoàn tất liên tiếp 4 nhiệm vụ hành chính - chuyên môn thiết yếu:
+1. **Hoàn thiện vỏ hồ sơ bệnh án ngoại khoa EMR**: Khai thác tiền sử, bệnh sử, khám bệnh, tóm tắt bệnh án logic, chẩn đoán ICD và hướng điều trị, lưu vào cơ sở dữ liệu EMR Oracle (`BENHANNGOAIKHOA` & `THONGTINDIEUTRI`).
+2. **Lập tờ điều trị tiếp đón đầu tiên**: Ghi nhận sinh hiệu DHST, tình trạng tiếp xúc, khám sơ bộ vùng tổn thương, chế độ chăm sóc và y lệnh ban đầu tại buồng bệnh nội trú.
+3. **Cấp suất ăn dinh dưỡng bệnh lý**: Đảm bảo người bệnh có suất ăn 3 bữa (Sáng - Trưa - Chiều) cho ngày vào viện ($D_0$) và ngày hôm sau ($D_1$) với giờ y lệnh chuẩn hóa lúc **06:00 sáng** (`InstructionTime = YYYYMMDD060000`, `PatientTypeId = 42`, `RoomId = 5809`).
+4. **Rà soát Cận lâm sàng 3 tháng (90 ngày) & Đề xuất Bilan mổ thiếu**: Quét toàn bộ dịch vụ CLS đã làm ở phòng khám, cấp cứu hoặc các đợt điều trị trước, đối chiếu ma trận 8 nhóm Bilan phẫu thuật, lập danh mục xét nghiệm đã có và đề xuất đích danh các chỉ định còn thiếu kèm phòng thực hiện tương ứng (HN vs NB).
+
+### 40.2. Kiến Trúc MCP Server Độc Lập `his-ward-duty` (`HisWardDutyMcpServer.exe`)
+Tương tự `his-glucose` và `his-discharge`, module được đóng gói thành MCP Server chuyên trách độc lập nhằm giữ sạch repo và chống phình to codebase:
+- **Tệp nguồn**: `HisWardDutyMcpServer.cs`
+- **Tệp thực thi**: `HisWardDutyMcpServer.exe` (x64, .NET 4.0/4.5)
+- **Wrapper CLI**: `HisWardDuty.bat <MãBN|TênBN> [HN|NB] [BT01|DD01|TM01] [--dry-run]`
+- **MCP Server Name**: `his-ward-duty`
+- **Công cụ MCP**:
+  * `his_ward_duty_hn`: Chuyên biệt Cơ sở Hà Nội (Khoa 57, P734/5248, `doctor_hn.token`).
+  * `his_ward_duty_nb`: Chuyên biệt Cơ sở Ninh Bình (Khoa 915, P3E-05/18679, `doctor_nb.token`).
+  * `his_tho_truc_buong`: Công cụ chính tự động điều hướng cơ sở.
+  * `his_execute_protocol_ward_duty`: Bí danh tương thích ngược.
+
+### 40.3. Chi Tiết 4 Bước Lâm Sàng Khép Kín
+1. **Bước 1 - Vỏ Bệnh Án Ngoại Khoa EMR:**
+   - Kiểm tra điều kiện nội trú: `TDL_TREATMENT_TYPE_ID == 3` (từ chối 100% ngoại trú theo Rule 2 AGENTS.md).
+   - Gọi engine `HisEmrFiller.exe <TDL_PATIENT_CODE> --save` (chống tràn byte ORA-12899 bằng `TruncateBytes(..., 2000)`).
+2. **Bước 2 - Tờ Điều Trị Tiếp Đón Đầu Tiên:**
+   - Tra cứu `api/HisTracking/GetView` cho khoa tiếp đón (`DEPARTMENT_ID == 57` hoặc `915`).
+   - Nếu đã có: Giữ nguyên, không tạo trùng lặp.
+   - Nếu chưa có: Tạo tờ điều trị với DHST chuẩn (Mạch 78, HA 120/80, T 36.5, NT 18, SpO2 98%), diễn biến tiếp đón, chăm sóc cấp 3 và y lệnh chuẩn bị phẫu thuật/điều trị qua `api/HisTracking/Create`.
+3. **Bước 3 - Suất Ăn Dinh Dưỡng D0 & D1 Lúc 06:00 Sáng:**
+   - Tự động nhận diện combo theo ICD: `DD01` (ĐTĐ), `TM01` (Tim mạch/THA), `BT01` (Ngoại khoa thường quy).
+   - Kiểm tra `api/HisSereServRation/GetView` theo ngày (dùng trường `INTRUCTION_TIME`) để chống kê trùng lặp.
+   - Gọi `api/HisServiceReq/RationCreate` cho $D_0$ và $D_1$ lúc **06:00:00 sáng**, `PatientTypeId = 42`, `RoomId = 5809`.
+4. **Bước 4 - Rà Soát CLS 3 Tháng & Đề Xuất Bilan Thiếu:**
+   - Quét tất cả `HIS_TREATMENT` trong 90 ngày của bệnh nhân qua `PATIENT_CODE__EXACT` hoặc `PATIENT_ID`.
+   - Lấy toàn bộ `V_HIS_SERE_SERV` gom theo các ID đợt điều trị.
+   - Phân loại ma trận 8 nhóm Bilan phẫu thuật: (1) CTM, (2) Đông máu, (3) Sinh hóa, (4) Nhóm máu ABO/Rh, (5) Vi sinh HIV/HBsAg/HCV, (6) XQ ngực thẳng, (7) Điện tim ECG, (8) CĐHA chuyên khoa tổn thương.
+   - Xuất bảng đối soát và danh sách đề xuất chỉ định còn thiếu kèm đích danh phòng thực hiện theo cơ sở:
+     * **Ninh Bình**: XN Máu (Tầng 1 Nhà E), X-quang (Nhà E CS2), CT/MRI (Nhà E CS2), Điện tim (TDCN Nhà E CS2).
+     * **Hà Nội**: XN Đông máu (P626 Nhà Q), Sinh hóa/Huyết học (Nhà Q), X-quang/CT/MRI (Trung tâm Điện quang), Điện tim (P734/TDCN).
+
 
 
 
