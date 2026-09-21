@@ -31,8 +31,9 @@
 24. [Quy Chuẩn Tự Động Hóa Tra Cứu & Mở Ảnh PACS / RIS (Web Viewer 1-Click)](#24-quy-chuẩn-tự-động-hóa-tra-cứu--mở-ảnh-pacs--ris-web-viewer-1-click)
 25. [Quy Chuẩn Cốt Lõi: Nguyên Tắc Ponytail (Lazy Senior Dev Mode)](#25-quy-chuẩn-cốt-lõi-nguyên-tắc-ponytail-lazy-senior-dev-mode-toàn-diện-cho-mọi-nhánh)
 26. [Bẫy Lỗi Quét Y Lệnh BN Tuần Tự & Logic Lọc Ngày](#-bẫy-lỗi-26-quét-y-lệnh-32-bn-tuần-tự--chậm-100-giây-sai-logic-ngày)
-27. [Quy Chuẩn Tạo Biên Bản Hội Chẩn Thông Qua Mổ (MS: PT-01) Với Aspose.Words](#27-quy-chuẩn-tạo-biên-bản-hội-chẩn-thông-qua-mổ-ms-pt-01-với-asposewords-hispt01creatorexe)
-28. [Quy Chuẩn HIS UI Wrapper & Action Recorder (Bộ Ghi & Học Thao Tác UI Lâm Sàng)](#28-quy-chuẩn-his-ui-wrapper--action-recorder-bộ-ghi--học-thao-tác-ui-lâm-sàng)
+35. [Quy Chuẩn HIS MCP Server (Bộ Công Cụ 18-in-1)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#35-quy-chuẩn-his-mcp-server-bộ-công-cụ-18-in-1-chuẩn-hóa-giao-thức-json-rpc-20)
+36. [Bẫy Lỗi & Quy Chuẩn Kê Insulin Tủ Trực (Cabinet Insulin Prescribing)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#36-bẫy-lỗi--quy-chuẩn-kê-insulin-tủ-trực-cabinet-insulin-prescribing)
+37. [Bẫy Lỗi & Quy Chuẩn Đổi Người Chỉ Định Y Lệnh Trắng (Change Order Doctor)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#37-bẫy-lỗi--quy-chuẩn-đổi-người-chỉ-định-y-lệnh-trắng-change-order-doctor)
 
 ---
 
@@ -1382,6 +1383,25 @@ if (loginToken != null && !string.IsNullOrEmpty(loginToken.TokenCode))
 * **Endpoint Xóa Văn Bản Ký EMR (nếu có)**: `POST api/EmrDocument/Delete`
   - Host: `http://192.168.7.239:1415/` (`ApiConsumers.EmrConsumer`)
 
+### 21.4. Quy Trình Đổi Tên Người Chỉ Định Y Lệnh Trắng (Update Instruction Doctor - Bypass Khóa Tạm Ứng)
+* **Bối cảnh lâm sàng & Vấn đề thực tế**:
+  - Khi một y lệnh trắng (chưa thực hiện) được chỉ định bởi bác sĩ khác (hoặc kê nhầm người), nhưng bệnh nhân đã nộp tiền tạm ứng viện phí hoặc phát sinh giao dịch tài chính (`HisSereServDeposit`), Backend MOS **chặn đứng 100% thao tác xóa** (`Delete` / `ExamDelete`).
+  - Giải pháp tối ưu: **Đổi người chỉ định** về Bác sĩ phụ trách thực tế.
+* **Cơ chế Kỹ thuật**:
+  - **Endpoint API**: `POST api/HisServiceReq/UpdateCommonInfo`
+  - **Payload DTO**: `MOS.EFMODEL.DataModels.HIS_SERVICE_REQ`
+  - **Mapper chú ý**: `Inventec.Common.Mapper.DataObjectMapper.Map<HIS_SERVICE_REQ>(updateDto, reqSource);` *(Tham số 1 là Destination, tham số 2 là Source)*.
+  - Cập nhật:
+    * `updateDto.REQUEST_LOGINNAME = targetLogin;`
+    * `updateDto.REQUEST_USERNAME = targetUserName;`
+* **Bảo lưu tuyệt đối 4 nhóm y lệnh**:
+  - 🛏️ **Giường** (`SERVICE_REQ_TYPE_ID == 8` hoặc chứa "giường")
+  - 👕 **Đồ vải** (chứa "vải", "toan")
+  - 🩸 **Đường huyết mao mạch** (`BM02426`, `NB260620.6231` hoặc "mao mạch")
+  - 💊 **Đơn điều trị / Đơn thuốc** (`SERVICE_REQ_TYPE_ID == 6, 7` hoặc "đơn thuốc", "đơn điều trị")
+* **Rào chắn Backend**:
+  - Y lệnh chỉ được phép cập nhật khi đợt điều trị còn mở (`IS_PAUSE == 0`, chưa có `OUT_TIME`). Nếu bệnh nhân đã kết thúc điều trị / xuất viện (`IS_PAUSE == 1`), Backend tự động khóa bản ghi.
+
 ---
 
 ## 22. BẪY LỖI XUẤT BIỂU MẪU WORD/DOCX BIÊN BẢN PT-01 (LỖI CORRUPT TRÊN LIBREOFFICE / WORD)
@@ -2086,6 +2106,41 @@ Bác sĩ chỉ cần gửi prompt tự nhiên, ngắn gọn; Agent sẽ tự đ�
 ### 36.2. Quy Chuẩn Công Cụ Điều Phối MCP `his_execute_protocol_glucose`
 * **Vấn đề**: Trước đây `ExecuteProtocolGlucose` trong `HisMcpServer.cs` gọi `HisAutoPrescribe.exe single ... --stock 810 --items ...` (các tham số này không được `HisAutoPrescribe` hỗ trợ).
 * **Khắc phục**: Chuyển sang gọi chuẩn xác công cụ `HisCabinetPrescribe.exe insulin <pCode> <units> <typeStr> <timeStr> <stockId>` để đồng bộ 100% với luồng tủ trực (`TakeBean` -> `OutPatientPresCreateList` -> `IsCabinet = true`).
+
+---
+
+## 37. BẪY LỖI & QUY CHUẨN ĐỔI NGƯỜI CHỈ ĐỊNH Y LỆNH TRẮNG (CHANGE ORDER DOCTOR)
+
+### 37.1. Bẫy Ràng Buộc Tạm Ứng Viện Phí (HisSereServDeposit) & Giải Pháp `UpdateCommonInfo`
+* **Hiện tượng**: Y lệnh chưa thực hiện (màu trắng) do bác sĩ khác chỉ định bị kẹt không thể hủy/xóa qua API `api/HisServiceReq/Delete` hay `api/HisSereServ/ExamDelete`. Backend MOS báo lỗi dịch vụ đã được liên kết với giao dịch tạm ứng viện phí hoặc ký quỹ của bệnh nhân.
+* **Nguyên nhân**: Bệnh nhân nhập viện đã đóng tiền tạm ứng. Khi xóa y lệnh, Backend kích hoạt kiểm tra khóa toàn vẹn tài chính và chặn đứng thao tác xóa để bảo vệ số dư sổ viện phí.
+* **Giải pháp chuẩn hóa**:
+  - Sử dụng API **`POST api/HisServiceReq/UpdateCommonInfo`** thay vì xóa.
+  - API này chỉ cập nhật metadata người chỉ định (`REQUEST_LOGINNAME`, `REQUEST_USERNAME`), hoàn toàn không làm thay đổi chi phí hay liên kết tạm ứng, cho phép chuyển giao y lệnh trắng sang bác sĩ điều trị mới trót lọt 100%.
+
+### 37.2. Cạm Bẫy Thứ Tự Tham Số Của Inventec DataObjectMapper
+* **Bẫy nghiêm trọng**: Trong `Inventec.Common.Mapper.DataObjectMapper.Map<T>(obj1, obj2)`, chữ ký phương thức là:
+  $$\text{Map<T>}(\mathbf{\text{objDestination}}, \mathbf{\text{objSource}})$$
+* Nếu truyền `Map<T>(source, destination)` theo thói quen lập trình thông thường, đối tượng đích sẽ bị gán rỗng (ID = 0) và API backend từ chối với kết quả null / không có thông báo lỗi.
+* **Quy chuẩn đúng**:
+  ```csharp
+  var updateDto = new HIS_SERVICE_REQ();
+  Inventec.Common.Mapper.DataObjectMapper.Map<HIS_SERVICE_REQ>(updateDto, reqSource); // Dest trước, Source sau
+  updateDto.REQUEST_LOGINNAME = targetLogin;
+  updateDto.REQUEST_USERNAME = targetUserName;
+  var res = adapter.PostData<HIS_SERVICE_REQ>("api/HisServiceReq/UpdateCommonInfo", consumer, updateDto, param);
+  ```
+
+### 37.3. Rào Chắn Đợt Điều Trị Đã Đóng (Treatment Locked Guard)
+* **Quy tắc**: Backend MOS chỉ cho phép sửa thông tin y lệnh khi hồ sơ điều trị còn đang mở (`IS_PAUSE == 0`, chưa có `OUT_TIME`).
+* Nếu bệnh nhân đã làm thủ tục ra viện / kết thúc điều trị (`IS_PAUSE == 1`, `TREATMENT_END_TYPE_ID != null`), Backend tự động khóa toàn bộ y lệnh, không cho phép chỉnh sửa người chỉ định. Agent cần kiểm tra và báo cáo rõ trạng thái này cho Bác sĩ.
+
+### 37.4. Bảo Lưu Tuyệt Đối 4 Nhóm Y Lệnh
+Khi quét và đổi người chỉ định hàng loạt, tuyệt đối KHÔNG ĐƯỢC CHẠM VÀO 4 nhóm:
+1. 🛏️ **Y lệnh Giường** (`SERVICE_REQ_TYPE_ID == 8`).
+2. 👕 **Y lệnh Đồ vải** (Toan áo vải gói PT).
+3. 🩸 **Y lệnh Thử đường huyết tại giường** (ĐMMM `BM02426` / `NB260620.6231`).
+4. 💊 **Đơn điều trị / Đơn thuốc** (`SERVICE_REQ_TYPE_ID == 6, 7`).
 
 
 
