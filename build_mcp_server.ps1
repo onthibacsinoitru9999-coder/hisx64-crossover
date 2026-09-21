@@ -55,7 +55,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "Biên dịch thất bại với mã lỗi $LASTEXITCODE"
 }
 
-# 5. Sync to scripts dir
+# 5. Sync to root and scripts dir
+$rootJson = Join-Path $rootDir "Newtonsoft.Json.dll"
+if (-not (Test-Path $rootJson) -and (Test-Path $jsonDll)) {
+    Copy-Item -Force $jsonDll $rootJson
+    Write-Host "Copied Newtonsoft.Json.dll to root" -ForegroundColor Green
+}
 if (Test-Path $scriptsDir) {
     Copy-Item -Force $outExe $outScriptsExe
     Write-Host "Dong bo HisMcpServer.exe -> $outScriptsExe" -ForegroundColor Green

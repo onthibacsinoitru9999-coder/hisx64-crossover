@@ -19,11 +19,36 @@ namespace HisMcp
             Console.InputEncoding = new UTF8Encoding(false);
             Console.OutputEncoding = new UTF8Encoding(false);
 
-            BaseDir = AppDomain.CurrentDomain.BaseDirectory;
+            BaseDir = Environment.GetEnvironmentVariable("HIS_BASE_DIR");
+            if (string.IsNullOrEmpty(BaseDir) || !Directory.Exists(BaseDir))
+            {
+                BaseDir = AppDomain.CurrentDomain.BaseDirectory;
+            }
             if (string.IsNullOrEmpty(BaseDir) || !Directory.Exists(BaseDir))
             {
                 BaseDir = Directory.GetCurrentDirectory();
             }
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
+            {
+                var requestedName = new System.Reflection.AssemblyName(resolveArgs.Name).Name;
+                string[] searchPaths = new string[]
+                {
+                    Path.Combine(BaseDir, requestedName + ".dll"),
+                    Path.Combine(BaseDir, "ReferencedAssemblies", requestedName + ".dll"),
+                    Path.Combine(BaseDir, "Integrate", "EMR", requestedName + ".dll"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, requestedName + ".dll"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReferencedAssemblies", requestedName + ".dll")
+                };
+                foreach (var path in searchPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        try { return System.Reflection.Assembly.LoadFrom(path); } catch { }
+                    }
+                }
+                return null;
+            };
 
             // Test mode: HisMcpServer.exe --test
             if (args.Length > 0 && (args[0] == "--test" || args[0] == "-t"))
