@@ -16,10 +16,11 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
 3. **CẤM** hardcode `TrackingId`.
 4. **CẤM** kê y lệnh tủ trực từ kho `4209` / `4210` (Kho dược). Hà Nội Khoa 57 = **`MediStockId 810`**; Ninh Bình Khu 3E = **`5142`**.
 5. **CẤM** báo thành công khi API trả null / Messages rỗng.
-6. **CẤM XÓA CÁC Y LỆNH BẢO LƯU QUẢN LÝ BUỒNG & THEO DÕI SINH HIỆU**: Tuyệt đối **KHÔNG ĐƯỢC XÓA** 3 nhóm y lệnh sau (dù đang ở trạng thái ⚪ màu trắng):
+6. **CẤM XÓA CÁC Y LỆNH BẢO LƯU QUẢN LÝ BUỒNG, THEO DÕI SINH HIỆU & ĐƠN THUỐC**: Tuyệt đối **KHÔNG ĐƯỢC XÓA** 4 nhóm y lệnh sau (dù đang ở trạng thái ⚪ màu trắng):
    - 🛏️ **Y lệnh Giường** (Tất cả dịch vụ giường Nội khoa, Ngoại khoa, GMHS...).
    - 👕 **Y lệnh Đồ vải** (Toan áo vải, chi phí giảm trừ đồ vải gói PT...).
    - 🩸 **Y lệnh Thử đường huyết tại giường** (ĐMMM, Định lượng Glucose máu mao mạch).
+   - 💊 **Đơn điều trị / Đơn thuốc** (Đơn điều trị nội trú, đơn tủ trực, đơn kho dược... Tuyệt đối không xóa bằng công cụ hủy mẻ).
 
 
 ### BẮT BUỘC: SỬ DỤNG HIS MCP SERVER TRONG MỌI NHIỆM VỤ & /GOAL
@@ -294,13 +295,14 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      ```powershell
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe orders <MãBN|MãĐT|Tên>
      ```
-     - ⚪ **Màu trắng (`SERVICE_REQ_STT_ID == 1`)**: Chưa thực hiện 👉 **Được phép hủy/xóa** (NGOẠI TRỪ 3 loại bảo lưu bên dưới).
+     - ⚪ **Màu trắng (`SERVICE_REQ_STT_ID == 1`)**: Chưa thực hiện 👉 **Được phép hủy/xóa** (NGOẠI TRỪ 4 loại bảo lưu bên dưới).
      - 🟡 **Màu vàng (`SERVICE_REQ_STT_ID == 2`)**: Đang thực hiện / đã tiếp nhận mẫu 👉 **TUYỆT ĐỐI KHÔNG xóa** (phải liên hệ phòng thực hiện hủy tiếp nhận trước).
      - 🟢 **Màu xanh (`SERVICE_REQ_STT_ID == 3`)**: Đã hoàn thành / có kết quả 👉 **TUYỆT ĐỐI KHÔNG xóa**.
-  2. **NGUYÊN TẮC CỨNG - 3 NHÓM Y LỆNH BẢO LƯU TUYỆT ĐỐI KHÔNG ĐƯỢC XÓA**:
+  2. **NGUYÊN TẮC CỨNG - 4 NHÓM Y LỆNH BẢO LƯU TUYỆT ĐỐI KHÔNG ĐƯỢC XÓA**:
      * 🛏️ **Y lệnh Giường**: Dịch vụ giường điều trị nội trú, buồng mổ, GMHS... (Quản lý hồ sơ và thanh toán BHYT buồng bệnh).
      * 👕 **Y lệnh Đồ vải**: Giảm trừ toan áo vải gói phẫu thuật...
      * 🩸 **Y lệnh Thử đường huyết tại giường**: ĐMMM, Định lượng Glucose máu mao mạch.
+     * 💊 **Đơn điều trị / Đơn thuốc**: Đơn điều trị nội trú, đơn tủ trực, đơn kho dược.
   3. **Hủy toàn bộ phiếu y lệnh**:
      ```powershell
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-order <ServiceReqId|ServiceReqCode>
