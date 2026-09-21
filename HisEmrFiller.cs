@@ -941,6 +941,8 @@ class HisEmrFiller
             return string.Format("Đau tức, vướng cộm {0} còn nẹp vít sau mổ kết hợp xương", viTriLoc);
         if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
             return string.Format("Khối u {0}, đau tức nhẹ khi vận động/tì đè", viTriLoc);
+        if (s.Contains("vết thương") || s.Contains("vet thuong"))
+            return string.Format("Vết thương phức tạp, đau chảy máu và hạn chế vận động {0} sau tai nạn lao động", loc);
         if (s.Contains("gãy") || s.Contains("gay"))
             return string.Format("Đau chói, sưng nề, biến dạng, hạn chế vận động {0} sau chấn thương", loc);
         if (s.Contains("acl") || s.Contains("chằng") || s.Contains("chang"))
@@ -1002,6 +1004,16 @@ class HisEmrFiller
                 "Sau chấn thương, khớp sưng nề, đau nhiều và có cảm giác lỏng khớp, đi lại không vững, trẹo gối khi đổi hướng. " +
                 "Bệnh nhân đến khám tại Bệnh viện Bạch Mai, được chỉ định chụp MRI và nhập viện để phẫu thuật nội soi tái tạo dây chằng.",
                 viTri);
+        }
+
+        if (s.Contains("vết thương") || s.Contains("vet thuong"))
+        {
+            string tn = (s.Contains("lao động") || s.Contains("lao dong")) ? "tai nạn lao động" : "tai nạn sinh hoạt";
+            return string.Format(
+                "Bệnh nhân bị {0} trước vào viện, bị tổn thương cơ học trực tiếp vào {1}. " +
+                "Sau tai nạn xuất hiện vết thương phức tạp, đau nhiều, chảy máu, sưng nề và hạn chế vận động. " +
+                "Bệnh nhân được sơ cứu băng ép cầm máu tại chỗ và chuyển ngay đến Bệnh viện Bạch Mai tiếp tục theo dõi và điều trị chuyên khoa.",
+                tn, viTri);
         }
 
         if (s.Contains("gãy") || s.Contains("gay"))
@@ -1129,6 +1141,17 @@ class HisEmrFiller
                 "- Co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế vận động cúi - ngửa - nghiêng cột sống thắt lưng.\n" +
                 "- Nghiệm pháp Lasegue (-), không có dấu hiệu chèn ép rễ thần kinh khu trú.\n" +
                 "- Cơ lực hai chi dưới 5/5, phản xạ gân xương bình thường, cảm giác và phản xạ cơ vòng bảo tồn.",
+                loc);
+        }
+
+        if (s.Contains("vết thương") || s.Contains("vet thuong"))
+        {
+            return string.Format(
+                "Khám chuyên khoa tại {0}:\n" +
+                "- Tổn thương thực thể: Vết thương phức tạp, bờ mép nham nhở dập nát, chảy máu, sưng nề nhiều.\n" +
+                "- Sờ: Ấn đau chói khu trú tại vị trí tổn thương, sưng nề bầm tím, có dấu hiệu lạo xạo xương và cử động bất thường nghi gãy xương kèm theo.\n" +
+                "- Vận động: Hạn chế vận động do đau và tổn thương phần mềm.\n" +
+                "- Thần kinh - Mạch máu: Mạch ngoại vi bắt rõ, cảm giác ngọn chi bảo tồn, tưới máu ngọn chi hồng ấm.",
                 loc);
         }
 
@@ -1314,6 +1337,13 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Hội chứng mất vững khớp {0}: Nghiệm pháp Lachman (+), Ngăn kéo trước (+), Pivot shift (+), sưng nề nhẹ khớp gối, đau khi đổi hướng vận động.", loc));
             sb.AppendLine("- Mạch ngoại vi bắt rõ, cảm giác ngọn chi bình thường, không có dấu hiệu chèn ép mạch máu thần kinh.");
         }
+        else if (s.Contains("vết thương") || s.Contains("vet thuong"))
+        {
+            sb.AppendLine(string.Format("- Triệu chứng tổn thương cơ học: Vết thương phức tạp tại {0}, bờ mép dập nát, chảy máu, sưng nề bầm tím nhiều, hạn chế vận động.", loc));
+            if (s.Contains("gãy") || s.Contains("gay") || s.Contains("đốt"))
+                sb.AppendLine("- Dấu hiệu gãy xương kèm theo: Ấn đau chói cố định, lạo xạo xương và cử động bất thường tại các đốt ngón tổn thương.");
+            sb.AppendLine("- Thần kinh - Mạch máu: Mạch mu chân bắt rõ, tưới máu đầu ngón hồng ấm, không có hội chứng chèn ép khoang.");
+        }
         else if (s.Contains("gãy") || s.Contains("gay") || s.Contains("trật khớp"))
         {
             sb.AppendLine(string.Format("- Dấu hiệu chắc chắn gãy xương: Biến dạng chi điển hình, điểm đau chói cố định, cử động bất thường, tiếng lạo xạo xương tại {0}.", loc));
@@ -1395,12 +1425,16 @@ class HisEmrFiller
             return "Phân biệt xẹp đốt sống cũ, di căn xương, viêm thân đốt sống đĩa đệm.";
         if (s.Contains("acl") || s.Contains("chằng"))
             return "Phân biệt đứt dây chằng chéo sau (PCL), rách sụn chêm đơn thuần, đứt dây chằng bên.";
+        if (s.Contains("vết thương") || s.Contains("vet thuong"))
+            return "Phân biệt vết thương đụng dập phần mềm đơn thuần, vết thương thấu khớp, đứt gân duỗi/gấp các ngón, gãy xương kín.";
         return "Phân biệt các tổn thương phần mềm, chấn thương dây chằng và thoái hóa khớp.";
     }
 
     static string BuildHuongDieuTri(TreatmentInfo ti)
     {
         string s = ti.IcdName.ToLower();
+        if (s.Contains("vết thương") || s.Contains("vet thuong"))
+            return "Xử trí ngoại khoa: Cắt lọc vết thương phức tạp, làm sạch mép tổn thương, khâu phục hồi cân cơ phần mềm và cố định xương gãy (nẹp bột hoặc đinh Kirschner); Tiêm phòng uốn ván (SAT), kháng sinh điều trị, giảm đau, chống phù nề, thay băng chăm sóc vết thương hàng ngày.";
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
             return "Phẫu thuật tạo hình/khâu nối gân Achille (khâu tận - tận hoặc chuyển gân FHL/lật vạt cân Bosworth nếu đứt cũ co rút); Bất động nẹp bột cẳng bàn chân tư thế gấp gối nhẹ, gấp lòng bàn chân; Kháng sinh dự phòng, giảm đau, chống phù nề; Tập phục hồi chức năng sau mổ.";
         if (s.Contains("khoeo") || s.Contains("baker"))
@@ -2843,8 +2877,8 @@ class HisEmrFiller
         string mainPart = icdName.Split('/')[0].Trim();
         string s = mainPart.ToLower();
         string side = "";
-        if (s.Contains("phải") || s.Contains("phai")) side = "phải";
-        else if (s.Contains("trái") || s.Contains("trai")) side = "trái";
+        if (s.Contains("phải") || s.Contains("phai") || s.Contains("(p)") || s.Contains(" p ") || s.EndsWith("(p)") || s.EndsWith(" p")) side = "phải";
+        else if (s.Contains("trái") || s.Contains("trai") || s.Contains("(t)") || s.Contains(" t ") || s.EndsWith("(t)") || s.EndsWith(" t")) side = "trái";
 
         if (s.Contains("achille") || s.Contains("gân gót")) return "gân gót Achille" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("khoeo") || s.Contains("baker")) return "vùng khoeo gối" + (side.Length > 0 ? " " + side : "");
@@ -2863,7 +2897,11 @@ class HisEmrFiller
         if (s.Contains("cánh tay")) return "cánh tay" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("cẳng tay")) return "cẳng tay" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("cẳng chân")) return "cẳng chân" + (side.Length > 0 ? " " + side : "");
+        if (s.Contains("bàn ngón chân") || s.Contains("bàn và ngón chân")) return "bàn ngón chân" + (side.Length > 0 ? " " + side : "");
+        if (s.Contains("ngón chân")) return "ngón chân" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("bàn chân")) return "bàn chân" + (side.Length > 0 ? " " + side : "");
+        if (s.Contains("bàn ngón tay") || s.Contains("bàn và ngón tay")) return "bàn ngón tay" + (side.Length > 0 ? " " + side : "");
+        if (s.Contains("ngón tay")) return "ngón tay" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("bàn tay")) return "bàn tay" + (side.Length > 0 ? " " + side : "");
         return "vùng tổn thương" + (side.Length > 0 ? " " + side : "");
     }
