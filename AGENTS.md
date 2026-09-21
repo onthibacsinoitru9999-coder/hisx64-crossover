@@ -35,7 +35,7 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
    - Hủy y lệnh / Dịch vụ: `his_cancel_order`, `his_cancel_service`
    - Hội chẩn & PT-01: `his_debate_create`, `his_create_pt01`
    - PACS & EMR & Health: `his_view_pacs`, `his_emr_fill`, `his_system_health`
-   - Ra viện & Thợ làm ra viện: `his_execute_protocol_discharge`
+   - Ra viện & Thợ làm ra viện: `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien`)*
 2. **Quyền hạn của Agent - Toàn quyền tinh chỉnh thông số (Parameters/Arguments)**:
    - Agent được **TOÀN QUYỀN** phân tích diễn biến bệnh, đọc bệnh án, đối chiếu cận lâm sàng để linh hoạt điều chỉnh các tham số đầu vào của MCP tools cho phù hợp nhất với từng ca bệnh lâm sàng:
      * *Liều lượng thuốc, cữ tiêm (sáng/trưa/chiều/tối), thời điểm y lệnh (`InstructionTime` lùi +5p sau tờ điều trị)*.
@@ -108,7 +108,7 @@ Mỗi tác vụ lâm sàng được đóng gói chuẩn MCP và CLI độc lập
 | 📝 **Tạo tờ điều trị hàng ngày (DHST + AI)** | `his_create_tracking` | **`HisTrackingCreator.exe`** | `.\HisTrackingCreator.exe` | ❌ Không dùng kê đơn |
 | 🩸 **Chỉ định ĐMMM tại giường (`BM02426`)** | `his_assign_bedside_glucose` | **`HisGlucoseBedsideAssigner.exe`** | `.\HisGlucoseBedsideAssigner.exe` | ❌ Không dùng kê thuốc |
 | ⚡ **Đặc quyền 'Thợ cho đường huyết' (1-Click)** | `his_execute_protocol_glucose` | Pipeline 3 bước | Tự động Tờ ĐT -> CLS -> Thuốc +5p | ❌ Không đổi thứ tự |
-| 🏁 **Đặc quyền 'Thợ làm ra viện' (1-Click)** | `his_execute_protocol_discharge` | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe discharge-protocol <MãBN> [HN\|NB] [--dry-run]` | ❌ Không bỏ sót 4 nhóm bảo lưu |
+| 🏁 **Đặc quyền 'Thợ làm ra viện' (1-Click)** | `his_execute_protocol_discharge` *(hoặc `his_tho_lam_ra_vien`)* | **`HisClinicalCli.exe`** | `.\HisClinicalCli.exe discharge-protocol <MãBN> [HN\|NB] [--dry-run]` | ❌ Không bỏ sót 4 nhóm bảo lưu |
 | 🍲 **Chỉ định Suất ăn dinh dưỡng (`BT01...`)** | `his_assign_ration` | **`HisRationAssigner.exe`** | `.\HisRationAssigner.bat "<Buồng>"` | ❌ Không dùng kê thuốc |
 | 🥛 **Chỉ định Dịch Dinh dưỡng trước mổ (Leanpro)** | `his_assign_leanpro` | **`HisLeanproAssigner.exe`** | `.\HisLeanproAssigner.bat "<MãBN>"` | ❌ Không kê >=70t / ĐTĐ |
 | 👥 **Hội chẩn chuyên khoa & Ký số EMR (Type 17)** | `his_debate_create` | **`HisDebateCreator.exe`** | `.\HisDebateCreator.exe` | ❌ Không dùng đơn lẻ |

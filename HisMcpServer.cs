@@ -372,6 +372,18 @@ namespace HisMcp
                 Arr("patientCode")
             ));
 
+            // 18. his_tho_lam_ra_vien (Bi danh 'Tho lam ra vien')
+            tools.Add(CreateTool(
+                "his_tho_lam_ra_vien",
+                "Dac quyen 'Tho lam ra vien' (1-Click Discharge Protocol): Tu dong thuc thi tuan tu 3 buoc: (1) Ra soat va bo sung To dieu tri SK 3 ngay, 7 ngay, Tong ket ra vien (tinh tu to DT dau tien tai khoa) -> (2) Chuyen toan bo chi dinh trang ve 034727 qua UpdateCommonInfo (Bao luu 4 nhom: Giuong, Do vai, DMMM, Don thuoc) -> (3) Tao bia tom tat benh an, bia tong ket cuoi va bia kham ngoai khoa EMR noi tru",
+                Obj(
+                    "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri"),
+                    "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB'", "enum", Arr("HN", "NB")),
+                    "dryRun", Obj("type", "boolean", "description", "Che do chay thu (mac dinh false - thuc thi that)")
+                ),
+                Arr("patientCode")
+            ));
+
             var res = Obj("tools", tools);
             SendResponse(id, res);
         }
@@ -460,6 +472,8 @@ namespace HisMcp
                         break;
                     case "his_execute_protocol_discharge":
                     case "his_discharge_protocol":
+                    case "his_tho_lam_ra_vien":
+                    case "tho_lam_ra_vien":
                         output = ExecuteProtocolDischarge(args, out isError);
                         break;
                     default:

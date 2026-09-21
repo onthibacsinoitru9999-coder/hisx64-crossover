@@ -2221,7 +2221,7 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
      }
    }
    ```
-   *(Bí danh `his_discharge_protocol` cũng được hỗ trợ tương thích ngược)*
+   *(Bí danh `his_tho_lam_ra_vien` và `his_discharge_protocol` được hỗ trợ tương thích 100%)*
 
 2. **Qua CLI Fallback (`HisClinicalCli.exe`):**
    ```powershell

@@ -3361,7 +3361,7 @@ public class HisClinicalCli
             Console.WriteLine("   Backend MOS có thể khóa không cho phép sửa y lệnh.");
         }
 
-        string targetDoctorName = "Nguyễn Hữu Sâm";
+        string targetDoctorName = "NGUYỄN HỮU SÂM";
         string targetDoctorTitle = "Thạc sỹ y học";
         if (string.Equals(targetDoctorLogin, "vmc", StringComparison.OrdinalIgnoreCase))
         {
@@ -3451,12 +3451,28 @@ public class HisClinicalCli
                         EnsureWorkInfoForRoom(req.REQUEST_ROOM_ID);
                     }
 
-                    var rawFilter = new HisServiceReqFilter { ID = req.ID };
-                    var cpGet = new CommonParam();
-                    var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawFilter, cpGet);
-                    if (rawList != null && rawList.Count > 0)
+                    HIS_SERVICE_REQ rawReq = null;
+                    try
                     {
-                        var rawReq = rawList[0];
+                        var updateDto = new HIS_SERVICE_REQ();
+                        Inventec.Common.Mapper.DataObjectMapper.Map<HIS_SERVICE_REQ>(updateDto, req);
+                        if (updateDto.ID > 0) rawReq = updateDto;
+                    }
+                    catch { }
+
+                    if (rawReq == null)
+                    {
+                        var rawFilter = new HisServiceReqFilter { ID = req.ID };
+                        var cpGet = new CommonParam();
+                        var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawFilter, cpGet);
+                        if (rawList != null && rawList.Count > 0)
+                        {
+                            rawReq = rawList[0];
+                        }
+                    }
+
+                    if (rawReq != null)
+                    {
                         rawReq.REQUEST_LOGINNAME = targetDoctorLogin;
                         rawReq.REQUEST_USERNAME = targetDoctorName;
                         rawReq.REQUEST_USER_TITLE = targetDoctorTitle;
@@ -3476,7 +3492,7 @@ public class HisClinicalCli
                     }
                     else
                     {
-                        Console.WriteLine(string.Format("   ❌ THẤT BẠI: Không thể lấy thông tin chi tiết Y lệnh ID {0} từ API: {1}", req.ID, cpGet.GetMessage()));
+                        Console.WriteLine(string.Format("   ❌ THẤT BẠI: Không thể lấy thông tin chi tiết Y lệnh ID {0} từ API", req.ID));
                         failCount++;
                     }
                 }
@@ -5298,7 +5314,7 @@ public class HisClinicalCli
                 long? docId = args.Length > 2 ? (long?)long.Parse(args[2]) : null;
                 AutoSignEmr(args[1], docId);
             }
-            else if (cmd == "discharge-protocol" || cmd == "discharge" || cmd == "tho-lam-ra-vien")
+            else if (cmd == "discharge-protocol" || cmd == "discharge" || cmd == "tho-lam-ra-vien" || cmd == "tho-ra-vien")
             {
                 RunDischargeProtocol(args);
             }
