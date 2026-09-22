@@ -97,8 +97,6 @@ public class MainForm : Form
     public static MyAdapter myAdapter = new MyAdapter();
     public static CommonParam param;
     public static string currentToken = null;
-    public static string CurrentLoginName = "034727";
-    public static string CurrentUserName = "NGUYỄN HỮU SÂM";
 
     public const long SERVICE_ID_BM02426 = 6217;
     public const string SERVICE_CODE_BM02426 = "BM02426";
@@ -1133,16 +1131,12 @@ public class MainForm : Form
         // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
         try
         {
-            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
+            string envTok = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+            string cacheFile = !string.IsNullOrEmpty(envTok) ? Path.Combine(baseDir, envTok) : Path.Combine(baseDir, "doctor_standalone.token");
             if (!File.Exists(cacheFile))
             {
-                string alt1 = Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token");
-                if (File.Exists(alt1)) cacheFile = alt1;
-                else
-                {
-                    string alt2 = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
-                    if (File.Exists(alt2)) cacheFile = alt2;
-                }
+                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", !string.IsNullOrEmpty(envTok) ? envTok : "doctor_standalone.token");
+                if (File.Exists(alt)) cacheFile = alt;
             }
             if (File.Exists(cacheFile))
             {
@@ -1155,12 +1149,6 @@ public class MainForm : Form
                         DateTime savedDt = new DateTime(savedTime);
                         if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
                         {
-                            if (parts.Length >= 3 && !string.IsNullOrEmpty(parts[2]))
-                            {
-                                CurrentLoginName = parts[2].Trim();
-                                if (CurrentLoginName == "034727") CurrentUserName = "NGUYỄN HỮU SÂM";
-                                else if (CurrentLoginName == "vmc") CurrentUserName = "VŨ MINH CƯỜNG";
-                            }
                             return parts[0];
                         }
                     }
@@ -1213,16 +1201,8 @@ public class MainForm : Form
                         if (chunk.Length >= start + 64)
                         {
                             string tok = chunk.Substring(start, 64);
-                            if (chunk.Contains("034727"))
+                            if (chunk.Contains("034727") || chunk.Contains("vmc"))
                             {
-                                CurrentLoginName = "034727";
-                                CurrentUserName = "NGUYỄN HỮU SÂM";
-                                return tok;
-                            }
-                            else if (chunk.Contains("vmc"))
-                            {
-                                CurrentLoginName = "vmc";
-                                CurrentUserName = "VŨ MINH CƯỜNG";
                                 return tok;
                             }
                         }
@@ -1251,13 +1231,19 @@ public class MainForm : Form
         {
             try
             {
+                string docLogin = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+                if (string.IsNullOrEmpty(docLogin)) docLogin = "034727";
+                string docPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                if (string.IsNullOrEmpty(docPass)) docPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                if (string.IsNullOrEmpty(docPass)) docPass = "981";
+
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
-                if (token == null) token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
+                var token = tokenManager.Login(param, docLogin, docPass, "2.390.0");
+                if (token == null && docLogin != "034727") token = tokenManager.Login(param, "034727", docPass, "2.390.0");
                 if (token != null)
                 {
                     tokenCode = token.TokenCode;
-                    try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8); } catch { }
+                    try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), tokenCode + "|" + DateTime.Now.Ticks + "|" + docLogin, Encoding.UTF8); } catch { }
                 }
             }
             catch { }
@@ -1269,13 +1255,14 @@ public class MainForm : Form
             ApiConsumers.SetConsunmer(currentToken);
             adapter = new BackendAdapter(param);
 
-            // Bind token session to all valid working rooms in Department 57 and Ninh Binh on MOS backend
+            // Bind token session to all valid working rooms in Department 57 and Ninh Binh (915) on MOS backend
             try
             {
                 long[] validRoomIds = new long[] {
                     931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                     5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                    5267, 6622, 6623, 18679, 18681
+                    5267, 6622, 6623,
+                    18679, 18681, 15322, 17416, 17425
                 };
 
                 var workInfo = new WorkInfoSDO
@@ -1563,7 +1550,7 @@ public class MainForm : Form
         {
             targetServiceId = SERVICE_ID_NB_GLUCOSE;
             targetSampleTypeCode = null; // CSNB không bắt buộc mã loại bệnh phẩm BP0042
-            requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 18679;
+            requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : (targetTracking != null && targetTracking.ROOM_ID.HasValue && targetTracking.ROOM_ID.Value > 0 ? targetTracking.ROOM_ID.Value : 17416);
             actualExecuteRoomId = (executeRoomId == 931 || executeRoomId == 5248) ? EXECUTE_ROOM_ID_NB_3E : executeRoomId;
         }
         else
@@ -1592,44 +1579,26 @@ public class MainForm : Form
             }
         }
 
-        // Đảm bảo WorkInfo bao gồm cả phòng yêu cầu và phòng thực hiện
-        try
-        {
-            var wi = new WorkInfoSDO
-            {
-                Rooms = new List<RoomSDO>
-                {
-                    new RoomSDO { RoomId = requestRoomId },
-                    new RoomSDO { RoomId = actualExecuteRoomId },
-                    new RoomSDO { RoomId = 5248 },
-                    new RoomSDO { RoomId = 18679 },
-                    new RoomSDO { RoomId = 18681 }
-                }
-            };
-            if (patient.WorkingRoomId > 0) wi.Rooms.Add(new RoomSDO { RoomId = patient.WorkingRoomId });
-            myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
-        }
-        catch { }
-
         string instructionNote = string.Format("Đo ĐMMM lúc {0}{1}", slotTimeStr, !string.IsNullOrEmpty(note) ? " - " + note : "").Trim();
 
-        string reqDoctorLogin = isNB ? "vmc" : CurrentLoginName;
-        string reqDoctorName = isNB ? "VŨ MINH CƯỜNG" : CurrentUserName;
+        string reqLogin = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+        if (string.IsNullOrEmpty(reqLogin)) reqLogin = "034727";
+        string reqUser = (reqLogin == "034727" ? "NGUYỄN HỮU SÂM" : (reqLogin == "vmc" ? "VŨ MINH CƯỜNG" : reqLogin));
 
         AssignServiceSDO assignSDO = new AssignServiceSDO
         {
             TreatmentId = patient.TreatmentId,
             RequestRoomId = requestRoomId,
-            RequestLoginName = reqDoctorLogin,
-            RequestUserName = reqDoctorName,
-            InstructionTime = instructionTime,
-            InstructionTimes = new List<long> { instructionTime },
-            UseTimes = new List<long> { instructionTime },
-            TrackingId = isNB ? (long?)null : trackingId,
-            TrackingInfos = (!isNB && trackingId > 0) ? new List<TrackingInfoSDO>
+            RequestLoginName = reqLogin,
+            RequestUserName = reqUser,
+            InstructionTime = trackingTime,
+            InstructionTimes = new List<long> { trackingTime },
+            UseTimes = new List<long> { trackingTime },
+            TrackingId = trackingId,
+            TrackingInfos = new List<TrackingInfoSDO>
             {
-                new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = instructionTime }
-            } : null,
+                new TrackingInfoSDO { TrackingId = trackingId, IntructionTime = trackingTime }
+            },
             IcdCode = (targetTracking != null && !string.IsNullOrEmpty(targetTracking.ICD_CODE)) ? targetTracking.ICD_CODE : patient.IcdCode,
             IcdName = (targetTracking != null && !string.IsNullOrEmpty(targetTracking.ICD_NAME)) ? targetTracking.ICD_NAME : patient.IcdName,
             IcdSubCode = (targetTracking != null && !string.IsNullOrEmpty(targetTracking.ICD_SUB_CODE)) ? targetTracking.ICD_SUB_CODE : patient.IcdSubCode,
@@ -1642,21 +1611,20 @@ public class MainForm : Form
                     ServiceId = targetServiceId,
                     Amount = 1.0m,
                     PatientTypeId = patient.PatientTypeId > 0 ? patient.PatientTypeId : 1,
+                    PrimaryPatientTypeId = (patient.PatientTypeId == 1 ? (long?)null : patient.PatientTypeId),
                     RoomId = actualExecuteRoomId,
-                    InstructionNote = instructionNote
+                    SampleTypeCode = targetSampleTypeCode,
+                    InstructionNote = instructionNote,
+                    MultipleExecute = 1,
+                    IsNotUseBhyt = false,
+                    IsNoHeinDifference = false,
+                    EkipInfos = new List<EkipSDO>()
                 }
             }
         };
 
         CommonParam postParam = new CommonParam();
         var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, assignSDO, postParam);
-
-        if ((res == null || res.ServiceReqs == null || res.ServiceReqs.Count == 0) && isNB && requestRoomId != 18679)
-        {
-            assignSDO.RequestRoomId = 18679;
-            postParam = new CommonParam();
-            res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, assignSDO, postParam);
-        }
 
         if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
         {
@@ -1667,19 +1635,11 @@ public class MainForm : Form
             string errMsg = "Hệ thống MOS từ chối tạo chỉ định.";
             if (postParam.Messages != null && postParam.Messages.Count > 0)
             {
-                errMsg += " Msg: " + string.Join("; ", postParam.Messages);
+                errMsg += " " + string.Join("; ", postParam.Messages);
             }
             if (postParam.BugCodes != null && postParam.BugCodes.Count > 0)
             {
                 errMsg += " [Mã lỗi: " + string.Join(", ", postParam.BugCodes) + "]";
-            }
-            if (res != null)
-            {
-                errMsg += " (resNotNull)";
-            }
-            else
-            {
-                errMsg += " (resNull, HasException=" + postParam.HasException + ")";
             }
             throw new Exception(errMsg);
         }

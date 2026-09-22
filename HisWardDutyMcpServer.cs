@@ -595,6 +595,7 @@ namespace HisWardDutyMcp
                 sb.AppendLine("   📝 Chưa có tờ điều trị của khoa tiếp đón. Tiến hành lập Tờ điều trị đầu tiên...");
 
                 long trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+
                 long workingRoomId = (deptId == 915) ? 18679 : 5248;
 
                 // Đảm bảo WorkInfo phòng làm việc được kích hoạt trên Token
@@ -605,6 +606,7 @@ namespace HisWardDutyMcp
                         Rooms = new List<RoomSDO>
                         {
                             new RoomSDO { RoomId = workingRoomId },
+                            new RoomSDO { RoomId = roomId },
                             new RoomSDO { RoomId = 18679 },
                             new RoomSDO { RoomId = 18681 },
                             new RoomSDO { RoomId = 5248 }
@@ -633,7 +635,7 @@ namespace HisWardDutyMcp
                 {
                     sb.AppendLine("   [DRY-RUN]: Sẽ tạo Tờ điều trị đầu tiên với thông số:");
                     sb.AppendLine(string.Format("     • Thời gian y lệnh: {0}", FormatTime(trackingTime)));
-                    sb.AppendLine(string.Format("     • Khoa/Phòng     : Dept {0} / Room {1}", deptId, workingRoomId));
+                    sb.AppendLine(string.Format("     • Khoa/Phòng     : Dept {0} / Room {1}", deptId, roomId));
                     sb.AppendLine("     • Diễn biến       :\n" + IndentLines(content, "       "));
                     sb.AppendLine("     • Chăm sóc        : " + care);
                     sb.AppendLine("     • Y lệnh          : " + med);
@@ -645,7 +647,7 @@ namespace HisWardDutyMcp
                 {
                     TREATMENT_ID = tr.ID,
                     DEPARTMENT_ID = deptId,
-                    ROOM_ID = workingRoomId,
+                    ROOM_ID = roomId,
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
                     CARE_INSTRUCTION = care,
@@ -658,26 +660,30 @@ namespace HisWardDutyMcp
 
                 HisTrackingSDO sdo = new HisTrackingSDO { Tracking = tracking, WorkingRoomId = workingRoomId };
                 CommonParam cp = new CommonParam();
-                var res = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", mosConsumer, sdo, cp);
-                if (res != null && res.Tracking != null && res.Tracking.ID > 0)
+                var res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, cp);
+                if (res == null || res.ID <= 0)
                 {
-                    trackingId = res.Tracking.ID;
-                    sb.AppendLine(string.Format("   ✔ ĐÃ TẠO THÀNH CÔNG TỜ ĐIỀU TRỊ ĐẦU TIÊN (ID: {0} lúc {1})!", res.Tracking.ID, FormatTime(trackingTime)));
-                    return true;
-                }
-                var resRaw = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, cp);
-                if (resRaw != null && resRaw.ID > 0)
-                {
-                    trackingId = resRaw.ID;
-                    sb.AppendLine(string.Format("   ✔ ĐÃ TẠO THÀNH CÔNG TỜ ĐIỀU TRỊ ĐẦU TIÊN (ID: {0} lúc {1})!", resRaw.ID, FormatTime(trackingTime)));
-                    return true;
+                    var resSdo = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", mosConsumer, sdo, cp);
+                    if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                    {
+                        res = resSdo.Tracking;
+                    }
                 }
 
-                string err = (cp.Messages != null && cp.Messages.Count > 0) ? string.Join("; ", cp.Messages) : "Backend trả về null";
-                if (!string.IsNullOrEmpty(cp.GetMessage())) err += " " + cp.GetMessage();
-                if (!string.IsNullOrEmpty(cp.GetBugCode())) err += " (" + cp.GetBugCode() + ")";
-                sb.AppendLine("   ❌ Lỗi tạo tờ điều trị: " + err);
-                return false;
+                if (res != null && res.ID > 0)
+                {
+                    trackingId = res.ID;
+                    sb.AppendLine(string.Format("   ✔ ĐÃ TẠO THÀNH CÔNG TỜ ĐIỀU TRỊ ĐẦU TIÊN (ID: {0} lúc {1})!", res.ID, FormatTime(trackingTime)));
+                    return true;
+                }
+                else
+                {
+                    string err = (cp.Messages != null && cp.Messages.Count > 0) ? string.Join("; ", cp.Messages) : "Backend trả về null";
+                    if (!string.IsNullOrEmpty(cp.GetMessage())) err += " " + cp.GetMessage();
+                    if (!string.IsNullOrEmpty(cp.GetBugCode())) err += " (" + cp.GetBugCode() + ")";
+                    sb.AppendLine("   ❌ Lỗi tạo tờ điều trị: " + err);
+                    return false;
+                }
             }
             catch (Exception ex)
             {

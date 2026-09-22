@@ -340,6 +340,17 @@ namespace HisGlucoseMcp
 
         #region Protocol & Service Implementations
 
+        private static string FormatTimeSlot(string slot)
+        {
+            if (string.IsNullOrEmpty(slot)) return "06:00";
+            string s = slot.Trim().ToLower().Replace("h", "").Replace(":", "");
+            if (s == "17" || s == "1700") return "17:00";
+            if (s == "21" || s == "2100") return "21:00";
+            if (s == "6" || s == "06" || s == "0600") return "06:00";
+            if (s == "11" || s == "1100") return "11:00";
+            return slot.Contains(":") ? slot : slot + ":00";
+        }
+
         private static string ExecuteAssignBedsideGlucose(JObject args, out bool isError)
         {
             string pCodes = args["patientCodes"] != null ? args["patientCodes"].ToString().Trim() : "";
@@ -357,9 +368,9 @@ namespace HisGlucoseMcp
             }
 
             string tool = ResolveToolPath("HisGlucoseBedsideAssigner.exe");
-            string cmdArgs = EscapeArg(pCodes);
-            if (!string.IsNullOrEmpty(facility)) cmdArgs += " --facility " + EscapeArg(facility);
-            if (!string.IsNullOrEmpty(slot)) cmdArgs += " --slot " + EscapeArg(slot);
+            string formattedSlot = FormatTimeSlot(slot);
+            string facArg = string.Equals(facility, "NB", StringComparison.OrdinalIgnoreCase) ? "nb" : "hn";
+            string cmdArgs = string.Format("-p {0} -fac {1} -time {2}", EscapeArg(pCodes), EscapeArg(facArg), EscapeArg(formattedSlot));
 
             return RunProcess(tool, cmdArgs, out isError, facility);
         }
@@ -405,8 +416,8 @@ namespace HisGlucoseMcp
                     pCode, slot, glucose, units, insulinName));
 
                 sb.AppendLine("\n[XEM TRƯỚC BƯỚC 2] Chỉ định ĐMMM tại giường:");
-                sb.AppendLine(string.Format("  HisGlucoseBedsideAssigner.exe {0} --facility {1} --slot {2}",
-                    pCode, facility, slot));
+                sb.AppendLine(string.Format("  HisGlucoseBedsideAssigner.exe -p {0} -fac {1} -time {2}",
+                    pCode, (facility == "NB" ? "nb" : "hn"), FormatTimeSlot(slot)));
 
                 sb.AppendLine("\n[XEM TRƯỚC BƯỚC 3] Kê đơn Insulin tủ trực (+5 phút):");
                 long sId = (facility == "NB") ? 5142 : 810;
@@ -428,14 +439,22 @@ namespace HisGlucoseMcp
 
             bool step1Error;
             string toolTracking = ResolveToolPath("HisTrackingCreator.exe");
-            string res1 = RunProcess(toolTracking, string.Format("{0} --note {1}", EscapeArg(pCode), EscapeArg(note)), out step1Error, facility);
+            string formattedSlot = FormatTimeSlot(slot);
+            string trackingArgs = string.Format("-p {0} -time {1} -content {2} -med {3} -care {4} -u {5}",
+                EscapeArg(pCode), EscapeArg(formattedSlot),
+                EscapeArg("Khám: Đường máu mao mạch lúc " + formattedSlot + ": " + glucose + " mmol/L."),
+                EscapeArg(string.Format("Tiêm dưới da {0} UI {1} lúc {2}.", units, insulinName, formattedSlot)),
+                EscapeArg("Chăm sóc cấp II. Theo dõi đường máu mao mạch."),
+                EscapeArg(docLogin));
+            string res1 = RunProcess(toolTracking, trackingArgs, out step1Error, facility);
             sb.AppendLine(res1);
 
             // BƯỚC 2: Chỉ định CLS DMMM
             sb.AppendLine("\n--- BƯỚC 2: CHỈ ĐỊNH ĐMMM TẠI GIƯỜNG ---");
             bool step2Error;
             string toolGlucose = ResolveToolPath("HisGlucoseBedsideAssigner.exe");
-            string res2 = RunProcess(toolGlucose, string.Format("{0} --facility {1} --slot {2}", EscapeArg(pCode), EscapeArg(facility), EscapeArg(slot)), out step2Error, facility);
+            string facArg = string.Equals(facility, "NB", StringComparison.OrdinalIgnoreCase) ? "nb" : "hn";
+            string res2 = RunProcess(toolGlucose, string.Format("-p {0} -fac {1} -time {2}", EscapeArg(pCode), EscapeArg(facArg), EscapeArg(formattedSlot)), out step2Error, facility);
             sb.AppendLine(res2);
 
             // BƯỚC 3: Kê đơn Insulin tủ trực (810 tại HN / 5142 tại NB) lệch +5 phút

@@ -1,0 +1,619 @@
+﻿[
+    {
+        "MaBN":  "0004009330",
+        "PatientCode":  "VS.0004009330",
+        "StudyCount":  4,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875322334439504",
+                            "Modality":  "CS2-SA-1B113A",
+                            "PacsAE":  "MINERVACS2",
+                            "Date":  "2026-09-05 15:26:37",
+                            "PatientName":  "LÊ THỊ LƠ",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875322334323097",
+                            "Modality":  "CS2-MRI-1B-130",
+                            "PacsAE":  "CS2",
+                            "Date":  "2026-09-05 11:37:39",
+                            "PatientName":  "LÊ THỊ LƠ",
+                            "Description":  "Chụp cộng hưởng từ cột sống thắt lưng - cùng (0.2-1.5T) [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875322331203167",
+                            "Modality":  "CS2: Phòng 1B-140 X QUANG 1",
+                            "PacsAE":  "CS2",
+                            "Date":  "2026-09-05 15:06:47",
+                            "PatientName":  "LÊ THỊ LƠ",
+                            "Description":  "Chụp X-quang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875734048041800",
+                            "Modality":  "CS2: Phòng 1B-140 X QUANG 1",
+                            "PacsAE":  "CS2",
+                            "Date":  "2026-09-08 11:11:39",
+                            "PatientName":  "LÊ THỊ LƠ",
+                            "Description":  "Chụp X-quang cột sống thắt lưng L5-S1 thẳng nghiêng [số hóa 2 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004023255",
+        "PatientCode":  "VS.0004023255",
+        "StudyCount":  3,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875729719763298",
+                            "Modality":  "Siêu âm 321/2-K2",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-09-08 14:55:12",
+                            "PatientName":  "TRẦN VĂN QUÝ",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875831396786649",
+                            "Modality":  "MRI Cấp cứu nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-10 00:45:22",
+                            "PatientName":  "TRẦN VĂN QUÝ",
+                            "Description":  "Chụp cộng hưởng từ cột sống cổ [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875729720277178",
+                            "Modality":  "MRI3-B1.05.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-08 19:14:07",
+                            "PatientName":  "TRẦN VĂN QUÝ",
+                            "Description":  "Chụp cộng hưởng từ não - mạch não không tiêm chất tương phản [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004032593",
+        "PatientCode":  "VS.0004032593",
+        "StudyCount":  3,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875933053338819",
+                            "Modality":  "Siêu Âm 1-DQCC",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-09-10 16:00:59",
+                            "PatientName":  "NGUYỄN NGỌC HIỂN",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875933052524410",
+                            "Modality":  "CT nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-10 16:34:19",
+                            "PatientName":  "NGUYỄN NGỌC HIỂN",
+                            "Description":  "Chụp CLVT sọ não không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875933054027374",
+                            "Modality":  "Xquang Dien Quang CC nha C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-10 15:41:39",
+                            "PatientName":  "NGUYỄN NGỌC HIỂN",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004032715",
+        "PatientCode":  "VS.0004032715",
+        "StudyCount":  2,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875937613620991",
+                            "Modality":  "Siêu Âm 1-DQCC",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-09-10 17:05:23",
+                            "PatientName":  "ĐÀO VĂN MỠI",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875937613807029",
+                            "Modality":  "Xquang Dien Quang CC nha C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-10 17:31:30",
+                            "PatientName":  "ĐÀO VĂN MỠI",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004025259",
+        "PatientCode":  "VS.0004025259",
+        "StudyCount":  3,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875838865830310",
+                            "Modality":  "Siêu âm 321/1-K2",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 15:02:35",
+                            "PatientName":  "NGUYỄN THỊ KHỞI",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875736453341800",
+                            "Modality":  "MRI2-B1.04.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-08 21:22:49",
+                            "PatientName":  "NGUYỄN THỊ KHỞI",
+                            "Description":  "Chụp cộng hưởng từ khớp [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875838868723151",
+                            "Modality":  "Xquang 206-K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 17:30:51",
+                            "PatientName":  "NGUYỄN THỊ KHỞI",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0000747808",
+        "PatientCode":  "VS.0000747808",
+        "StudyCount":  7,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875643492671485",
+                            "Modality":  "Siêu âm B4-P113-K2",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-07 10:58:37",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875724028002583",
+                            "Modality":  "Xquang tầng B1-Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-08 09:16:38",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Chụp Xquang cột sống ngực thẳng nghiêng hoặc chếch [số hóa 2 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875267609625463",
+                            "Modality":  "MRI1-B1.01.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 11:01:03",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Chụp cộng hưởng từ cột sống ngực [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875643492095887",
+                            "Modality":  "Phòng số 4-216 KKB",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-07 11:24:53",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873954053073432",
+                            "Modality":  "CT nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-19 19:41:05",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Chụp cắt lớp vi tính cột sống ngực không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873954052687813",
+                            "Modality":  "Xquang Dien Quang CC nha C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-19 19:32:07",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Chụp X-quang cột sống thắt lưng L5-S1 thẳng nghiêng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875267609369926",
+                            "Modality":  "Xquang208-K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 08:43:59",
+                            "PatientName":  "LÂM VĂN TUYÊN",
+                            "Description":  "Chụp Xquang cột sống ngực thẳng nghiêng hoặc chếch [số hóa 2 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004008351",
+        "PatientCode":  "VS.0004008351",
+        "StudyCount":  4,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875829290737462",
+                            "Modality":  "Siêu âm phòng 1 nhà Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 15:56:54",
+                            "PatientName":  "TRƯƠNG VĂN BÌNH",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875625151848145",
+                            "Modality":  "MRI Cấp cứu nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-07 05:56:34",
+                            "PatientName":  "TRƯƠNG VĂN BÌNH",
+                            "Description":  "Chụp cộng hưởng từ cột sống cổ có tiêm tương phản [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875829291352061",
+                            "Modality":  "Xquang tầng B1-Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 14:29:24",
+                            "PatientName":  "TRƯƠNG VĂN BÌNH",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875358375977394",
+                            "Modality":  "MRI1-B1.01.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-04 11:38:21",
+                            "PatientName":  "TRƯƠNG VĂN BÌNH",
+                            "Description":  "Chụp cộng hưởng từ cột sống cổ [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0003757502",
+        "PatientCode":  "VS.0003757502",
+        "StudyCount":  7,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1873823406931279",
+                            "Modality":  "Siêu âm phòng 104 nhà P",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-08-19 08:45:11",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1874006445371284",
+                            "Modality":  "CT Phòng 101 nhà P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-21 08:10:47",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "Chụp cắt lớp vi tính lồng ngực không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873937745093111",
+                            "Modality":  "CT Phòng 101 nhà P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-20 08:23:39",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "Chụp cắt lớp vi tính cột sống thắt lưng không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875841072481826",
+                            "Modality":  "CT Phòng 101 nhà P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-10 07:47:46",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "Chụp cắt lớp vi tính cột sống thắt lưng không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873456364710299",
+                            "Modality":  "MRI3-B1.05.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-14 11:42:40",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "MRI3-B1.05.K1"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873480522715474",
+                            "Modality":  "MRI3-B1.05.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-14 14:28:14",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "Chụp cộng hưởng từ cột sống thắt lưng – cùng có tiêm tương phản [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873823408199738",
+                            "Modality":  "Xquang 103-P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-19 09:11:17",
+                            "PatientName":  "LÊ QUÝ ĐẶNG",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004029611",
+        "PatientCode":  "VS.0004029611",
+        "StudyCount":  4,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875852795473496",
+                            "Modality":  "Siêu Âm 1-DQCC",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-09-09 18:51:18",
+                            "PatientName":  "NGUYỄN QUANG HƯNG",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875861270263969",
+                            "Modality":  "CT nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 23:01:54",
+                            "PatientName":  "NGUYỄN QUANG HƯNG",
+                            "Description":  "Chụp cắt lớp vi tính cột sống thắt lưng không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875852794675629",
+                            "Modality":  "CT nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 19:25:48",
+                            "PatientName":  "NGUYỄN QUANG HƯNG",
+                            "Description":  "Chụp CLVT sọ não không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875852796377911",
+                            "Modality":  "Xquang Dien Quang CC nha C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 18:36:10",
+                            "PatientName":  "NGUYỄN QUANG HƯNG",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004029076",
+        "PatientCode":  "VS.0004029076",
+        "StudyCount":  2,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875831693181567",
+                            "Modality":  "Siêu Âm 1-DQCC",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-09-09 13:16:40",
+                            "PatientName":  "VŨ VĂN HOAN",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875831693013756",
+                            "Modality":  "Xquang Dien Quang CC nha C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 13:02:57",
+                            "PatientName":  "VŨ VĂN HOAN",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0003975441",
+        "PatientCode":  "VS.0003975441",
+        "StudyCount":  7,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875650148051107",
+                            "Modality":  "Phòng siêu âm 104.2 -P",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-09-08 09:38:00",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1874003478588165",
+                            "Modality":  "Phòng siêu âm 1-113-K2",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-20 10:39:15",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875405345596309",
+                            "Modality":  "MR 1.5 Tesla P.B1-nhà Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-05 10:47:35",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Chụp cộng hưởng từ cột sống thắt lưng – cùng có tiêm tương phản [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1874003475864917",
+                            "Modality":  "Phòng số 4-216 KKB",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-20 09:08:41",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875378483776049",
+                            "Modality":  "Xquang 103-P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-07 08:38:30",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Chụp Xquang cột sống cổ thẳng nghiêng [số hóa 2 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875650148332228",
+                            "Modality":  "Xquang 103-P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-08 08:33:51",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875661650696904",
+                            "Modality":  "Xquang 103-P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-08 08:34:48",
+                            "PatientName":  "CẦM VĂN TÍCH",
+                            "Description":  "Chụp Xquang cột sống thắt lưng thẳng nghiêng [số hóa 2 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004007655",
+        "PatientCode":  "VS.0004007655",
+        "StudyCount":  5,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875276422551040",
+                            "Modality":  "Siêu âm CC A9",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 00:00:00",
+                            "PatientName":  "ĐỖ VĂN SƠN",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875360904331446",
+                            "Modality":  "CT Phòng 101 nhà P",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-04 09:06:22",
+                            "PatientName":  "ĐỖ VĂN SƠN",
+                            "Description":  "Chụp CLVT sọ não không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875274281038743",
+                            "Modality":  "CT nhà C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 10:29:29",
+                            "PatientName":  "ĐỖ VĂN SƠN",
+                            "Description":  "Chụp CLVT sọ não không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875273668120959",
+                            "Modality":  "Xquang Dien Quang CC nha C",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 09:44:42",
+                            "PatientName":  "ĐỖ VĂN SƠN",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875455903154673",
+                            "Modality":  "CT P.111-nhà P",
+                            "PacsAE":  "PACS1",
+                            "Date":  "2026-09-05 11:30:40",
+                            "PatientName":  "ĐỖ VĂN SƠN",
+                            "Description":  "Chụp CLVT sọ não không tiêm thuốc cản quang [đến 32 dãy] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0003914548",
+        "PatientCode":  "VS.0003914548",
+        "StudyCount":  2,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.182512964311779.1872467028993325",
+                            "Modality":  "Siêu âm 321/2-K2",
+                            "PacsAE":  "MINERVA",
+                            "Date":  "2026-08-03 11:22:47",
+                            "PatientName":  "NGUYỄN VĂN ĐỨC",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.182512964311779.1872467031436795",
+                            "Modality":  "Xquang207-K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-03 10:44:00",
+                            "PatientName":  "NGUYỄN VĂN ĐỨC",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0003595506",
+        "PatientCode":  "VS.0003595506",
+        "StudyCount":  8,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.60161617604649.1870791125016064",
+                            "Modality":  "Siêu âm phòng 1 nhà Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-07-16 13:42:11",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.60161617604649.1870793043027314",
+                            "Modality":  "Xquang tầng B1-Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-07-16 09:57:52",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875661073815890",
+                            "Modality":  "Xquang tầng B1-Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-08 08:33:00",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Chụp Xquang ngực nghiêng hoặc chếch mỗi bên [số hóa 1 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.60161617604649.1871203651618916",
+                            "Modality":  "Xquang tầng B1-Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-07-20 13:47:37",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Chụp Xquang xương cổ chân thẳng, nghiêng hoặc chếch [số hóa 2 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875808998342895",
+                            "Modality":  "Xquang tầng B1-Q",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-09 15:01:58",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Chụp Xquang khớp gối thẳng, nghiêng hoặc chếch [số hóa 2 phim] [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875275771356649",
+                            "Modality":  "MRI1-B1.01.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 16:24:44",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Chụp cộng hưởng từ khớp [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873464813511765",
+                            "Modality":  "Phòng siêu âm 222 - K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-14 13:26:12",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Siêu âm phần mềm (da, tổ chức dưới da, cơ….)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1873464814264975",
+                            "Modality":  "Xquang208-K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-08-14 14:21:39",
+                            "PatientName":  "PHẠM THỊNH NUÔI",
+                            "Description":  "Chụp Xquang khớp gối thẳng, nghiêng hoặc chếch [số hóa 2 phim] [Không in phim]"
+                        }
+                    ]
+    },
+    {
+        "MaBN":  "0004007274",
+        "PatientCode":  "VS.0004007274",
+        "StudyCount":  3,
+        "Studies":  [
+                        {
+                            "StudyIUID":  "123.149807022125412.1875385332693051",
+                            "Modality":  "Siêu âm B6-P113-K2",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-04 15:12:10",
+                            "PatientName":  "ĐẶNG XUÂN TẤN",
+                            "Description":  "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875270361539017",
+                            "Modality":  "MRI2-B1.04.K1",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-03 12:34:49",
+                            "PatientName":  "ĐẶNG XUÂN TẤN",
+                            "Description":  "Chụp cộng hưởng từ khớp [Không in phim]"
+                        },
+                        {
+                            "StudyIUID":  "123.149807022125412.1875385326023329",
+                            "Modality":  "Phòng số 4-216 KKB",
+                            "PacsAE":  "VRPACS",
+                            "Date":  "2026-09-04 15:25:59",
+                            "PatientName":  "ĐẶNG XUÂN TẤN",
+                            "Description":  "Chụp Xquang ngực thẳng [số hóa 1 phim] [Không in phim]"
+                        }
+                    ]
+    }
+]

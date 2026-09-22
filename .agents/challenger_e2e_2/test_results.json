@@ -1,0 +1,191 @@
+{
+  "verdict": "APPROVE",
+  "total": 26,
+  "passed": 25,
+  "failed": 0,
+  "warnings": 1,
+  "results": [
+    {
+      "category": "Zero-Dependency-Static",
+      "test_name": "External URL Scan",
+      "status": "PASS",
+      "details": "Zero external script/style/font/image URLs found in index.html. All styles and scripts are 100% inline.",
+      "evidence": "Scanned 29720 characters, 0 external URLs."
+    },
+    {
+      "category": "Zero-Dependency-Static",
+      "test_name": "Script Tag Audit",
+      "status": "PASS",
+      "details": "Zero external <script src=...> tags found. All JS logic is inline.",
+      "evidence": "0 external scripts"
+    },
+    {
+      "category": "Zero-Dependency-Static",
+      "test_name": "Stylesheet Link Audit",
+      "status": "PASS",
+      "details": "Zero external <link rel='stylesheet'> tags found. CSS is 100% inline.",
+      "evidence": "0 external CSS links"
+    },
+    {
+      "category": "Zero-Dependency-Static",
+      "test_name": "Font Import Audit",
+      "status": "PASS",
+      "details": "Zero CSS @import rules found. Standard system fonts used.",
+      "evidence": "0 @import rules"
+    },
+    {
+      "category": "Zero-Dependency-Dynamic",
+      "test_name": "Dynamic Network Request Interception",
+      "status": "PASS",
+      "details": "Verified: index.html made 0 external network requests. All asset requests were strictly local.",
+      "evidence": "Total server requests received: 4"
+    },
+    {
+      "category": "Zero-Dependency-Dynamic",
+      "test_name": "Offline DOM Integrity",
+      "status": "PASS",
+      "details": "Viewer UI elements (brand, toolbar, dropzone, HUD) rendered completely without external dependencies.",
+      "evidence": "Rendered DOM size: 29766 chars"
+    },
+    {
+      "category": "TTL-Expiration",
+      "test_name": "Expired Timestamp Block",
+      "status": "PASS",
+      "details": "Passing past timestamp (exp=1789048333) immediately displayed expired banner in dropzone and BLOCKED manifest.json fetch.",
+      "evidence": "Banner active: True, Manifest fetched: False"
+    },
+    {
+      "category": "TTL-Expiration",
+      "test_name": "Future Timestamp Permitted",
+      "status": "PASS",
+      "details": "Passing future timestamp (exp=1789138333) allowed viewing and successfully fetched manifest.json.",
+      "evidence": "Banner active: False, Manifest fetched: True"
+    },
+    {
+      "category": "TTL-Expiration",
+      "test_name": "Malformed TTL Param (exp=abc)",
+      "status": "PASS",
+      "details": "Correct behavior: blocked=False (expected=False)",
+      "evidence": "exp=abc"
+    },
+    {
+      "category": "TTL-Expiration",
+      "test_name": "Malformed TTL Param (exp=NaN)",
+      "status": "PASS",
+      "details": "Correct behavior: blocked=False (expected=False)",
+      "evidence": "exp=NaN"
+    },
+    {
+      "category": "TTL-Expiration",
+      "test_name": "Malformed TTL Param (exp=-100)",
+      "status": "PASS",
+      "details": "Correct behavior: blocked=True (expected=True)",
+      "evidence": "exp=-100"
+    },
+    {
+      "category": "TTL-Expiration",
+      "test_name": "Malformed TTL Param (exp=0)",
+      "status": "PASS",
+      "details": "Correct behavior: blocked=True (expected=True)",
+      "evidence": "exp=0"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Standard 16-bit Unsigned (Uint16Array)",
+      "status": "PASS",
+      "details": "Successfully parsed standard PS 3.10: 64x64, Modality=CT, Bits=16, Array=Uint16Array, Pixels=4096",
+      "evidence": "{\"success\": true, \"rows\": 64, \"cols\": 64, \"bitsAllocated\": 16, \"modality\": \"CT\", \"patientName\": \"NGUYEN VAN TEST\", \"pixelDataOffset\": 312, \"pixelDataLength\": 8192, \"pixelArrayType\": \"Uint16Array\", \"pixelCount\": 4096}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Standard 16-bit Signed (Int16Array)",
+      "status": "PASS",
+      "details": "Correctly recognized pixelRepresentation=1 as Int16Array for signed CT Hounsfield Units.",
+      "evidence": "{\"success\": true, \"rows\": 64, \"cols\": 64, \"bitsAllocated\": 16, \"modality\": \"CT\", \"patientName\": \"NGUYEN VAN TEST\", \"pixelDataOffset\": 312, \"pixelDataLength\": 8192, \"pixelArrayType\": \"Int16Array\", \"pixelCount\": 4096}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Standard 8-bit Unsigned (Uint8Array)",
+      "status": "PASS",
+      "details": "Correctly recognized bitsAllocated=8 as Uint8Array.",
+      "evidence": "{\"success\": true, \"rows\": 64, \"cols\": 64, \"bitsAllocated\": 8, \"modality\": \"CT\", \"patientName\": \"NGUYEN VAN TEST\", \"pixelDataOffset\": 312, \"pixelDataLength\": 4096, \"pixelArrayType\": \"Uint8Array\", \"pixelCount\": 4096}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Adversarial 0-byte Buffer Guard",
+      "status": "PASS",
+      "details": "Properly rejected 0-byte buffer with explicit error: File quá ngắn, không phải DICOM",
+      "evidence": "{\"success\": false, \"error\": \"File qu\\u00e1 ng\\u1eafn, kh\\u00f4ng ph\\u1ea3i DICOM\"}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Adversarial Short Buffer Guard",
+      "status": "PASS",
+      "details": "Properly rejected 50-byte buffer: File quá ngắn, không phải DICOM",
+      "evidence": "{\"success\": false, \"error\": \"File qu\\u00e1 ng\\u1eafn, kh\\u00f4ng ph\\u1ea3i DICOM\"}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Adversarial Non-DICM Header Guard",
+      "status": "PASS",
+      "details": "Properly rejected buffer without 'DICM' magic: Không tìm thấy header DICM",
+      "evidence": "{\"success\": false, \"error\": \"Kh\\u00f4ng t\\u00ecm th\\u1ea5y header DICM\"}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Adversarial Foreign File Type Guard",
+      "status": "PASS",
+      "details": "Properly rejected PNG file masquerading as DICOM: Không tìm thấy header DICM",
+      "evidence": "{\"success\": false, \"error\": \"Kh\\u00f4ng t\\u00ecm th\\u1ea5y header DICM\"}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Adversarial Truncated File Handling",
+      "status": "PASS",
+      "details": "Truncated header success=False (err=Invalid typed array length: 16); Truncated pixel success=False (err=Invalid typed array length: 4096)",
+      "evidence": "{\"c8\": {\"success\": false, \"error\": \"Invalid typed array length: 16\"}, \"c9\": {\"success\": false, \"error\": \"Invalid typed array length: 4096\"}}"
+    },
+    {
+      "category": "DICOM-Parsing",
+      "test_name": "Adversarial Unaligned 16-bit Offset Handling",
+      "status": "WARN",
+      "details": "Unaligned offset behavior: success=True",
+      "evidence": "{\"success\": true, \"rows\": 64, \"cols\": 64, \"bitsAllocated\": 16, \"modality\": \"CT\", \"patientName\": \"NGUYEN VAN TEST\", \"pixelDataOffset\": 306, \"pixelDataLength\": 8192, \"pixelArrayType\": \"Uint16Array\", \"pixelCount\": 4096}"
+    },
+    {
+      "category": "Manifest-and-Dropzone",
+      "test_name": "file:// Protocol Dropzone Fallback",
+      "status": "PASS",
+      "details": "Under file:// protocol, fetch error is gracefully caught, dropzone remains visible and interactive.",
+      "evidence": "Dropzone classes: ''"
+    },
+    {
+      "category": "Manifest-and-Dropzone",
+      "test_name": "HTTP 404 Missing Manifest Fallback",
+      "status": "PASS",
+      "details": "When manifest.json returns 404, viewer gracefully keeps dropzone active for manual file selection.",
+      "evidence": "Dropzone classes: ''"
+    },
+    {
+      "category": "Manifest-and-Dropzone",
+      "test_name": "HTTP Valid Manifest Auto-Load",
+      "status": "PASS",
+      "details": "With valid manifest and slice, dropzone is hidden, slice is decoded, and HUD metadata (Patient Name, ID) is populated.",
+      "evidence": "HUD populated: True, Dropzone hidden: True"
+    },
+    {
+      "category": "Embedded-Resource",
+      "test_name": "Assembly Manifest Resource Integrity",
+      "status": "PASS",
+      "details": "Embedded resource 'HisPacsUploader.ViewerAssets.index.html' verified (29727 bytes) matching viewer template (29727 bytes).",
+      "evidence": "RESOURCE_FOUND|HisPacsUploader.ViewerAssets.index.html|29727|29727"
+    },
+    {
+      "category": "Embedded-Resource",
+      "test_name": "ViewerPackager.PackageViewer Execution",
+      "status": "PASS",
+      "details": "ViewerPackager successfully generated full index.html (30089 bytes) and manifest.json from embedded assets.",
+      "evidence": "PACKAGER_EXECUTION|True|True|30089"
+    }
+  ]
+}
