@@ -305,26 +305,45 @@ class HisPt01ApiUploader
         patName = patientCode;
         try
         {
-            var mosConsumer = GetMosConsumer();
-            var filter = new MOS.Filter.HisTreatmentViewFilter();
-            filter.KEY_WORD = patientCode;
+            patientCode = patientCode.PadLeft(10, '0');
+            Console.WriteLine(string.Format("   [*] Đang tìm TreatmentId cho mã BN {0} trên MOS ({1})...", patientCode, mosBase));
 
-            Console.WriteLine(string.Format("   [*] Đang tìm TreatmentId cho mã {0} trên MOS...", patientCode));
-            var list = adapter.FetchList<MOS.EFMODEL.DataModels.V_HIS_TREATMENT>(
-                "api/HisTreatment/GetView", mosConsumer, filter, param);
+            string json = string.Format("{{\"CommonParam\":{{}},\"ApiData\":{{\"PATIENT_CODE__EXACT\":\"{0}\"}}}}", patientCode);
+            string base64Json = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+            string url = mosBase + "api/HisTreatment/GetView?param=" + Uri.EscapeDataString(base64Json);
 
-            if (list != null && list.Count > 0)
+            var req = (HttpWebRequest)WebRequest.Create(url);
+            req.Method = "GET";
+            req.Headers["Authorization"] = "Bearer " + token;
+            req.Timeout = 10000;
+
+            using (var res = (HttpWebResponse)req.GetResponse())
+            using (var sr = new StreamReader(res.GetResponseStream()))
             {
-                var current = list.Where(x => x.IS_PAUSE != 1).LastOrDefault() ?? list.LastOrDefault();
-                if (current != null)
+                string respText = sr.ReadToEnd();
+                // We just need the ID from the first object in Data array, and TDL_PATIENT_NAME.
+                // It looks like: "Data":[{"ID":3857786,"TDL_PATIENT_NAME":"ZHANG JIE",...
+                var idMatch = Regex.Match(respText, @"\""ID\""\s*:\s*(\d+)");
+                var nameMatch = Regex.Match(respText, @"\""TDL_PATIENT_NAME\""\s*:\s*\""([^\""]+)\""");
+                
+                if (idMatch.Success)
                 {
-                    patName = current.TDL_PATIENT_NAME ?? patientCode;
-                    return current.ID;
+                    if (nameMatch.Success) patName = nameMatch.Groups[1].Value;
+                    return long.Parse(idMatch.Groups[1].Value);
+                }
+                else
+                {
+                    Console.WriteLine("   [!] Không tìm thấy Treatment ID trong JSON phản hồi.");
                 }
             }
-            else
+        }
+        catch (WebException wex)
+        {
+            Console.WriteLine("   [!] WebException trong GetTreatmentId: " + wex.Message);
+            if (wex.Response != null)
             {
-                Console.WriteLine("   [!] FetchList trả về null hoặc rỗng.");
+                using (var sr = new StreamReader(wex.Response.GetResponseStream()))
+                    Console.WriteLine("   [!] Chi tiết: " + sr.ReadToEnd());
             }
         }
         catch (Exception ex)
@@ -350,6 +369,13 @@ class HisPt01ApiUploader
                     {
                         if (lines[i].Contains("TokenCode|"))
                         {
+                            // Extract MosBaseUri
+                            var mosMatch = Regex.Match(lines[i], @"MosBaseUri\|([^|]+)");
+                            if (mosMatch.Success)
+                            {
+                                mosBase = mosMatch.Groups[1].Value;
+                            }
+
                             int idx = lines[i].IndexOf("TokenCode|") + 10;
                             if (lines[i].Length >= idx + 64)
                                 return lines[i].Substring(idx, 64);
