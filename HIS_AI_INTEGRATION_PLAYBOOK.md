@@ -38,6 +38,7 @@
 39. [Kiến Trúc Điều Phối Chuyên Biệt Cơ Sở & Cách Ly Token Tuyệt Đối (`his_hn` & `his_nb`)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#39-kiến-trúc-điều-phối-chuyên-biệt-cơ-sở--cách-ly-token-tuyệt-đối-facility-specialized-routers--token-isolation-his_hn--his_nb)
 40. [Quy Chuẩn Protocol 'Thợ Trực Buồng' (1-Click Ward Duty Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#40-quy-chuẩn-protocol-thợ-trực-buồng-1-click-ward-duty-protocol)
 41. [Quy Trình Đăng Ký Bệnh Nhân Mổ Cấp Cứu Phân Luồng Cơ Sở (Emergency Surgery Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#41-quy-trình-đăng-ký-bệnh-nhân-mổ-cấp-cứu-google-forms-phân-luồng-cơ-sở-emergency-surgery-protocol)
+42. [Quy Chuẩn Ứng Dụng CLI Độc Lập 'Thợ Cho Đường Huyết' (HisThoDuongHuyet.exe)](#42-quy-chuẩn-ứng-dụng-cli-độc-lập-thợ-cho-đường-huyết-histhoduonghuyetexe)
 
 ---
 
@@ -2312,3 +2313,34 @@ Tương tự `his-glucose` và `his-discharge`, module được đóng gói thà
     }
   }
   ```
+
+---
+
+## 42. QUY CHUẨN ỨNG DỤNG CLI ĐỘC LẬP 'THỢ CHO ĐƯỜNG HUYẾT' (HISTHODUONGHUYET.EXE)
+
+### 42.1. Bối cảnh & Mục đích
+- Đóng gói toàn bộ luồng nghiệp vụ 'Thợ cho đường huyết' (Diabetes 1-Click Protocol) thành một ứng dụng Windows CLI độc lập (`HisThoDuongHuyet.exe` và companion wrapper `HisThoDuongHuyet.bat`), không phụ thuộc vào giao diện đồ họa HIS hay phiên đăng nhập trình duyệt.
+- Tự động thực thi trọn vẹn chu trình 5 tầng trong 1 câu lệnh duy nhất:
+  1. **Xác thực ACS Auth**: Đăng nhập trực tiếp tới `http://192.168.7.200:1401/` với tài khoản bác sĩ (`034727` / `981`) cấp `TokenCode`.
+  2. **Kích hoạt WorkInfo**: Tự động kích hoạt danh sách phòng làm việc (83 phòng cơ sở Ninh Bình hoặc 5 phòng Hà Nội) qua `api/Token/UpdateWorkInfo`.
+  3. **Tra cứu Bệnh nhân & Buồng Giường**: Tự động chuẩn hóa mã BN 10 chữ số (`PadLeft(10, '0')`), tìm hồ sơ đợt điều trị nội trú còn hiệu lực.
+  4. **Bước 1 - Chỉ định ĐMMM tại giường**: Gọi `api/HisServiceReq/BedsideAssign` (CS2: `NB260620.6231` / CS1: `BM02426`).
+  5. **Bước 2 - Tạo Tờ điều trị**: Gọi `api/HisTreatmentTracking/Create` ghi nhận chỉ số ĐMMM và y lệnh chăm sóc/tiêm insulin.
+  6. **Bước 3 - Kê đơn Insulin tủ trực**: Khởi tạo phiên xuất tủ trực (`TakeBeanSDO`) với mốc giờ $T+5\text{ phút}$, tạo đơn thuốc qua `api/HisExpMest/OutPatientPresCreateList` từ tủ trực (`5142`/`5141` CS2, `810` CS1).
+
+### 42.2. Ma trận Cú pháp & Tùy chọn dòng lệnh
+| Cú pháp thực thi | Lệnh Mẫu Chuẩn | Tình huống sử dụng |
+| :--- | :--- | :--- |
+| **CSV Shorthand 1 dòng** | `.\HisThoDuongHuyet.bat "cs2, 034727, 981, 00376258, 17h, 14.3, 10R"` | Bác sĩ gõ nhanh 1 câu lệnh đơn giản |
+| **Không cần dấu ngoặc kép** | `.\HisThoDuongHuyet.bat cs2, 034727, 981, 00376258, 17h, 14.3, 10R` | Hỗ trợ PowerShell tự normalize mã BS `34727` -> `034727` |
+| **Named Flags chi tiết** | `.\HisThoDuongHuyet.bat -fac cs2 -u 034727 -pass 981 -p 00376258 -time 17h -glucose 14.3 -insulin 10R` | Tích hợp vào script tự động hóa / backend |
+| **File Batch hàng loạt** | `.\HisThoDuongHuyet.bat -f danh_sach_don.txt` | Xử lý cả khoa vào các mốc 17h, 21h, 06h |
+| **Chế độ Tương tác (REPL)** | `.\HisThoDuongHuyet.bat` | Mở prompt tương tác `[ĐH-PROMPT] >` nhập từng ca |
+| **Mô phỏng an toàn (Dry Run)** | Thêm cờ `--dry-run` hoặc `-n` vào cuối lệnh | Kiểm tra đối soát hồ sơ, buồng giường mà không gửi dữ liệu thật |
+
+### 42.3. Quy tắc Kỹ thuật & Lâm sàng Bắt buộc trong Tool
+- **Quy chuẩn tỷ lệ quy đổi Insulin**: `Amount = UI / 1000.0m` (VD: `10 UI` -> `0.0100 lọ`), `MedicineUseFormId = 15` (Tiêm), `IsExpend = false`.
+- **Độ lệch thời gian y lệnh**: Thời gian y lệnh kê đơn tiêm Insulin luôn được cộng thêm 5 phút so với mốc đo đường huyết ($T_{Pres} = T_{ĐMMM} + 5\text{ phút}$).
+- **Mốc 06:00 sáng**: Tự động chuyển ngày y lệnh sang sáng hôm sau nếu ca trực thực hiện từ chiều/tối hôm trước.
+- **In đậm `ServiceReqCode`**: Kết quả báo cáo luôn in đậm mã phiếu y lệnh dịch vụ khám/thuốc lâm sàng để Bác sĩ đối soát trên EMR; tuyệt đối không dùng `ExpMestCode`.
+- **Cơ chế ClientTokenManager Standalone**: Kích hoạt `Inventec.Token.ClientSystem.Acs.Base.Uri` bằng reflection can thiệp `ConfigurationManager.AppSettings` runtime (`bReadOnly = false`), cho phép ứng dụng CLI chạy độc lập hoàn toàn mà không cần file `App.config` cồng kềnh đi kèm.

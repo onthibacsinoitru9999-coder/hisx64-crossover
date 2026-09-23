@@ -59,6 +59,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 📊 **Xuất Báo cáo buồng bệnh đồng bộ Drive** | **`HisWardReport.bat`** | `.\HisWardReport.bat` | ❌ Không dùng sửa dữ liệu |
 | 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
+| 🩺 **Thợ cho đường huyết 1-Click (ĐMMM + Tờ ĐT + Kê Insulin)** | **`HisThoDuongHuyet.exe`** | `.\HisThoDuongHuyet.bat "cs2, 034727, 981, 00376258, 17h, 14.3, 10R"` | ❌ Không kê sai tủ trực |
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
@@ -111,6 +112,16 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
      * Trong mọi tác vụ lâm sàng (đặc biệt khi bác sĩ đang trực tiếp xử lý bệnh nhân), nếu API backend từ chối hoặc trả `Success: false` quá 2 lần, Agent **PHẢI DỪNG VÒNG LẶP NGAY LẬP TỨC**.
      * Báo cáo ngay kết quả những phần việc ĐÃ TẠO THÀNH CÔNG (Tờ điều trị, Chỉ định CLS) và hướng dẫn Bác sĩ xử lý nhanh nhất trên giao diện HIS, tuyệt đối không được tự ý viết mã thử-sai kéo dài làm chậm trễ công việc của Bác sĩ.
   5. **Báo cáo kết quả:** In bảng tổng hợp đối soát kết quả rõ ràng, minh bạch (Thành công / Lỗi từng BN).
+  6. **Công cụ Win App CLI Độc Lập 1-Click (`HisThoDuongHuyet.exe` / `HisThoDuongHuyet.bat`):**
+     - **Độc lập hoàn toàn**: Tự động đăng nhập ACS trực tiếp (`034727` / `981`), kích hoạt WorkInfo phòng làm việc, tra cứu BN, chỉ định ĐMMM, tạo tờ điều trị và kê đơn tủ trực gói gọn trong 1 lệnh duy nhất mà không phụ thuộc phiên làm việc UI.
+     - **Cú pháp CSV shorthand 1 dòng**:
+       `.\HisThoDuongHuyet.bat "<CơSở>, <MãBS>, <MậtKhẩu>, <MãBN>, <Giờ>, <ĐườngHuyết>, <LiềuInsulin>"`
+       Ví dụ: `.\HisThoDuongHuyet.bat "cs2, 034727, 981, 00376258, 17h, 14.3, 10R"`
+     - **Cú pháp cờ lệnh chi tiết (Named Flags)**:
+       `.\HisThoDuongHuyet.bat -fac cs2 -u 034727 -pass 981 -p 00376258 -time 17h -glucose 14.3 -insulin 10R`
+     - **Chế độ chạy file hàng loạt**: `.\HisThoDuongHuyet.bat -f danh_sach_don.txt`
+     - **Chế độ tương tác trực tiếp (Interactive REPL)**: Chạy không tham số `.\HisThoDuongHuyet.bat` để mở prompt tương tác trực quan.
+     - **Mô phỏng an toàn**: Hỗ trợ cờ `--dry-run` để mô phỏng và kiểm tra logic mà không gửi dữ liệu thật lên hệ thống.
 
 ## 6. QUY TẮC MA TRẬN MÔ HÌNH OPENROUTER: ĐIỀU PHỐI ĐA TẦNG MIỄN PHÍ 100% (MULTI-TIER SMART FALLBACK)
 * **Khóa xác thực**: Tự động nạp từ biến môi trường `OPENROUTER_API_KEY` (hoặc Windows Registry `HKCU\Environment`).
