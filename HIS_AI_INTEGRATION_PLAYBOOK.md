@@ -39,6 +39,7 @@
 40. [Quy Chuẩn Protocol 'Thợ Trực Buồng' (1-Click Ward Duty Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#40-quy-chuẩn-protocol-thợ-trực-buồng-1-click-ward-duty-protocol)
 41. [Quy Trình Đăng Ký Bệnh Nhân Mổ Cấp Cứu Phân Luồng Cơ Sở (Emergency Surgery Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#41-quy-trình-đăng-ký-bệnh-nhân-mổ-cấp-cứu-google-forms-phân-luồng-cơ-sở-emergency-surgery-protocol)
 42. [Quy Chuẩn Ứng Dụng CLI Độc Lập 'Thợ Cho Đường Huyết' (HisThoDuongHuyet.exe)](#42-quy-chuẩn-ứng-dụng-cli-độc-lập-thợ-cho-đường-huyết-histhoduonghuyetexe)
+43. [Quy Chuẩn Ứng Dụng CLI Độc Lập 'Thợ Làm Ra Viện' (HisThoRaVien.exe)](#43-quy-chuẩn-ứng-dụng-cli-độc-lập-thợ-làm-ra-viện-histhoravienexe)
 
 ---
 
@@ -2344,3 +2345,49 @@ Tương tự `his-glucose` và `his-discharge`, module được đóng gói thà
 - **Mốc 06:00 sáng**: Tự động chuyển ngày y lệnh sang sáng hôm sau nếu ca trực thực hiện từ chiều/tối hôm trước.
 - **In đậm `ServiceReqCode`**: Kết quả báo cáo luôn in đậm mã phiếu y lệnh dịch vụ khám/thuốc lâm sàng để Bác sĩ đối soát trên EMR; tuyệt đối không dùng `ExpMestCode`.
 - **Cơ chế ClientTokenManager Standalone**: Kích hoạt `Inventec.Token.ClientSystem.Acs.Base.Uri` bằng reflection can thiệp `ConfigurationManager.AppSettings` runtime (`bReadOnly = false`), cho phép ứng dụng CLI chạy độc lập hoàn toàn mà không cần file `App.config` cồng kềnh đi kèm.
+
+---
+
+## 43. QUY CHUẨN ỨNG DỤNG CLI ĐỘC LẬP 'THỢ LÀM RA VIỆN' (HISTHORAVIEN.EXE)
+
+### 43.1. Bối cảnh & Mục đích
+- Đóng gói toàn bộ quy trình liên hoàn "Thợ làm ra viện" (Discharge 1-Click Protocol) thành một ứng dụng Windows CLI độc lập (`HisThoRaVien.exe` và companion wrapper `HisThoRaVien.bat`).
+- Tự động đăng nhập trực tiếp ACS Auth (`http://192.168.7.200:1401/`), kích hoạt danh sách phòng làm việc (83 phòng CS2 hoặc 5 phòng CS1), tra cứu bệnh nhân và thực thi khép kín chu trình 3 bước chỉ với **1 lệnh duy nhất**:
+  1. **Bước 1 - Rà soát & Bổ sung Tờ điều trị (Trackings)**:
+     - Tự động quét mốc thời gian điều trị từ tờ điều trị đầu tiên tại khoa (`DEPARTMENT_ID == 57` hoặc `915`).
+     - Tự động bổ sung Tờ Sơ kết 3 ngày (lúc 14:30) nếu thời gian nằm viện >= 3 ngày mà chưa có.
+     - Tự động bổ sung Tờ Sơ kết 7 ngày (lúc 15:00) nếu thời gian nằm viện >= 7 ngày mà chưa có.
+     - Tự động tạo Tờ tổng kết ra viện (Treatment Summary) lúc 16:00 (hoặc `dtMax + 5 phút`), chặn trần không vượt quá `OUT_TIME`.
+     - Phân giải va chạm timestamp (`EnsureUniqueTrackingDateTime`): tự động dịch +1 giây nếu trùng timestamp tờ cũ.
+  2. **Bước 2 - Chuyển toàn bộ chỉ định trắng về Bác sĩ điều trị (`034727`)**:
+     - Quét toàn bộ y lệnh chưa thực hiện (`SERVICE_REQ_STT_ID == 1`).
+     - Gọi `POST api/HisServiceReq/UpdateCommonInfo` chuyển `REQUEST_LOGINNAME = "034727"`, `REQUEST_USERNAME = "NGUYỄN HỮU SÂM"`, chức danh `"Thạc sỹ y học"`.
+     - Kèm `EnsureWorkInfoForRoom(req.REQUEST_ROOM_ID)` và instance `CommonParam` độc lập cho từng y lệnh để tránh cascading failure.
+     - **BẢO LƯU TUYỆT ĐỐI 4 NHÓM AN TOÀN**:
+       * 🛏️ **Giường bệnh** (`SERVICE_REQ_TYPE_ID == 8`).
+       * 👕 **Đồ vải / toan áo gói PT** (nhận diện theo tên dịch vụ).
+       * 🩸 **ĐMMM tại giường** (`BM02426`, `NB260620.6231`).
+       * 💊 **Thuốc & Vật tư** (`SERVICE_REQ_TYPE_ID == 6, 7`).
+  3. **Bước 3 - Hoàn thiện 3 bìa bệnh án ngoại khoa EMR**:
+     - Kiểm tra điều kiện nội trú: Chỉ áp dụng cho bệnh nhân nội trú (`TDL_TREATMENT_TYPE_ID == 3`), ngoại trú tự động bỏ qua an toàn kèm thông báo.
+     - Kết nối Oracle DB EMR_FINAL thông qua `HisEmrFiller.exe <PatientCode> --save --force-summary --doctor 034727 --facility <HN|NB>`.
+     - Tự động điền đầy đủ: Bìa Khám bệnh, Bìa Tóm tắt bệnh án, và 6 trường Bìa tổng kết cuối ra viện (quá trình bệnh lý, tóm tắt CLS, phương pháp điều trị, tình trạng ra viện, hướng điều trị tiếp theo, bác sĩ điều trị `034727`). Cắt byte nghiêm ngặt (2000 bytes) chống ORA-12899.
+
+### 43.2. Ma trận Cú pháp & Tùy chọn dòng lệnh
+| Cú pháp thực thi | Lệnh Mẫu Chuẩn | Tình huống sử dụng |
+| :--- | :--- | :--- |
+| **CSV Shorthand 1 dòng (Quoted)** | `.\HisThoRaVien.bat "cs2, 034727, 981, 00376258"` | Bác sĩ gõ nhanh 1 câu lệnh chuẩn |
+| **CSV Shorthand không ngoặc** | `.\HisThoRaVien.bat cs2, 034727, 981, 00376258` | PowerShell tự phân tách tham số, tự chuẩn hóa mã BS `34727` -> `034727` |
+| **Cơ sở Hà Nội (CS1)** | `.\HisThoRaVien.bat "cs1, 034727, 981, 0003969449"` | Ra viện cho bệnh nhân Khoa 57 Hà Nội |
+| **Named Flags chi tiết** | `.\HisThoRaVien.bat -fac cs2 -u 034727 -pass 981 -p 00376258` | Tích hợp script backend hoặc tự động hóa |
+| **File Batch hàng loạt** | `.\HisThoRaVien.bat -f danh_sach_ra_vien.txt` | Xử lý nhiều bệnh nhân ra viện cùng lúc |
+| **Chế độ Tương tác (REPL)** | `.\HisThoRaVien.bat` | Mở prompt tương tác `[RAVIEN-PROMPT] >` nhập từng BN |
+| **Mô phỏng an toàn (Dry Run)** | Thêm cờ `--dry-run` hoặc `-n` vào cuối lệnh | Kiểm tra toàn bộ logic và kế hoạch mà không sửa dữ liệu thật |
+
+### 43.3. Báo Cáo Kết Quả Chuẩn Hóa
+- In bảng tổng quan hồ sơ bệnh nhân: Mã BN, Mã ĐT, Họ tên, Năm sinh, Giới tính, Buồng giường, Chẩn đoán, Ngày vào viện, Số ngày điều trị, Loại điều trị (Nội trú / Ngoại trú).
+- Chi tiết Bước 1: Danh sách tờ điều trị sơ kết và tổng kết đã tạo kèm timestamp chính xác.
+- Chi tiết Bước 2: Số y lệnh trắng đã chuyển quyền thành công, danh sách y lệnh thuộc 4 nhóm bảo vệ được giữ nguyên.
+- Chi tiết Bước 3: Trạng thái điền 3 bìa bệnh án ngoại khoa EMR (hoặc bỏ qua an toàn đối với ngoại trú).
+- Nhắc nhở Bác sĩ kiểm tra bộ lọc HIS là **"Tất cả bác sĩ"** để xem trọn vẹn y lệnh.
+

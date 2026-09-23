@@ -152,7 +152,8 @@ $toolList = @(
     @{ Name = "HospitalShiftReporter";     Source = ".agents\skills\his-clinical-operations\scripts\HospitalShiftReporter.cs" },
     @{ Name = "HisClsCtchTracker";         Source = "HisClsCtchTracker.cs" },
     @{ Name = "HisMcpServer";              Source = "HisMcpServer.cs" },
-    @{ Name = "HisThoDuongHuyet";          Source = "HisThoDuongHuyet.cs" }
+    @{ Name = "HisThoDuongHuyet";          Source = "HisThoDuongHuyet.cs" },
+    @{ Name = "HisThoRaVien";              Source = "HisThoRaVien.cs" }
 )
 
 if ($TargetTool) {

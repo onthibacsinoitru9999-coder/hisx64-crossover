@@ -60,6 +60,7 @@ Mỗi công cụ `.exe` / `.bat` được thiết kế ĐỘC LẬP cho 1 mục 
 | 🩺 **Kiểm tra sức khỏe hệ thống & Ping máy chủ** | **`HisDiagnosticDoctor.bat`** | `.\HisDiagnosticDoctor.bat health` | ❌ Không đoán mò |
 | 🖼️ **Mở ảnh PACS / RIS (MRI, CT, X-Quang, Siêu âm)** | **`HisPacsCli.bat`** | `.\HisPacsCli.bat <MãBN> -Open` | ❌ Không đoán mò link |
 | 🩺 **Thợ cho đường huyết 1-Click (ĐMMM + Tờ ĐT + Kê Insulin)** | **`HisThoDuongHuyet.exe`** | `.\HisThoDuongHuyet.bat "cs2, 034727, 981, 00376258, 17h, 14.3, 10R"` | ❌ Không kê sai tủ trực |
+| 🏥 **Thợ làm ra viện 1-Click (Sơ kết + Chuyển quyền + Điền EMR)** | **`HisThoRaVien.exe`** | `.\HisThoRaVien.bat "cs2, 034727, 981, 00376258"` | ❌ Không sửa nhóm bảo vệ |
 
 * **Tăng tốc với OpenRouter AI:** Các công cụ tạo nội dung (Tờ điều trị, Sơ kết đợt điều trị, Báo cáo buồng) tự động nhúng `Tools\OpenRouterAiClient.cs` hoặc `openrouter_client.py` để sinh diễn biến lâm sàng siêu tốc (Model `minimax/minimax-m3:free` 1M tokens) mà không làm chậm Antigravity.
 * **Tương thích đa máy:** Không hardcode cố định ổ đĩa `E:\` hay `D:\`. Khi cần đọc log `LogSystem.txt`, sử dụng đường dẫn tương đối từ thư mục gốc dự án hoặc tự động dò tìm vị trí thư mục đang chạy.
@@ -261,4 +262,27 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
      ```
 * **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.
+
+## 14. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ LÀM RA VIỆN" (DISCHARGE 1-CLICK PROTOCOL)
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ yêu cầu hoặc nhắc đến **"thợ làm ra viện"**, **"làm ra viện"**, **"thủ tục ra viện"**, Agent PHẢI tự động nhận diện và kích hoạt ngay ứng dụng Win App CLI độc lập `HisThoRaVien.exe` / `HisThoRaVien.bat` mà **KHÔNG CẦN HỎI LẠI HAY BĂN KHOĂN GÌ THÊM**:
+  1. **Định dạng đầu vào chuẩn 1 dòng:**
+     `.\HisThoRaVien.bat "<CơSở>, <MãBS>, <MậtKhẩu>, <MãBN>"`
+     Ví dụ: `.\HisThoRaVien.bat "cs2, 034727, 981, 00376258"` hoặc không ngoặc `.\HisThoRaVien.bat cs2, 034727, 981, 00376258`
+  2. **Chu trình 3 bước tự động khép kín (Autonomous 3-Step Pipeline):**
+     - **Bước 1 - Rà soát & Bổ sung Tờ điều trị:**
+       * Kiểm tra và tự động bổ sung Sơ kết 3 ngày (lúc 14:30) nếu điều trị tại khoa >= 3 ngày mà chưa có.
+       * Kiểm tra và tự động bổ sung Sơ kết 7 ngày (lúc 15:00) nếu điều trị tại khoa >= 7 ngày mà chưa có.
+       * Tự động tạo Tờ tổng kết ra viện (Treatment Summary) lúc 16:00 (hoặc `dtMax + 5 phút`, chặn trần `OUT_TIME`), tự động phân giải chống trùng timestamp (`EnsureUniqueTrackingDateTime`).
+     - **Bước 2 - Chuyển toàn bộ chỉ định trắng về BS điều trị (`034727`):**
+       * Quét tất cả y lệnh chưa thực hiện (`SERVICE_REQ_STT_ID == 1`).
+       * Chuyển người chỉ định về BS Nguyễn Hữu Sâm qua `POST api/HisServiceReq/UpdateCommonInfo`.
+       * **BẢO LƯU TUYỆT ĐỐI 4 NHÓM AN TOÀN**: (1) Giường bệnh (Type 8), (2) Đồ vải / toan áo gói PT, (3) ĐMMM tại giường (`BM02426`, `NB260620.6231`), (4) Thuốc / vật tư (Type 6, 7).
+     - **Bước 3 - Hoàn thiện 3 bìa bệnh án ngoại khoa EMR:**
+       * Kiểm tra điều kiện nội trú: Chỉ áp dụng cho bệnh nhân nội trú (`TDL_TREATMENT_TYPE_ID == 3`), tự động bỏ qua an toàn nếu là ngoại trú.
+       * Kết nối EMR Oracle DB thông qua `HisEmrFiller.exe` tự động điền: Bìa Khám bệnh, Bìa Tóm tắt bệnh án, và 6 trường Bìa tổng kết cuối ra viện (quá trình bệnh lý, kết quả CLS, hướng điều trị, tình trạng ra viện, bác sĩ điều trị `034727`).
+  3. **Hỗ trợ đầy đủ các tùy chọn CLI linh hoạt:**
+     - **Mô phỏng an toàn (Dry Run)**: Thêm `--dry-run` hoặc `-n` để kiểm tra toàn bộ luồng mà không sửa dữ liệu thật.
+     - **Named flags**: `.\HisThoRaVien.bat -fac cs2 -u 034727 -pass 981 -p 00376258`
+     - **File danh sách hàng loạt**: `.\HisThoRaVien.bat -f danh_sach_ra_vien.txt`
+     - **Chế độ tương tác REPL**: Chạy `.\HisThoRaVien.bat` không tham số để mở prompt `[RAVIEN-PROMPT] >`.
 
