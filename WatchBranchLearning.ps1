@@ -150,6 +150,7 @@ Write-Host "  HIS LIVE WATCHER v2.0 - BAN PHIM + CHUOT + API + THOI GIAN CHO" -F
 Write-Host "  Log In  : $logPath" -ForegroundColor Gray
 Write-Host "  Capture : $captureFile" -ForegroundColor Gray
 Write-Host "  Journal : $journalCsv" -ForegroundColor Gray
+Write-Host "  Filter  : Chi ghi thao tac tren cua so HIS (bo qua terminal watcher)" -ForegroundColor DarkYellow
 Write-Host "  Nhan Ctrl+C de dung" -ForegroundColor DarkGray
 Write-Host "===============================================================================" -ForegroundColor Cyan
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] DANG THEO DOI..." -ForegroundColor Green
@@ -203,6 +204,10 @@ try {
 
             # Bo qua phim lap qua nhanh (< 30ms) de tranh flood
             if ($wait -lt 30 -and $evType -eq "KEY") { continue }
+
+            # Chi ghi khi focus KHONG phai o cua so watcher / terminal nay
+            $isWatcherWindow = ($title -match "HIS Watcher|cmd\.exe|powershell" -and $title -notmatch "HIS\.Desktop|MOS|Inventec")
+            if ($isWatcherWindow) { continue }
 
             $waitStr = "${wait}ms"
             $icon    = if ($evType -eq "KEY") { "[KEY]" } else { "[MOUSE]" }
