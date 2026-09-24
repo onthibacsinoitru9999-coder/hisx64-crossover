@@ -12,7 +12,38 @@ param(
 $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 1. Tu dong phat hien thu muc HIS dang chay (theo process thuc te)
+# ===========================================================================
+# 1. NGUON SU THAT DUY NHAT: Doc file .facility trong folder hien tai
+#    File nay khai bao cung folder nao la Ninh Binh, folder nao la Ha Noi
+#    Agent KHONG tu do chuyen sang folder khac
+# ===========================================================================
+$facilityConfig = $null
+$facilityPaths = @(
+    (Join-Path $PSScriptRoot ".facility"),
+    (Join-Path (Get-Location).Path ".facility"),
+    "D:\his-x64-28-11fix GDYK\his-x64\.facility",
+    "E:\his-x64-28-11fix GDYK\his-x64\.facility"
+)
+foreach ($fp in $facilityPaths) {
+    if (Test-Path $fp) {
+        try {
+            $facilityConfig = Get-Content $fp -Raw -Encoding UTF8 | ConvertFrom-Json
+            Write-Host "[FACILITY] Doc tu: $fp" -ForegroundColor DarkGreen
+            Write-Host "[FACILITY] Co so : $($facilityConfig.display_name)" -ForegroundColor Green
+            if (-not $HisRoot -and $facilityConfig.his_root) {
+                $HisRoot = $facilityConfig.his_root
+            }
+            break
+        } catch {}
+    }
+}
+
+if (-not $facilityConfig) {
+    Write-Host "[FACILITY] CANH BAO: Khong tim thay file .facility - co the nham co so!" -ForegroundColor Red
+    Write-Host "[FACILITY] Tao file .facility trong thu muc HIS de tranh chenh lenh." -ForegroundColor Yellow
+}
+
+# Fallback neu .facility khong co his_root: uu tien D: roi E:
 if (-not $HisRoot) {
     $hisProc = Get-Process -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -and ($_.Path -match "his-x64|HIS.Desktop|MOS.Desktop|HisMcpServer") } |
@@ -25,7 +56,6 @@ if (-not $HisRoot) {
     }
 }
 
-# Fallback: thu lan luot D: roi E:
 $candidateRoots = @(
     $HisRoot,
     "D:\his-x64-28-11fix GDYK\his-x64",
