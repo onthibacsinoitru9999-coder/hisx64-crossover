@@ -6,25 +6,48 @@
 #   - Ghi journal CSV: Logs\HisInputJournal.csv
 # ==============================================================================
 param(
-    [string]$HisRoot = $PSScriptRoot,
+    [string]$HisRoot = "",
     [int]$PollMs     = 200
 )
 $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 1. Xac dinh thu muc Logs
-$targetDirs = @(
-    (Join-Path $HisRoot "Logs"),
-    "Logs",
-    (Join-Path $HisRoot "..\Logs"),
-    (Join-Path (Get-Location).Path "Logs")
-)
-$logDir = $null
-foreach ($d in $targetDirs) {
-    if (Test-Path $d) { $logDir = (Get-Item $d).FullName; break }
+# 1. Tu dong phat hien thu muc HIS dang chay (theo process thuc te)
+if (-not $HisRoot) {
+    $hisProc = Get-Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and ($_.Path -match "his-x64|HIS.Desktop|MOS.Desktop|HisMcpServer") } |
+        Select-Object -First 1
+    if ($hisProc -and $hisProc.Path) {
+        $procDir = Split-Path $hisProc.Path -Parent
+        if (Test-Path (Join-Path $procDir "Logs\LogSystem.txt")) {
+            $HisRoot = $procDir
+        }
+    }
 }
+
+# Fallback: thu lan luot D: roi E:
+$candidateRoots = @(
+    $HisRoot,
+    "D:\his-x64-28-11fix GDYK\his-x64",
+    "E:\his-x64-28-11fix GDYK\his-x64",
+    "D:\his-x64", "E:\his-x64",
+    $PSScriptRoot,
+    (Get-Location).Path
+)
+
+$logDir = $null
+foreach ($root in $candidateRoots) {
+    if (-not $root) { continue }
+    $cand = Join-Path $root "Logs"
+    if (Test-Path $cand) {
+        $logDir  = (Get-Item $cand).FullName
+        $HisRoot = $root
+        break
+    }
+}
+
 if (-not $logDir) {
-    Write-Host "[ERROR] Khong tim thay thu muc Logs!" -ForegroundColor Red
+    Write-Host "[ERROR] Khong tim thay thu muc Logs! Chay lai voi: -HisRoot <duong-dan>" -ForegroundColor Red
     exit 1
 }
 
@@ -147,6 +170,7 @@ Add-Type -AssemblyName System.Windows.Forms
 
 Write-Host "===============================================================================" -ForegroundColor Cyan
 Write-Host "  HIS LIVE WATCHER v2.0 - BAN PHIM + CHUOT + API + THOI GIAN CHO" -ForegroundColor Yellow
+Write-Host "  HIS Root : $HisRoot" -ForegroundColor Green
 Write-Host "  Log In  : $logPath" -ForegroundColor Gray
 Write-Host "  Capture : $captureFile" -ForegroundColor Gray
 Write-Host "  Journal : $journalCsv" -ForegroundColor Gray
