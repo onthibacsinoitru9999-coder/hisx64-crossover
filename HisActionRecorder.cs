@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -573,173 +573,158 @@ namespace HisActionRecorder
             panelReview = new Panel();
             panelReview.Dock = DockStyle.Fill;
             panelReview.BackColor = Color.FromArgb(248, 249, 250);
-            panelReview.Padding = new Padding(25);
 
-            // Title
+            // BOTTOM BAR — Dock=Bottom (thêm TRƯỚC để Fill còn lại cho DataGridView)
+            Panel bottomBar = new Panel();
+            bottomBar.Dock = DockStyle.Bottom;
+            bottomBar.Height = 68;
+            bottomBar.BackColor = Color.FromArgb(33, 37, 41);
+
+            btnSaveExport = new Button();
+            btnSaveExport.Text = "💾  LƯU BÁO CÁO";
+            btnSaveExport.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            btnSaveExport.BackColor = Color.FromArgb(13, 110, 253);
+            btnSaveExport.ForeColor = Color.White;
+            btnSaveExport.FlatStyle = FlatStyle.Flat;
+            btnSaveExport.FlatAppearance.BorderSize = 0;
+            btnSaveExport.Size = new Size(185, 45);
+            btnSaveExport.Location = new Point(8, 11);
+            btnSaveExport.Cursor = Cursors.Hand;
+            btnSaveExport.Click += BtnSaveExport_Click;
+            bottomBar.Controls.Add(btnSaveExport);
+
+            btnCopyClipboard = new Button();
+            btnCopyClipboard.Text = "📋  COPY GỬI CHAT";
+            btnCopyClipboard.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            btnCopyClipboard.BackColor = Color.FromArgb(40, 167, 69);
+            btnCopyClipboard.ForeColor = Color.White;
+            btnCopyClipboard.FlatStyle = FlatStyle.Flat;
+            btnCopyClipboard.FlatAppearance.BorderSize = 0;
+            btnCopyClipboard.Size = new Size(185, 45);
+            btnCopyClipboard.Location = new Point(202, 11);
+            btnCopyClipboard.Cursor = Cursors.Hand;
+            btnCopyClipboard.Click += BtnCopyClipboard_Click;
+            bottomBar.Controls.Add(btnCopyClipboard);
+
+            btnRecordAgain = new Button();
+            btnRecordAgain.Text = "🔄  Ghi Mục Khác";
+            btnRecordAgain.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
+            btnRecordAgain.BackColor = Color.FromArgb(108, 117, 125);
+            btnRecordAgain.ForeColor = Color.White;
+            btnRecordAgain.FlatStyle = FlatStyle.Flat;
+            btnRecordAgain.FlatAppearance.BorderSize = 0;
+            btnRecordAgain.Size = new Size(148, 45);
+            btnRecordAgain.Location = new Point(396, 11);
+            btnRecordAgain.Cursor = Cursors.Hand;
+            btnRecordAgain.Click += (s, e) => ShowPanel(panelSetup);
+            bottomBar.Controls.Add(btnRecordAgain);
+
+            btnOpenLogs = new Button();
+            btnOpenLogs.Text = "📂  Mở Thư Mục Logs";
+            btnOpenLogs.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
+            btnOpenLogs.BackColor = Color.FromArgb(60, 70, 80);
+            btnOpenLogs.ForeColor = Color.FromArgb(200, 210, 220);
+            btnOpenLogs.FlatStyle = FlatStyle.Flat;
+            btnOpenLogs.FlatAppearance.BorderSize = 0;
+            btnOpenLogs.Size = new Size(168, 45);
+            btnOpenLogs.Location = new Point(553, 11);
+            btnOpenLogs.Cursor = Cursors.Hand;
+            btnOpenLogs.Click += (s, e) => {
+                string logDir = Path.GetDirectoryName(logFilePath);
+                if (Directory.Exists(logDir)) Process.Start("explorer.exe", logDir);
+            };
+            bottomBar.Controls.Add(btnOpenLogs);
+
+            btnExitReview = new Button();
+            btnExitReview.Text = "❌  THOÁT ỨNG DỤNG";
+            btnExitReview.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            btnExitReview.BackColor = Color.FromArgb(220, 53, 69);
+            btnExitReview.ForeColor = Color.White;
+            btnExitReview.FlatStyle = FlatStyle.Flat;
+            btnExitReview.FlatAppearance.BorderSize = 0;
+            btnExitReview.Size = new Size(185, 45);
+            btnExitReview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnExitReview.Location = new Point(836, 11);
+            btnExitReview.Cursor = Cursors.Hand;
+            btnExitReview.Click += (s, e) => this.Close();
+            bottomBar.Controls.Add(btnExitReview);
+
+            panelReview.Controls.Add(bottomBar);
+
+            // TOP HEADER — Dock=Top
+            Panel topHeader = new Panel();
+            topHeader.Dock = DockStyle.Top;
+            topHeader.Height = 80;
+            topHeader.BackColor = Color.FromArgb(13, 110, 253);
+
             lblReviewTitle = new Label();
             lblReviewTitle.Text = "📋 BẢNG ĐỐI SOÁT & CHÚ THÍCH CÁC BƯỚC THAO TÁC";
-            lblReviewTitle.Font = new Font("Segoe UI", 15f, FontStyle.Bold);
-            lblReviewTitle.ForeColor = Color.FromArgb(24, 43, 73);
+            lblReviewTitle.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
+            lblReviewTitle.ForeColor = Color.White;
             lblReviewTitle.AutoSize = true;
-            lblReviewTitle.Location = new Point(25, 20);
-            panelReview.Controls.Add(lblReviewTitle);
+            lblReviewTitle.Location = new Point(16, 8);
+            topHeader.Controls.Add(lblReviewTitle);
 
             lblReviewSummary = new Label();
-            lblReviewSummary.Text = "Mục đích: ... | Bác sĩ hãy nhấp vào ô 'Bác sĩ ghi chú' để nhập giải thích mục đích của từng bước.";
-            lblReviewSummary.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
-            lblReviewSummary.ForeColor = Color.FromArgb(13, 110, 253);
+            lblReviewSummary.Text = "Bác sĩ nhấp vào cột Ghi chú để điền mục đích từng bước, rồi bấm nút LƯU hoặc COPY bên dưới.";
+            lblReviewSummary.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            lblReviewSummary.ForeColor = Color.FromArgb(210, 230, 255);
             lblReviewSummary.AutoSize = true;
-            lblReviewSummary.Location = new Point(27, 55);
-            panelReview.Controls.Add(lblReviewSummary);
+            lblReviewSummary.Location = new Point(18, 44);
+            topHeader.Controls.Add(lblReviewSummary);
 
-            // Top-right close button in Review
-            Button btnTopCloseReview = new Button();
-            btnTopCloseReview.Text = "❌ Đóng Ứng Dụng";
-            btnTopCloseReview.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            btnTopCloseReview.BackColor = Color.FromArgb(220, 53, 69);
-            btnTopCloseReview.ForeColor = Color.White;
-            btnTopCloseReview.FlatStyle = FlatStyle.Flat;
-            btnTopCloseReview.FlatAppearance.BorderSize = 0;
-            btnTopCloseReview.Size = new Size(160, 40);
-            btnTopCloseReview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnTopCloseReview.Location = new Point(860, 20);
-            btnTopCloseReview.Cursor = Cursors.Hand;
-            btnTopCloseReview.Click += (s, e) => this.Close();
-            panelReview.Controls.Add(btnTopCloseReview);
+            panelReview.Controls.Add(topHeader);
 
-            // DataGridView
+            // DataGridView — Dock=Fill (thêm SAU CÙNG để lấp phần còn lại)
             dgvReview = new DataGridView();
-            dgvReview.Location = new Point(25, 90);
-            dgvReview.Size = new Size(995, 520);
-            dgvReview.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            dgvReview.Dock = DockStyle.Fill;
             dgvReview.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             dgvReview.BackgroundColor = Color.White;
             dgvReview.RowHeadersVisible = false;
             dgvReview.AllowUserToAddRows = false;
             dgvReview.AllowUserToDeleteRows = true;
             dgvReview.SelectionMode = DataGridViewSelectionMode.CellSelect;
-            dgvReview.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            dgvReview.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
             dgvReview.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 250);
+            dgvReview.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(52, 58, 64);
+            dgvReview.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvReview.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            dgvReview.ColumnHeadersHeight = 36;
+            dgvReview.EnableHeadersVisualStyles = false;
 
-            // Define Columns
             DataGridViewTextBoxColumn colId = new DataGridViewTextBoxColumn();
-            colId.HeaderText = "STT";
-            colId.Width = 50;
-            colId.ReadOnly = true;
+            colId.HeaderText = "STT"; colId.Width = 50; colId.ReadOnly = true;
             colId.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dgvReview.Columns.Add(colId);
 
             DataGridViewTextBoxColumn colTime = new DataGridViewTextBoxColumn();
-            colTime.HeaderText = "Thời gian";
-            colTime.Width = 110;
-            colTime.ReadOnly = true;
+            colTime.HeaderText = "Thoi gian"; colTime.Width = 115; colTime.ReadOnly = true;
             dgvReview.Columns.Add(colTime);
 
             DataGridViewTextBoxColumn colType = new DataGridViewTextBoxColumn();
-            colType.HeaderText = "Hành động";
-            colType.Width = 130;
-            colType.ReadOnly = true;
+            colType.HeaderText = "Hanh dong"; colType.Width = 130; colType.ReadOnly = true;
             dgvReview.Columns.Add(colType);
 
             DataGridViewTextBoxColumn colDetail = new DataGridViewTextBoxColumn();
-            colDetail.HeaderText = "Chi tiết kỹ thuật (API / Tọa độ click)";
-            colDetail.Width = 260;
-            colDetail.ReadOnly = true;
+            colDetail.HeaderText = "Chi tiet ky thuat (API)"; colDetail.Width = 255; colDetail.ReadOnly = true;
             dgvReview.Columns.Add(colDetail);
 
             DataGridViewTextBoxColumn colWin = new DataGridViewTextBoxColumn();
-            colWin.HeaderText = "Cửa sổ HIS";
-            colWin.Width = 180;
-            colWin.ReadOnly = true;
+            colWin.HeaderText = "Cua so HIS"; colWin.Width = 170; colWin.ReadOnly = true;
             dgvReview.Columns.Add(colWin);
 
             DataGridViewTextBoxColumn colNote = new DataGridViewTextBoxColumn();
-            colNote.HeaderText = "✍️ Bác sĩ ghi chú (Bước này để làm gì?)";
-            colNote.Width = 260;
-            colNote.ReadOnly = false;
+            colNote.HeaderText = "Bac si ghi chu (Buoc nay de lam gi?)";
+            colNote.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            colNote.MinimumWidth = 200; colNote.ReadOnly = false;
             colNote.DefaultCellStyle.ForeColor = Color.FromArgb(13, 110, 253);
             colNote.DefaultCellStyle.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             dgvReview.Columns.Add(colNote);
 
             panelReview.Controls.Add(dgvReview);
 
-            // Bottom Buttons
-            btnSaveExport = new Button();
-            btnSaveExport.Text = "💾 LƯU BÁO CÁO & XUẤT CHO AI";
-            btnSaveExport.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            btnSaveExport.BackColor = Color.FromArgb(13, 110, 253);
-            btnSaveExport.ForeColor = Color.White;
-            btnSaveExport.FlatStyle = FlatStyle.Flat;
-            btnSaveExport.FlatAppearance.BorderSize = 0;
-            btnSaveExport.Size = new Size(240, 45);
-            btnSaveExport.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnSaveExport.Location = new Point(25, 620);
-            btnSaveExport.Cursor = Cursors.Hand;
-            btnSaveExport.Click += BtnSaveExport_Click;
-            panelReview.Controls.Add(btnSaveExport);
-
-            btnCopyClipboard = new Button();
-            btnCopyClipboard.Text = "📋 COPY GỬI CHAT";
-            btnCopyClipboard.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            btnCopyClipboard.BackColor = Color.FromArgb(40, 167, 69);
-            btnCopyClipboard.ForeColor = Color.White;
-            btnCopyClipboard.FlatStyle = FlatStyle.Flat;
-            btnCopyClipboard.FlatAppearance.BorderSize = 0;
-            btnCopyClipboard.Size = new Size(160, 45);
-            btnCopyClipboard.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnCopyClipboard.Location = new Point(275, 620);
-            btnCopyClipboard.Cursor = Cursors.Hand;
-            btnCopyClipboard.Click += BtnCopyClipboard_Click;
-            panelReview.Controls.Add(btnCopyClipboard);
-
-            btnRecordAgain = new Button();
-            btnRecordAgain.Text = "🔄 Ghi Mục Khác";
-            btnRecordAgain.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
-            btnRecordAgain.BackColor = Color.FromArgb(108, 117, 125);
-            btnRecordAgain.ForeColor = Color.White;
-            btnRecordAgain.FlatStyle = FlatStyle.Flat;
-            btnRecordAgain.FlatAppearance.BorderSize = 0;
-            btnRecordAgain.Size = new Size(130, 45);
-            btnRecordAgain.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnRecordAgain.Location = new Point(445, 620);
-            btnRecordAgain.Cursor = Cursors.Hand;
-            btnRecordAgain.Click += (s, e) => ShowPanel(panelSetup);
-            panelReview.Controls.Add(btnRecordAgain);
-
-            btnOpenLogs = new Button();
-            btnOpenLogs.Text = "📂 Mở Logs";
-            btnOpenLogs.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
-            btnOpenLogs.BackColor = Color.White;
-            btnOpenLogs.ForeColor = Color.FromArgb(33, 37, 41);
-            btnOpenLogs.FlatStyle = FlatStyle.Flat;
-            btnOpenLogs.FlatAppearance.BorderColor = Color.FromArgb(206, 212, 218);
-            btnOpenLogs.Size = new Size(110, 45);
-            btnOpenLogs.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnOpenLogs.Location = new Point(585, 620);
-            btnOpenLogs.Cursor = Cursors.Hand;
-            btnOpenLogs.Click += (s, e) => {
-                string logDir = Path.GetDirectoryName(logFilePath);
-                if (Directory.Exists(logDir)) Process.Start("explorer.exe", logDir);
-            };
-            panelReview.Controls.Add(btnOpenLogs);
-
-            btnExitReview = new Button();
-            btnExitReview.Text = "❌ THOÁT ỨNG DỤNG";
-            btnExitReview.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            btnExitReview.BackColor = Color.FromArgb(220, 53, 69);
-            btnExitReview.ForeColor = Color.White;
-            btnExitReview.FlatStyle = FlatStyle.Flat;
-            btnExitReview.FlatAppearance.BorderSize = 0;
-            btnExitReview.Size = new Size(180, 45);
-            btnExitReview.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnExitReview.Location = new Point(840, 620);
-            btnExitReview.Cursor = Cursors.Hand;
-            btnExitReview.Click += (s, e) => this.Close();
-            panelReview.Controls.Add(btnExitReview);
-
             this.Controls.Add(panelReview);
         }
-
         private void ShowPanel(Panel target)
         {
             panelSetup.Visible = (target == panelSetup);
@@ -1248,3 +1233,4 @@ namespace HisActionRecorder
         }
     }
 }
+
