@@ -125,6 +125,7 @@ public class HisCabinetPrescribe
         // 3. Fallback: Tự động ĐĂNG NHẬP ĐỘC LẬP qua ACS bằng tài khoản Bác sĩ
         try
         {
+            EnsureAcsConfiguration();
             HIS.Desktop.LocalStorage.ConfigSystem.Load.Init();
             CommonParam cp = new CommonParam();
             ClientTokenManager tokenManager = new ClientTokenManager("HIS");
@@ -161,6 +162,27 @@ public class HisCabinetPrescribe
         catch { }
 
         return null;
+    }
+
+    public static void EnsureAcsConfiguration()
+    {
+        try
+        {
+            var settings = System.Configuration.ConfigurationManager.AppSettings;
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Base.Uri"]))
+            {
+                settings["Inventec.Token.ClientSystem.Acs.Base.Uri"] = "http://192.168.7.200:1401/";
+            }
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Uri"]))
+            {
+                settings["Inventec.Token.ClientSystem.Acs.Uri"] = "http://192.168.7.200:1401/";
+            }
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Version"]))
+            {
+                settings["Inventec.Token.ClientSystem.Acs.Version"] = "2.0";
+            }
+        }
+        catch { }
     }
 
     public static void UpdateWorkInfo(ApiConsumer consumer, long roomId)

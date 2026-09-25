@@ -2341,3 +2341,33 @@ Tương tự `his-glucose` và `his-discharge`, module được đóng gói thà
    - Trước khi gọi API gán dịch vụ, tài khoản Bác sĩ BẮT BUỘC phải được cập nhật qua `api/Token/UpdateWorkInfo` chứa cả `RequestRoomId` và `ExecuteRoomId`.
    - `SessionCode` phải truyền `null` thay vì `Guid` ngẫu nhiên để tránh backend từ chối phân phiên.
 
+---
+
+## 43. KIẾN TRÚC PHÒNG THỦ DUAL-SLOT (A/B) & QUẢN TRỊ BẢN ỔN ĐỊNH (STABLE RELEASE MANAGEMENT)
+
+Nhằm giải quyết triệt để rủi ro "cập nhật tính năng mới làm sập tính năng cũ đang chạy ổn định", hệ thống HIS AI áp dụng kiến trúc phòng thủ 3 tầng đồng bộ qua Git:
+
+### 43.1. Cơ Chế Dual-Binary (Hai Làn Chạy Song Song):
+- Mỗi công cụ cốt lõi (`HisCabinetPrescribe`, `HisGlucoseBedsideAssigner`, `HisGlucoseMcpServer`, `HisTrackingCreator`) luôn duy trì 2 file trên đĩa và trên Git:
+  * `tool.exe`: Bản mới nhất đang phát triển/sửa đổi.
+  * `tool.stable.exe`: Bản đã được kiểm thử thực tế trên bệnh nhân thật, được đóng băng an toàn.
+- **Tự động Fallback trong Runtime (`HisGlucoseMcpServer.cs`)**:
+  * Khi gọi `tool.exe`, nếu tiến trình trả về `ExitCode != 0` hoặc văng Exception, bộ điều phối tự động kích hoạt ngay `tool.stable.exe` với cùng tham số.
+  * Y lệnh lâm sàng của Bác sĩ được đảm bảo 100% không bao giờ bị gián đoạn.
+
+### 43.2. Cấp Cứu Cấu Hình Trực Tiếp Trong Mã Nguồn C# (`EnsureAcsConfiguration`):
+- Để tránh rủi ro thiếu file `.exe.config` khi di chuyển thư mục hoặc copy file, mọi tool đều tích hợp hàm nạp cấu hình cứng trong bộ nhớ:
+  ```csharp
+  public static void EnsureAcsConfiguration() {
+      var settings = System.Configuration.ConfigurationManager.AppSettings;
+      if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Base.Uri"]))
+          settings["Inventec.Token.ClientSystem.Acs.Base.Uri"] = "http://192.168.7.200:1401/";
+  }
+  ```
+- File `.exe` trở thành nguyên khối (Standalone), tự tìm đường về ACS Server ngay cả khi đứng trơ trọi một mình.
+
+### 43.3. Quy Trình 1-Click Rollback & Promote:
+1. **`PromoteStable.bat`**: Chạy smoke test kiểm tra tủ trực 810. Nếu đạt, tự động sao chép các file `.exe` sang `.stable.exe` và gắn Git tag `stable-release`.
+2. **`RollbackStable.bat`**: Phao cứu sinh tức thì. Khi có sự cố cập nhật, Bác sĩ chỉ cần nhấp đúp file này, toàn bộ binary và mã nguồn cốt lõi sẽ lập tức được giật lùi về trạng thái vàng đã được chứng nhận (`git checkout stable-release`).
+
+

@@ -36,6 +36,12 @@ tmp/
 !HisCabinetPrescribe.exe.config
 !HisGlucoseBedsideAssigner.exe.config
 !HisGlucoseMcpServer.exe.config
+!*.stable.exe
+!HisCabinetPrescribe.exe
+!HisGlucoseBedsideAssigner.exe
+!HisGlucoseMcpServer.exe
+!RollbackStable.bat
+!PromoteStable.bat
 !mau pt01.docx
 !Templates/
 !Templates/**

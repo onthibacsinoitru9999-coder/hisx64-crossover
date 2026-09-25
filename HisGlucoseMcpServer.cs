@@ -598,11 +598,52 @@ namespace HisGlucoseMcp
                         sb.Append("[STDERR]: ").Append(stdErr);
                     }
 
-                    return sb.ToString().Trim();
+                    string resultText = sb.ToString().Trim();
+
+                    // Dual-slot auto-fallback: neu ban latest loi, tu dong chuyen sang ban .stable.exe
+                    if (isError && !exePath.EndsWith(".stable.exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string dir = Path.GetDirectoryName(exePath);
+                        string stableExe = string.IsNullOrEmpty(dir)
+                            ? Path.GetFileNameWithoutExtension(exePath) + ".stable.exe"
+                            : Path.Combine(dir, Path.GetFileNameWithoutExtension(exePath) + ".stable.exe");
+
+                        if (File.Exists(stableExe))
+                        {
+                            bool stableErr = false;
+                            string stableRes = RunProcess(stableExe, arguments, out stableErr, facility);
+                            if (!stableErr)
+                            {
+                                isError = false;
+                                return "[CẢNH BÁO: BẢN LATEST LỖI -> ĐÃ TỰ ĐỘNG FALLBACK VỀ BẢN STABLE THÀNH CÔNG]\n" + stableRes;
+                            }
+                        }
+                    }
+
+                    return resultText;
                 }
             }
             catch (Exception ex)
             {
+                if (!exePath.EndsWith(".stable.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    string dir = Path.GetDirectoryName(exePath);
+                    string stableExe = string.IsNullOrEmpty(dir)
+                        ? Path.GetFileNameWithoutExtension(exePath) + ".stable.exe"
+                        : Path.Combine(dir, Path.GetFileNameWithoutExtension(exePath) + ".stable.exe");
+
+                    if (File.Exists(stableExe))
+                    {
+                        bool stableErr = false;
+                        string stableRes = RunProcess(stableExe, arguments, out stableErr, facility);
+                        if (!stableErr)
+                        {
+                            isError = false;
+                            return "[CẢNH BÁO: BẢN LATEST SẬP -> ĐÃ TỰ ĐỘNG FALLBACK VỀ BẢN STABLE THÀNH CÔNG]\n" + stableRes;
+                        }
+                    }
+                }
+
                 isError = true;
                 return "Lỗi khi chạy " + exePath + ": " + ex.Message;
             }

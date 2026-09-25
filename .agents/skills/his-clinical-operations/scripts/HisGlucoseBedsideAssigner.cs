@@ -1248,6 +1248,7 @@ public class MainForm : Form
                 credentials.Add(Tuple.Create("034727", "998199"));
                 credentials.Add(Tuple.Create("vmc", "789789"));
 
+                EnsureAcsConfiguration();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
                 foreach (var cred in credentials)
                 {
@@ -1298,6 +1299,27 @@ public class MainForm : Form
         {
             throw new Exception("Không thể xác thực Token hệ thống HIS từ Live Log hoặc đăng nhập!");
         }
+    }
+
+    public static void EnsureAcsConfiguration()
+    {
+        try
+        {
+            var settings = System.Configuration.ConfigurationManager.AppSettings;
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Base.Uri"]))
+            {
+                settings["Inventec.Token.ClientSystem.Acs.Base.Uri"] = "http://192.168.7.200:1401/";
+            }
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Uri"]))
+            {
+                settings["Inventec.Token.ClientSystem.Acs.Uri"] = "http://192.168.7.200:1401/";
+            }
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Version"]))
+            {
+                settings["Inventec.Token.ClientSystem.Acs.Version"] = "2.0";
+            }
+        }
+        catch { }
     }
 
     public static PatientItemDto LookupSinglePatient(string code)
