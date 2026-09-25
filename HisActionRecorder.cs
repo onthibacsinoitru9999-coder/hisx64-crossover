@@ -18,7 +18,7 @@ namespace HisActionRecorder
         public DateTime Timestamp { get; set; }
         public string TimeStr { get; set; }
         public string DelayStr { get; set; }
-        public string ActionType { get; set; } // "🌐 Gọi API", "🖱️ Click Chuột", "⌨️ Gõ Phím", "🔑 Token", "🏢 Cấu hình"
+        public string ActionType { get; set; }
         public string Detail { get; set; }
         public string Payload { get; set; }
         public string WindowTitle { get; set; }
@@ -38,25 +38,35 @@ namespace HisActionRecorder
 
     public class MainForm : Form
     {
-        // UI Controls - Tabs / Panels
+        // UI Controls - Panels
         private Panel panelSetup;
         private Panel panelRecording;
+        private Panel panelFloating;
         private Panel panelReview;
 
         // Setup Controls
         private ComboBox cboPurpose;
         private TextBox txtPatientCode;
         private TextBox txtInitialNote;
-        private CheckBox chkAutoMinimize;
+        private CheckBox chkAutoFloat;
         private Button btnStartRecord;
+        private Button btnExitSetup;
 
-        // Recording Controls
+        // Recording Controls (Full View)
         private Label lblRecStatus;
         private Label lblRecTimer;
         private Label lblRecCount;
         private ListView lvLiveFeed;
         private Button btnStopRecord;
+        private Button btnFloatRecord;
         private Button btnCancelRecord;
+        private Button btnExitRecord;
+
+        // Floating Bar Controls (Always on top)
+        private Label lblFloatStatus;
+        private Button btnFloatStop;
+        private Button btnFloatExpand;
+        private Button btnFloatExit;
 
         // Review Controls
         private Label lblReviewTitle;
@@ -66,6 +76,7 @@ namespace HisActionRecorder
         private Button btnCopyClipboard;
         private Button btnRecordAgain;
         private Button btnOpenLogs;
+        private Button btnExitReview;
 
         // Timers & State
         private Timer timerUi;
@@ -73,6 +84,7 @@ namespace HisActionRecorder
         private Stopwatch swDuration;
         private DateTime lastEventTime;
         private bool isRecording = false;
+        private bool isFloatingMode = false;
 
         // LogSystem Stream Reader
         private string logFilePath = "";
@@ -175,10 +187,13 @@ namespace HisActionRecorder
         {
             this.Text = "HIS Action Recorder v3.0 - Ghi Nhận & Học Thao Tác Lâm Sàng";
             this.Size = new Size(1060, 720);
-            this.MinimumSize = new Size(950, 600);
+            this.MinimumSize = new Size(500, 70);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             this.Icon = SystemIcons.Application;
+            this.ControlBox = true;
+            this.MinimizeBox = true;
+            this.MaximizeBox = true;
 
             // Timer UI
             timerUi = new Timer();
@@ -194,10 +209,13 @@ namespace HisActionRecorder
             // 1. Panel Setup
             BuildPanelSetup();
 
-            // 2. Panel Recording
+            // 2. Panel Recording (Full)
             BuildPanelRecording();
 
-            // 3. Panel Review
+            // 3. Panel Floating Bar (Compact TopMost)
+            BuildPanelFloating();
+
+            // 4. Panel Review
             BuildPanelReview();
 
             // Default show Setup
@@ -220,7 +238,7 @@ namespace HisActionRecorder
             panelSetup.Controls.Add(lblBanner);
 
             Label lblDesc = new Label();
-            lblDesc.Text = "Công cụ tự động lắng nghe thao tác chuột, bàn phím và các gói tin API khi Bác sĩ làm việc trên HIS.\nSau khi ghi xong, Bác sĩ sẽ có 1 bảng chi tiết để ghi chú mục đích từng bước cho AI Agent tự động hóa.";
+            lblDesc.Text = "Công cụ tự động lắng nghe thao tác chuột, bàn phím và các gói tin API khi Bác sĩ làm việc trên HIS.\nKhi đang ghi, thanh điều khiển nổi sẽ luôn hiện nút 'TẮT GHI' ngay góc màn hình để Bác sĩ tiện dừng bất kỳ lúc nào.";
             lblDesc.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
             lblDesc.ForeColor = Color.FromArgb(80, 90, 105);
             lblDesc.AutoSize = true;
@@ -296,37 +314,51 @@ namespace HisActionRecorder
             txtInitialNote.Text = "Ghi lại quy trình lập biên bản PT-01 và gửi lời mời ký số EMR trên giao diện HIS.";
             gbSetup.Controls.Add(txtInitialNote);
 
-            // Checkbox auto minimize
-            chkAutoMinimize = new CheckBox();
-            chkAutoMinimize.Text = "Tự động thu nhỏ cửa sổ này khi bấm 'Bắt đầu' để tiện thao tác trên HIS (Bấm F9 để Dừng ghi)";
-            chkAutoMinimize.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
-            chkAutoMinimize.ForeColor = Color.FromArgb(60, 70, 80);
-            chkAutoMinimize.Location = new Point(25, 300);
-            chkAutoMinimize.AutoSize = true;
-            chkAutoMinimize.Checked = true;
-            gbSetup.Controls.Add(chkAutoMinimize);
+            // Checkbox auto float
+            chkAutoFloat = new CheckBox();
+            chkAutoFloat.Text = "Tự động thu nhỏ thành Thanh Nổi góc màn hình khi bắt đầu ghi (luôn hiện nút 'Tắt Ghi' trên mặt HIS)";
+            chkAutoFloat.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            chkAutoFloat.ForeColor = Color.FromArgb(13, 110, 253);
+            chkAutoFloat.Location = new Point(25, 300);
+            chkAutoFloat.AutoSize = true;
+            chkAutoFloat.Checked = true;
+            gbSetup.Controls.Add(chkAutoFloat);
 
             panelSetup.Controls.Add(gbSetup);
 
             // Button Start
             btnStartRecord = new Button();
-            btnStartRecord.Text = "▶️ BẮT ĐẦU GHI THAO TÁC (Phím tắt: F9)";
+            btnStartRecord.Text = "▶️ BẮT ĐẦU GHI THAO TÁC (F9)";
             btnStartRecord.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
             btnStartRecord.BackColor = Color.FromArgb(40, 167, 69);
             btnStartRecord.ForeColor = Color.White;
             btnStartRecord.FlatStyle = FlatStyle.Flat;
             btnStartRecord.FlatAppearance.BorderSize = 0;
-            btnStartRecord.Size = new Size(420, 55);
+            btnStartRecord.Size = new Size(380, 55);
             btnStartRecord.Location = new Point(30, 510);
             btnStartRecord.Cursor = Cursors.Hand;
             btnStartRecord.Click += BtnStartRecord_Click;
             panelSetup.Controls.Add(btnStartRecord);
 
+            // Button Exit Application
+            btnExitSetup = new Button();
+            btnExitSetup.Text = "❌ THOÁT ỨNG DỤNG";
+            btnExitSetup.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            btnExitSetup.BackColor = Color.FromArgb(220, 53, 69);
+            btnExitSetup.ForeColor = Color.White;
+            btnExitSetup.FlatStyle = FlatStyle.Flat;
+            btnExitSetup.FlatAppearance.BorderSize = 0;
+            btnExitSetup.Size = new Size(220, 55);
+            btnExitSetup.Location = new Point(430, 510);
+            btnExitSetup.Cursor = Cursors.Hand;
+            btnExitSetup.Click += (s, e) => this.Close();
+            panelSetup.Controls.Add(btnExitSetup);
+
             Label lblF9Tip = new Label();
             lblF9Tip.Text = "💡 Phím tắt F9 hoạt động toàn cục: Bác sĩ có thể bấm F9 bất kỳ lúc nào để BẮT ĐẦU hoặc DỪNG GHI.";
             lblF9Tip.Font = new Font("Segoe UI", 9.5f, FontStyle.Italic);
             lblF9Tip.ForeColor = Color.FromArgb(108, 117, 125);
-            lblF9Tip.Location = new Point(470, 525);
+            lblF9Tip.Location = new Point(30, 580);
             lblF9Tip.AutoSize = true;
             panelSetup.Controls.Add(lblF9Tip);
 
@@ -365,26 +397,62 @@ namespace HisActionRecorder
             topBar.Controls.Add(lblRecTimer);
 
             lblRecCount = new Label();
-            lblRecCount.Text = "📊 Đã bắt: 0 sự kiện (Click: 0 | API: 0 | Phím: 0)";
+            lblRecCount.Text = "📊 Đã bắt: 0 sự kiện";
             lblRecCount.Font = new Font("Segoe UI", 11f, FontStyle.Regular);
             lblRecCount.ForeColor = Color.FromArgb(70, 80, 95);
             lblRecCount.AutoSize = true;
             lblRecCount.Location = new Point(230, 45);
             topBar.Controls.Add(lblRecCount);
 
+            // Nút Tắt Ghi & Đối Soát (Big Red)
             btnStopRecord = new Button();
-            btnStopRecord.Text = "⏹️ KẾT THÚC VÀ ĐỐI SOÁT (F9)";
+            btnStopRecord.Text = "⏹️ TẮT GHI & ĐỐI SOÁT (F9)";
             btnStopRecord.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
             btnStopRecord.BackColor = Color.FromArgb(220, 53, 69);
             btnStopRecord.ForeColor = Color.White;
             btnStopRecord.FlatStyle = FlatStyle.Flat;
             btnStopRecord.FlatAppearance.BorderSize = 0;
-            btnStopRecord.Size = new Size(290, 55);
+            btnStopRecord.Size = new Size(260, 55);
             btnStopRecord.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnStopRecord.Location = new Point(680, 15);
+            btnStopRecord.Location = new Point(540, 15);
             btnStopRecord.Cursor = Cursors.Hand;
             btnStopRecord.Click += BtnStopRecord_Click;
             topBar.Controls.Add(btnStopRecord);
+
+            // Nút Thu Nhỏ Thành Thanh Nổi
+            btnFloatRecord = new Button();
+            btnFloatRecord.Text = "📌 Thu Nhỏ";
+            btnFloatRecord.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnFloatRecord.BackColor = Color.FromArgb(13, 110, 253);
+            btnFloatRecord.ForeColor = Color.White;
+            btnFloatRecord.FlatStyle = FlatStyle.Flat;
+            btnFloatRecord.FlatAppearance.BorderSize = 0;
+            btnFloatRecord.Size = new Size(110, 55);
+            btnFloatRecord.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnFloatRecord.Location = new Point(810, 15);
+            btnFloatRecord.Cursor = Cursors.Hand;
+            btnFloatRecord.Click += (s, e) => SwitchToFloatingMode(true);
+            topBar.Controls.Add(btnFloatRecord);
+
+            // Nút Tắt Ứng Dụng Ngay
+            btnExitRecord = new Button();
+            btnExitRecord.Text = "❌ Thoát";
+            btnExitRecord.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnExitRecord.BackColor = Color.FromArgb(108, 117, 125);
+            btnExitRecord.ForeColor = Color.White;
+            btnExitRecord.FlatStyle = FlatStyle.Flat;
+            btnExitRecord.FlatAppearance.BorderSize = 0;
+            btnExitRecord.Size = new Size(80, 55);
+            btnExitRecord.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnExitRecord.Location = new Point(930, 15);
+            btnExitRecord.Cursor = Cursors.Hand;
+            btnExitRecord.Click += (s, e) => {
+                if (MessageBox.Show("Bác sĩ có muốn dừng ghi và thoát ứng dụng?", "Thoát", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    this.Close();
+                }
+            };
+            topBar.Controls.Add(btnExitRecord);
 
             panelRecording.Controls.Add(topBar);
 
@@ -416,15 +484,15 @@ namespace HisActionRecorder
 
             // Bottom bar Cancel
             btnCancelRecord = new Button();
-            btnCancelRecord.Text = "❌ Hủy Bỏ (Không Lưu)";
+            btnCancelRecord.Text = "❌ Hủy Phiên Ghi (Không Lưu)";
             btnCancelRecord.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             btnCancelRecord.BackColor = Color.FromArgb(108, 117, 125);
             btnCancelRecord.ForeColor = Color.White;
             btnCancelRecord.FlatStyle = FlatStyle.Flat;
             btnCancelRecord.FlatAppearance.BorderSize = 0;
-            btnCancelRecord.Size = new Size(180, 35);
+            btnCancelRecord.Size = new Size(220, 35);
             btnCancelRecord.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnCancelRecord.Location = new Point(835, 625);
+            btnCancelRecord.Location = new Point(795, 625);
             btnCancelRecord.Cursor = Cursors.Hand;
             btnCancelRecord.Click += (s, e) => {
                 if (MessageBox.Show("Bác sĩ có chắc muốn hủy phiên ghi hiện tại?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
@@ -436,6 +504,68 @@ namespace HisActionRecorder
             panelRecording.Controls.Add(btnCancelRecord);
 
             this.Controls.Add(panelRecording);
+        }
+
+        private void BuildPanelFloating()
+        {
+            panelFloating = new Panel();
+            panelFloating.Dock = DockStyle.Fill;
+            panelFloating.BackColor = Color.FromArgb(33, 37, 41);
+            panelFloating.Padding = new Padding(10);
+
+            lblFloatStatus = new Label();
+            lblFloatStatus.Text = "🔴 ĐANG GHI [00:00]";
+            lblFloatStatus.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+            lblFloatStatus.ForeColor = Color.FromArgb(255, 193, 7);
+            lblFloatStatus.AutoSize = true;
+            lblFloatStatus.Location = new Point(12, 18);
+            panelFloating.Controls.Add(lblFloatStatus);
+
+            btnFloatStop = new Button();
+            btnFloatStop.Text = "⏹️ TẮT GHI (F9)";
+            btnFloatStop.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            btnFloatStop.BackColor = Color.FromArgb(220, 53, 69);
+            btnFloatStop.ForeColor = Color.White;
+            btnFloatStop.FlatStyle = FlatStyle.Flat;
+            btnFloatStop.FlatAppearance.BorderSize = 0;
+            btnFloatStop.Size = new Size(180, 42);
+            btnFloatStop.Location = new Point(220, 10);
+            btnFloatStop.Cursor = Cursors.Hand;
+            btnFloatStop.Click += BtnStopRecord_Click;
+            panelFloating.Controls.Add(btnFloatStop);
+
+            btnFloatExpand = new Button();
+            btnFloatExpand.Text = "🔍 Mở Rộng";
+            btnFloatExpand.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnFloatExpand.BackColor = Color.FromArgb(13, 110, 253);
+            btnFloatExpand.ForeColor = Color.White;
+            btnFloatExpand.FlatStyle = FlatStyle.Flat;
+            btnFloatExpand.FlatAppearance.BorderSize = 0;
+            btnFloatExpand.Size = new Size(100, 42);
+            btnFloatExpand.Location = new Point(410, 10);
+            btnFloatExpand.Cursor = Cursors.Hand;
+            btnFloatExpand.Click += (s, e) => SwitchToFloatingMode(false);
+            panelFloating.Controls.Add(btnFloatExpand);
+
+            btnFloatExit = new Button();
+            btnFloatExit.Text = "❌ Thoát";
+            btnFloatExit.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnFloatExit.BackColor = Color.FromArgb(108, 117, 125);
+            btnFloatExit.ForeColor = Color.White;
+            btnFloatExit.FlatStyle = FlatStyle.Flat;
+            btnFloatExit.FlatAppearance.BorderSize = 0;
+            btnFloatExit.Size = new Size(80, 42);
+            btnFloatExit.Location = new Point(520, 10);
+            btnFloatExit.Cursor = Cursors.Hand;
+            btnFloatExit.Click += (s, e) => {
+                if (MessageBox.Show("Bác sĩ có muốn dừng ghi và thoát ứng dụng?", "Thoát", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    this.Close();
+                }
+            };
+            panelFloating.Controls.Add(btnFloatExit);
+
+            this.Controls.Add(panelFloating);
         }
 
         private void BuildPanelReview()
@@ -461,6 +591,21 @@ namespace HisActionRecorder
             lblReviewSummary.AutoSize = true;
             lblReviewSummary.Location = new Point(27, 55);
             panelReview.Controls.Add(lblReviewSummary);
+
+            // Top-right close button in Review
+            Button btnTopCloseReview = new Button();
+            btnTopCloseReview.Text = "❌ Đóng Ứng Dụng";
+            btnTopCloseReview.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnTopCloseReview.BackColor = Color.FromArgb(220, 53, 69);
+            btnTopCloseReview.ForeColor = Color.White;
+            btnTopCloseReview.FlatStyle = FlatStyle.Flat;
+            btnTopCloseReview.FlatAppearance.BorderSize = 0;
+            btnTopCloseReview.Size = new Size(160, 40);
+            btnTopCloseReview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnTopCloseReview.Location = new Point(860, 20);
+            btnTopCloseReview.Cursor = Cursors.Hand;
+            btnTopCloseReview.Click += (s, e) => this.Close();
+            panelReview.Controls.Add(btnTopCloseReview);
 
             // DataGridView
             dgvReview = new DataGridView();
@@ -521,12 +666,12 @@ namespace HisActionRecorder
             // Bottom Buttons
             btnSaveExport = new Button();
             btnSaveExport.Text = "💾 LƯU BÁO CÁO & XUẤT CHO AI";
-            btnSaveExport.Font = new Font("Segoe UI", 10.5f, FontStyle.Bold);
+            btnSaveExport.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
             btnSaveExport.BackColor = Color.FromArgb(13, 110, 253);
             btnSaveExport.ForeColor = Color.White;
             btnSaveExport.FlatStyle = FlatStyle.Flat;
             btnSaveExport.FlatAppearance.BorderSize = 0;
-            btnSaveExport.Size = new Size(260, 45);
+            btnSaveExport.Size = new Size(240, 45);
             btnSaveExport.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnSaveExport.Location = new Point(25, 620);
             btnSaveExport.Cursor = Cursors.Hand;
@@ -540,43 +685,57 @@ namespace HisActionRecorder
             btnCopyClipboard.ForeColor = Color.White;
             btnCopyClipboard.FlatStyle = FlatStyle.Flat;
             btnCopyClipboard.FlatAppearance.BorderSize = 0;
-            btnCopyClipboard.Size = new Size(180, 45);
+            btnCopyClipboard.Size = new Size(160, 45);
             btnCopyClipboard.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnCopyClipboard.Location = new Point(300, 620);
+            btnCopyClipboard.Location = new Point(275, 620);
             btnCopyClipboard.Cursor = Cursors.Hand;
             btnCopyClipboard.Click += BtnCopyClipboard_Click;
             panelReview.Controls.Add(btnCopyClipboard);
 
             btnRecordAgain = new Button();
-            btnRecordAgain.Text = "🔄 Ghi Lại Mục Khác";
+            btnRecordAgain.Text = "🔄 Ghi Mục Khác";
             btnRecordAgain.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             btnRecordAgain.BackColor = Color.FromArgb(108, 117, 125);
             btnRecordAgain.ForeColor = Color.White;
             btnRecordAgain.FlatStyle = FlatStyle.Flat;
             btnRecordAgain.FlatAppearance.BorderSize = 0;
-            btnRecordAgain.Size = new Size(160, 45);
+            btnRecordAgain.Size = new Size(130, 45);
             btnRecordAgain.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnRecordAgain.Location = new Point(495, 620);
+            btnRecordAgain.Location = new Point(445, 620);
             btnRecordAgain.Cursor = Cursors.Hand;
             btnRecordAgain.Click += (s, e) => ShowPanel(panelSetup);
             panelReview.Controls.Add(btnRecordAgain);
 
             btnOpenLogs = new Button();
-            btnOpenLogs.Text = "📂 Mở Thư Mục Logs";
+            btnOpenLogs.Text = "📂 Mở Logs";
             btnOpenLogs.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             btnOpenLogs.BackColor = Color.White;
             btnOpenLogs.ForeColor = Color.FromArgb(33, 37, 41);
             btnOpenLogs.FlatStyle = FlatStyle.Flat;
             btnOpenLogs.FlatAppearance.BorderColor = Color.FromArgb(206, 212, 218);
-            btnOpenLogs.Size = new Size(160, 45);
-            btnOpenLogs.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnOpenLogs.Location = new Point(860, 620);
+            btnOpenLogs.Size = new Size(110, 45);
+            btnOpenLogs.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnOpenLogs.Location = new Point(585, 620);
             btnOpenLogs.Cursor = Cursors.Hand;
             btnOpenLogs.Click += (s, e) => {
                 string logDir = Path.GetDirectoryName(logFilePath);
                 if (Directory.Exists(logDir)) Process.Start("explorer.exe", logDir);
             };
             panelReview.Controls.Add(btnOpenLogs);
+
+            btnExitReview = new Button();
+            btnExitReview.Text = "❌ THOÁT ỨNG DỤNG";
+            btnExitReview.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            btnExitReview.BackColor = Color.FromArgb(220, 53, 69);
+            btnExitReview.ForeColor = Color.White;
+            btnExitReview.FlatStyle = FlatStyle.Flat;
+            btnExitReview.FlatAppearance.BorderSize = 0;
+            btnExitReview.Size = new Size(180, 45);
+            btnExitReview.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            btnExitReview.Location = new Point(840, 620);
+            btnExitReview.Cursor = Cursors.Hand;
+            btnExitReview.Click += (s, e) => this.Close();
+            panelReview.Controls.Add(btnExitReview);
 
             this.Controls.Add(panelReview);
         }
@@ -585,7 +744,33 @@ namespace HisActionRecorder
         {
             panelSetup.Visible = (target == panelSetup);
             panelRecording.Visible = (target == panelRecording);
+            panelFloating.Visible = (target == panelFloating);
             panelReview.Visible = (target == panelReview);
+        }
+
+        private void SwitchToFloatingMode(bool floating)
+        {
+            isFloatingMode = floating;
+            if (floating)
+            {
+                this.TopMost = true;
+                this.FormBorderStyle = FormBorderStyle.FixedToolWindow;
+                this.Size = new Size(625, 100);
+
+                int screenW = Screen.PrimaryScreen.WorkingArea.Width;
+                this.Location = new Point(screenW - 640, 25);
+
+                ShowPanel(panelFloating);
+            }
+            else
+            {
+                this.TopMost = false;
+                this.FormBorderStyle = FormBorderStyle.Sizable;
+                this.Size = new Size(1060, 720);
+                this.CenterToScreen();
+
+                ShowPanel(panelRecording);
+            }
         }
 
         private void SetupHooks()
@@ -620,7 +805,7 @@ namespace HisActionRecorder
                     if (vkCode == VK_F9)
                     {
                         this.BeginInvoke(new Action(ToggleRecording));
-                        return (IntPtr)1; // Consume F9
+                        return (IntPtr)1;
                     }
 
                     if (isRecording)
@@ -629,7 +814,6 @@ namespace HisActionRecorder
                         if (!IsOwnWindow(winTitle))
                         {
                             Keys key = (Keys)vkCode;
-                            // Only capture navigation/function keys or Enter/Tab/Esc
                             if (key == Keys.Enter || key == Keys.Tab || key == Keys.Escape || key == Keys.Space ||
                                 (key >= Keys.F1 && key <= Keys.F12) || key == Keys.Up || key == Keys.Down ||
                                 key == Keys.Left || key == Keys.Right)
@@ -745,7 +929,6 @@ namespace HisActionRecorder
             lastEventTime = DateTime.MinValue;
             lastToken = "";
 
-            // Open LogSystem Stream at End
             try
             {
                 if (File.Exists(logFilePath))
@@ -765,24 +948,29 @@ namespace HisActionRecorder
             timerDuration.Start();
             timerUi.Start();
 
-            ShowPanel(panelRecording);
-
-            if (chkAutoMinimize.Checked)
+            if (chkAutoFloat.Checked)
             {
-                this.WindowState = FormWindowState.Minimized;
+                SwitchToFloatingMode(true);
+            }
+            else
+            {
+                SwitchToFloatingMode(false);
             }
         }
 
         private void BtnStopRecord_Click(object sender, EventArgs e)
         {
             StopRecording(true);
+
+            // Restore normal window
+            this.TopMost = false;
+            this.FormBorderStyle = FormBorderStyle.Sizable;
+            this.Size = new Size(1060, 720);
+            this.CenterToScreen();
+
             PopulateReviewGrid();
             ShowPanel(panelReview);
 
-            if (this.WindowState == FormWindowState.Minimized)
-            {
-                this.WindowState = FormWindowState.Normal;
-            }
             this.BringToFront();
             SetForegroundWindow(this.Handle);
         }
@@ -806,18 +994,16 @@ namespace HisActionRecorder
         private void TimerDuration_Tick(object sender, EventArgs e)
         {
             TimeSpan ts = swDuration.Elapsed;
-            lblRecTimer.Text = string.Format("⏱️ Thời gian: {0:mm\\:ss}", ts);
+            string timeText = string.Format("{0:mm\\:ss}", ts);
+            lblRecTimer.Text = "⏱️ Thời gian: " + timeText;
+            lblFloatStatus.Text = "🔴 ĐANG GHI [" + timeText + "]";
         }
 
         private void TimerUi_Tick(object sender, EventArgs e)
         {
-            // 1. Drain pending hook events
             DrainPendingEvents();
-
-            // 2. Poll LogSystem.txt
             PollLogSystem();
 
-            // 3. Update stats
             int clickCount = 0;
             int apiCount = 0;
             int keyCount = 0;
@@ -839,7 +1025,6 @@ namespace HisActionRecorder
                 it.Id = recordedList.Count + 1;
                 recordedList.Add(it);
 
-                // Add to Live ListView
                 ListViewItem lvi = new ListViewItem(it.TimeStr + " (" + it.DelayStr + ")");
                 lvi.SubItems.Add(it.ActionType);
                 lvi.SubItems.Add(it.Detail);
@@ -865,13 +1050,11 @@ namespace HisActionRecorder
 
                 while ((line = srLog.ReadLine()) != null && count++ < maxLinesPerTick)
                 {
-                    // Filter noise
                     if (line.Contains("HIS.Desktop.Notify") || line.Contains("ProcessSyncToRAM") || line.Contains("ModuleControlDispose"))
                         continue;
 
                     string winTitle = GetActiveWindowTitle();
 
-                    // Detect API Begin
                     Match mApi = Regex.Match(line, @"WebApiClient\.(Post|Get)\.Begin.*?api:([^\s_]+)");
                     if (mApi.Success)
                     {
@@ -881,7 +1064,6 @@ namespace HisActionRecorder
                         continue;
                     }
 
-                    // Detect SerializeObject Payload
                     Match mPayload = Regex.Match(line, @"SerializeObject data api: (.*)");
                     if (mPayload.Success)
                     {
@@ -891,7 +1073,6 @@ namespace HisActionRecorder
                         continue;
                     }
 
-                    // Detect Token
                     Match mToken = Regex.Match(line, @"TokenCode\|([a-fA-F0-9]{64})");
                     if (mToken.Success)
                     {
@@ -904,7 +1085,6 @@ namespace HisActionRecorder
                         continue;
                     }
 
-                    // Detect WorkInfo / Branch / Department
                     if (line.Contains("UpdateWorkInfo") || line.Contains("WorkInfoSDO"))
                     {
                         EnqueueEvent("🏢 Cấu hình Khoa/Phòng", "Cập nhật phòng làm việc", line, winTitle);
@@ -930,7 +1110,6 @@ namespace HisActionRecorder
             int stt = 1;
             foreach (ActionItem it in recordedList)
             {
-                // Skip payload rows from main table to keep it neat, or include them
                 if (it.ActionType.Contains("Dữ Liệu Gửi")) continue;
 
                 int rowIdx = dgvReview.Rows.Add(
