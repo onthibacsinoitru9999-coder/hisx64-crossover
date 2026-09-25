@@ -22,6 +22,11 @@ Mọi Agent khi khởi động trong BẤT KỲ khung chat nào (khung chat mớ
     * **Phòng làm việc / Tiểu phẫu**: P734 (`RoomId = 5248`) hoặc Tiểu phẫu Nhà Q (`ExecuteRoomId = 931`)
     * **Tủ trực thuốc**: **`810` (`TT_KCTCHCS`)**
     * **Dịch vụ ĐMMM tại giường**: **`BM02426`** (Service ID: **`6217`**)
+    * 🌟 **GOOGLE SHEET TOÀN KHOA HÀ NỘI**:
+      - **Link Google Sheet**: [Sổ Đi Buồng & Giao Ban Khoa CTCH & CS Hà Nội](https://docs.google.com/spreadsheets/d/1z8Stz0XnEA4-s2AxKSzMijoiZxLxxOlkbYfqSiRwU28/edit?usp=drivesdk)
+      - **Tab ĐI BUỒNG**: `gid=360892229` | **CSV Export**: `https://docs.google.com/spreadsheets/d/1z8Stz0XnEA4-s2AxKSzMijoiZxLxxOlkbYfqSiRwU28/export?format=csv&gid=360892229`
+      - **Tab GIAO BAN**: `gid=340181132`
+      - **Quy tắc cốt lõi**: Khác với Ninh Bình bệnh nhân phân tán, tại Hà Nội **ƯU TIÊN RÀ SOÁT TRÊN HIS NẾU HỎI DANH SÁCH TOÀN KHOA**; khi cần tra cứu phân công, ghi chú đi buồng, y lệnh lãnh đạo hoặc trạng thái mổ phiên/mổ cấp cứu thì đối chiếu trực tiếp tab `ĐI BUỒNG` trên Google Sheet này.
   - 🏥 **Cơ sở Ninh Bình (`ninh-binh` / `NB`)**:
     * **Khoa**: Khoa Ngoại tổng hợp - Tầng 3 Nhà E (Khoa 915 - `DEPARTMENT_ID = 915`)
     * **Branch**: Bệnh viện Bạch Mai Cơ sở 2 - Ninh Bình (`BRANCH_ID = 81`)
@@ -250,4 +255,28 @@ Mọi Agent khi thực hiện bất kỳ tác vụ nào (kê đơn, chỉ địn
      .\.agents\skills\his-clinical-operations\scripts\HisClinicalCli.exe cancel-service <SereServId>
      ```
 * **Ý nghĩa an toàn lâm sàng**: Giúp Bác sĩ xử lý ngay các chỉ định thừa/nhầm lẫn trong phiên trực mà không bị gián đoạn công việc hay vi phạm quy chế hồ sơ bệnh án.
+
+## 14. QUY TẮC BẮT BUỘC: BỘ 10 TIÊU CHUẨN BILAN CƠ BẢN TIỀN PHẪU (ROUTINE PRE-OP 10-CHECKLIST)
+Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối soát bilan mổ", "thiếu bilan gì", hoặc chuẩn bị thông qua mổ (PT-01) **BẮT BUỘC PHẢI RÀ SOÁT TỐI THIỂU ĐẦY ĐỦ 10 TIÊU CHUẨN CƠ BẢN NÀY** mà KHÔNG ĐƯỢC PHÉP BỎ SÓT BẤT KỲ MỤC NÀO:
+
+| STT | Tên Cận Lâm Sàng Cơ Bản | Mã Dịch Vụ / Dịch Vụ Trên HIS | Điều Kiện & Quy Chuẩn Lâm Sàng Bắt Buộc |
+| :---: | :--- | :--- | :--- |
+| **1** | 🩸 **Tổng phân tích tế bào máu** | `BM00110` (Laser 1772) | Bắt buộc 100% (Hb, WBC, PLT). |
+| **2** | 🩸 **Định nhóm máu hệ ABO, Rh(D)** | `BM01700` (Gelcard/Scangel 1464) | Bắt buộc 100% (Xác định rõ ABO nhóm gì, Rh(D) Dương/Âm). |
+| **3** | ⏱️ **Đông máu cơ bản** | `BM00531`, `BM260527.52`, `BM00542` | Bắt buộc 100% đủ bộ 3: PT/TQ, APTT/TCK, Fibrinogen. |
+| **4** | 🧪 **Sinh hóa máu** | `BM02304`, `BM01361`, `BM10249`, `BM01352`, `BM01347`, `BM00132` | Bắt buộc 100% đủ 6 chỉ số: Ure, Creatinin, Glucose, AST/GOT, ALT/GPT, Điện giải đồ (Na-K-Cl). |
+| **5** | 🦠 **Bộ 3 Vi sinh** | `BM00871`, `BM00859`, `BM00837` | Bắt buộc 100% đủ bộ 3: HIV Ag/Ab, HBsAg, HCV Ab (Báo cáo rõ Âm tính/Dương tính). |
+| **6** | 🩺 **Siêu âm ổ bụng tổng quát** | `BM00199` (P.17547) | **BẮT BUỘC 100%** (Đánh giá gan mật, tụy, lách, thận, bàng quang; phát hiện bệnh lý ổ bụng tiềm ẩn trước gây mê). |
+| **7** | 🩻 **X-quang ngực thẳng số hóa** | `BM21074` / `BM00338` (P.17552) | Bắt buộc 100% (Đánh giá bóng tim, nhu mô phổi trước gây mê/phẫu thuật). |
+| **8** | 🧪 **Tổng phân tích nước tiểu** | `BM02998` (P.566) | Bắt buộc 100% (10 thông số máy tự động, sàng lọc nhiễm trùng tiết niệu, protein niệu, glucose niệu). |
+| **9** | ⚡ **Điện tim thường (ECG)** | `BM04258` (P.931) | Bắt buộc 100% (Điện tâm đồ 12 chuyển đạo thường quy trước mổ). |
+| **10** | 🫀 **Siêu âm Doppler tim, van tim** | `BM00201` (P.1715) | ⚠️ **QUY TẮC CỨNG:**<br>• **BẮT BUỘC với người bệnh ≥ 60 tuổi** (100%).<br>• **BẮT BUỘC với người bệnh > 50 tuổi VÀ có bệnh lý tim mạch** (Tăng huyết áp, ĐTĐ, bệnh mạch vành, rối loạn nhịp, suy tim, bệnh van tim...).<br>• Các trường hợp khác: Tùy chỉ định lâm sàng. |
+
+* **Quy chuẩn Báo cáo Đối Soát Bilan (Output Protocol):**
+  - Khi xuất kết quả đối soát bilan, Agent **BẮT BUỘC in bảng 10 mục** với 3 cột rõ ràng:
+    1. Tên mục & Mã dịch vụ.
+    2. Trạng thái (🟢 Đã có KQ kèm số liệu/kết luận, 🟡 Đang làm/Chờ duyệt, 🔴 Chưa chỉ định).
+    3. Cảnh báo hành động (nếu thiếu bất kỳ mục nào trong 10 mục trên, phải bôi đỏ và đề xuất lệnh bổ sung ngay).
+  - **TUYỆT ĐỐI KHÔNG BAO GIỜ BỎ QUÊN:** Siêu âm ổ bụng (`BM00199`), Siêu âm tim (`BM00201`), Nhóm máu (`BM01700`) và Vi sinh!
+
 
