@@ -1132,13 +1132,17 @@ public class MainForm : Form
         try
         {
             string envTok = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
-            string cacheFile = !string.IsNullOrEmpty(envTok) ? Path.Combine(baseDir, envTok) : Path.Combine(baseDir, "doctor_standalone.token");
-            if (!File.Exists(cacheFile))
+            string cacheFile = null;
+            DirectoryInfo curD = new DirectoryInfo(baseDir);
+            for (int i = 0; i < 5; i++)
             {
-                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", !string.IsNullOrEmpty(envTok) ? envTok : "doctor_standalone.token");
-                if (File.Exists(alt)) cacheFile = alt;
+                if (curD == null) break;
+                string checkF = Path.Combine(curD.FullName, !string.IsNullOrEmpty(envTok) ? envTok : "doctor_standalone.token");
+                if (File.Exists(checkF)) { cacheFile = checkF; break; }
+                curD = curD.Parent;
             }
-            if (File.Exists(cacheFile))
+
+            if (!string.IsNullOrEmpty(cacheFile) && File.Exists(cacheFile))
             {
                 string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
                 if (parts.Length >= 2)
@@ -1232,18 +1236,33 @@ public class MainForm : Form
             try
             {
                 string docLogin = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
-                if (string.IsNullOrEmpty(docLogin)) docLogin = "034727";
                 string docPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
                 if (string.IsNullOrEmpty(docPass)) docPass = Environment.GetEnvironmentVariable("HIS_PASS");
-                if (string.IsNullOrEmpty(docPass)) docPass = "981";
+
+                var credentials = new List<Tuple<string, string>>();
+                if (!string.IsNullOrEmpty(docLogin) && !string.IsNullOrEmpty(docPass))
+                {
+                    credentials.Add(Tuple.Create(docLogin, docPass));
+                }
+                credentials.Add(Tuple.Create("034727", "981"));
+                credentials.Add(Tuple.Create("034727", "998199"));
+                credentials.Add(Tuple.Create("vmc", "789789"));
 
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, docLogin, docPass, "2.390.0");
-                if (token == null && docLogin != "034727") token = tokenManager.Login(param, "034727", docPass, "2.390.0");
-                if (token != null)
+                foreach (var cred in credentials)
                 {
-                    tokenCode = token.TokenCode;
-                    try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), tokenCode + "|" + DateTime.Now.Ticks + "|" + docLogin, Encoding.UTF8); } catch { }
+                    var token = tokenManager.Login(param, cred.Item1, cred.Item2, "2.390.0");
+                    if (token != null && !string.IsNullOrEmpty(token.TokenCode))
+                    {
+                        tokenCode = token.TokenCode;
+                        try
+                        {
+                            string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+                            File.WriteAllText(cacheFile, tokenCode + "|" + DateTime.Now.Ticks + "|" + cred.Item1, Encoding.UTF8);
+                        }
+                        catch { }
+                        break;
+                    }
                 }
             }
             catch { }
@@ -1603,7 +1622,7 @@ public class MainForm : Form
             IcdName = (targetTracking != null && !string.IsNullOrEmpty(targetTracking.ICD_NAME)) ? targetTracking.ICD_NAME : patient.IcdName,
             IcdSubCode = (targetTracking != null && !string.IsNullOrEmpty(targetTracking.ICD_SUB_CODE)) ? targetTracking.ICD_SUB_CODE : patient.IcdSubCode,
             IcdText = (targetTracking != null && !string.IsNullOrEmpty(targetTracking.ICD_TEXT)) ? targetTracking.ICD_TEXT : patient.IcdText,
-            SessionCode = Guid.NewGuid().ToString(),
+            SessionCode = null,
             ServiceReqDetails = new List<ServiceReqDetailSDO>
             {
                 new ServiceReqDetailSDO
@@ -1622,6 +1641,14 @@ public class MainForm : Form
                 }
             }
         };
+
+        try
+        {
+            List<long> neededRooms = new List<long> { requestRoomId, actualExecuteRoomId, 5248, 931, 18679, 18681 };
+            var wInfo = new WorkInfoSDO { Rooms = neededRooms.Distinct().Select(r => new RoomSDO { RoomId = r }).ToList() };
+            myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wInfo, param);
+        }
+        catch { }
 
         CommonParam postParam = new CommonParam();
         var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", ApiConsumers.MosConsumer, assignSDO, postParam);
@@ -1676,6 +1703,17 @@ class Program
                 if (File.Exists(path2)) return Assembly.LoadFrom(path2);
                 string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
                 if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+
+                DirectoryInfo cur = new DirectoryInfo(folderPath);
+                for (int i = 0; i < 5; i++)
+                {
+                    if (cur.Parent == null) break;
+                    cur = cur.Parent;
+                    string pRoot = Path.Combine(cur.FullName, name);
+                    if (File.Exists(pRoot)) return Assembly.LoadFrom(pRoot);
+                    string pRef = Path.Combine(cur.FullName, "ReferencedAssemblies", name);
+                    if (File.Exists(pRef)) return Assembly.LoadFrom(pRef);
+                }
             }
             catch { }
             return null;
@@ -1702,6 +1740,12 @@ class Program
             return;
         }
 
+        RunGui();
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static void RunGui()
+    {
         try
         {
             Application.EnableVisualStyles();

@@ -107,7 +107,10 @@ namespace HisGlucoseMcp
             }
 
             if (args.Length > startIndex) pCode = args[startIndex];
-            if (args.Length > startIndex + 1) double.TryParse(args[startIndex + 1], out glucose);
+            if (args.Length > startIndex + 1)
+            {
+                double.TryParse(args[startIndex + 1].Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out glucose);
+            }
             if (args.Length > startIndex + 2) insulinType = args[startIndex + 2];
             if (args.Length > startIndex + 3) int.TryParse(args[startIndex + 3], out units);
             if (args.Length > startIndex + 4) slot = args[startIndex + 4];
@@ -559,8 +562,14 @@ namespace HisGlucoseMcp
                 if (string.IsNullOrEmpty(docPass)) docPass = Environment.GetEnvironmentVariable("HIS_PASS");
                 if (string.IsNullOrEmpty(docPass)) docPass = "981";
 
+                string targetTokenFile = isNB ? "doctor_nb.token" : "doctor_hn.token";
+                if (!File.Exists(Path.Combine(BaseDir, targetTokenFile)) && File.Exists(Path.Combine(BaseDir, "doctor_standalone.token")))
+                {
+                    targetTokenFile = "doctor_standalone.token";
+                }
+
                 psi.EnvironmentVariables["HIS_FACILITY"] = isNB ? "NB" : "HN";
-                psi.EnvironmentVariables["HIS_TOKEN_FILE"] = isNB ? "doctor_nb.token" : "doctor_hn.token";
+                psi.EnvironmentVariables["HIS_TOKEN_FILE"] = targetTokenFile;
                 psi.EnvironmentVariables["HIS_DOCTOR_LOGIN"] = docLogin;
                 psi.EnvironmentVariables["HIS_PASSWORD"] = docPass;
 

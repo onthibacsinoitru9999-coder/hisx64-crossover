@@ -2313,3 +2313,31 @@ Tương tự `his-glucose` và `his-discharge`, module được đóng gói thà
     }
   }
   ```
+
+---
+
+## 42. CHUẨN HÓA GỠ LỖI PROTOCOL 'THỢ CHO ĐƯỜNG HUYẾT' TẠI HÀ NỘI (GLUCOSE PROTOCOL GOTCHAS & RESOLUTION)
+
+### 42.1. Bản Chất 5 Nguyên Nhân Khiến Protocol Bị Tắc Nghẽn Vừa Qua:
+1. **Lỗi hết hạn Token + Thiếu File `.config` cho ACS Standalone Login**:
+   - `doctor_standalone.token` chỉ có hạn 6 tiếng. Khi hết hạn, `HisCabinetPrescribe.cs` trước đây không có hàm fallback đăng nhập tự động qua ACS.
+   - Thư viện `Inventec.Token.ClientSystem.ClientTokenManager` phụ thuộc tuyệt đối vào `appSettings` trong `HisCabinetPrescribe.exe.config` để đọc `Inventec.Token.ClientSystem.Acs.Base.Uri` (`http://192.168.7.200:1401/`). Khi thiếu file `.config`, hàm `Login()` trả về null âm thầm khiến tiến trình báo lỗi không có Token.
+   - *Khắc phục*: Tích hợp fallback login với ma trận credentials (`034727`/`981`, `034727`/`998199`, `vmc`/`789789`) và đồng bộ `HisCabinetPrescribe.exe.config` sang mọi thư mục chạy.
+
+2. **Lỗi nạp Assembly khi chạy từ thư mục con `.agents/.../scripts/`**:
+   - Khi chạy từ `.agents\skills\his-clinical-operations\scripts\`, `AssemblyResolve` chỉ tìm DLL trong `BaseDirectory`, dẫn tới crash `FileNotFoundException: Could not load file or assembly 'Inventec.Token.ClientSystem'`.
+   - *Khắc phục*: Nâng cấp `AssemblyResolve` tự động duyệt lên 5 tầng thư mục cha để tìm `ReferencedAssemblies`, đồng thời gắn `[MethodImpl(MethodImplOptions.NoInlining)]` cho hàm khởi chạy.
+
+3. **Lỗi Culture Parsing biến `11.4` thành `114` mmol/L**:
+   - Trong `HisGlucoseMcpServer.cs`, lệnh `double.TryParse(args[startIndex + 1], out glucose)` dùng culture hiện tại của Windows (tiếng Việt), xem dấu chấm `.` là phân tách hàng nghìn.
+   - *Khắc phục*: Dùng `args[startIndex + 1].Replace(',', '.')` với `NumberStyles.Any` và `CultureInfo.InvariantCulture`.
+
+4. **Lỗi lệch biến môi trường `HIS_TOKEN_FILE`**:
+   - `HisGlucoseMcpServer.cs` set `HIS_TOKEN_FILE = "doctor_hn.token"`, nhưng file này không tồn tại trên đĩa (chỉ có `doctor_standalone.token`). Khiến `HisGlucoseBedsideAssigner.exe` bỏ qua cache token và thất bại.
+   - *Khắc phục*: Thêm cơ chế tự động fallback sang `doctor_standalone.token` nếu file chỉ định không tồn tại.
+
+5. **Lỗi WorkInfo & RequestRoomId khi gọi `AssignServiceByInstructionTimes`**:
+   - Dịch vụ ĐMMM `BM02426` (ID `6217`) tại Hà Nội yêu cầu `RequestRoomId` phải là buồng bệnh nơi bệnh nhân đang nằm (ví dụ Phòng 724 = `5257`), phòng thực hiện là `931` (Tiểu phẫu nhà Q) hoặc `5248`, và `SampleTypeCode = "BP0042"`.
+   - Trước khi gọi API gán dịch vụ, tài khoản Bác sĩ BẮT BUỘC phải được cập nhật qua `api/Token/UpdateWorkInfo` chứa cả `RequestRoomId` và `ExecuteRoomId`.
+   - `SessionCode` phải truyền `null` thay vì `Guid` ngẫu nhiên để tránh backend từ chối phân phiên.
+

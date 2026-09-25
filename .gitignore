@@ -33,6 +33,9 @@ tmp/
 !.agents/
 !.agents/**
 !*.rsp
+!HisCabinetPrescribe.exe.config
+!HisGlucoseBedsideAssigner.exe.config
+!HisGlucoseMcpServer.exe.config
 !mau pt01.docx
 !Templates/
 !Templates/**
@@ -44,6 +47,8 @@ mcp_servers/**/node_modules/
 mcp_servers/**/dist/
 mcp_servers/**/temp_test_logs/
 mcp_servers/**/*.log
+.agents/**/*.token
+**/*.token
 
 Data/Cache/
 
@@ -54,3 +59,4 @@ test_script*.py
 *_test.py
 payload_*.json
 PrescribeTemp*.cs
+HisClinicalCli.cs
