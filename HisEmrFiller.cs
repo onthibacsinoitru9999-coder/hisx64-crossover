@@ -1039,11 +1039,20 @@ class HisEmrFiller
 
         if (s.Contains("xẹp") || s.Contains("xep") || s.Contains("đốt sống"))
         {
+            string tangXep = "";
+            if (s.Contains("t12")) tangXep += "T12 ";
+            if (s.Contains("l1")) tangXep += "L1 ";
+            if (s.Contains("l2")) tangXep += "L2 ";
+            if (s.Contains("l3")) tangXep += "L3 ";
+            if (s.Contains("l4")) tangXep += "L4 ";
+            if (s.Contains("l5")) tangXep += "L5 ";
+            string descXep = string.IsNullOrEmpty(tangXep) ? "xẹp đốt sống" : ("xẹp cấp thân đốt sống " + tangXep.Trim());
+
             return string.Format(
-                "Bệnh nhân xuất hiện đau dữ dội vùng cột sống thắt lưng sau ngã đập mông hoặc cúi bê vật nặng. " +
-                "Đau tăng mạnh khi thay đổi tư thế, đi lại khó khăn, nằm yên đỡ đau, không rối loạn tiểu tiện. " +
-                "Bệnh nhân đến khám tại Bệnh viện Bạch Mai, được chụp X-quang/MRI xác định xẹp đốt sống và nhập viện can thiệp.",
-                viTri);
+                "Bệnh nhân xuất hiện đau dữ dội vùng cột sống lưng - thắt lưng sau ngã đập mông hoặc cúi bê vật nặng. " +
+                "Đau chói khu trú vùng cột sống tổn thương, đau tăng mạnh khi thay đổi tư thế và đi lại, nằm yên đỡ đau, không có triệu chứng tê bì lan chân hay rối loạn cơ tròn. " +
+                "Bệnh nhân đến khám tại Bệnh viện Bạch Mai, được chụp X-quang/MRI xác định hình ảnh {0} trên nền loãng xương và được chỉ định nhập viện Khoa CTCH & Cột sống can thiệp điều trị.",
+                descXep);
         }
 
         if (s.Contains("thoát vị") || s.Contains("thoat vi") || s.Contains("đĩa đệm") || s.Contains("hẹp ống sống"))
@@ -1162,13 +1171,22 @@ class HisEmrFiller
 
         if (s.Contains("xẹp") || s.Contains("đốt sống"))
         {
+            string tangXep = "";
+            if (s.Contains("t12")) tangXep += "T12 ";
+            if (s.Contains("l1")) tangXep += "L1 ";
+            if (s.Contains("l2")) tangXep += "L2 ";
+            if (s.Contains("l3")) tangXep += "L3 ";
+            if (s.Contains("l4")) tangXep += "L4 ";
+            if (s.Contains("l5")) tangXep += "L5 ";
+            string viTriXep = string.IsNullOrEmpty(tangXep) ? "đốt sống tổn thương" : ("đốt sống " + tangXep.Trim());
             return string.Format(
-                "Khám chuyên khoa cột sống:\n" +
-                "- Điểm đau chói cố định tại gai sau đốt sống tổn thương khi gõ và ấn dọc gai sống.\n" +
-                "- Co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế vận động cúi - ngửa - nghiêng cột sống thắt lưng.\n" +
+                "Khám chuyên khoa Cột sống:\n" +
+                "- Điểm đau chói cố định tại gai sau {0} khi gõ và ấn dọc gai sống.\n" +
+                "- Co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế rõ tầm vận động cúi - ngửa - nghiêng cột sống thắt lưng do đau.\n" +
                 "- Nghiệm pháp Lasegue (-), không có dấu hiệu chèn ép rễ thần kinh khu trú.\n" +
-                "- Cơ lực hai chi dưới 5/5, phản xạ gân xương bình thường, cảm giác và phản xạ cơ vòng bảo tồn.",
-                loc);
+                "- Cơ lực hai chi dưới 5/5, phản xạ gân xương bình thường, cảm giác và cơ tròn bảo tồn, đại tiểu tiện tự chủ.\n" +
+                "- Mạch mu chân và mạch chày sau hai bên bắt rõ.",
+                viTriXep);
         }
 
         if (s.Contains("vết thương") || s.Contains("vet thuong"))
@@ -1356,8 +1374,18 @@ class HisEmrFiller
         }
         else if (s.Contains("xẹp") || s.Contains("lún") || (s.Contains("đốt sống") && s.Contains("m80")))
         {
-            sb.AppendLine("- Hội chứng cột sống (+): Điểm đau chói cố định tại gai sau đốt sống xẹp khi gõ và ấn dọc gai sống, co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế tầm vận động cúi - ngửa. Đau tăng dữ dội khi thay đổi tư thế.");
-            sb.AppendLine("- Hội chứng thần kinh (-): Không có dấu hiệu chèn ép tủy hay rễ thần kinh khu trú; phản xạ gân xương chi dưới bình thường, đại tiểu tiện tự chủ.");
+            string tangXep = "";
+            if (s.Contains("t12")) tangXep += "T12 ";
+            if (s.Contains("l1")) tangXep += "L1 ";
+            if (s.Contains("l2")) tangXep += "L2 ";
+            if (s.Contains("l3")) tangXep += "L3 ";
+            if (s.Contains("l4")) tangXep += "L4 ";
+            if (s.Contains("l5")) tangXep += "L5 ";
+            string viTriXep = string.IsNullOrEmpty(tangXep) ? "đốt sống xẹp" : ("đốt sống " + tangXep.Trim());
+            sb.AppendLine(string.Format("- Hội chứng cột sống (+): Điểm đau chói cố định tại gai sau {0} khi gõ và ấn dọc gai sống, co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế tầm vận động cúi - ngửa. Đau tăng dữ dội khi thay đổi tư thế.", viTriXep));
+            sb.AppendLine("- Hội chứng thần kinh (-): Không có dấu hiệu chèn ép tủy hay rễ thần kinh khu trú; phản xạ gân xương chi dưới bình thường, cơ lực 2 chân 5/5, đại tiểu tiện tự chủ.");
+            if (s.Contains("loãng xương") || s.Contains("m80"))
+                sb.AppendLine("- Bệnh lý xương kèm theo: Loãng xương tuổi già, nguy cơ gãy xương tái phát.");
         }
         else if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("cột sống") || s.Contains("đốt sống") || s.Contains("hẹp ống sống") || s.Contains("m51") || s.Contains("m50"))
         {
@@ -1602,6 +1630,14 @@ class HisEmrFiller
         if (curIsKnee && (pastIsSpine || pastIsAnkle || pastIsHip)) return false;
         if (curIsAnkle && (pastIsSpine || pastIsKnee || pastIsHip)) return false;
         if (curIsHip && (pastIsSpine || pastIsKnee || pastIsAnkle)) return false;
+
+        bool curIsVertebralFracture = cur.Contains("xẹp") || cur.Contains("lún") || cur.Contains("m80");
+        bool pastIsRadicular = past.Contains("lan xuống chân") || past.Contains("thoát vị") || past.Contains("hẹp ống sống");
+        if (curIsVertebralFracture && pastIsRadicular && !cur.Contains("thoát vị") && !cur.Contains("rễ")) return false;
+
+        bool curIsSpineDisc = cur.Contains("thoát vị") || cur.Contains("hẹp ống sống") || cur.Contains("chùm đuôi ngựa");
+        bool pastIsVertebralFracture = past.Contains("xẹp đốt sống") || past.Contains("bơm xi măng") || past.Contains("bxm");
+        if (curIsSpineDisc && pastIsVertebralFracture && !cur.Contains("xẹp")) return false;
 
         return true;
     }
