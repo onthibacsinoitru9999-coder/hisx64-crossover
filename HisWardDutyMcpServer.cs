@@ -520,7 +520,7 @@ namespace HisWardDutyMcp
 
             try
             {
-                string args = isDryRun ? tr.TDL_PATIENT_CODE : string.Format("{0} --save", tr.TDL_PATIENT_CODE);
+                string args = isDryRun ? string.Format("{0} --admission", tr.TDL_PATIENT_CODE) : string.Format("{0} --save --admission", tr.TDL_PATIENT_CODE);
                 sb.AppendLine(string.Format("   🚀 Đang gọi engine HisEmrFiller.exe {0}...", args));
 
                 ProcessStartInfo psi = new ProcessStartInfo

@@ -174,6 +174,7 @@ class HisEmrFiller
         bool forceAll = false;
         bool isReverseOutpatients = false;
         string customSummary = null;
+        bool isAdmissionOnly = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -182,6 +183,13 @@ class HisEmrFiller
                 dryRun = false;
             else if (a.Equals("--dry-run", StringComparison.OrdinalIgnoreCase) || a.Equals("--preview", StringComparison.OrdinalIgnoreCase))
                 dryRun = true;
+            else if (a.Equals("--admission", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--no-discharge", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("--vao-vien", StringComparison.OrdinalIgnoreCase) ||
+                     a.Equals("-admission", StringComparison.OrdinalIgnoreCase))
+            {
+                isAdmissionOnly = true;
+            }
             else if (a.Equals("--reverse-outpatients", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("--reverse", StringComparison.OrdinalIgnoreCase) ||
                      a.Equals("reverse", StringComparison.OrdinalIgnoreCase) ||
@@ -289,7 +297,7 @@ class HisEmrFiller
 
         try
         {
-            return Run(input, dryRun, doctorCode, doctorName, forceSummary, forceAll, customSummary);
+            return Run(input, dryRun, doctorCode, doctorName, forceSummary, forceAll, customSummary, isAdmissionOnly);
         }
         catch (Exception ex)
         {
@@ -309,7 +317,7 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // MAIN EXECUTION LOGIC
     // ──────────────────────────────────────────────────────────────
-    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false, bool forceAll = false, string customSummary = null)
+    static int Run(string input, bool dryRun, string doctorCode, string doctorName, bool forceSummary = false, bool forceAll = false, string customSummary = null, bool isAdmissionOnly = false)
     {
         string tokenCode = ReadLiveToken();
         var consumer = new ApiConsumer(MOS_BASE, tokenCode, "HIS");
@@ -392,7 +400,7 @@ class HisEmrFiller
 
         // Tạo và điền đối tượng bệnh án theo nguyên tắc Merge
         dynamic ba = isUpdate ? existingBA : CreateNewBenhAnNgoaiKhoa();
-        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary, forceAll, clinicalCtx, customSummary);
+        PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary, forceAll, clinicalCtx, customSummary, isAdmissionOnly);
 
         // Đảm bảo Trang bìa THONGTINDIEUTRI
         EnsureThongTinDieuTri(con, ti, !dryRun);
@@ -500,7 +508,8 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     static void PopulateBenhAn(dynamic ba, TreatmentInfo ti, DhstInfo dhst, TemplateBA tmpl, LabPacsInfo labs,
                                string docCode, string docName, bool isUpdate, bool forceSummary = false,
-                               bool forceAll = false, ClinicalContextInfo clinicalCtx = null, string customSummary = null)
+                               bool forceAll = false, ClinicalContextInfo clinicalCtx = null, string customSummary = null,
+                               bool isAdmissionOnly = false)
     {
         string existingAll = (SafeStr(ba.TomTatBenhAn) + " " + SafeStr(ba.LyDoVaoVien) + " " + SafeStr(ba.QuaTrinhBenhLy) + " " + SafeStr(ba.HoHap) + " " + SafeStr(ba.ThanTietNieuSinhDuc) + " " + SafeStr(ba.PhanBiet)).ToLower();
         bool hasPolytraumaArtifacts = existingAll.Contains("lào cai") || existingAll.Contains("lao cai") || existingAll.Contains("thận phải độ iii") || existingAll.Contains("đa chấn thương") || existingAll.Contains("vỡ tạng rỗng") || existingAll.Contains("tràn khí màng phổi");
@@ -738,42 +747,56 @@ class HisEmrFiller
         catch { }
 
         // 4. TAB TỔNG KẾT BỆNH ÁN KHI RA VIỆN (BÌA TỔNG KẾT CUỐI CỦA BỆNH ÁN NGOẠI KHOA)
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.QuaTrinhBenhLyVaDienBien) && ShouldOverwrite(SafeStr(ba.QuaTrinhBenhLyVaDienBien), forceAll, ti))
-            ba.QuaTrinhBenhLyVaDienBien = clinicalCtx.QuaTrinhBenhLyVaDienBien;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.QuaTrinhBenhLyVaDienBien)) || forceAll || forceSummary)
-            ba.QuaTrinhBenhLyVaDienBien = BuildQuaTrinhBenhLyVaDienBien(ti, clinicalCtx);
-
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TomTatKetQuaXetNghiem) && ShouldOverwrite(SafeStr(ba.TomTatKetQuaXetNghiem), forceAll, ti))
-            ba.TomTatKetQuaXetNghiem = clinicalCtx.TomTatKetQuaXetNghiem;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TomTatKetQuaXetNghiem)) || forceAll || forceSummary)
-            ba.TomTatKetQuaXetNghiem = BuildTomTatKetQuaXetNghiem(ti, labs, clinicalCtx);
-
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.PhuongPhapDieuTri) && ShouldOverwrite(SafeStr(ba.PhuongPhapDieuTri), forceAll, ti))
-            ba.PhuongPhapDieuTri = clinicalCtx.PhuongPhapDieuTri;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.PhuongPhapDieuTri)) || forceAll || forceSummary)
-            ba.PhuongPhapDieuTri = BuildPhuongPhapDieuTri(ti, clinicalCtx);
-
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TinhTrangNguoiBenhRaVien) && ShouldOverwrite(SafeStr(ba.TinhTrangNguoiBenhRaVien), forceAll, ti))
-            ba.TinhTrangNguoiBenhRaVien = clinicalCtx.TinhTrangNguoiBenhRaVien;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TinhTrangNguoiBenhRaVien)) || forceAll || forceSummary)
-            ba.TinhTrangNguoiBenhRaVien = BuildTinhTrangNguoiBenhRaVien(ti, dhst);
-
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTriVaCacCheDoTiepTheo) && ShouldOverwrite(SafeStr(ba.HuongDieuTriVaCacCheDoTiepTheo), forceAll, ti))
-            ba.HuongDieuTriVaCacCheDoTiepTheo = clinicalCtx.HuongDieuTriVaCacCheDoTiepTheo;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTriVaCacCheDoTiepTheo)) || forceAll || forceSummary)
-            ba.HuongDieuTriVaCacCheDoTiepTheo = BuildHuongDieuTriTiepTheo(ti);
-
-        // Bác sĩ điều trị & Ngày tổng kết & Lời dặn
-        ba.BacSyDieuTri = docCode;
-        ba.TenBacSyDieuTri = docName;
-        if (string.IsNullOrWhiteSpace(SafeStr(ba.LoiDanBacSi)) || forceAll || forceSummary)
-            ba.LoiDanBacSi = "Uống thuốc đúng liều lượng và thời gian theo đơn thuốc ra viện; giữ vệ sinh vết mổ khô sạch, thay băng định kỳ; tập phục hồi chức năng nhẹ nhàng; tái khám định kỳ sau 1 tháng hoặc ngay khi có dấu hiệu bất thường.";
-
-        try
+        if (isAdmissionOnly)
         {
-            ba.NgayTongKet = DateTime.Today;
+            // Bệnh nhân mới vào viện tiếp đón: TUYỆT ĐỐI KHÔNG VIẾT NỘI DUNG BÌA TỔNG KẾT RA VIỆN!
+            ba.QuaTrinhBenhLyVaDienBien = null;
+            ba.TomTatKetQuaXetNghiem = null;
+            ba.PhuongPhapDieuTri = null;
+            ba.TinhTrangNguoiBenhRaVien = null;
+            ba.HuongDieuTriVaCacCheDoTiepTheo = null;
+            ba.NgayTongKet = DateTime.MinValue;
+            ba.LoiDanBacSi = null;
         }
-        catch { }
+        else
+        {
+            if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.QuaTrinhBenhLyVaDienBien) && ShouldOverwrite(SafeStr(ba.QuaTrinhBenhLyVaDienBien), forceAll, ti))
+                ba.QuaTrinhBenhLyVaDienBien = clinicalCtx.QuaTrinhBenhLyVaDienBien;
+            else if (string.IsNullOrWhiteSpace(SafeStr(ba.QuaTrinhBenhLyVaDienBien)) || forceAll || forceSummary)
+                ba.QuaTrinhBenhLyVaDienBien = BuildQuaTrinhBenhLyVaDienBien(ti, clinicalCtx);
+
+            if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TomTatKetQuaXetNghiem) && ShouldOverwrite(SafeStr(ba.TomTatKetQuaXetNghiem), forceAll, ti))
+                ba.TomTatKetQuaXetNghiem = clinicalCtx.TomTatKetQuaXetNghiem;
+            else if (string.IsNullOrWhiteSpace(SafeStr(ba.TomTatKetQuaXetNghiem)) || forceAll || forceSummary)
+                ba.TomTatKetQuaXetNghiem = BuildTomTatKetQuaXetNghiem(ti, labs, clinicalCtx);
+
+            if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.PhuongPhapDieuTri) && ShouldOverwrite(SafeStr(ba.PhuongPhapDieuTri), forceAll, ti))
+                ba.PhuongPhapDieuTri = clinicalCtx.PhuongPhapDieuTri;
+            else if (string.IsNullOrWhiteSpace(SafeStr(ba.PhuongPhapDieuTri)) || forceAll || forceSummary)
+                ba.PhuongPhapDieuTri = BuildPhuongPhapDieuTri(ti, clinicalCtx);
+
+            if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TinhTrangNguoiBenhRaVien) && ShouldOverwrite(SafeStr(ba.TinhTrangNguoiBenhRaVien), forceAll, ti))
+                ba.TinhTrangNguoiBenhRaVien = clinicalCtx.TinhTrangNguoiBenhRaVien;
+            else if (string.IsNullOrWhiteSpace(SafeStr(ba.TinhTrangNguoiBenhRaVien)) || forceAll || forceSummary)
+                ba.TinhTrangNguoiBenhRaVien = BuildTinhTrangNguoiBenhRaVien(ti, dhst);
+
+            if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTriVaCacCheDoTiepTheo) && ShouldOverwrite(SafeStr(ba.HuongDieuTriVaCacCheDoTiepTheo), forceAll, ti))
+                ba.HuongDieuTriVaCacCheDoTiepTheo = clinicalCtx.HuongDieuTriVaCacCheDoTiepTheo;
+            else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTriVaCacCheDoTiepTheo)) || forceAll || forceSummary)
+                ba.HuongDieuTriVaCacCheDoTiepTheo = BuildHuongDieuTriTiepTheo(ti);
+
+            // Bác sĩ điều trị & Ngày tổng kết & Lời dặn
+            ba.BacSyDieuTri = docCode;
+            ba.TenBacSyDieuTri = docName;
+            if (string.IsNullOrWhiteSpace(SafeStr(ba.LoiDanBacSi)) || forceAll || forceSummary)
+                ba.LoiDanBacSi = "Uống thuốc đúng liều lượng và thời gian theo đơn thuốc ra viện; giữ vệ sinh vết mổ khô sạch, thay băng định kỳ; tập phục hồi chức năng nhẹ nhàng; tái khám định kỳ sau 1 tháng hoặc ngay khi có dấu hiệu bất thường.";
+
+            try
+            {
+                ba.NgayTongKet = DateTime.Today;
+            }
+            catch { }
+        }
 
         // Cờ Phẫu thuật / Thủ thuật
         string allClinicalText = (clinicalCtx != null ? string.Join("\n", clinicalCtx.RawTrackingContents.Concat(clinicalCtx.DebateSummaries)) : "").ToLower();
