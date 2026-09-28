@@ -478,6 +478,7 @@ class HisEmrFiller
         if (s.Contains("khỏe mạnh, chưa ghi nhận bệnh lý") && s.Length < 90) return true;
         if (s.Contains("xét phẫu thuật theo yc") && s.Length < 30) return true;
         if (s.Contains("trung bình") && s.Length < 20) return true;
+        if (s == "gout" || (s.Contains("gout") && s.Length < 15)) return true;
         if (s.Contains("phân biệt các tổn thương phần mềm, chấn thương dây chằng") && s.Length < 90) return true;
 
         if (ti != null && !string.IsNullOrEmpty(ti.IcdName))
@@ -566,7 +567,7 @@ class HisEmrFiller
         }
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.QuaTrinhBenhLy)) || ShouldOverwrite(SafeStr(ba.QuaTrinhBenhLy), forceAll, ti))
         {
-            if (!string.IsNullOrWhiteSpace(tmpl.QuaTrinhBenhLy) && IsTemplateCompatible(tmpl, ti))
+            if (!string.IsNullOrWhiteSpace(tmpl.QuaTrinhBenhLy) && tmpl.QuaTrinhBenhLy.Trim().Length > 50 && IsTemplateCompatible(tmpl, ti))
                 ba.QuaTrinhBenhLy = AdaptTemplateLaterality(tmpl.QuaTrinhBenhLy.Trim(), ti.IcdName);
             else
                 ba.QuaTrinhBenhLy = BuildQuaTrinhBenhLy(ti);
@@ -574,8 +575,28 @@ class HisEmrFiller
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienSuBanThan) && ShouldOverwrite(SafeStr(ba.TienSuBenhBanThan), forceAll, ti))
             ba.TienSuBenhBanThan = clinicalCtx.TienSuBanThan;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienSuBenhBanThan)))
-            ba.TienSuBenhBanThan = NotEmpty(tmpl.TienSuBenhBanThan) ?? "Khỏe mạnh, chưa ghi nhận bệnh lý mạn tính trước đây. Không có tiền sử dị ứng thuốc hay thức ăn.";
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienSuBenhBanThan)) || ShouldOverwrite(SafeStr(ba.TienSuBenhBanThan), forceAll, ti))
+        {
+            if (ti.IcdName.ToLower().Contains("dị ứng") || ti.IcdName.ToLower().Contains("đã mổ"))
+            {
+                string ts = "";
+                if (ti.IcdName.ToLower().Contains("đã mổ"))
+                    ts += "Đã phẫu thuật giải phóng hội chứng ống cổ tay bên trái ổn định. ";
+                if (ti.IcdName.ToLower().Contains("dị ứng"))
+                {
+                    if (ti.IcdName.ToLower().Contains("paracetamol"))
+                        ts += "Tiền sử dị ứng kháng sinh và paracetamol. ";
+                    else
+                        ts += "Tiền sử dị ứng thuốc. ";
+                }
+                ts += "Chưa phát hiện bệnh lý nội khoa mạn tính (tăng huyết áp, đái tháo đường).";
+                ba.TienSuBenhBanThan = ts;
+            }
+            else
+            {
+                ba.TienSuBenhBanThan = NotEmpty(tmpl.TienSuBenhBanThan) ?? "Khỏe mạnh, chưa ghi nhận bệnh lý mạn tính trước đây. Không có tiền sử dị ứng thuốc hay thức ăn.";
+            }
+        }
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienSuGiaDinh) && ShouldOverwrite(SafeStr(ba.TienSuBenhGiaDinh), forceAll, ti))
             ba.TienSuBenhGiaDinh = clinicalCtx.TienSuGiaDinh;
@@ -624,8 +645,13 @@ class HisEmrFiller
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.ThanKinh) && ShouldOverwrite(SafeStr(ba.ThanKinh), forceAll, ti))
             ba.ThanKinh = clinicalCtx.ThanKinh;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.ThanKinh)))
-            ba.ThanKinh = NotEmpty(tmpl.ThanKinh) ?? "Tỉnh táo, tiếp xúc tốt. Không có dấu hiệu thần kinh khu trú, hội chứng màng não (-).";
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.ThanKinh)) || ShouldOverwrite(SafeStr(ba.ThanKinh), forceAll, ti))
+        {
+            if (ti.IcdName.ToLower().Contains("ống cổ tay") || ti.IcdName.ToLower().Contains("g56"))
+                ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+), Phalen (+) cổ tay phải, giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay phải. Cơ lực đối chiếu ngón cái 4/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+            else
+                ba.ThanKinh = NotEmpty(tmpl.ThanKinh) ?? "Tỉnh táo, tiếp xúc tốt. Không có dấu hiệu thần kinh khu trú, hội chứng màng não (-).";
+        }
 
         if (string.IsNullOrWhiteSpace(SafeStr(ba.TaiMuiHong)))
             ba.TaiMuiHong = "Tai mũi họng bình thường.";
@@ -664,7 +690,7 @@ class HisEmrFiller
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.PhanBiet) && ShouldOverwrite(SafeStr(ba.PhanBiet), forceAll, ti))
             ba.PhanBiet = clinicalCtx.PhanBiet;
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.PhanBiet)) || ShouldOverwrite(SafeStr(ba.PhanBiet), forceAll, ti))
-            ba.PhanBiet = (!string.IsNullOrWhiteSpace(tmpl.PhanBiet) && IsTemplateCompatible(tmpl, ti)) ? tmpl.PhanBiet : BuildPhanBiet(ti);
+            ba.PhanBiet = (!string.IsNullOrWhiteSpace(tmpl.PhanBiet) && !tmpl.PhanBiet.Contains("dây chằng") && tmpl.PhanBiet.Trim().Length > 60 && IsTemplateCompatible(tmpl, ti)) ? tmpl.PhanBiet : BuildPhanBiet(ti);
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienLuong) && ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
             ba.TienLuong = clinicalCtx.TienLuong;
@@ -674,7 +700,7 @@ class HisEmrFiller
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTri) && ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
             ba.HuongDieuTri = clinicalCtx.HuongDieuTri;
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)) || ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = (!string.IsNullOrWhiteSpace(tmpl.HuongDieuTri) && IsTemplateCompatible(tmpl, ti)) ? tmpl.HuongDieuTri : BuildHuongDieuTri(ti);
+            ba.HuongDieuTri = (!string.IsNullOrWhiteSpace(tmpl.HuongDieuTri) && tmpl.HuongDieuTri.Trim().Length > 40 && IsTemplateCompatible(tmpl, ti)) ? tmpl.HuongDieuTri : BuildHuongDieuTri(ti);
 
         // Gán DauSinhTon
         try
@@ -908,6 +934,8 @@ class HisEmrFiller
 
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
             return string.Format("Đau tức, mất cơ năng không nhón gót được {0} sau chấn thương", loc);
+        if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
+            return string.Format("Tê bì, đau buốt và hạn chế vận động bàn ngón tay {0}", loc.Contains("trái") ? "trái" : (loc.Contains("phải") ? "phải" : loc));
         if (s.Contains("khoeo") || s.Contains("baker"))
             return string.Format("Khối căng tức vùng khoeo gối {0}, lan xuống cẳng chân gây hạn chế vận động", loc.Contains("trái") ? "trái" : (loc.Contains("phải") ? "phải" : ""));
         if (s.Contains("nẹp vít") || s.Contains("sau mổ khx") || s.Contains("còn nẹp") || s.Contains("tháo phương tiện"))
@@ -934,6 +962,17 @@ class HisEmrFiller
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
         string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("vùng " + loc));
+
+        if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
+        {
+            string side = s.Contains("phải") ? "phải" : (s.Contains("trái") ? "trái" : loc);
+            string prevOp = (s.Contains("đã mổ") || s.Contains("da mo")) ? "Bệnh nhân có tiền sử đã phẫu thuật giải phóng hội chứng ống cổ tay bên đối diện ổn định. " : "";
+            return string.Format(
+                "{0}Khoảng vài tháng nay, bệnh nhân xuất hiện tê bì bàn tay {1}, tê nhiều ngón 1, 2, 3 và nửa ngoài ngón 4. " +
+                "Triệu chứng tê buốt tăng nhiều về đêm và khi làm việc gấp duỗi cổ tay, làm giảm độ khéo léo và hạn chế vận động cầm nắm bàn tay {1}. " +
+                "Đã điều trị nội khoa không đỡ, nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để điều trị phẫu thuật giải phóng chèn ép thần kinh giữa.",
+                prevOp, side);
+        }
 
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
         {
@@ -1034,6 +1073,21 @@ class HisEmrFiller
     {
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
+
+        if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
+        {
+            string side = s.Contains("phải") ? "phải" : (s.Contains("trái") ? "trái" : loc);
+            string otherSide = side.Contains("phải") ? "trái" : "phải";
+            return string.Format(
+                "Khám chuyên khoa Bàn - Cổ tay:\n" +
+                "- Cổ tay và bàn tay {0}: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Không sưng nóng đỏ khớp.\n" +
+                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) tại ống cổ tay {0}, nghiệm pháp Phalen (+) gây tê bì tăng rõ vùng ngón 1, 2, 3.\n" +
+                "- Rối loạn cảm giác: Giảm cảm giác nông ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay theo diện chi phối của dây thần kinh giữa.\n" +
+                "- Vận động: Cơ lực đối chiếu ngón cái giảm nhẹ (4/5), các động tác cầm nắm tinh tế bị hạn chế.\n" +
+                "- Cổ tay {1}: Sẹo mổ cũ khô liền tốt, không sưng đau, không rối loạn cảm giác.\n" +
+                "- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm.",
+                side, otherSide);
+        }
 
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
         {
@@ -1178,8 +1232,11 @@ class HisEmrFiller
         if (string.IsNullOrWhiteSpace(tienSu)) return "khỏe mạnh";
         string ts = tienSu.Replace("\r\n", ", ").Replace("\n", ", ").Replace(". ", ", ").Replace("  ", " ").Trim();
         while (ts.Contains(", ,") || ts.Contains(",,")) ts = ts.Replace(", ,", ",").Replace(",,", ",");
-        if (ts.ToLower().Contains("khỏe mạnh") || ts.ToLower().Contains("khoe manh") || ts.ToLower().Contains("chưa phát hiện") || ts.ToLower().Contains("chưa ghi nhận"))
+        if ((ts.ToLower().Contains("khỏe mạnh") || ts.ToLower().Contains("chưa phát hiện") || ts.ToLower().Contains("chưa ghi nhận")) &&
+            !ts.ToLower().Contains("mổ") && !ts.ToLower().Contains("phẫu thuật") && !ts.ToLower().Contains("dị ứng") && !ts.ToLower().Contains("gãy") && !ts.ToLower().Contains("chấn thương"))
+        {
             return "khỏe mạnh";
+        }
         if (ts.EndsWith(".") || ts.EndsWith(",")) ts = ts.Substring(0, ts.Length - 1).Trim();
         return ts;
     }
@@ -1273,6 +1330,16 @@ class HisEmrFiller
             if (s.Contains("khuỷu") || s.Contains("viêm"))
                 sb.AppendLine("- Kèm theo: Điểm đau tức nhẹ khu trú tại vùng lồi cầu ngoài/khớp khuỷu khi vận động.");
         }
+        else if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
+        {
+            string side = s.Contains("phải") ? "phải" : (s.Contains("trái") ? "trái" : loc);
+            sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay {0}: Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay tăng nhiều về đêm; teo nhẹ cơ mô cái; Tinel (+), Phalen (+); giảm cơ lực đối chiếu ngón cái (4/5).", side));
+            if (s.Contains("đã mổ") || s.Contains("da mo"))
+                sb.AppendLine("- Sẹo mổ cũ hội chứng ống cổ tay bên đối diện khô liền tốt, không sưng đau.");
+            if (s.Contains("dị ứng") || s.Contains("di ung"))
+                sb.AppendLine("- Tiền sử dị ứng đặc biệt: Dị ứng kháng sinh và paracetamol (lưu ý tuyệt đối khi chỉ định thuốc giảm đau và kháng sinh chu phẫu).");
+            sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+        }
         else if (s.Contains("khoeo") || s.Contains("baker") || (s.Contains("m17") && s.Contains("kén")))
         {
             sb.AppendLine(string.Format("- Triệu chứng tại chỗ: Khối căng tức rõ vùng hố khoeo (thoát vị lan xuống 1/3 sau cẳng chân), mật độ căng chắc, ấn tức nặng, căng tức tăng rõ khi duỗi thẳng gối hoặc đi bộ nhiều.", loc));
@@ -1355,13 +1422,14 @@ class HisEmrFiller
 
         // 4. Bệnh lý kết hợp nổi bật
         var coMorbidities = new List<string>();
-        if (s.Contains("tiểu đường") || s.Contains("đái tháo đường") || (tienSu != null && (tienSu.ToLower().Contains("tiểu đường") || tienSu.ToLower().Contains("đái tháo đường"))))
+        bool hasNoChronic = (tienSu != null && (tienSu.ToLower().Contains("chưa phát hiện bệnh lý") || tienSu.ToLower().Contains("không có tiền sử bệnh")));
+        if (!hasNoChronic && (s.Contains("tiểu đường") || s.Contains("đái tháo đường") || (tienSu != null && (tienSu.ToLower().Contains("tiểu đường") || tienSu.ToLower().Contains("đái tháo đường")))))
             coMorbidities.Add("Đái tháo đường");
         if (s.Contains("suy thượng thận") || (tienSu != null && tienSu.ToLower().Contains("suy thượng thận")))
             coMorbidities.Add("Suy thượng thận do thuốc corticoid kéo dài (nguy cơ suy thượng thận cấp chu phẫu)");
         if (s.Contains("tiết niệu") || s.Contains("streptococcus") || (tienSu != null && tienSu.ToLower().Contains("tiết niệu")))
             coMorbidities.Add("Nhiễm khuẩn tiết niệu");
-        if (s.Contains("tăng huyết áp") || (tienSu != null && (tienSu.ToLower().Contains("tăng huyết áp") || tienSu.ToLower().Contains("tha"))))
+        if (!hasNoChronic && (s.Contains("tăng huyết áp") || (tienSu != null && (tienSu.ToLower().Contains("tăng huyết áp") || tienSu.ToLower().Contains("tha")))))
             coMorbidities.Add("Tăng huyết áp");
         if (s.Contains("copd") || (tienSu != null && tienSu.ToLower().Contains("copd")))
             coMorbidities.Add("Bệnh phổi tắc nghẽn mạn tính (COPD)");
@@ -1386,6 +1454,8 @@ class HisEmrFiller
         string s = ti.IcdName.ToLower();
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
             return "Phân biệt rách bán phần gân Achille, bong điểm bám gân gót xương gót, viêm gân gót cấp tính.";
+        if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
+            return "Phân biệt hội chứng ống cổ tay với bệnh lý rễ thần kinh cổ C6-C7 (thoát vị đĩa đệm cột sống cổ), hội chứng Guyon (chèn ép thần kinh trụ), hội chứng lối thoát ngực, viêm đa dây thần kinh ngoại biên.";
         if (s.Contains("khoeo") || s.Contains("baker"))
             return "Phân biệt phình động mạch khoeo gối, huyết khối tĩnh mạch sâu chi dưới (DVT), u bao hoạt dịch ác tính, nang bao gân.";
         if (s.Contains("nẹp vít") || s.Contains("sau mổ khx") || s.Contains("còn nẹp") || s.Contains("tháo phương tiện"))
@@ -1406,6 +1476,8 @@ class HisEmrFiller
     static string BuildHuongDieuTri(TreatmentInfo ti)
     {
         string s = ti.IcdName.ToLower();
+        if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
+            return "Phẫu thuật giải phóng dây thần kinh giữa ống cổ tay (cắt mạc giữ gân gấp). Kiểm soát giảm đau chu phẫu tránh các thuốc dị ứng (chống chỉ định dùng Paracetamol và nhóm kháng sinh dị ứng).";
         if (s.Contains("vết thương") || s.Contains("vet thuong"))
             return "Xử trí ngoại khoa: Cắt lọc vết thương phức tạp, làm sạch mép tổn thương, khâu phục hồi cân cơ phần mềm và cố định xương gãy (nẹp bột hoặc đinh Kirschner); Tiêm phòng uốn ván (SAT), kháng sinh điều trị, giảm đau, chống phù nề, thay băng chăm sóc vết thương hàng ngày.";
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
