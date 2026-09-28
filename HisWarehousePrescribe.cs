@@ -388,12 +388,34 @@ public class HisWarehousePrescribe
 
         if (presRes != null)
         {
+            long createdReqId = 0;
             if (presRes.ServiceReqs != null && presRes.ServiceReqs.Count > 0)
+            {
                 serviceReqCode = presRes.ServiceReqs[0].SERVICE_REQ_CODE;
+                createdReqId = presRes.ServiceReqs[0].ID;
+            }
             if (presRes.ExpMests != null && presRes.ExpMests.Count > 0)
                 expMestCode = presRes.ExpMests[0].EXP_MEST_CODE;
 
-            if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode)) return true;
+            if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode))
+            {
+                // BẮT BUỘC: GÁN THUỐC VÀO TỜ ĐIỀU TRỊ (HIS_TRACKING / EMR LINKAGE)
+                if (trackingId > 0)
+                {
+                    try
+                    {
+                        var medDesc = new StringBuilder();
+                        foreach (var m in items)
+                        {
+                            string tName = m.Medicine != null ? m.Medicine.MEDICINE_TYPE_NAME : "Thuốc lĩnh kho";
+                            medDesc.AppendFormat("- Thuốc lĩnh kho: {0} x {1} ({2})\n", tName, m.Amount, m.Tutorial);
+                        }
+                        LinkServiceReqToTracking(consumer, trackingId, createdReqId, serviceReqCode, medDesc.ToString().TrimEnd(), roomId);
+                    }
+                    catch { }
+                }
+                return true;
+            }
         }
 
         if (pPres.Messages != null && pPres.Messages.Count > 0) error = string.Join("; ", pPres.Messages);
@@ -401,6 +423,65 @@ public class HisWarehousePrescribe
         else error = "Kê đơn lĩnh kho dược thất bại (API trả về null)";
 
         return false;
+    }
+
+    public static void LinkServiceReqToTracking(ApiConsumer consumer, long trackingId, long serviceReqId, string serviceReqCode, string medDesc, long roomId)
+    {
+        if (trackingId <= 0) return;
+        try
+        {
+            CommonParam cp = new CommonParam();
+            if (serviceReqId <= 0 && !string.IsNullOrEmpty(serviceReqCode))
+            {
+                var srf = new HisServiceReqViewFilter { SERVICE_REQ_CODE = serviceReqCode };
+                var sreqs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", consumer, srf, cp);
+                if (sreqs != null && sreqs.Count > 0) serviceReqId = sreqs[0].ID;
+            }
+
+            var trkFilter = new HisTrackingFilter { ID = trackingId };
+            var trkList = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", consumer, trkFilter, cp);
+            if (trkList == null || trkList.Count == 0) return;
+            var trk = trkList[0];
+
+            if (!string.IsNullOrEmpty(medDesc))
+            {
+                if (string.IsNullOrEmpty(trk.MEDICAL_INSTRUCTION))
+                    trk.MEDICAL_INSTRUCTION = medDesc;
+                else if (!trk.MEDICAL_INSTRUCTION.Contains(medDesc.Substring(0, Math.Min(20, medDesc.Length))))
+                    trk.MEDICAL_INSTRUCTION = medDesc + "\r\n" + trk.MEDICAL_INSTRUCTION;
+            }
+
+            var dhstFilter = new HisDhstFilter { TRACKING_ID = trackingId };
+            var dhsts = adapter.FetchList<HIS_DHST>("api/HisDhst/Get", consumer, dhstFilter, cp);
+
+            var sdo = new HisTrackingSDO();
+            sdo.Tracking = trk;
+            sdo.WorkingRoomId = roomId > 0 ? roomId : 5248;
+            if (dhsts != null && dhsts.Count > 0) sdo.Dhst = dhsts[0];
+
+            if (serviceReqId > 0)
+            {
+                sdo.UsedForServiceReqIds = new List<long> { serviceReqId };
+                sdo.ServiceReqs = new List<TrackingServiceReq>
+                {
+                    new TrackingServiceReq
+                    {
+                        ServiceReqId = serviceReqId,
+                        IsNotShowMedicine = false,
+                        IsNotShowMaterial = false,
+                        IsNotShowOutMedi = false,
+                        IsNotShowOutMate = false
+                    }
+                };
+            }
+
+            adapter.PostData<HIS_TRACKING>("api/HisTracking/Update", consumer, sdo, cp);
+            Console.WriteLine("✔ Đã tự động gán y lệnh thuốc vào Tờ điều trị ID: " + trackingId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("⚠️ Cảnh báo gán y lệnh vào tờ điều trị: " + ex.Message);
+        }
     }
 
     // =========================================================================

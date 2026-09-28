@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.IO.Compression;
 using System.Linq;
 using System.Net;
@@ -80,6 +82,12 @@ class HisPt01ApiUploader
             return null;
         };
 
+        RealMain(args);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static void RealMain(string[] args)
+    {
         Console.OutputEncoding = Encoding.UTF8;
         Console.WriteLine("╔══════════════════════════════════════════════════════════════╗");
         Console.WriteLine("║   ⚡ HIS PT-01 API UPLOADER — autopt01 codename             ║");
@@ -355,7 +363,27 @@ class HisPt01ApiUploader
 
     static string ReadTokenFromLog()
     {
-        foreach (var logPath in new[] { LOG_PATH_D, LOG_PATH_E })
+        var candidates = new List<string>();
+        try
+        {
+            foreach (var p in Process.GetProcessesByName("HIS"))
+            {
+                try
+                {
+                    string dir = Path.GetDirectoryName(p.MainModule.FileName);
+                    candidates.Add(Path.Combine(dir, "Logs", "LogSystem.txt"));
+                }
+                catch { }
+            }
+        }
+        catch { }
+
+        candidates.Add(@"D:\New folder (3)\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt");
+        candidates.Add(@"D:\his 3-9\his-x64-28-11fix GDYK\his-x64\Logs\LogSystem.txt");
+        candidates.Add(LOG_PATH_D);
+        candidates.Add(LOG_PATH_E);
+
+        foreach (var logPath in candidates)
         {
             if (!File.Exists(logPath)) continue;
             try
@@ -363,13 +391,17 @@ class HisPt01ApiUploader
                 using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var sr = new StreamReader(fs))
                 {
+                    long len = fs.Length;
+                    if (len > 300000)
+                    {
+                        fs.Seek(len - 300000, SeekOrigin.Begin);
+                    }
                     var text = sr.ReadToEnd();
                     var lines = text.Split('\n');
                     for (int i = lines.Length - 1; i >= 0; i--)
                     {
                         if (lines[i].Contains("TokenCode|"))
                         {
-                            // Extract MosBaseUri
                             var mosMatch = Regex.Match(lines[i], @"MosBaseUri\|([^|]+)");
                             if (mosMatch.Success)
                             {
@@ -390,22 +422,39 @@ class HisPt01ApiUploader
 
     static string FindLatestPt01Folder()
     {
-        var baseDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-        var reportsDir = Path.Combine(baseDir, "Reports");
-        if (Directory.Exists(reportsDir))
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var list = new List<string>
         {
-            var dirs = Directory.GetDirectories(reportsDir, "Bien_Ban_Thong_Qua_Mo_PT01_*").OrderByDescending(d => d).ToList();
-            if (dirs.Count > 0) return dirs[0];
+            Path.Combine(baseDir, "Reports", "BienBanHoiChan_PT01", "PT01_20260926_HN"),
+            Path.Combine(baseDir, "..", "Reports", "BienBanHoiChan_PT01", "PT01_20260926_HN"),
+            Path.Combine(baseDir, "Reports", "BienBanHoiChan_PT01"),
+            Path.Combine(baseDir, "..", "Reports", "BienBanHoiChan_PT01")
+        };
+        foreach (var d in list)
+        {
+            if (Directory.Exists(d)) return d;
         }
-        var fallback = Path.Combine(baseDir, "Reports", "BienBanHoiChan_PT01");
-        return Directory.Exists(fallback) ? fallback : reportsDir;
+        return baseDir;
     }
 
     static string FindDocxByCode(string folder, string code)
     {
-        if (!Directory.Exists(folder)) return null;
-        return Directory.GetFiles(folder, "*.docx")
-            .FirstOrDefault(f => Path.GetFileName(f).Contains(code));
+        if (Directory.Exists(folder))
+        {
+            var match = Directory.GetFiles(folder, "*.docx", SearchOption.AllDirectories)
+                .FirstOrDefault(f => Path.GetFileName(f).Contains(code));
+            if (match != null) return match;
+        }
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var r1 = Path.Combine(baseDir, "Reports");
+        var r2 = Path.Combine(baseDir, "..", "Reports");
+        string reports = Directory.Exists(r1) ? r1 : (Directory.Exists(r2) ? r2 : null);
+        if (reports != null && Directory.Exists(reports))
+        {
+            return Directory.GetFiles(reports, "*.docx", SearchOption.AllDirectories)
+                .FirstOrDefault(f => Path.GetFileName(f).Contains(code));
+        }
+        return null;
     }
 
     static string ExtractPatientCode(string path)

@@ -1744,14 +1744,14 @@ class Program
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (s, e) =>
         {
-            MessageBox.Show("Lỗi trong ứng dụng:\n\n" + e.Exception.ToString(), "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Console.Error.WriteLine("[FATAL EXCEPTION]: " + e.Exception.ToString());
         };
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            MessageBox.Show("Lỗi nghiêm trọng:\n\n" + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "Unknown"), "Lỗi hệ thống", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Console.Error.WriteLine("[FATAL EXCEPTION]: " + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "Unknown"));
         };
 
-        if (args.Length > 0 && (args[0] == "-p" || args[0] == "--patient" || args[0] == "-f" || args[0] == "--file" || args[0] == "--help" || args[0] == "-h"))
+        if (args.Length > 0)
         {
             try
             {

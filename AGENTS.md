@@ -279,4 +279,36 @@ Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối so�
     3. Cảnh báo hành động (nếu thiếu bất kỳ mục nào trong 10 mục trên, phải bôi đỏ và đề xuất lệnh bổ sung ngay).
   - **TUYỆT ĐỐI KHÔNG BAO GIỜ BỎ QUÊN:** Siêu âm ổ bụng (`BM00199`), Siêu âm tim (`BM00201`), Nhóm máu (`BM01700`) và Vi sinh!
 
+## 15. QUY TẮC BẮT BUỘC: TỰ ĐỘNG GÁN Y LỆNH THUỐC VÀO TỜ ĐIỀU TRỊ (MANDATORY PRESCRIPTION-TRACKING LINKAGE PROTOCOL)
+* **BẮT BUỘC 100% - KHÔNG ĐƯỢC PHÉP QUÊN:**
+  - Bất cứ khi nào Agent hoặc phần mềm thực hiện kê thuốc cho bệnh nhân (dù là **TỦ TRỰC** hay **LĨNH KHO DƯỢC**), **BẮT BUỘC PHẢI TỰ ĐỘNG GÁN Y LỆNH ĐÓ VÀO TỜ ĐIỀU TRỊ (`HIS_TRACKING`) CỦA NGÀY HÔM ĐÓ**.
+  - **KHÔNG TẠO PHẦN MỀM MỚI:** Logic này đã được tích hợp trực tiếp ngay trong mã nguồn của chính các công cụ kê đơn cốt lõi (`HisCabinetPrescribe.cs` và `HisWarehousePrescribe.cs`).
+* **Bản chất Kỹ thuật & Nghiệp vụ HIS/EMR**:
+  - Khi API kê đơn (`OutPatientPresCreateList` hoặc `InPatientPresCreate`) tạo phiếu thuốc thành công, hệ thống chỉ mới sinh bản ghi `HIS_SERVICE_REQ` và `HIS_EXP_MEST`.
+  - Nếu không gọi cập nhật Tờ điều trị, y lệnh thuốc sẽ **KHÔNG HIỂN THỊ** trong cột "Y lệnh" trên giao diện Tờ điều trị của phần mềm HIS và phần mềm EMR Bệnh án điện tử.
+* **Cơ chế Thực thi Chuẩn hóa (`api/HisTracking/Update`)**:
+  1. **Tìm Tờ điều trị trong ngày**: Quét danh sách Tờ điều trị của đợt điều trị (`HisTrackingViewFilter { TREATMENT_ID = ... }`). Lấy tờ điều trị mới nhất trong ngày (hoặc tạo mới nếu chưa có).
+  2. **Gán ServiceReqId vào Tracking SDO**:
+     ```csharp
+     var sdo = new HisTrackingSDO();
+     sdo.Tracking = trk;
+     sdo.WorkingRoomId = roomId > 0 ? roomId : 5248;
+     if (dhsts != null && dhsts.Count > 0) sdo.Dhst = dhsts[0];
+     sdo.UsedForServiceReqIds = new List<long> { serviceReqId };
+     sdo.ServiceReqs = new List<TrackingServiceReq>
+     {
+         new TrackingServiceReq
+         {
+             ServiceReqId = serviceReqId,
+             IsNotShowMedicine = false,
+             IsNotShowMaterial = false,
+             IsNotShowOutMedi = false,
+             IsNotShowOutMate = false
+         }
+     };
+     ```
+  3. **Nối diễn giải y lệnh vào `MEDICAL_INSTRUCTION`**: Tự động ghép tên thuốc, số lượng và hướng dẫn sử dụng vào nội dung chỉ định điều trị để Tờ điều trị hiển thị trực quan đầy đủ cả text lẫn liên kết dữ liệu hệ thống.
+  4. **Gọi API cập nhật**: `POST api/HisTracking/Update` với `ApiConsumers.MosConsumer`.
+
+
 

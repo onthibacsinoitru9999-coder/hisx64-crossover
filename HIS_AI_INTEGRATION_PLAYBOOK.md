@@ -2370,4 +2370,119 @@ Nhằm giải quyết triệt để rủi ro "cập nhật tính năng mới là
 1. **`PromoteStable.bat`**: Chạy smoke test kiểm tra tủ trực 810. Nếu đạt, tự động sao chép các file `.exe` sang `.stable.exe` và gắn Git tag `stable-release`.
 2. **`RollbackStable.bat`**: Phao cứu sinh tức thì. Khi có sự cố cập nhật, Bác sĩ chỉ cần nhấp đúp file này, toàn bộ binary và mã nguồn cốt lõi sẽ lập tức được giật lùi về trạng thái vàng đã được chứng nhận (`git checkout stable-release`).
 
+---
+
+## 44. QUY TRÌNH & CƠ CHẾ GÁN TỰ ĐỘNG Y LỆNH THUỐC VÀO TỜ ĐIỀU TRỊ TRÊN EMR VÀ HIS UI (PRESCRIPTION-TRACKING LINKAGE PROTOCOL)
+
+### 44.1. Bối Cảnh Lâm Sàng & Hiện Tượng (Gotcha)
+* **Hiện tượng**: Bác sĩ chỉ định thuốc thành công qua API kê đơn (`api/HisServiceReq/InPatientPresCreate` hoặc `api/HisServiceReq/OutPatientPresCreateList`), phiếu xuất kho/tủ trực đã được duyệt, nhưng:
+  - Khi mở giao diện **Tờ điều trị** trên HIS Desktop hoặc hệ thống **Bệnh án điện tử EMR**, cột "Y lệnh" lại **HOÀN TOÀN TRỐNG TRƠN**, không thấy dòng thuốc vừa kê.
+  - Điều dưỡng hoặc Bác sĩ đi buồng không thấy y lệnh thuốc trong ngày trên bệnh án điện tử, dẫn tới nguy cơ sót thuốc hoặc phải nhập tay lại vào tờ điều trị.
+* **Nguyên nhân cốt lõi**:
+  - API tạo đơn thuốc chỉ sinh bản ghi phiếu yêu cầu dịch vụ `HIS_SERVICE_REQ` và phiếu xuất `HIS_EXP_MEST`.
+  - Backend MOS và EMR thiết kế tách rời: Để một y lệnh dịch vụ/thuốc xuất hiện trong Tờ điều trị (`HIS_TRACKING`), bắt buộc phải có liên kết bảng trung gian hoặc gọi API cập nhật Tờ điều trị với danh sách `ServiceReqs` (`TrackingServiceReq`) và `UsedForServiceReqIds`.
+
+### 44.2. Giải Pháp Kỹ Thuật Chuẩn Hóa 100% (LinkServiceReqToTracking)
+Tích hợp trực tiếp logic liên kết vào mã nguồn của **`HisCabinetPrescribe.cs`** (kê tủ trực) và **`HisWarehousePrescribe.cs`** (kê lĩnh kho dược), thực hiện ngay sau khi kê đơn thành công:
+
+```csharp
+private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqResult presRes, string drugSummary, long roomId)
+{
+    try
+    {
+        long serviceReqId = presRes.ServiceReq.ID;
+        long treatmentId = presRes.ServiceReq.TREATMENT_ID;
+
+        var consumer = ApiConsumers.MosConsumer;
+        var adapter = new BackendAdapter();
+
+        // 1. Tìm Tờ điều trị gần nhất trong ngày của bệnh nhân
+        var trkFilter = new HisTrackingViewFilter();
+        trkFilter.TREATMENT_ID = treatmentId;
+        var trkRes = adapter.GetData<List<V_HIS_TRACKING>>("api/HisTracking/GetView", consumer, trkFilter, cp);
+
+        V_HIS_TRACKING currentTrk = null;
+        DateTime today = DateTime.Today;
+        if (trkRes.IsSuccess && trkRes.Data != null && trkRes.Data.Count > 0)
+        {
+            var todayList = trkRes.Data.Where(t => {
+                string s = t.TRACKING_TIME.ToString();
+                if (s.Length >= 8)
+                {
+                    int y = int.Parse(s.Substring(0, 4));
+                    int m = int.Parse(s.Substring(4, 2));
+                    int d = int.Parse(s.Substring(6, 2));
+                    return new DateTime(y, m, d).Date == today;
+                }
+                return false;
+            }).OrderByDescending(t => t.TRACKING_TIME).ToList();
+
+            if (todayList.Count > 0) currentTrk = todayList[0];
+            else currentTrk = trkRes.Data.OrderByDescending(t => t.TRACKING_TIME).FirstOrDefault();
+        }
+
+        if (currentTrk == null) return;
+
+        // 2. Lấy dữ liệu chi tiết của Tracking hiện tại
+        var trkGetFilter = new HisTrackingFilter { ID = currentTrk.ID };
+        var fullTrkRes = adapter.GetData<List<HIS_TRACKING>>("api/HisTracking/Get", consumer, trkGetFilter, cp);
+        if (!fullTrkRes.IsSuccess || fullTrkRes.Data == null || fullTrkRes.Data.Count == 0) return;
+
+        var trk = fullTrkRes.Data[0];
+
+        // 3. Ghép diễn giải y lệnh thuốc vào MEDICAL_INSTRUCTION nếu chưa có
+        if (!string.IsNullOrEmpty(drugSummary))
+        {
+            if (string.IsNullOrEmpty(trk.MEDICAL_INSTRUCTION))
+                trk.MEDICAL_INSTRUCTION = drugSummary;
+            else if (!trk.MEDICAL_INSTRUCTION.Contains(drugSummary))
+                trk.MEDICAL_INSTRUCTION = trk.MEDICAL_INSTRUCTION + "\r\n" + drugSummary;
+        }
+
+        // 4. Lấy DHST nếu có
+        List<HIS_DHST> dhsts = null;
+        if (trk.DHST_ID.HasValue)
+        {
+            var dhstFilter = new HisDhstFilter { ID = trk.DHST_ID.Value };
+            var dhstRes = adapter.GetData<List<HIS_DHST>>("api/HisDhst/Get", consumer, dhstFilter, cp);
+            if (dhstRes.IsSuccess && dhstRes.Data != null) dhsts = dhstRes.Data;
+        }
+
+        // 5. Đóng gói HisTrackingSDO chứa ServiceReqId
+        var sdo = new HisTrackingSDO();
+        sdo.Tracking = trk;
+        sdo.WorkingRoomId = roomId > 0 ? roomId : 5248;
+        if (dhsts != null && dhsts.Count > 0) sdo.Dhst = dhsts[0];
+        sdo.UsedForServiceReqIds = new List<long> { serviceReqId };
+        sdo.ServiceReqs = new List<TrackingServiceReq>
+        {
+            new TrackingServiceReq
+            {
+                ServiceReqId = serviceReqId,
+                IsNotShowMedicine = false,
+                IsNotShowMaterial = false,
+                IsNotShowOutMedi = false,
+                IsNotShowOutMate = false
+            }
+        };
+
+        // 6. Cập nhật qua API
+        var updRes = adapter.PostData<HIS_TRACKING>("api/HisTracking/Update", consumer, sdo, cp);
+        if (updRes.IsSuccess)
+        {
+            Console.WriteLine("[INFO] Da tu dong gan y lenh thuoc vao To dieu tri ID {0} thanh cong!", trk.ID);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("[WARN] Khong the tu dong gan y lenh vao To dieu tri: " + ex.Message);
+    }
+}
+```
+
+### 44.3. Quy Định Tuyệt Đối Dành Cho Agent
+1. **Không tạo công cụ rời rạc mới**: Giữ vững hệ thống gọn gàng, kế thừa trên chính các file thực thi hiện hữu (`HisCabinetPrescribe.cs`, `HisWarehousePrescribe.cs`).
+2. **Kê là phải gắn**: Mọi thao tác kê thuốc (dù là tiêm Insulin, thuốc viên, dịch truyền, thụt tháo, thuốc tủ trực hay kho chẵn/kho lẻ) bắt buộc phải phản ánh đồng thời trên Tờ điều trị của ngày.
+
+
 

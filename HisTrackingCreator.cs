@@ -1348,28 +1348,89 @@ public class MainForm : Form
         return null;
     }
 
+    public static void EnsureAcsConfiguration()
+    {
+        try
+        {
+            var settings = System.Configuration.ConfigurationManager.AppSettings;
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Base.Uri"]))
+                settings["Inventec.Token.ClientSystem.Acs.Base.Uri"] = "http://192.168.7.200:1401/";
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Uri"]))
+                settings["Inventec.Token.ClientSystem.Acs.Uri"] = "http://192.168.7.200:1401/";
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Version"]))
+                settings["Inventec.Token.ClientSystem.Acs.Version"] = "2.0";
+        }
+        catch { }
+    }
+
     public static void InitSession()
     {
         if (string.IsNullOrEmpty(currentToken))
         {
+            EnsureAcsConfiguration();
             try { HIS.Desktop.LocalStorage.ConfigSystem.Load.Init(); } catch { }
             param = new CommonParam();
-            string liveToken = ReadLiveTokenFast();
-            if (!string.IsNullOrEmpty(liveToken))
+
+            // 1. Check doctor_standalone.token
+            try
             {
-                currentToken = liveToken;
+                DirectoryInfo curD = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+                for (int i = 0; i < 5; i++)
+                {
+                    if (curD == null) break;
+                    string checkF = Path.Combine(curD.FullName, "doctor_standalone.token");
+                    if (File.Exists(checkF))
+                    {
+                        string[] parts = File.ReadAllText(checkF, Encoding.UTF8).Split('|');
+                        if (parts.Length >= 2)
+                        {
+                            long ticks;
+                            if (long.TryParse(parts[1], out ticks))
+                            {
+                                if (new TimeSpan(DateTime.Now.Ticks - ticks).TotalHours < 6)
+                                {
+                                    currentToken = parts[0];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    curD = curD.Parent;
+                }
             }
-            else
+            catch { }
+
+            // 2. Read live log
+            if (string.IsNullOrEmpty(currentToken))
+            {
+                string liveToken = ReadLiveTokenFast();
+                if (!string.IsNullOrEmpty(liveToken))
+                {
+                    currentToken = liveToken;
+                }
+            }
+
+            // 3. Fallback to ACS Login
+            if (string.IsNullOrEmpty(currentToken))
             {
                 try
                 {
-                    ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                    var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
-                    if (token == null) token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-                    if (token != null)
+                    var creds = new List<Tuple<string, string>>
                     {
-                        currentToken = token.TokenCode;
-                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), currentToken + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8); } catch { }
+                        Tuple.Create("034727", "981"),
+                        Tuple.Create("034727", "998199"),
+                        Tuple.Create("vmc", "789789")
+                    };
+                    ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                    foreach (var c in creds)
+                    {
+                        var tok = tokenManager.Login(param, c.Item1, c.Item2, "2.390.0");
+                        if (tok != null && !string.IsNullOrEmpty(tok.TokenCode))
+                        {
+                            currentToken = tok.TokenCode;
+                            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), currentToken + "|" + DateTime.Now.Ticks + "|" + c.Item1, Encoding.UTF8); } catch { }
+                            break;
+                        }
                     }
                 }
                 catch { }
@@ -1579,14 +1640,29 @@ class Program
 
         AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
         {
-            string folderPath = AppDomain.CurrentDomain.BaseDirectory;
-            string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
-            string path1 = Path.Combine(folderPath, name);
-            if (File.Exists(path1)) return Assembly.LoadFrom(path1);
-            string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
-            if (File.Exists(path2)) return Assembly.LoadFrom(path2);
-            string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
-            if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+            try
+            {
+                string folderPath = AppDomain.CurrentDomain.BaseDirectory;
+                string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
+                string path1 = Path.Combine(folderPath, name);
+                if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+                string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+                if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+                string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
+                if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+
+                DirectoryInfo cur = new DirectoryInfo(folderPath);
+                for (int i = 0; i < 5; i++)
+                {
+                    if (cur.Parent == null) break;
+                    cur = cur.Parent;
+                    string pRoot = Path.Combine(cur.FullName, name);
+                    if (File.Exists(pRoot)) return Assembly.LoadFrom(pRoot);
+                    string pRef = Path.Combine(cur.FullName, "ReferencedAssemblies", name);
+                    if (File.Exists(pRef)) return Assembly.LoadFrom(pRef);
+                }
+            }
+            catch { }
             return null;
         };
 
@@ -1596,6 +1672,12 @@ class Program
             return;
         }
 
+        RunGui();
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static void RunGui()
+    {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
@@ -1606,6 +1688,7 @@ class Program
         }
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     static void RunCli(string[] args)
     {
         Console.WriteLine("===============================================================================");

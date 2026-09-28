@@ -397,7 +397,7 @@ namespace HisPt01UiUploader
             string qUnderscore = q.Replace(" ", "_");
             string qDigits = Regex.Replace(q, @"\D", "");
 
-            foreach (string f in Directory.GetFiles(baseDir, "*.docx"))
+            foreach (string f in Directory.GetFiles(baseDir, "*.docx", SearchOption.AllDirectories))
             {
                 string fn = Path.GetFileName(f);
                 if (fn.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||

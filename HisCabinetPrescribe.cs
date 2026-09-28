@@ -268,6 +268,7 @@ public class HisCabinetPrescribe
     public static long EnsureTracking(ApiConsumer consumer, V_HIS_TREATMENT tr, long roomId, long deptId, string content, string instruction, ref long instructionTime)
     {
         long todayStart = long.Parse(DateTime.Today.ToString("yyyyMMdd") + "000000");
+        long todayEnd = long.Parse(DateTime.Today.ToString("yyyyMMdd") + "235959");
         try
         {
             HisTrackingViewFilter tf = new HisTrackingViewFilter { TREATMENT_ID = tr.ID };
@@ -275,7 +276,7 @@ public class HisCabinetPrescribe
             var trkList = adapter.FetchList<V_HIS_TRACKING>("api/HisTracking/GetView", consumer, tf, cpCheck);
             if (trkList != null)
             {
-                var existing = trkList.Where(x => x.TRACKING_TIME >= todayStart).OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
+                var existing = trkList.Where(x => x.TRACKING_TIME >= todayStart && x.TRACKING_TIME <= todayEnd).OrderByDescending(x => x.TRACKING_TIME).FirstOrDefault();
                 if (existing != null)
                 {
                     // Lùi thời gian y lệnh thuốc 5 phút sau thời điểm tờ điều trị
@@ -395,6 +396,8 @@ public class HisCabinetPrescribe
             return false;
         }
 
+        UpdateWorkInfo(consumer, roomId);
+
         string sessionKey = Guid.NewGuid().ToString();
         var presMeds = new List<PresMedicineSDO>();
 
@@ -483,12 +486,34 @@ public class HisCabinetPrescribe
 
         if (outRes != null)
         {
+            long createdReqId = 0;
             if (outRes.ServiceReqs != null && outRes.ServiceReqs.Count > 0)
+            {
                 serviceReqCode = outRes.ServiceReqs[0].SERVICE_REQ_CODE;
+                createdReqId = outRes.ServiceReqs[0].ID;
+            }
             if (outRes.ExpMests != null && outRes.ExpMests.Count > 0)
                 expMestCode = outRes.ExpMests[0].EXP_MEST_CODE;
 
-            if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode)) return true;
+            if (!string.IsNullOrEmpty(serviceReqCode) || !string.IsNullOrEmpty(expMestCode))
+            {
+                // BẮT BUỘC: GÁN THUỐC VÀO TỜ ĐIỀU TRỊ (HIS_TRACKING / EMR LINKAGE)
+                if (trackingId > 0)
+                {
+                    try
+                    {
+                        var medDesc = new StringBuilder();
+                        foreach (var m in items)
+                        {
+                            string tName = m.Medicine != null ? m.Medicine.MEDICINE_TYPE_NAME : "Thuốc tủ trực";
+                            medDesc.AppendFormat("- Thuốc tủ trực: {0} x {1} ({2})\n", tName, m.Amount, m.Tutorial);
+                        }
+                        LinkServiceReqToTracking(consumer, trackingId, createdReqId, serviceReqCode, medDesc.ToString().TrimEnd(), roomId);
+                    }
+                    catch { }
+                }
+                return true;
+            }
         }
 
         if (cpOut.Messages != null && cpOut.Messages.Count > 0) error = string.Join("; ", cpOut.Messages);
@@ -536,6 +561,65 @@ public class HisCabinetPrescribe
             IsExpend = isExpend
         };
         return PrescribeCabinetItemList(consumer, tr, roomId, stockId, new List<CabinetPrescribeItem> { item }, trackingId, instructionTime, doctorLogin, doctorName, out serviceReqCode, out expMestCode, out error);
+    }
+
+    public static void LinkServiceReqToTracking(ApiConsumer consumer, long trackingId, long serviceReqId, string serviceReqCode, string medDesc, long roomId)
+    {
+        if (trackingId <= 0) return;
+        try
+        {
+            CommonParam cp = new CommonParam();
+            if (serviceReqId <= 0 && !string.IsNullOrEmpty(serviceReqCode))
+            {
+                var srf = new HisServiceReqViewFilter { SERVICE_REQ_CODE = serviceReqCode };
+                var sreqs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", consumer, srf, cp);
+                if (sreqs != null && sreqs.Count > 0) serviceReqId = sreqs[0].ID;
+            }
+
+            var trkFilter = new HisTrackingFilter { ID = trackingId };
+            var trkList = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", consumer, trkFilter, cp);
+            if (trkList == null || trkList.Count == 0) return;
+            var trk = trkList[0];
+
+            if (!string.IsNullOrEmpty(medDesc))
+            {
+                if (string.IsNullOrEmpty(trk.MEDICAL_INSTRUCTION))
+                    trk.MEDICAL_INSTRUCTION = medDesc;
+                else if (!trk.MEDICAL_INSTRUCTION.Contains(medDesc.Substring(0, Math.Min(20, medDesc.Length))))
+                    trk.MEDICAL_INSTRUCTION = medDesc + "\r\n" + trk.MEDICAL_INSTRUCTION;
+            }
+
+            var dhstFilter = new HisDhstFilter { TRACKING_ID = trackingId };
+            var dhsts = adapter.FetchList<HIS_DHST>("api/HisDhst/Get", consumer, dhstFilter, cp);
+
+            var sdo = new HisTrackingSDO();
+            sdo.Tracking = trk;
+            sdo.WorkingRoomId = roomId > 0 ? roomId : 5248;
+            if (dhsts != null && dhsts.Count > 0) sdo.Dhst = dhsts[0];
+
+            if (serviceReqId > 0)
+            {
+                sdo.UsedForServiceReqIds = new List<long> { serviceReqId };
+                sdo.ServiceReqs = new List<TrackingServiceReq>
+                {
+                    new TrackingServiceReq
+                    {
+                        ServiceReqId = serviceReqId,
+                        IsNotShowMedicine = false,
+                        IsNotShowMaterial = false,
+                        IsNotShowOutMedi = false,
+                        IsNotShowOutMate = false
+                    }
+                };
+            }
+
+            adapter.PostData<HIS_TRACKING>("api/HisTracking/Update", consumer, sdo, cp);
+            Console.WriteLine("✔ Đã tự động gán y lệnh thuốc vào Tờ điều trị ID: " + trackingId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("⚠️ Cảnh báo gán y lệnh vào tờ điều trị: " + ex.Message);
+        }
     }
 
     // =========================================================================

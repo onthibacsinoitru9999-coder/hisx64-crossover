@@ -1,4 +1,5 @@
 /reference:System.dll
+/reference:System.Configuration.dll
 /reference:System.Core.dll
 /reference:System.Windows.Forms.dll
 /reference:System.Drawing.dll
