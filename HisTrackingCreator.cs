@@ -1064,12 +1064,18 @@ public class MainForm : Form
                     HisTrackingSDO sdo = new HisTrackingSDO
                     {
                         Tracking = tracking,
-                        WorkingRoomId = doctorWorkRoomId,
+                        WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
                         Dhst = null // Do not inject forced vital signs to keep tracking clean
                     };
 
                     CommonParam cp = new CommonParam();
                     var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                    if (created == null || created.ID == 0)
+                    {
+                        sdo.WorkingRoomId = doctorWorkRoomId;
+                        cp = new CommonParam();
+                        created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                    }
                     if (created == null || created.ID == 0)
                     {
                         string errMsg = "Hệ thống MOS từ chối tạo!";
@@ -1260,33 +1266,53 @@ public class MainForm : Form
         // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
         try
         {
-            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
-            if (!File.Exists(cacheFile))
+            List<string> tokenFiles = new List<string>();
+            string envTok = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+            string cacheName = !string.IsNullOrEmpty(envTok) ? envTok : "doctor_hn.token";
+
+            tokenFiles.Add(Path.Combine(baseDir, cacheName));
+            tokenFiles.Add(Path.Combine(baseDir, "doctor_standalone.token"));
+            tokenFiles.Add(Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", cacheName));
+            tokenFiles.Add(Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token"));
+
+            DirectoryInfo dir = new DirectoryInfo(baseDir);
+            for (int i = 0; i < 5; i++)
             {
-                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
-                if (File.Exists(alt)) cacheFile = alt;
+                if (dir == null) break;
+                tokenFiles.Add(Path.Combine(dir.FullName, cacheName));
+                tokenFiles.Add(Path.Combine(dir.FullName, "doctor_standalone.token"));
+                dir = dir.Parent;
             }
-            if (File.Exists(cacheFile))
+
+            tokenFiles.Add(Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", cacheName));
+            tokenFiles.Add(Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token"));
+
+            foreach (var tf in tokenFiles.Distinct())
             {
-                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
-                if (parts.Length >= 2)
+                if (!File.Exists(tf)) continue;
+                try
                 {
-                    long savedTime;
-                    if (long.TryParse(parts[1], out savedTime))
+                    string[] parts = File.ReadAllText(tf, Encoding.UTF8).Split('|');
+                    if (parts.Length >= 2)
                     {
-                        DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        long savedTime;
+                        if (long.TryParse(parts[1], out savedTime))
                         {
-                            if (parts.Length >= 3 && !string.IsNullOrEmpty(parts[2]))
+                            DateTime savedDt = new DateTime(savedTime);
+                            if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
                             {
-                                CurrentLoginName = parts[2];
-                                if (CurrentLoginName == "034727") CurrentUserName = "NGUYỄN HỮU SÂM";
-                                else if (CurrentLoginName == "vmc") CurrentUserName = "VŨ MINH CƯỜNG";
+                                if (parts.Length >= 3 && !string.IsNullOrEmpty(parts[2]))
+                                {
+                                    CurrentLoginName = parts[2];
+                                    if (CurrentLoginName == "034727") CurrentUserName = "NGUYỄN HỮU SÂM";
+                                    else if (CurrentLoginName == "vmc") CurrentUserName = "VŨ MINH CƯỜNG";
+                                }
+                                return parts[0];
                             }
-                            return parts[0];
                         }
                     }
                 }
+                catch { }
             }
         }
         catch { }
@@ -1843,7 +1869,7 @@ class Program
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
-                    WorkingRoomId = doctorWorkRoomId,
+                    WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
                     Dhst = null // Do not inject forced vital signs to keep tracking clean
                 };
 
@@ -1851,7 +1877,7 @@ class Program
                 var created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
                 if (created == null || created.ID == 0)
                 {
-                    sdo.WorkingRoomId = roomId;
+                    sdo.WorkingRoomId = doctorWorkRoomId;
                     cp = new CommonParam();
                     created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
                 }

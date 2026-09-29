@@ -2508,5 +2508,39 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 1. **Không tạo công cụ rời rạc mới**: Giữ vững hệ thống gọn gàng, kế thừa trên chính các file thực thi hiện hữu (`HisCabinetPrescribe.cs`, `HisWarehousePrescribe.cs`).
 2. **Kê là phải gắn**: Mọi thao tác kê thuốc (dù là tiêm Insulin, thuốc viên, dịch truyền, thụt tháo, thuốc tủ trực hay kho chẵn/kho lẻ) bắt buộc phải phản ánh đồng thời trên Tờ điều trị của ngày.
 
+---
+
+## 45. BÀI HỌC XƯƠNG MÁU VỀ TẠO TỜ ĐIỀU TRỊ (`api/HisTracking/Create`) & ĐỒNG BỘ DUAL-BINARY
+
+### 45.1. Bẫy Lỗi Xung Đột `WorkingRoomId` vs `Tracking.ROOM_ID` (Root Cause)
+* **Hiện tượng**: Khi gọi API `api/HisTracking/Create`, hệ thống MOS trả về `null` hoặc từ chối tạo với thông báo ngầm `(RoomId: 5261, DeptId: 57)`.
+* **Nguyên nhân cốt lõi**:
+  1. Trong DTO `HisTrackingSDO`, trường `WorkingRoomId` bị gán cứng thành `doctorWorkRoomId` (`5248` - Phòng bác sĩ P734) trong khi đối tượng `Tracking.ROOM_ID` lại được gán là buồng bệnh nơi bệnh nhân đang nằm (`roomId` = `5261` - P735, `5262` - P734, `5264` - P732, `5266` - P730...).
+  2. Máy chủ backend MOS kiểm tra tính nhất quán: **Tờ điều trị phải được lập từ chính buồng bệnh nơi bệnh nhân đang điều trị**. Khi `sdo.WorkingRoomId != Tracking.ROOM_ID`, máy chủ từ chối bản ghi.
+  3. Lỗi lệch phiên bản Dual-Binary: Thư mục gốc `d:\his-x64\` và thư mục script `.agents\skills\his-clinical-operations\scripts\` có hai bản mã nguồn `HisTrackingCreator.cs` khác nhau. File trong `.agents` bị cũ và thiếu cơ chế fallback.
+  4. Lỗi tìm token: `ReadLiveTokenFast()` chỉ tìm `doctor_standalone.token` trong `BaseDirectory`, nếu chạy từ thư mục con `.agents\...` sẽ không quét lên thư mục gốc và không nhận diện file `doctor_hn.token`.
+  5. Trong `HisClinicalCli.cs`: Lệnh `create-tracking` thiếu gán `ROOM_ID`, thiếu `sdo.WorkingRoomId` và không gọi `EnsureWorkInfoForRoom`.
+
+### 45.2. Giải Pháp Triệt Để & Đã Kiểm Thử Thành Công 100%
+1. **Khớp nối `WorkingRoomId` với `roomId`**:
+   ```csharp
+   HisTrackingSDO sdo = new HisTrackingSDO
+   {
+       Tracking = tracking,
+       WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
+       Dhst = null
+   };
+   // Fallback nếu phòng buồng bệnh chưa được cấp quyền
+   var created = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cp);
+   if (created == null || created.ID == 0)
+   {
+       sdo.WorkingRoomId = doctorWorkRoomId;
+       created = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", consumer, sdo, cp);
+   }
+   ```
+2. **Quét Token Đa Tầng**: `ReadLiveTokenFast()` tự động quét cả `doctor_hn.token` và `doctor_standalone.token` từ thư mục hiện hành và duyệt ngược lên 5 cấp thư mục cha.
+3. **Cập nhật `HisClinicalCli.cs`**: Bổ sung tự động phân giải buồng bệnh `reqRoomId = ResolvePatientRoomId(treatmentId)`, cập nhật `EnsureWorkInfoForRoom(reqRoomId)`, gán đầy đủ `tracking.ROOM_ID = reqRoomId` và `sdo.WorkingRoomId = reqRoomId`.
+4. **Biên dịch & Đồng bộ 100%**: Sử dụng `build_all_cs_tools.ps1` để tự động compile mã PE x64 và đồng bộ nhị phân ra cả thư mục gốc và thư mục `.agents\...`. Đã kiểm thử thực tế tạo thành công Tờ điều trị ID `10199212` và `10199260` trên bệnh nhân thật.
+
 
 

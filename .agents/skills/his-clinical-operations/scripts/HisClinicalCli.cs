@@ -683,10 +683,18 @@ public class HisClinicalCli
         if (treatments == null || treatments.Count == 0) throw new Exception("Không tìm thấy đợt điều trị!");
         var tr = treatments[0];
 
+        long reqRoomId = ResolvePatientRoomId(treatmentId);
+        if (reqRoomId <= 0) reqRoomId = 5248;
+        EnsureWorkInfoForRoom(reqRoomId);
+
+        long deptId = 57;
+        if (tr.END_DEPARTMENT_ID.HasValue && tr.END_DEPARTMENT_ID.Value > 0) deptId = tr.END_DEPARTMENT_ID.Value;
+
         HIS_TRACKING tracking = new HIS_TRACKING
         {
             TREATMENT_ID = treatmentId,
-            DEPARTMENT_ID = 57,
+            DEPARTMENT_ID = deptId,
+            ROOM_ID = reqRoomId,
             TRACKING_TIME = now,
             CONTENT = content,
             ICD_CODE = tr.ICD_CODE,
@@ -697,7 +705,8 @@ public class HisClinicalCli
 
         HisTrackingSDO sdo = new HisTrackingSDO
         {
-            Tracking = tracking
+            Tracking = tracking,
+            WorkingRoomId = reqRoomId
         };
 
         if (pulse.HasValue || temp.HasValue || bpMax.HasValue || bpMin.HasValue)
@@ -716,6 +725,11 @@ public class HisClinicalCli
         }
 
         var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, param);
+        if (created == null || created.ID == 0)
+        {
+            sdo.WorkingRoomId = 5248;
+            created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, param);
+        }
         if (created == null)
         {
             string msg = (param.Messages != null && param.Messages.Count > 0) ? string.Join("; ", param.Messages) : "MOS returned null";

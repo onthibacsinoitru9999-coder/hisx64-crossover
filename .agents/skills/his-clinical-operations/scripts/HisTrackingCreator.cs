@@ -1064,12 +1064,18 @@ public class MainForm : Form
                     HisTrackingSDO sdo = new HisTrackingSDO
                     {
                         Tracking = tracking,
-                        WorkingRoomId = doctorWorkRoomId,
+                        WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
                         Dhst = null // Do not inject forced vital signs to keep tracking clean
                     };
 
                     CommonParam cp = new CommonParam();
                     var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                    if (created == null || created.ID == 0)
+                    {
+                        sdo.WorkingRoomId = doctorWorkRoomId;
+                        cp = new CommonParam();
+                        created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                    }
                     if (created == null || created.ID == 0)
                     {
                         string errMsg = "Hệ thống MOS từ chối tạo!";
@@ -1260,33 +1266,53 @@ public class MainForm : Form
         // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
         try
         {
-            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
-            if (!File.Exists(cacheFile))
+            List<string> tokenFiles = new List<string>();
+            string envTok = Environment.GetEnvironmentVariable("HIS_TOKEN_FILE");
+            string cacheName = !string.IsNullOrEmpty(envTok) ? envTok : "doctor_hn.token";
+
+            tokenFiles.Add(Path.Combine(baseDir, cacheName));
+            tokenFiles.Add(Path.Combine(baseDir, "doctor_standalone.token"));
+            tokenFiles.Add(Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", cacheName));
+            tokenFiles.Add(Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token"));
+
+            DirectoryInfo dir = new DirectoryInfo(baseDir);
+            for (int i = 0; i < 5; i++)
             {
-                string alt = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
-                if (File.Exists(alt)) cacheFile = alt;
+                if (dir == null) break;
+                tokenFiles.Add(Path.Combine(dir.FullName, cacheName));
+                tokenFiles.Add(Path.Combine(dir.FullName, "doctor_standalone.token"));
+                dir = dir.Parent;
             }
-            if (File.Exists(cacheFile))
+
+            tokenFiles.Add(Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", cacheName));
+            tokenFiles.Add(Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token"));
+
+            foreach (var tf in tokenFiles.Distinct())
             {
-                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
-                if (parts.Length >= 2)
+                if (!File.Exists(tf)) continue;
+                try
                 {
-                    long savedTime;
-                    if (long.TryParse(parts[1], out savedTime))
+                    string[] parts = File.ReadAllText(tf, Encoding.UTF8).Split('|');
+                    if (parts.Length >= 2)
                     {
-                        DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        long savedTime;
+                        if (long.TryParse(parts[1], out savedTime))
                         {
-                            if (parts.Length >= 3 && !string.IsNullOrEmpty(parts[2]))
+                            DateTime savedDt = new DateTime(savedTime);
+                            if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
                             {
-                                CurrentLoginName = parts[2];
-                                if (CurrentLoginName == "034727") CurrentUserName = "NGUYỄN HỮU SÂM";
-                                else if (CurrentLoginName == "vmc") CurrentUserName = "VŨ MINH CƯỜNG";
+                                if (parts.Length >= 3 && !string.IsNullOrEmpty(parts[2]))
+                                {
+                                    CurrentLoginName = parts[2];
+                                    if (CurrentLoginName == "034727") CurrentUserName = "NGUYỄN HỮU SÂM";
+                                    else if (CurrentLoginName == "vmc") CurrentUserName = "VŨ MINH CƯỜNG";
+                                }
+                                return parts[0];
                             }
-                            return parts[0];
                         }
                     }
                 }
+                catch { }
             }
         }
         catch { }
@@ -1348,28 +1374,89 @@ public class MainForm : Form
         return null;
     }
 
+    public static void EnsureAcsConfiguration()
+    {
+        try
+        {
+            var settings = System.Configuration.ConfigurationManager.AppSettings;
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Base.Uri"]))
+                settings["Inventec.Token.ClientSystem.Acs.Base.Uri"] = "http://192.168.7.200:1401/";
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Uri"]))
+                settings["Inventec.Token.ClientSystem.Acs.Uri"] = "http://192.168.7.200:1401/";
+            if (string.IsNullOrEmpty(settings["Inventec.Token.ClientSystem.Acs.Version"]))
+                settings["Inventec.Token.ClientSystem.Acs.Version"] = "2.0";
+        }
+        catch { }
+    }
+
     public static void InitSession()
     {
         if (string.IsNullOrEmpty(currentToken))
         {
+            EnsureAcsConfiguration();
             try { HIS.Desktop.LocalStorage.ConfigSystem.Load.Init(); } catch { }
             param = new CommonParam();
-            string liveToken = ReadLiveTokenFast();
-            if (!string.IsNullOrEmpty(liveToken))
+
+            // 1. Check doctor_standalone.token
+            try
             {
-                currentToken = liveToken;
+                DirectoryInfo curD = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+                for (int i = 0; i < 5; i++)
+                {
+                    if (curD == null) break;
+                    string checkF = Path.Combine(curD.FullName, "doctor_standalone.token");
+                    if (File.Exists(checkF))
+                    {
+                        string[] parts = File.ReadAllText(checkF, Encoding.UTF8).Split('|');
+                        if (parts.Length >= 2)
+                        {
+                            long ticks;
+                            if (long.TryParse(parts[1], out ticks))
+                            {
+                                if (new TimeSpan(DateTime.Now.Ticks - ticks).TotalHours < 6)
+                                {
+                                    currentToken = parts[0];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    curD = curD.Parent;
+                }
             }
-            else
+            catch { }
+
+            // 2. Read live log
+            if (string.IsNullOrEmpty(currentToken))
+            {
+                string liveToken = ReadLiveTokenFast();
+                if (!string.IsNullOrEmpty(liveToken))
+                {
+                    currentToken = liveToken;
+                }
+            }
+
+            // 3. Fallback to ACS Login
+            if (string.IsNullOrEmpty(currentToken))
             {
                 try
                 {
-                    ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                    var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
-                    if (token == null) token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
-                    if (token != null)
+                    var creds = new List<Tuple<string, string>>
                     {
-                        currentToken = token.TokenCode;
-                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), currentToken + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8); } catch { }
+                        Tuple.Create("034727", "981"),
+                        Tuple.Create("034727", "998199"),
+                        Tuple.Create("vmc", "789789")
+                    };
+                    ClientTokenManager tokenManager = new ClientTokenManager("HIS");
+                    foreach (var c in creds)
+                    {
+                        var tok = tokenManager.Login(param, c.Item1, c.Item2, "2.390.0");
+                        if (tok != null && !string.IsNullOrEmpty(tok.TokenCode))
+                        {
+                            currentToken = tok.TokenCode;
+                            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token"), currentToken + "|" + DateTime.Now.Ticks + "|" + c.Item1, Encoding.UTF8); } catch { }
+                            break;
+                        }
                     }
                 }
                 catch { }
@@ -1579,23 +1666,44 @@ class Program
 
         AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
         {
-            string folderPath = AppDomain.CurrentDomain.BaseDirectory;
-            string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
-            string path1 = Path.Combine(folderPath, name);
-            if (File.Exists(path1)) return Assembly.LoadFrom(path1);
-            string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
-            if (File.Exists(path2)) return Assembly.LoadFrom(path2);
-            string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
-            if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+            try
+            {
+                string folderPath = AppDomain.CurrentDomain.BaseDirectory;
+                string name = new AssemblyName(resolveArgs.Name).Name + ".dll";
+                string path1 = Path.Combine(folderPath, name);
+                if (File.Exists(path1)) return Assembly.LoadFrom(path1);
+                string path2 = Path.Combine(folderPath, "ReferencedAssemblies", name);
+                if (File.Exists(path2)) return Assembly.LoadFrom(path2);
+                string path3 = Path.Combine(folderPath, "HisAutoPrescribe_Portable", name);
+                if (File.Exists(path3)) return Assembly.LoadFrom(path3);
+
+                DirectoryInfo cur = new DirectoryInfo(folderPath);
+                for (int i = 0; i < 5; i++)
+                {
+                    if (cur.Parent == null) break;
+                    cur = cur.Parent;
+                    string pRoot = Path.Combine(cur.FullName, name);
+                    if (File.Exists(pRoot)) return Assembly.LoadFrom(pRoot);
+                    string pRef = Path.Combine(cur.FullName, "ReferencedAssemblies", name);
+                    if (File.Exists(pRef)) return Assembly.LoadFrom(pRef);
+                }
+            }
+            catch { }
             return null;
         };
 
-        if (args.Length > 0 && (args[0] == "-p" || args[0] == "--patient" || args[0] == "-f" || args[0] == "--file" || args[0] == "--help" || args[0] == "-h" || args[0] == "/?"))
+        if (args.Length > 0)
         {
             RunCli(args);
             return;
         }
 
+        RunGui();
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static void RunGui()
+    {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
@@ -1606,6 +1714,7 @@ class Program
         }
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     static void RunCli(string[] args)
     {
         Console.WriteLine("===============================================================================");
@@ -1623,12 +1732,19 @@ class Program
         }
 
         string rawPatients = "";
+        if (args.Length > 0 && !args[0].StartsWith("-")) rawPatients = args[0];
+
         string rawTime = "17:00";
         string rawDate = "";
         string content = "";
         string medInstruction = "";
         string careInstruction = "";
         int templateId = 0;
+
+        string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
+        if (string.IsNullOrEmpty(envDoc)) envDoc = "034727";
+        MainForm.CurrentLoginName = envDoc;
+        MainForm.CurrentUserName = (envDoc == "034727" ? "NGUYỄN HỮU SÂM" : (envDoc == "vmc" ? "VŨ MINH CƯỜNG" : envDoc));
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -1644,6 +1760,12 @@ class Program
             if ((args[i] == "-content" || args[i] == "-c") && i + 1 < args.Length) content = args[i + 1];
             if ((args[i] == "-med" || args[i] == "-m") && i + 1 < args.Length) medInstruction = args[i + 1];
             if ((args[i] == "-care") && i + 1 < args.Length) careInstruction = args[i + 1];
+            if ((args[i] == "--note" || args[i] == "-note") && i + 1 < args.Length)
+            {
+                if (string.IsNullOrEmpty(content)) content = args[i + 1];
+                if (string.IsNullOrEmpty(medInstruction)) medInstruction = args[i + 1];
+                if (string.IsNullOrEmpty(careInstruction)) careInstruction = "Chăm sóc cấp II. Theo dõi đường máu mao mạch.";
+            }
             if ((args[i] == "-template" || args[i] == "-tmpl") && i + 1 < args.Length) int.TryParse(args[i + 1], out templateId);
         }
 
@@ -1704,9 +1826,9 @@ class Program
                 DateTime fullDateTime = new DateTime(date.Year, date.Month, date.Day, tSpan.Hours, tSpan.Minutes, 0);
                 long trackingTime = long.Parse(fullDateTime.ToString("yyyyMMddHHmmss"));
 
-                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
                 long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
                 long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
+                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (deptId == 915 ? 18679 : 5248);
 
                 try
                 {
@@ -1721,6 +1843,10 @@ class Program
                             new RoomSDO { RoomId = 18681 }
                         }
                     };
+                    if (p.WorkingRoomId > 0 && !wi.Rooms.Any(r => r.RoomId == p.WorkingRoomId))
+                    {
+                        wi.Rooms.Add(new RoomSDO { RoomId = p.WorkingRoomId });
+                    }
                     MainForm.myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", ApiConsumers.MosConsumer, wi, new CommonParam());
                 }
                 catch { }
@@ -1743,12 +1869,18 @@ class Program
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
-                    WorkingRoomId = doctorWorkRoomId,
+                    WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
                     Dhst = null // Do not inject forced vital signs to keep tracking clean
                 };
 
                 CommonParam cp = new CommonParam();
                 var created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                if (created == null || created.ID == 0)
+                {
+                    sdo.WorkingRoomId = doctorWorkRoomId;
+                    cp = new CommonParam();
+                    created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                }
                 if (created == null || created.ID == 0)
                 {
                     string errMsg = "Hệ thống MOS từ chối tạo!";
