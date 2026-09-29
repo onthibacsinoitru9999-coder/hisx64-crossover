@@ -152,8 +152,30 @@ Khi chỉ định Cận lâm sàng cho Khoa Chấn thương Chỉnh hình & Cộ
 | | *(Phòng tiếp đón CLVT Nội trú)*| Chụp CLVT cột sống thắt lưng không tiêm thuốc CQ | `BM00400.260119` | `58191` | BHYT (`1`) |
 | **10**| **Cộng Hưởng Từ (MRI)** (`17548`)| Chụp cộng hưởng từ cột sống thắt lưng – cùng [Không in phim] | `BM00482.260119` | `58292` | BHYT (`1`) |
 | **11**| **Thăm Dò Chức Năng (TDCN)** | Điện tim thường *(Thực hiện tại: P.Tiểu phẫu Nhà Q - Khoa 57)* | `BM04258` | `920` | BHYT (`1`) |
+| | | Ghi điện cơ dẫn truyền ngoại biên (EMG chi) *(P.Tiểu phẫu Khoa 57)* | `BM01892` | `908` | BHYT (`1`) |
+| | | Đo mật độ xương DEXA [2 vị trí] *(P202 - Nhà K2 - Room 6462)* | `BM08085` | `161` | BHYT (`1`) |
 | | | Đo mật độ xương DEXA [1 vị trí] *(P202 - Nhà K2 - Room 6462)* | `BM08084` | `160` | BHYT (`1`) |
-| | | Siêu âm Doppler tim, van tim *(P112 T1 Nhà K2 - Room 16987)* | `BM00201` | `5569` | BHYT (`1`) |
+| | | Siêu âm Doppler tim, van tim *(P.Siêu âm tim nội trú - C2 Viện TM - Room 1715)* | `BM00201` | `5569` | BHYT (`1`) |
+| | | Siêu âm Doppler mạch máu chi *(Phòng tiếp đón Siêu âm Nội trú - Room 17547)* | `BM00203` | `5571` | BHYT (`1`) |
+
+---
+
+## 📚 THƯ VIỆN CON TRA CỨU CẬN LÂM SÀNG KHOA 57 (SUB-LIBRARY REFERENCES)
+
+Để phục vụ tra cứu nhanh và chỉ định chính xác, hệ thống đã đóng gói sẵn bộ thư viện con chuyên dụng:
+* 📖 **Tài liệu tham chiếu chi tiết**: [`references/cls_hanoi_ctch_cs_catalog.md`](references/cls_hanoi_ctch_cs_catalog.md) (Chứa toàn bộ bảng ánh xạ mã, phòng, quy tắc gom ống máu, các gói Bilan mổ phiên: `cement, spine, trauma, hip, hand, infection`).
+* 💻 **Dữ liệu cấu trúc JSON**: [`references/cls_hanoi_ctch_cs_catalog.json`](references/cls_hanoi_ctch_cs_catalog.json) (Dành cho script và subagents tự động hóa query).
+* ⚡ **Công cụ tra cứu nhanh 1-Click trên Terminal**:
+  ```powershell
+  # Tra cứu toàn bộ danh mục CLS chuẩn Khoa 57
+  .\HisClsLookup.bat
+
+  # Tra cứu theo từ khóa (tên xét nghiệm, mã dịch vụ, phòng)
+  .\HisClsLookup.bat mri
+  .\HisClsLookup.bat dexa
+  .\HisClsLookup.bat "dong mau"
+  .\HisClsLookup.bat 17549
+  ```
 
 ---
 
@@ -162,6 +184,24 @@ Khi chỉ định Cận lâm sàng cho Khoa Chấn thương Chỉnh hình & Cộ
 * **Endpoint**: `POST http://192.168.7.236:1608/api/HisServiceReq/AssignServiceByInstructionTimes`
 * **Cơ chế gom ống**: Gửi toàn bộ các kỹ thuật trong mảng `ServiceReqDetails`. MOS Backend tự động gom các dịch vụ cùng `RoomId` (Phòng thực hiện) thành **1 `HIS_SERVICE_REQ` duy nhất (1 Barcode / 1 Ống máu)**, tuyệt đối không gửi vòng lặp lẻ từng dịch vụ.
 * **Quy tắc an toàn**: `RequestRoomId` phải lấy từ `BED_ROOM.ROOM_ID` nơi bệnh nhân nằm điều trị, và đã được kích hoạt qua `POST api/Token/UpdateWorkInfo`.
+
+### Chỉ Định Gói Bilan Mổ Phiên & Tùy Chọn Bằng CLI:
+```powershell
+# Chỉ định gói mổ bơm xi măng (Vertebroplasty)
+.\HisClinicalCli.exe assign-bilan <treatmentId> <trackingId> cement
+
+# Chỉ định gói mổ cột sống (Nẹp vít, giải ép)
+.\HisClinicalCli.exe assign-bilan <treatmentId> <trackingId> spine
+
+# Chỉ định gói chấn thương (Kết hợp xương)
+.\HisClinicalCli.exe assign-bilan <treatmentId> <trackingId> trauma
+
+# Chỉ định gói theo dõi nhiễm trùng sau mổ
+.\HisClinicalCli.exe assign-bilan <treatmentId> <trackingId> infection
+
+# Chỉ định tùy biến nhiều kỹ thuật chuẩn (tự động gom nhóm)
+.\HisClinicalCli.exe assign-custom <treatmentId> <trackingId> "CBC_LASER,PT_TQ,APTT_TCK,FIBRINOGEN,URE,CREATININ,CRP,ECG,XRAY_CHEST"
+```
 
 ---
 
