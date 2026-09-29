@@ -2542,5 +2542,29 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 3. **Cập nhật `HisClinicalCli.cs`**: Bổ sung tự động phân giải buồng bệnh `reqRoomId = ResolvePatientRoomId(treatmentId)`, cập nhật `EnsureWorkInfoForRoom(reqRoomId)`, gán đầy đủ `tracking.ROOM_ID = reqRoomId` và `sdo.WorkingRoomId = reqRoomId`.
 4. **Biên dịch & Đồng bộ 100%**: Sử dụng `build_all_cs_tools.ps1` để tự động compile mã PE x64 và đồng bộ nhị phân ra cả thư mục gốc và thư mục `.agents\...`. Đã kiểm thử thực tế tạo thành công Tờ điều trị ID `10199212` và `10199260` trên bệnh nhân thật.
 
+---
+
+## 46. QUY CHUẨN BÌA BỆNH ÁN NGOẠI KHOA EMR: CHI TIẾT TRIỆU CHỨNG — TỐI GIẢN TIÊN LƯỢNG & PHƯƠNG PHÁP ĐIỀU TRỊ
+
+### 46.1. Bối Cảnh Thực Tế & Yêu Cầu Của Bác Sĩ
+- **Vấn đề**: Bìa bệnh án Ngoại khoa EMR (`BENHANNGOAIKHOA`) trước đây thường bị dài dòng, rườm rà ở các ô *Tiên lượng* và *Hướng điều trị / Phương pháp điều trị* (liệt kê tràn lan các bước chu phẫu, kháng sinh, dinh dưỡng, PHCN dài cả đoạn văn). Điều này làm mất trọng tâm lâm sàng, gây rối mắt cho Bác sĩ và Hội đồng duyệt bệnh án.
+- **Yêu cầu cốt lõi (Ground Truth)**:
+  1. **Chi tiết phần Triệu chứng**: Tập trung 100% độ sâu vào các hội chứng ngoại khoa, vị trí giải phẫu, cơ chế chấn thương, các nghiệm pháp lâm sàng kinh điển, kết quả CĐHA đích danh và dấu hiệu sinh tồn.
+  2. **Tối giản phần Tiên lượng & Hướng điều trị**: Ghi ngắn gọn, súc tích, đúng chuẩn form hành chính bệnh viện:
+     - **Tiên lượng (`TienLuong`)**: Ghi ngắn gọn: **`Dè dặt`** (hoặc `Tiên lượng dè dặt`).
+     - **Phương pháp điều trị / Hướng điều trị (`HuongDieuTri` / `PhuongPhapDieuTri`)**: Ghi ngắn gọn: **`Theo phác đồ`** (hoặc `Phẫu thuật theo phác đồ` / `Điều trị theo phác đồ`).
+
+### 46.2. Ma Trận Đối Soát Chuẩn Cho Agent Khi Khởi Tạo EMR
+| Trường Dữ Liệu EMR | Mức Độ Chi Tiết | Quy Cách Điền Bắt Buộc | Ví Dụ Mẫu |
+| :--- | :--- | :--- | :--- |
+| **`LyDoVaoVien`** | Chi tiết | Đích danh vị trí giải phẫu + triệu chứng chính / cơ chế | *Tê bì, đau buốt và hạn chế vận động hai bàn tay (tay trái nhiều hơn tay phải)* |
+| **`QuaTrinhBenhLy`** | Chi tiết | Thời gian khởi phát, diễn biến tăng dần, hoàn cảnh đau/tê (về đêm, tì đè), xử trí trước | *Khoảng vài tháng nay, bệnh nhân xuất hiện tê bì, đau buốt hai bàn tay...* |
+| **`BenhNgoaiKhoa` / `CoXuongKhop`** | Rất chi tiết | Đầy đủ nghiệm pháp kinh điển, cơ lực, cảm giác, mạch ngoại vi | *Khám chuyên khoa Cổ - Bàn tay hai bên: Tinel (+), Phalen (+), teo nhẹ cơ mô cái...* |
+| **`TomTatBenhAn`** | Rất chi tiết | Đầy đủ hội chứng chính, định danh tổn thương, CLS hình ảnh, bệnh nền, DHST | *Bệnh nhân nữ, 39 tuổi, tiền sử khỏe mạnh... Hội chứng chèn ép TK giữa...* |
+| **`TienLuong`** | **Tối giản** | **Ghi duy nhất: `Dè dặt`** | **`Dè dặt`** |
+| **`HuongDieuTri`** | **Tối giản** | **Ghi duy nhất: `Theo phác đồ`** | **`Theo phác đồ`** |
+| **Bìa ra viện (Tổng kết)** | **Để trống 100%** | Khi tiếp đón vào viện (`--admission`), không điền bất kỳ ô nào | *Trống 100%* |
+
+
 
 

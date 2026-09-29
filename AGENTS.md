@@ -347,3 +347,15 @@ Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối so�
   - Khi phát hiện cận lâm sàng còn thiếu, Thợ trực buồng **CHỈ XUẤT DANH SÁCH BẢNG ĐỀ XUẤT** gồm: Tên dịch vụ, Mã dịch vụ HIS, Lý do lâm sàng cần làm, và Phòng thực hiện đích danh tại cơ sở tương ứng (P734/Tiểu phẫu nhà Q/P.17547... tại Hà Nội; P3E-05/P3D-05... tại Ninh Bình).
   - **TUYỆT ĐỐI CẤM tự ý bấm kê hàng loạt CLS lên hệ thống HIS**.
   - Bảng đề xuất phải được trình rõ ràng để **Bác sĩ / Người điều hành duyệt trước khi kê**. Chỉ thực hiện chỉ định những mục đã được Bác sĩ phê duyệt.
+
+### 16.3. Chuẩn Hóa Bìa Bệnh Án Ngoại Khoa EMR: Chi Tiết Triệu Chứng — Tối Giản Tiên Lượng & Hướng Điều Trị (Lean EMR Cover Protocol)
+* **Nguyên tắc cốt lõi (Core Principle - BẮT BUỘC GHI NHỚ 100%)**:
+  Bìa bệnh án Ngoại khoa EMR phải tập trung vào trọng tâm lâm sàng, tránh dài dòng rườm rà ở các phần suy diễn, tuân thủ đúng định dạng:
+  1. 🩺 **PHẦN TRIỆU CHỨNG (BẮT BUỘC CHI TIẾT & CHUẨN XÁC)**:
+     - **Lý do vào viện (`LyDoVaoVien`)**: Rõ ràng vị trí giải phẫu, cơ chế chấn thương hoặc triệu chứng nổi bật.
+     - **Quá trình bệnh lý (`QuaTrinhBenhLy`)**: Mô tả chi tiết thời gian khởi phát, diễn biến tăng dần, hoàn cảnh đau/tê (về đêm, khi tì đè, vận động), các nghiệm pháp giảm đau tự nhiên và điều trị trước đó.
+     - **Khám chuyên khoa (`BenhNgoaiKhoa`, `CoXuongKhop`, `ThanKinh`)**: Tỉ mỉ, chuẩn xác từng nghiệm pháp kinh điển (Neer, Hawkins, Jobe, Patte, Lachman, Drawer, Tinel, Phalen, Lasegue...), cơ lực, cảm giác ngọn chi, mạch ngoại vi.
+     - **Tóm tắt bệnh án (`TomTatBenhAn`)**: Trích xuất đầy đủ các hội chứng ngoại khoa chính, định danh tổn thương, kết quả CĐHA thực tế, bệnh nền và DHST.
+  2. ⚡ **PHẦN TIÊN LƯỢNG & PHƯƠNG PHÁP ĐIỀU TRỊ (BẮT BUỘC TỐI GIẢN - GỌN GÀNG)**:
+     - **Tiên lượng (`TienLuong`)**: Ghi ngắn gọn duy nhất: **`Dè dặt`** (hoặc `Tiên lượng dè dặt`). Tuyệt đối không viết văn hoa giải thích dài dòng.
+     - **Phương pháp điều trị / Hướng điều trị (`HuongDieuTri` / `PhuongPhapDieuTri`)**: Ghi ngắn gọn: **`Theo phác đồ`** (hoặc `Phẫu thuật theo phác đồ` / `Điều trị theo phác đồ`). Tuyệt đối không liệt kê tràn lan các bước chu phẫu dài 5-10 dòng làm bìa bệnh án bị rối mắt, mất trọng tâm.
