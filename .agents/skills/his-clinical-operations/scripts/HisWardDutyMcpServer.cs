@@ -617,9 +617,12 @@ namespace HisWardDutyMcp
                         trackingId = firstTrk.ID;
                         string curContent = firstTrk.CONTENT ?? "";
                         bool hasMismatchedLumbar = (tr.ICD_NAME ?? "").ToLower().Contains("cổ") && (curContent.Contains("TLIF") || curContent.Contains("thắt lưng"));
-                        if (hasMismatchedLumbar && !isDryRun && !string.IsNullOrEmpty(emrSummary))
+                        bool isPlaceholderOrNeedsSummary = curContent.Length < 100 || curContent.Contains("Thêm thuốc") || !curContent.Contains("Tóm tắt bệnh án");
+                        if ((hasMismatchedLumbar || isPlaceholderOrNeedsSummary) && !isDryRun && !string.IsNullOrEmpty(emrSummary))
                         {
-                            sb.AppendLine(string.Format("   🔄 Phát hiện Tờ điều trị ID {0} chứa nội dung thắt lưng lệch bệnh cảnh Cột sống cổ → Tự động cập nhật lại nội dung chuẩn!", firstTrk.ID));
+                            sb.AppendLine(string.Format("   🔄 Phát hiện Tờ điều trị ID {0} {1} → Tự động cập nhật nội dung lâm sàng đầy đủ từ vỏ EMR!", 
+                                firstTrk.ID, 
+                                hasMismatchedLumbar ? "chứa nội dung lệch bệnh cảnh" : "chưa có tóm tắt bệnh án đầy đủ"));
                             try
                             {
                                 var trkGetFilter = new HisTrackingFilter { ID = firstTrk.ID };
@@ -634,11 +637,25 @@ namespace HisWardDutyMcp
                                         "- Tóm tắt bệnh án từ vỏ EMR:\r\n{0}\r\n" +
                                         "- Hiện tại: Bệnh nhân tỉnh táo, tiếp xúc tốt, đại tiểu tiện tự chủ. Tiếp tục theo dõi sát tại buồng bệnh, thực hiện y lệnh điều trị và hoàn thiện các xét nghiệm bilan trước mổ.",
                                         newSummary);
-                                    var updSdo = new HisTrackingSDO { Tracking = fullTrk, WorkingRoomId = (fullTrk.ROOM_ID.HasValue && fullTrk.ROOM_ID.Value > 0) ? fullTrk.ROOM_ID.Value : 5248 };
+                                    var dhstFilter = new HisDhstFilter { TRACKING_ID = fullTrk.ID };
+                                    var dhsts = adapter.FetchList<HIS_DHST>("api/HisDhst/Get", mosConsumer, dhstFilter, param);
+
+                                    long workRoomId = (deptId == 915) ? 18679 : 5248;
+                                    var updSdo = new HisTrackingSDO 
+                                    { 
+                                        Tracking = fullTrk, 
+                                        WorkingRoomId = workRoomId,
+                                        Dhst = (dhsts != null && dhsts.Count > 0) ? dhsts[0] : null
+                                    };
                                     var updRes = adapter.PostData<HIS_TRACKING>("api/HisTracking/Update", mosConsumer, updSdo, param);
                                     if (updRes != null)
                                     {
                                         sb.AppendLine("   ✔ Cập nhật nội dung Tờ điều trị đầu tiên THÀNH CÔNG RỰC RỠ!");
+                                    }
+                                    else
+                                    {
+                                        string msg = (param.Messages != null && param.Messages.Count > 0) ? string.Join("; ", param.Messages) : "Không có phản hồi";
+                                        sb.AppendLine("   ⚠️ Cập nhật Tờ điều trị không thành công: " + msg);
                                     }
                                 }
                             }

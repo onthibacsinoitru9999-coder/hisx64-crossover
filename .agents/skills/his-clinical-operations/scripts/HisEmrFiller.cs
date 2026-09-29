@@ -500,6 +500,9 @@ class HisEmrFiller
                 return true;
             if ((cur.Contains("cổ") || cur.Contains("chẩm")) && (s.Contains("thắt lưng") || s.Contains("l4") || s.Contains("l5") || s.Contains("tlif") || s.Contains("bơm xi măng") || s.Contains("bxm") || s.Contains("lasegue") || s.Contains("xẹp đốt sống cũ")))
                 return true;
+            if ((cur.Contains("thắt lưng") || cur.Contains("l1") || cur.Contains("l2") || cur.Contains("l3") || cur.Contains("l4") || cur.Contains("l5") || cur.Contains("s1") || cur.Contains("trượt")) &&
+                (s.Contains("vùng cổ") || s.Contains("đau cổ") || s.Contains("mu tay") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")))
+                return true;
         }
 
         return false;
@@ -1706,6 +1709,10 @@ class HisEmrFiller
         bool curIsCervical = cur.Contains("cổ") || cur.Contains("chẩm");
         bool pastIsLumbar = past.Contains("thắt lưng") || past.Contains("tlif") || past.Contains("l4") || past.Contains("l5") || past.Contains("l1") || past.Contains("l2") || past.Contains("l3") || past.Contains("bxm") || past.Contains("bơm xi măng") || past.Contains("lasegue");
         if (curIsCervical && pastIsLumbar && !cur.Contains("thắt lưng")) return false;
+
+        bool curIsLumbar = cur.Contains("thắt lưng") || cur.Contains("l1") || cur.Contains("l2") || cur.Contains("l3") || cur.Contains("l4") || cur.Contains("l5") || cur.Contains("s1") || cur.Contains("trượt");
+        bool pastIsCervical = past.Contains("vùng cổ") || past.Contains("đau cổ") || past.Contains("cột sống cổ") || past.Contains("đốt sống cổ") || past.Contains("mu tay") || past.Contains("tê bì 2 tay") || past.Contains("tê tay");
+        if (curIsLumbar && pastIsCervical && !cur.Contains("cổ")) return false;
 
         return true;
     }

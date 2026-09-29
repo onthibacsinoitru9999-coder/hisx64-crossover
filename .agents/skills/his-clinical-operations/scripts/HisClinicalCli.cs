@@ -716,7 +716,12 @@ public class HisClinicalCli
         }
 
         var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, param);
-        if (created == null) throw new Exception("Tạo tờ điều trị thất bại!");
+        if (created == null)
+        {
+            string msg = (param.Messages != null && param.Messages.Count > 0) ? string.Join("; ", param.Messages) : "MOS returned null";
+            if (param.BugCodes != null && param.BugCodes.Count > 0) msg += " Bug: " + string.Join("; ", param.BugCodes);
+            throw new Exception("Tạo tờ điều trị thất bại: " + msg);
+        }
 
         Console.WriteLine(string.Format("✔ Đã tạo Tờ điều trị ID: {0} lúc {1}", created.ID, created.TRACKING_TIME));
         return created.ID;
