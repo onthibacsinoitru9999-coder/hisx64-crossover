@@ -1077,6 +1077,11 @@ class HisEmrFiller
             return string.Format("Đau cột sống thắt lưng lan chân, tê bì và rối loạn tiểu tiện/đại tiện");
         if (s.Contains("thoát vị") || s.Contains("thoat vi") || s.Contains("đĩa đệm"))
             return string.Format("Đau cột sống thắt lưng lan chân, tê bì hạn chế vận động");
+        if (s.Contains("mấu chuyển") || s.Contains("cổ xương đùi") || (s.Contains("xương đùi") && s.Contains("gãy")) || s.Contains("s72"))
+        {
+            string side = (s.Contains("phải") || loc.Contains("phải")) ? "phải" : "trái";
+            return string.Format("Đau chói, bất lực vận động hoàn toàn chân {0} sau ngã", side);
+        }
         if (s.Contains("cẳng tay") || loc.Contains("cẳng tay") || s.Contains("m24"))
         {
             string side = ResolveSide(ti, ctx, "trái");
@@ -1098,6 +1103,17 @@ class HisEmrFiller
                 "Khoảng vài tháng nay, bệnh nhân xuất hiện đau nhức âm ỉ vùng khớp vai {0}, đau tăng dần, đau nhiều về đêm khiến bệnh nhân khó ngủ khi nằm nghiêng đè lên vai tổn thương. " +
                 "Kèm theo bệnh nhân thấy hạn chế tầm vận động khớp vai {0}, khó khăn khi giạng tay, chải đầu, mặc áo hoặc đưa tay ra sau lưng. " +
                 "Bệnh nhân đã điều trị nội khoa dùng thuốc giảm đau và tập phục hồi chức năng nhưng không thuyên giảm, nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để điều trị phẫu thuật nội soi khâu phục hồi chóp xoay.",
+                side);
+        }
+
+        if (s.Contains("mấu chuyển") || s.Contains("cổ xương đùi") || (s.Contains("xương đùi") && s.Contains("gãy")) || s.Contains("s72"))
+        {
+            string side = (s.Contains("phải") || loc.Contains("phải")) ? "phải" : "trái";
+            return string.Format(
+                "Cách vào viện khoảng vài giờ, theo lời kể bệnh nhân bị tai nạn sinh hoạt (trượt chân ngã đập vùng háng - đùi {0} xuống nền cứng). " +
+                "Sau ngã bệnh nhân thấy đau chói dữ dội vùng khớp háng và đùi {0}, mất hoàn toàn cơ năng vận động chi dưới {0} (không thể tự đứng dậy, không thể nâng chân lên khỏi mặt giường). " +
+                "Bệnh nhân được người nhà đưa đi khám sơ cứu tại phòng khám, phát hiện gãy xương vùng cổ - mấu chuyển xương đùi {0}, sau đó được chuyển đến Bệnh viện Bạch Mai cấp cứu. " +
+                "Tại Trung tâm Cấp cứu A9, bệnh nhân được cố định tạm thời bằng nẹp chống xoay đùi cẳng bàn chân {0}, làm các xét nghiệm và bilan chẩn đoán hình ảnh, sau đó được chuyển vào Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và chuẩn bị phẫu thuật.",
                 side);
         }
 
@@ -1503,6 +1519,18 @@ class HisEmrFiller
                 side);
         }
 
+        if (s.Contains("mấu chuyển") || s.Contains("cổ xương đùi") || (s.Contains("xương đùi") && s.Contains("gãy")) || s.Contains("s72"))
+        {
+            string side = (s.Contains("phải") || loc.Contains("phải")) ? "phải" : "trái";
+            return string.Format(
+                "Khám chuyên khoa Vùng Khớp háng và Đùi {0}:\n" +
+                "- Nhìn: Vùng khớp háng và 1/3 trên đùi {0} sưng nề nhẹ, bầm tím dưới da, bàn chân {0} đổ ngoài, chi {0} ngắn hơn chi đối diện nhẹ. Hiện đang được cố định tạm thời bằng nẹp chống xoay đùi cẳng bàn chân {0}.\n" +
+                "- Sờ: Ấn điểm đau chói khu trú tại vùng mấu chuyển lớn xương đùi {0}; dấu hiệu lạo xạo xương (+/-), cử động bất thường (+/-).\n" +
+                "- Vận động: Mất hoàn toàn cơ năng vận động chủ động chi dưới {0} (không nâng được gót chân lên khỏi mặt giường, gõ dồn từ gót chân lên khớp háng {0} gây đau chói).\n" +
+                "- Mạch máu - Thần kinh: Mạch mu chân và mạch chày sau bên {0} bắt rõ, đều hai bên; cảm giác ngọn chi và vận động các ngón chân bảo tồn; tưới máu đầu ngón hồng ấm (CRT < 2s); các khoang mềm mại, không có biểu hiện chèn ép khoang.",
+                side);
+        }
+
         if (s.Contains("gãy") || s.Contains("gay"))
         {
             return string.Format(
@@ -1774,6 +1802,14 @@ class HisEmrFiller
             if (s.Contains("gãy") || s.Contains("gay") || s.Contains("đốt"))
                 sb.AppendLine("- Dấu hiệu gãy xương kèm theo: Ấn đau chói cố định, lạo xạo xương và cử động bất thường tại các đốt ngón tổn thương.");
             sb.AppendLine("- Thần kinh - Mạch máu: Mạch mu chân bắt rõ, tưới máu đầu ngón hồng ấm, không có hội chứng chèn ép khoang.");
+        }
+        else if (s.Contains("mấu chuyển") || s.Contains("cổ xương đùi") || (s.Contains("xương đùi") && s.Contains("gãy")) || s.Contains("s72"))
+        {
+            string side = (s.Contains("phải") || loc.Contains("phải")) ? "phải" : "trái";
+            sb.AppendLine(string.Format("- Hội chứng gãy xương (+/-): Đau chói dữ dội vùng khớp háng và 1/3 trên đùi {0} sau tai nạn sinh hoạt (ngã đập háng xuống nền cứng), bất lực vận động hoàn toàn chi dưới {0} (không nâng được chân lên khỏi mặt giường, gõ dồn gót đau chói); sưng nề bầm tím vùng mấu chuyển, bàn chân {0} xoay ngoài; điểm đau chói cố định tại vùng mấu chuyển lớn xương đùi {0}, dấu hiệu lạo xạo xương (+/-), cử động bất thường (+/-). Hiện đang được cố định bằng nẹp chống xoay.", side));
+            sb.AppendLine(string.Format("- Mạch máu & Thần kinh ngoại vi: Mạch mu chân và mạch chày sau bên {0} bắt rõ; cảm giác ngọn chi và vận động các ngón chân bảo tồn; tưới máu đầu ngón hồng ấm (CRT < 2s); các khoang mềm mại, chưa có biểu hiện chèn ép khoang.", side));
+            if (s.Contains("đái tháo đường") || s.Contains("đtđ") || (tienSu != null && (tienSu.ToLower().Contains("đái tháo đường") || tienSu.ToLower().Contains("đtđ"))))
+                sb.AppendLine("- Bệnh lý nền kèm theo: Đái tháo đường, tuổi cao (93 tuổi), nguy cơ loãng xương và biến chứng nằm lâu.");
         }
         else if (s.Contains("cẳng tay") || s.Contains("xương trụ") || s.Contains("xương quay") || loc.Contains("cẳng tay"))
         {
