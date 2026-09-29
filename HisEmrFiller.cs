@@ -604,12 +604,13 @@ class HisEmrFiller
             if ((ti.IcdText != null && (ti.IcdText.ToLower().Contains("u sụn") || ti.IcdText.ToLower().Contains("gối"))) || 
                 ti.IcdName.ToLower().Contains("chóp xoay") || ti.IcdName.ToLower().Contains("chop xoay") ||
                 ti.IcdName.ToLower().Contains("ống cổ tay") || ti.IcdName.ToLower().Contains("ong co tay") || ti.IcdName.ToLower().Contains("g56") ||
-                (tmpl.QuaTrinhBenhLy != null && (tmpl.QuaTrinhBenhLy.Contains("nữ, 73 tuổi") || tmpl.QuaTrinhBenhLy.Contains("sập giàn giáo"))))
-                ba.QuaTrinhBenhLy = BuildQuaTrinhBenhLy(ti);
+                ti.IcdName.ToLower().Contains("cẳng tay") || ti.IcdName.ToLower().Contains("xương trụ") || ti.IcdName.ToLower().Contains("m24") ||
+                (tmpl.QuaTrinhBenhLy != null && (tmpl.QuaTrinhBenhLy.Contains("nữ, 73 tuổi") || tmpl.QuaTrinhBenhLy.Contains("sập giàn giáo") || tmpl.QuaTrinhBenhLy.Contains("say rượu") || tmpl.QuaTrinhBenhLy.Contains("vai phải"))))
+                ba.QuaTrinhBenhLy = BuildQuaTrinhBenhLy(ti, clinicalCtx);
             else if (!string.IsNullOrWhiteSpace(tmpl.QuaTrinhBenhLy) && tmpl.QuaTrinhBenhLy.Trim().Length > 50 && IsTemplateCompatible(tmpl, ti))
                 ba.QuaTrinhBenhLy = AdaptTemplateLaterality(tmpl.QuaTrinhBenhLy.Trim(), ti.IcdName);
             else
-                ba.QuaTrinhBenhLy = BuildQuaTrinhBenhLy(ti);
+                ba.QuaTrinhBenhLy = BuildQuaTrinhBenhLy(ti, clinicalCtx);
         }
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienSuBanThan) && ShouldOverwrite(SafeStr(ba.TienSuBenhBanThan), forceAll, ti))
@@ -764,13 +765,13 @@ class HisEmrFiller
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienLuong) && ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
             ba.TienLuong = clinicalCtx.TienLuong;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienLuong)))
-            ba.TienLuong = NotEmpty(tmpl.TienLuong) ?? "Tiên lượng dè dặt, phụ thuộc vào kết quả can thiệp thủ thuật/phẫu thuật và phục hồi chức năng.";
+        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienLuong)) || ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
+            ba.TienLuong = "Dè dặt";
 
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTri) && ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
             ba.HuongDieuTri = clinicalCtx.HuongDieuTri;
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)) || ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = (!string.IsNullOrWhiteSpace(tmpl.HuongDieuTri) && !tmpl.HuongDieuTri.ToLower().Contains("dị ứng") && !ti.IcdName.ToLower().Contains("hai bên") && tmpl.HuongDieuTri.Trim().Length > 40 && IsTemplateCompatible(tmpl, ti)) ? tmpl.HuongDieuTri : BuildHuongDieuTri(ti);
+            ba.HuongDieuTri = "Theo phác đồ";
 
         // Gán DauSinhTon
         try
@@ -1010,7 +1011,37 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // NỘI DUNG CHUYÊN KHOA NGOẠI & CTCH
     // ──────────────────────────────────────────────────────────────
-    static string BuildLyDoVaoVien(TreatmentInfo ti)
+    static string ResolveSide(TreatmentInfo ti, ClinicalContextInfo ctx = null, string defaultSide = "phải")
+    {
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+        if (s.Contains("trái") || s.Contains(" (t)") || s.Contains("/t") || s.EndsWith(" t") || s.Contains(" t ")) return "trái";
+        if (s.Contains("phải") || s.Contains(" (p)") || s.Contains("/p") || s.EndsWith(" p") || s.Contains(" p ")) return "phải";
+
+        if (ctx != null)
+        {
+            if (ctx.CdhaConclusions != null)
+            {
+                foreach (var c in ctx.CdhaConclusions)
+                {
+                    string cl = c.ToLower();
+                    if (cl.Contains("trái") || cl.Contains("(t)") || cl.Contains("ben trai") || cl.Contains("xương trụ trái") || cl.Contains("cẳng tay trái")) return "trái";
+                    if (cl.Contains("phải") || cl.Contains("(p)") || cl.Contains("ben phai") || cl.Contains("xương trụ phải") || cl.Contains("cẳng tay phải")) return "phải";
+                }
+            }
+            if (ctx.RawTrackingContents != null)
+            {
+                foreach (var t in ctx.RawTrackingContents)
+                {
+                    string tl = t.ToLower();
+                    if (tl.Contains("cẳng tay trái") || tl.Contains("tay trái") || tl.Contains("gối trái") || tl.Contains("vai trái")) return "trái";
+                    if (tl.Contains("cẳng tay phải") || tl.Contains("tay phải") || tl.Contains("gối phải") || tl.Contains("vai phải")) return "phải";
+                }
+            }
+        }
+        return defaultSide;
+    }
+
+    static string BuildLyDoVaoVien(TreatmentInfo ti, ClinicalContextInfo ctx = null)
     {
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
@@ -1046,10 +1077,15 @@ class HisEmrFiller
             return string.Format("Đau cột sống thắt lưng lan chân, tê bì và rối loạn tiểu tiện/đại tiện");
         if (s.Contains("thoát vị") || s.Contains("thoat vi") || s.Contains("đĩa đệm"))
             return string.Format("Đau cột sống thắt lưng lan chân, tê bì hạn chế vận động");
+        if (s.Contains("cẳng tay") || loc.Contains("cẳng tay") || s.Contains("m24"))
+        {
+            string side = ResolveSide(ti, ctx, "trái");
+            return string.Format("Đau và hạn chế vận động cẳng tay {0} sau tai nạn sinh hoạt", side);
+        }
         return string.Format("Đau và hạn chế vận động {0}", loc);
     }
 
-    static string BuildQuaTrinhBenhLy(TreatmentInfo ti)
+    static string BuildQuaTrinhBenhLy(TreatmentInfo ti, ClinicalContextInfo ctx = null)
     {
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
@@ -1062,6 +1098,15 @@ class HisEmrFiller
                 "Khoảng vài tháng nay, bệnh nhân xuất hiện đau nhức âm ỉ vùng khớp vai {0}, đau tăng dần, đau nhiều về đêm khiến bệnh nhân khó ngủ khi nằm nghiêng đè lên vai tổn thương. " +
                 "Kèm theo bệnh nhân thấy hạn chế tầm vận động khớp vai {0}, khó khăn khi giạng tay, chải đầu, mặc áo hoặc đưa tay ra sau lưng. " +
                 "Bệnh nhân đã điều trị nội khoa dùng thuốc giảm đau và tập phục hồi chức năng nhưng không thuyên giảm, nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để điều trị phẫu thuật nội soi khâu phục hồi chóp xoay.",
+                side);
+        }
+
+        if (s.Contains("cẳng tay") || s.Contains("xương trụ") || s.Contains("xương quay") || loc.Contains("cẳng tay") || s.Contains("m24"))
+        {
+            string side = ResolveSide(ti, ctx, "trái");
+            return string.Format(
+                "Cách vào viện khoảng vài giờ, theo lời kể bệnh nhân bị tai nạn sinh hoạt, sau tai nạn đau chói và hạn chế vận động cẳng tay {0}. " +
+                "Bệnh nhân được đưa vào Trung tâm Cấp cứu A9 khám, được xử trí cố định tạm thời bằng nẹp cẳng tay, tiêm phòng uốn ván (SAT), chụp X-quang ghi nhận hình ảnh gãy 1/3 giữa thân xương trụ {0}, sau đó được chuyển Khoa Chấn thương Chỉnh hình & Cột sống tiếp tục điều trị.",
                 side);
         }
 
@@ -1446,6 +1491,18 @@ class HisEmrFiller
                 side);
         }
 
+        if (s.Contains("cẳng tay") || s.Contains("xương trụ") || s.Contains("xương quay") || loc.Contains("cẳng tay"))
+        {
+            string side = (s.Contains("phải") || loc.Contains("phải") || (ti.IcdText != null && ti.IcdText.ToLower().Contains("phải"))) ? "phải" : "trái";
+            return string.Format(
+                "Khám chuyên khoa Cẳng tay {0}:\n" +
+                "- Nhìn: Cẳng tay {0} sưng nề nhẹ, biến dạng nhẹ, không có vết thương hở thấu xương (gãy kín). Hiện đang được cố định tạm thời bằng nẹp cẳng tay {0}.\n" +
+                "- Sờ: Ấn điểm đau chói khu trú tại 1/3 giữa cẳng tay {0} (vị trí thân xương trụ {0}); dấu hiệu lạo xạo xương (+/-), cử động bất thường (+/-).\n" +
+                "- Vận động: Hạn chế biên độ vận động sấp ngửa cẳng tay và gấp duỗi cổ tay, khớp khuỷu {0} do đau.\n" +
+                "- Thần kinh - Mạch máu: Mạch quay và mạch trụ tay {0} bắt rõ; tưới máu đầu ngón tay hồng ấm (CRT < 2s); cảm giác nông và sâu các ngón tay bảo tồn; cơ lực bàn ngón tay bình thường; các khoang mềm mại, không có dấu hiệu chèn ép khoang.",
+                side);
+        }
+
         if (s.Contains("gãy") || s.Contains("gay"))
         {
             return string.Format(
@@ -1717,6 +1774,12 @@ class HisEmrFiller
             if (s.Contains("gãy") || s.Contains("gay") || s.Contains("đốt"))
                 sb.AppendLine("- Dấu hiệu gãy xương kèm theo: Ấn đau chói cố định, lạo xạo xương và cử động bất thường tại các đốt ngón tổn thương.");
             sb.AppendLine("- Thần kinh - Mạch máu: Mạch mu chân bắt rõ, tưới máu đầu ngón hồng ấm, không có hội chứng chèn ép khoang.");
+        }
+        else if (s.Contains("cẳng tay") || s.Contains("xương trụ") || s.Contains("xương quay") || loc.Contains("cẳng tay"))
+        {
+            string side = (s.Contains("phải") || loc.Contains("phải") || (ti.IcdText != null && ti.IcdText.ToLower().Contains("phải"))) ? "phải" : "trái";
+            sb.AppendLine(string.Format("- Hội chứng gãy xương (+/-): Đau chói khu trú vùng 1/3 giữa cẳng tay {0} sau tai nạn sinh hoạt, sưng nề nhẹ, hạn chế vận động cẳng tay và các khớp lân cận; điểm đau chói cố định tại thân xương trụ {0}, dấu hiệu lạo xạo xương (+/-), cử động bất thường (+/-). Hiện cẳng tay {0} đã được cố định tạm thời bằng nẹp.", side));
+            sb.AppendLine(string.Format("- Mạch máu & Thần kinh ngoại vi: Mạch quay và mạch trụ tay {0} bắt rõ; cảm giác ngọn chi và vận động các ngón tay bảo tồn; tưới máu đầu ngón hồng ấm (CRT < 2s); chưa có biểu hiện chèn ép khoang.", side));
         }
         else if (s.Contains("gãy") || s.Contains("gay") || s.Contains("trật khớp"))
         {

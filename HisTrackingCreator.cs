@@ -1741,6 +1741,15 @@ class Program
         string careInstruction = "";
         int templateId = 0;
 
+        long? pulse = null;
+        long? bpMax = null;
+        long? bpMin = null;
+        decimal? temp = null;
+        decimal? spo2 = null;
+        long? rr = null;
+        decimal? weight = null;
+        decimal? height = null;
+
         string envDoc = Environment.GetEnvironmentVariable("HIS_DOCTOR_LOGIN");
         if (string.IsNullOrEmpty(envDoc)) envDoc = "034727";
         MainForm.CurrentLoginName = envDoc;
@@ -1749,22 +1758,61 @@ class Program
         for (int i = 0; i < args.Length; i++)
         {
             if ((args[i] == "-p" || args[i] == "--patient") && i + 1 < args.Length) rawPatients = args[i + 1];
-            if ((args[i] == "-time" || args[i] == "-t") && i + 1 < args.Length) rawTime = args[i + 1];
-            if ((args[i] == "-date" || args[i] == "-d") && i + 1 < args.Length) rawDate = args[i + 1];
+            if ((args[i] == "-time" || args[i] == "-t" || args[i] == "--time") && i + 1 < args.Length) rawTime = args[i + 1];
+            if ((args[i] == "-date" || args[i] == "-d" || args[i] == "--date") && i + 1 < args.Length) rawDate = args[i + 1];
             if ((args[i] == "-u" || args[i] == "-user" || args[i] == "--user") && i + 1 < args.Length)
             {
                 MainForm.CurrentLoginName = args[i + 1].Trim();
                 if (MainForm.CurrentLoginName == "vmc") MainForm.CurrentUserName = "VŨ MINH CƯỜNG";
                 else if (MainForm.CurrentLoginName == "034727") MainForm.CurrentUserName = "NGUYỄN HỮU SÂM";
             }
-            if ((args[i] == "-content" || args[i] == "-c") && i + 1 < args.Length) content = args[i + 1];
-            if ((args[i] == "-med" || args[i] == "-m") && i + 1 < args.Length) medInstruction = args[i + 1];
-            if ((args[i] == "-care") && i + 1 < args.Length) careInstruction = args[i + 1];
+            if ((args[i] == "-content" || args[i] == "-c" || args[i] == "--content") && i + 1 < args.Length) content = args[i + 1];
+            if ((args[i] == "-med" || args[i] == "-m" || args[i] == "--med") && i + 1 < args.Length) medInstruction = args[i + 1];
+            if ((args[i] == "-care" || args[i] == "--care") && i + 1 < args.Length) careInstruction = args[i + 1];
             if ((args[i] == "--note" || args[i] == "-note") && i + 1 < args.Length)
             {
                 if (string.IsNullOrEmpty(content)) content = args[i + 1];
                 if (string.IsNullOrEmpty(medInstruction)) medInstruction = args[i + 1];
                 if (string.IsNullOrEmpty(careInstruction)) careInstruction = "Chăm sóc cấp II. Theo dõi đường máu mao mạch.";
+            }
+            if ((args[i] == "-pulse" || args[i] == "--pulse") && i + 1 < args.Length)
+            {
+                long v; if (long.TryParse(args[i + 1], out v)) pulse = v;
+            }
+            if ((args[i] == "-bp" || args[i] == "--bp") && i + 1 < args.Length)
+            {
+                string bpStr = args[i + 1].Trim();
+                if (bpStr.Contains("/"))
+                {
+                    string[] bpParts = bpStr.Split('/');
+                    long v1, v2;
+                    if (long.TryParse(bpParts[0], out v1)) bpMax = v1;
+                    if (bpParts.Length > 1 && long.TryParse(bpParts[1], out v2)) bpMin = v2;
+                }
+                else
+                {
+                    long v; if (long.TryParse(bpStr, out v)) bpMax = v;
+                }
+            }
+            if ((args[i] == "-temp" || args[i] == "--temp") && i + 1 < args.Length)
+            {
+                decimal v; if (decimal.TryParse(args[i + 1].Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) temp = v;
+            }
+            if ((args[i] == "-spo2" || args[i] == "--spo2") && i + 1 < args.Length)
+            {
+                decimal v; if (decimal.TryParse(args[i + 1].Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) spo2 = v;
+            }
+            if ((args[i] == "-rr" || args[i] == "--rr") && i + 1 < args.Length)
+            {
+                long v; if (long.TryParse(args[i + 1], out v)) rr = v;
+            }
+            if ((args[i] == "-weight" || args[i] == "--weight") && i + 1 < args.Length)
+            {
+                decimal v; if (decimal.TryParse(args[i + 1].Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) weight = v;
+            }
+            if ((args[i] == "-height" || args[i] == "--height") && i + 1 < args.Length)
+            {
+                decimal v; if (decimal.TryParse(args[i + 1].Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) height = v;
             }
             if ((args[i] == "-template" || args[i] == "-tmpl") && i + 1 < args.Length) int.TryParse(args[i + 1], out templateId);
         }
@@ -1793,6 +1841,16 @@ class Program
         Console.WriteLine(string.Format("• Nội dung: {0}", content));
         Console.WriteLine(string.Format("• Chăm sóc: {0}", careInstruction));
         Console.WriteLine(string.Format("• Y lệnh: {0}", medInstruction));
+        if (pulse.HasValue || temp.HasValue || bpMax.HasValue || spo2.HasValue || rr.HasValue)
+        {
+            Console.WriteLine(string.Format("• DHST: Mạch {0} l/p | HA {1}/{2} mmHg | T {3}°C | SpO2 {4}% | NT {5} l/p",
+                pulse.HasValue ? pulse.Value.ToString() : "-",
+                bpMax.HasValue ? bpMax.Value.ToString() : "-",
+                bpMin.HasValue ? bpMin.Value.ToString() : "-",
+                temp.HasValue ? temp.Value.ToString("F1") : "-",
+                spo2.HasValue ? spo2.Value.ToString() : "-",
+                rr.HasValue ? rr.Value.ToString() : "-"));
+        }
         Console.WriteLine("-------------------------------------------------------------------------------");
 
         MainForm.InitSession();
@@ -1866,11 +1924,31 @@ class Program
                     ICD_TEXT = p.IcdText
                 };
 
+                HIS_DHST dhst = null;
+                if (pulse.HasValue || temp.HasValue || bpMax.HasValue || bpMin.HasValue || spo2.HasValue || rr.HasValue || weight.HasValue || height.HasValue)
+                {
+                    dhst = new HIS_DHST
+                    {
+                        TREATMENT_ID = p.TreatmentId,
+                        EXECUTE_TIME = trackingTime,
+                        EXECUTE_LOGINNAME = MainForm.CurrentLoginName,
+                        EXECUTE_USERNAME = MainForm.CurrentUserName,
+                        PULSE = pulse,
+                        TEMPERATURE = temp,
+                        BLOOD_PRESSURE_MAX = bpMax,
+                        BLOOD_PRESSURE_MIN = bpMin,
+                        SPO2 = spo2,
+                        BREATH_RATE = rr,
+                        WEIGHT = weight,
+                        HEIGHT = height
+                    };
+                }
+
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
                     WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
-                    Dhst = null // Do not inject forced vital signs to keep tracking clean
+                    Dhst = dhst
                 };
 
                 CommonParam cp = new CommonParam();
