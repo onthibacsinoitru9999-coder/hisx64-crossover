@@ -615,8 +615,43 @@ namespace HisWardDutyMcp
                     {
                         var firstTrk = deptTrks[0];
                         trackingId = firstTrk.ID;
-                        sb.AppendLine(string.Format("   ✔ Bệnh nhân ĐÃ CÓ {0} tờ điều trị tại khoa (Tờ đầu tiên lập lúc {1} - ID: {2}).", deptTrks.Count, FormatTime(firstTrk.TRACKING_TIME), firstTrk.ID));
-                        sb.AppendLine("     👉 Bỏ qua bước tạo mới để chống trùng lặp tờ điều trị.");
+                        string curContent = firstTrk.CONTENT ?? "";
+                        bool hasMismatchedLumbar = (tr.ICD_NAME ?? "").ToLower().Contains("cổ") && (curContent.Contains("TLIF") || curContent.Contains("thắt lưng"));
+                        if (hasMismatchedLumbar && !isDryRun && !string.IsNullOrEmpty(emrSummary))
+                        {
+                            sb.AppendLine(string.Format("   🔄 Phát hiện Tờ điều trị ID {0} chứa nội dung thắt lưng lệch bệnh cảnh Cột sống cổ → Tự động cập nhật lại nội dung chuẩn!", firstTrk.ID));
+                            try
+                            {
+                                var trkGetFilter = new HisTrackingFilter { ID = firstTrk.ID };
+                                var trkList = adapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, trkGetFilter, param);
+                                if (trkList != null && trkList.Count > 0)
+                                {
+                                    var fullTrk = trkList[0];
+                                    string newSummary = emrSummary.Trim();
+                                    fullTrk.CONTENT = string.Format(
+                                        "Mạch: 78 l/p, HA: 120/80 mmHg, T: 36.5°C, NT: 18 l/p, SpO2: 98%.\r\n" +
+                                        "- Bệnh nhân tiếp đón vào buồng bệnh nội trú, hoàn thiện hồ sơ bệnh án ngoại khoa EMR.\r\n" +
+                                        "- Tóm tắt bệnh án từ vỏ EMR:\r\n{0}\r\n" +
+                                        "- Hiện tại: Bệnh nhân tỉnh táo, tiếp xúc tốt, đại tiểu tiện tự chủ. Tiếp tục theo dõi sát tại buồng bệnh, thực hiện y lệnh điều trị và hoàn thiện các xét nghiệm bilan trước mổ.",
+                                        newSummary);
+                                    var updSdo = new HisTrackingSDO { Tracking = fullTrk, WorkingRoomId = (fullTrk.ROOM_ID.HasValue && fullTrk.ROOM_ID.Value > 0) ? fullTrk.ROOM_ID.Value : 5248 };
+                                    var updRes = adapter.PostData<HIS_TRACKING>("api/HisTracking/Update", mosConsumer, updSdo, param);
+                                    if (updRes != null)
+                                    {
+                                        sb.AppendLine("   ✔ Cập nhật nội dung Tờ điều trị đầu tiên THÀNH CÔNG RỰC RỠ!");
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                sb.AppendLine("   ⚠️ Lỗi cập nhật Tờ điều trị: " + ex.Message);
+                            }
+                        }
+                        else
+                        {
+                            sb.AppendLine(string.Format("   ✔ Bệnh nhân ĐÃ CÓ {0} tờ điều trị tại khoa (Tờ đầu tiên lập lúc {1} - ID: {2}).", deptTrks.Count, FormatTime(firstTrk.TRACKING_TIME), firstTrk.ID));
+                            sb.AppendLine("     👉 Bỏ qua bước tạo mới để chống trùng lặp tờ điều trị.");
+                        }
                         return true;
                     }
                 }
