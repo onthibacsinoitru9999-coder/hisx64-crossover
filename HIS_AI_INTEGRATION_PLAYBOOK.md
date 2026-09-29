@@ -2216,14 +2216,33 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 ---
 
-## 40. QUY CHUẨN PROTOCOL 'THỢ TRỰC BUỒNG' (1-CLICK WARD DUTY PROTOCOL)
+## 40. QUY CHUẨN PROTOCOL 'THỢ TRỰC BUỒNG' (1-CLICK WARD DUTY PROTOCOL & DUAL-AGENT AUDIT)
 
 ### 40.1. Bối Cảnh & Mục Tiêu Nghiệp Vụ Lâm Sàng
-Khi tiếp nhận bệnh nhân nhập viện nội trú tại Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 Hà Nội) hoặc Khoa Ngoại tổng hợp Khu 3E (Khoa 915 Ninh Bình), Bác sĩ và Điều dưỡng trực phải hoàn tất liên tiếp 4 nhiệm vụ hành chính - chuyên môn thiết yếu:
-1. **Hoàn thiện vỏ hồ sơ bệnh án ngoại khoa EMR**: Khai thác tiền sử, bệnh sử, khám bệnh, tóm tắt bệnh án logic, chẩn đoán ICD và hướng điều trị, lưu vào cơ sở dữ liệu EMR Oracle (`BENHANNGOAIKHOA` & `THONGTINDIEUTRI`).
-2. **Lập tờ điều trị tiếp đón đầu tiên**: Ghi nhận sinh hiệu DHST, tình trạng tiếp xúc, khám sơ bộ vùng tổn thương, chế độ chăm sóc và y lệnh ban đầu tại buồng bệnh nội trú.
-3. **Cấp suất ăn dinh dưỡng bệnh lý**: Đảm bảo người bệnh có suất ăn 3 bữa (Sáng - Trưa - Chiều) cho ngày vào viện ($D_0$) và ngày hôm sau ($D_1$) với giờ y lệnh chuẩn hóa lúc **06:00 sáng** (`InstructionTime = YYYYMMDD060000`, `PatientTypeId = 42`, `RoomId = 5809`).
-4. **Rà soát Cận lâm sàng 3 tháng (90 ngày) & Đề xuất Bilan mổ thiếu**: Quét toàn bộ dịch vụ CLS đã làm ở phòng khám, cấp cứu hoặc các đợt điều trị trước, đối chiếu ma trận 8 nhóm Bilan phẫu thuật, lập danh mục xét nghiệm đã có và đề xuất đích danh các chỉ định còn thiếu kèm phòng thực hiện tương ứng (HN vs NB).
+Khi tiếp nhận bệnh nhân nhập viện nội trú tại Khoa Chấn thương Chỉnh hình & Cột sống (Khoa 57 Hà Nội) hoặc Khoa Ngoại tổng hợp Khu 3E (Khoa 915 Ninh Bình), Bác sĩ và Điều dưỡng trực phải hoàn tất liên tiếp 4 nhiệm vụ hành chính - chuyên môn thiết yếu với **độ chuẩn xác lâm sàng tuyệt đối**, triệt tiêu toàn bộ các sai sót thường gặp:
+1. **Hoàn thiện vỏ hồ sơ bệnh án ngoại khoa EMR (`HisEmrFiller.exe --admission`)**:
+   - Khai thác tiền sử, bệnh sử, khám bệnh, tóm tắt bệnh án logic, chẩn đoán ICD và hướng điều trị, lưu vào cơ sở dữ liệu EMR Oracle (`BENHANNGOAIKHOA` & `THONGTINDIEUTRI`).
+   - ⚠️ **QUY TẮC CỨNG (KHÔNG LÀM VỎ KẾT THÚC BỆNH ÁN KHI TIẾP ĐÓN)**: Bệnh nhân mới vào viện hoặc đang điều trị, **TUYỆT ĐỐI KHÔNG ĐƯỢC điền phần Tổng kết ra viện** trong vỏ bệnh án ngoại khoa. Toàn bộ các trường `QuaTrinhBenhLyVaDienBien`, `TomTatKetQuaXetNghiem`, `PhuongPhapDieuTri`, `TinhTrangNguoiBenhRaVien`, `HuongDieuTri`, `NgayTongKet`, `BacSiDieuTri` kết thúc và ngày ra viện trong `THONGTINDIEUTRI` **PHẢI ĐỂ TRỐNG 100%**. Bắt buộc chạy với cờ `--admission`.
+2. **Lập tờ điều trị tiếp đón đầu tiên (`HisTrackingCreator.exe`)**:
+   - ⚠️ **NỘI DUNG TỜ ĐIỀU TRỊ ĐẦU TIÊN**: Bắt buộc lấy trực tiếp từ nội dung khối `[5. TÓM TẮT BỆNH ÁN NGOẠI KHOA]` (`TomTatBenhAn`) của vỏ EMR vừa khởi tạo, kết hợp với DHST thực tế và tình trạng tiếp đón. Tuyệt đối không sinh template 7 dòng sáo rỗng.
+   - **Giờ Tờ điều trị (`TRACKING_TIME`)**: Được đặt tự động sau giờ nhập khoa **5 phút** (`CLINICAL_IN_TIME + 5 phút`).
+3. **Cấp suất ăn dinh dưỡng bệnh lý ($D_0$ & $D_1$)**:
+   - ⚠️ **BẪY LỖI GIỜ SUẤT ĂN NGÀY VÀO VIỆN ($D_0$)**: Trên HIS, nếu chỉ định suất ăn ngày vào viện trước giờ nhập khoa (ví dụ đặt 06:00 sáng trong khi BN vào lúc 10:30), hệ thống sẽ từ chối hoặc tạo y lệnh phi logic lâm sàng.
+   - **Quy tắc tính giờ chuẩn**:
+     * **Ngày vào viện ($D_0$)**: `InstructionTime` bắt buộc là **sau giờ nhập khoa đúng 15 phút** (`CLINICAL_IN_TIME + 15 phút` hoặc `IN_TIME + 15 phút`).
+     * **Ngày tiếp theo ($D_1$)**: `InstructionTime` đặt lúc **`06:00:00` sáng**.
+   - **Phân loại chế độ ăn**: `DD01` (ĐTĐ/Đường huyết cao), `TM01` (Tim mạch/THA), `BT01` (Ngoại thông thường).
+4. **Rà soát Bilan Cận Lâm Sàng 3 Tháng (90 Ngày) & Đề Xuất Chỉ Định Còn Thiếu**:
+   - Quét toàn bộ dịch vụ CLS đã làm ở phòng khám, cấp cứu hoặc các đợt điều trị trước trong vòng 90 ngày.
+   - Đối chiếu ma trận 10 tiêu chuẩn tiền phẫu bắt buộc (Rule 14 AGENTS.md) + CĐHA chuyên khoa (MRI, CT, X-quang khớp/cột sống).
+   - ⚠️ **QUY TẮC DUYỆT TRƯỚC KHI KÊ (APPROVAL BEFORE ORDERING)**: Thợ trực buồng **CHỈ XUẤT DANH SÁCH BẢNG ĐỀ XUẤT** kèm phòng chỉ định đích danh (HN vs NB) để **Bác sĩ / Người điều hành duyệt trước khi kê**. TUYỆT ĐỐI KHÔNG tự ý bấm kê hàng loạt lên hệ thống HIS.
+5. 🔍 **CƠ CHẾ KIỂM DUYỆT CHÉO 2 AGENT (DUAL-AGENT FACT-CHECKING) - CHỐNG ẢO GIÁC LÂM SÀNG**:
+   - Trước khi Agent chính thực thi ghi dữ liệu vào EMR hoặc Tờ điều trị, bắt buộc phải kích hoạt 1 subagent (Clinical Fact-Checker) lên để đối soát chéo độc lập.
+   - **Nhiệm vụ kiểm duyệt**:
+     * Đích danh tầng đốt sống tổn thương (đối chiếu kết luận MRI/CT/X-quang từ PACS; không nhầm xẹp cấp với xẹp cũ).
+     * Đúng bên tổn thương xương khớp (Trái hay Phải).
+     * Không bịa đặt hoàn cảnh chấn thương/bệnh sử (không tự suy diễn địa điểm tai nạn, không bịa tiền sử bệnh không có trong tài liệu gốc).
+     * Subagent kiểm duyệt đạt yêu cầu (`PASS`) thì Agent chính mới tiến hành POST API.
 
 ### 40.2. Kiến Trúc MCP Server Độc Lập `his-ward-duty` (`HisWardDutyMcpServer.exe`)
 Tương tự `his-glucose` và `his-discharge`, module được đóng gói thành MCP Server chuyên trách độc lập nhằm giữ sạch repo và chống phình to codebase:
@@ -2238,24 +2257,29 @@ Tương tự `his-glucose` và `his-discharge`, module được đóng gói thà
   * `his_execute_protocol_ward_duty`: Bí danh tương thích ngược.
 
 ### 40.3. Chi Tiết 4 Bước Lâm Sàng Khép Kín
-1. **Bước 1 - Vỏ Bệnh Án Ngoại Khoa EMR:**
+1. **Bước 1 - Vỏ Bệnh Án Ngoại Khoa EMR (`HisEmrFiller.exe --admission`):**
    - Kiểm tra điều kiện nội trú: `TDL_TREATMENT_TYPE_ID == 3` (từ chối 100% ngoại trú theo Rule 2 AGENTS.md).
-   - Gọi engine `HisEmrFiller.exe <TDL_PATIENT_CODE> --save` (chống tràn byte ORA-12899 bằng `TruncateBytes(..., 2000)`).
+   - Gọi engine `HisEmrFiller.exe <TDL_PATIENT_CODE> --save --admission` (chống tràn byte ORA-12899 bằng `TruncateBytes(..., 2000)`).
+   - Tự động bóc tách nội dung khối `[5. TÓM TẮT BỆNH ÁN NGOẠI KHOA]` trả về từ STDOUT để truyền sang Bước 2.
 2. **Bước 2 - Tờ Điều Trị Tiếp Đón Đầu Tiên:**
    - Tra cứu `api/HisTracking/GetView` cho khoa tiếp đón (`DEPARTMENT_ID == 57` hoặc `915`).
    - Nếu đã có: Giữ nguyên, không tạo trùng lặp.
-   - Nếu chưa có: Tạo tờ điều trị với DHST chuẩn (Mạch 78, HA 120/80, T 36.5, NT 18, SpO2 98%), diễn biến tiếp đón, chăm sóc cấp 3 và y lệnh chuẩn bị phẫu thuật/điều trị qua `api/HisTracking/Create`.
-3. **Bước 3 - Suất Ăn Dinh Dưỡng D0 & D1 Lúc 06:00 Sáng:**
+   - Nếu chưa có: Tạo tờ điều trị với nội dung diễn biến lấy thẳng từ `emrSummary` (Tóm tắt bệnh án của vỏ EMR), DHST chuẩn (Mạch 78, HA 120/80, T 36.5, NT 18, SpO2 98%), chế độ chăm sóc cấp 3 và y lệnh chuẩn bị phẫu thuật/điều trị.
+   - Thời gian tờ điều trị được gán: `CLINICAL_IN_TIME + 5 phút`.
+3. **Bước 3 - Suất Ăn Dinh Dưỡng D0 (Sau Nhập Khoa 15p) & D1 (06:00 Sáng):**
    - Tự động nhận diện combo theo ICD: `DD01` (ĐTĐ), `TM01` (Tim mạch/THA), `BT01` (Ngoại khoa thường quy).
    - Kiểm tra `api/HisSereServRation/GetView` theo ngày (dùng trường `INTRUCTION_TIME`) để chống kê trùng lặp.
-   - Gọi `api/HisServiceReq/RationCreate` cho $D_0$ và $D_1$ lúc **06:00:00 sáng**, `PatientTypeId = 42`, `RoomId = 5809`.
-4. **Bước 4 - Rà Soát CLS 3 Tháng & Đề Xuất Bilan Thiếu:**
+   - Ngày $D_0$: Gán `InstructionTime = CLINICAL_IN_TIME + 15 phút` (hoặc `IN_TIME + 15 phút`).
+   - Ngày $D_1$: Gán `InstructionTime = 06:00:00` sáng hôm sau.
+   - Gọi `api/HisServiceReq/RationCreate` với `PatientTypeId = 42`, `RoomId = 5809`.
+4. **Bước 4 - Rà Soát Bilan 3 Tháng & Xuất Bảng Đề Xuất Chờ Duyệt:**
    - Quét tất cả `HIS_TREATMENT` trong 90 ngày của bệnh nhân qua `PATIENT_CODE__EXACT` hoặc `PATIENT_ID`.
    - Lấy toàn bộ `V_HIS_SERE_SERV` gom theo các ID đợt điều trị.
-   - Phân loại ma trận 8 nhóm Bilan phẫu thuật: (1) CTM, (2) Đông máu, (3) Sinh hóa, (4) Nhóm máu ABO/Rh, (5) Vi sinh HIV/HBsAg/HCV, (6) XQ ngực thẳng, (7) Điện tim ECG, (8) CĐHA chuyên khoa tổn thương.
-   - Xuất bảng đối soát và danh sách đề xuất chỉ định còn thiếu kèm đích danh phòng thực hiện theo cơ sở:
-     * **Ninh Bình**: XN Máu (Tầng 1 Nhà E), X-quang (Nhà E CS2), CT/MRI (Nhà E CS2), Điện tim (TDCN Nhà E CS2).
-     * **Hà Nội**: XN Đông máu (P626 Nhà Q), Sinh hóa/Huyết học (Nhà Q), X-quang/CT/MRI (Trung tâm Điện quang), Điện tim (P734/TDCN).
+   - Đối chiếu ma trận 11 nhóm CLS: (1) CTM `BM00110`, (2) Nhóm máu ABO/Rh `BM01700`, (3) Đông máu bộ 3, (4) Sinh hóa 6 chỉ số, (5) Vi sinh bộ 3, (6) Siêu âm bụng tổng quát `BM00199`, (7) XQ ngực thẳng `BM21074/BM00338`, (8) Nước tiểu 10 thông số `BM02998`, (9) Điện tim ECG `BM04258`, (10) Siêu âm tim Doppler `BM00201`, (11) CĐHA chuyên khoa (MRI, CT, XQ khớp/cột sống).
+   - **XUẤT BẢNG ĐỀ XUẤT KÈM PHÒNG THỰC HIỆN ĐỂ BÁC SĨ DUYỆT TRƯỚC KHI KÊ**:
+     * **Hà Nội**: XN Đông máu (P626 Nhà Q), Sinh hóa/Huyết học (P.734 / Nhà Q), X-quang/CT/MRI (Trung tâm Điện quang), Điện tim (P734 / P.931), Siêu âm bụng (P.17547), Nước tiểu (P.566), Siêu âm tim (P.1715).
+     * **Ninh Bình**: XN Máu (Tầng 1 Nhà E), X-quang (Nhà E CS2), CT/MRI (Nhà E CS2), Điện tim/TDCN (Nhà E CS2), Siêu âm (Nhà E CS2).
+   - TUYỆT ĐỐI KHÔNG tự ý bấm kê CLS lên HIS mà chưa có xác nhận phê duyệt từ Bác sĩ/Người điều hành.
 
 ---
 

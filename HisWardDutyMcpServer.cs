@@ -190,7 +190,7 @@ namespace HisWardDutyMcp
             // 1. his_ward_duty_hn (Chuyên biệt Cơ sở Hà Nội)
             tools.Add(CreateTool(
                 "his_ward_duty_hn",
-                "Dac quyen 'Tho truc buong' CHUYEN BIET CO SO HA NOI (Khoa 57 CTCH, BS Nguyen Huu Sam 034727, token doctor_hn.token): Protocol 4 buoc tiep don buong: (1) Ra soat bo sung Vo Benh An Ngoai Khoa EMR noi tru -> (2) Tao To dieu tri dau tien tiep don Khoa 57 neu chua co -> (3) Cho suat an D0 va D1 luc 06:00 sang (BT01/DD01/TM01) -> (4) Ra soat toan bo CLS 3 thang va de xuat bilan thieu kem phong chi dinh Ha Noi",
+                "Dac quyen 'Tho truc buong' CHUYEN BIET CO SO HA NOI (Khoa 57 CTCH, BS Nguyen Huu Sam 034727, token doctor_hn.token): Protocol 4 buoc tiep don buong: (1) Ra soat bo sung Vo Benh An Ngoai Khoa EMR noi tru (khong lam vo ket thuc) -> (2) Tao To dieu tri dau tien lay tu tom tat benh an cua vo EMR -> (3) Cho suat an D0 (sau gio nhap khoa 15p) va D1 luc 06:00 sang (BT01/DD01/TM01) -> (4) Ra soat toan bo CLS 3 thang va de xuat bilan thieu kem phong chi dinh de nguoi dieu hanh duyet truoc khi ke",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri hoac ho ten BN (VD: 0004018669)"),
                     "comboRation", Obj("type", "string", "description", "Combo suat an tuy chon: 'BT01', 'DD01', 'TM01' (de trong se tu dong nhan dien theo ICD)", "enum", Arr("BT01", "DD01", "TM01")),
@@ -202,7 +202,7 @@ namespace HisWardDutyMcp
             // 2. his_ward_duty_nb (Chuyên biệt Cơ sở Ninh Bình)
             tools.Add(CreateTool(
                 "his_ward_duty_nb",
-                "Dac quyen 'Tho truc buong' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH Khu 3E, Ths.BS Nguyen Huu Sam 034727, token doctor_nb.token): Protocol 4 buoc tiep don buong: (1) Ra soat bo sung Vo Benh An Ngoai Khoa EMR noi tru -> (2) Tao To dieu tri dau tien tiep don Khoa 915 neu chua co -> (3) Cho suat an D0 va D1 luc 06:00 sang (BT01/DD01/TM01) -> (4) Ra soat toan bo CLS 3 thang va de xuat bilan thieu kem phong chi dinh Ninh Binh",
+                "Dac quyen 'Tho truc buong' CHUYEN BIET CO SO NINH BINH (Khoa 915 Ngoai TH Khu 3E, Ths.BS Nguyen Huu Sam 034727, token doctor_nb.token): Protocol 4 buoc tiep don buong: (1) Ra soat bo sung Vo Benh An Ngoai Khoa EMR noi tru (khong lam vo ket thuc) -> (2) Tao To dieu tri dau tien lay tu tom tat benh an cua vo EMR -> (3) Cho suat an D0 (sau gio nhap khoa 15p) va D1 luc 06:00 sang (BT01/DD01/TM01) -> (4) Ra soat toan bo CLS 3 thang va de xuat bilan thieu kem phong chi dinh de nguoi dieu hanh duyet truoc khi ke",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri hoac ho ten BN (VD: 0004063959)"),
                     "comboRation", Obj("type", "string", "description", "Combo suat an tuy chon: 'BT01', 'DD01', 'TM01' (de trong se tu dong nhan dien theo ICD)", "enum", Arr("BT01", "DD01", "TM01")),
@@ -214,7 +214,7 @@ namespace HisWardDutyMcp
             // 3. his_tho_truc_buong (Chính thức - Tự động điều hướng)
             tools.Add(CreateTool(
                 "his_tho_truc_buong",
-                "Dac quyen 'Tho truc buong' (1-Click Ward Duty Protocol - Tu dong dieu huong HN/NB): Protocol 4 buoc tiep don buong: (1) Ra soat & bo sung Vo Benh An Ngoai Khoa EMR -> (2) Tao To dieu tri dau tien tiep don khoa neu chua co -> (3) Cho suat an 3 bua D0 va D1 luc 06:00 sang (BT01/DD01/TM01) -> (4) Ra soat CLS 3 thang va de xuat bilan thieu kem phong chi dinh dich danh",
+                "Dac quyen 'Tho truc buong' (1-Click Ward Duty Protocol - Tu dong dieu huong HN/NB): Protocol 4 buoc tiep don buong: (1) Ra soat & bo sung Vo Benh An Ngoai Khoa EMR (khong lam vo ket thuc) -> (2) Tao To dieu tri dau tien lay tu tom tat benh an cua vo EMR -> (3) Cho suat an 3 bua D0 (sau gio nhap khoa 15p) va D1 luc 06:00 sang (BT01/DD01/TM01) -> (4) Ra soat CLS 3 thang va de xuat bilan thieu kem phong chi dinh de nguoi dieu hanh duyet truoc khi ke",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri hoac ho ten BN (VD: 0004063959)"),
                     "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
@@ -227,7 +227,7 @@ namespace HisWardDutyMcp
             // 4. his_execute_protocol_ward_duty (Bí danh tương thích ngược)
             tools.Add(CreateTool(
                 "his_execute_protocol_ward_duty",
-                "Bi danh cua his_tho_truc_buong: Protocol 'Tho truc buong' 1-Click tiep don buong benh nhan moi vao vien 4 buoc toan dien",
+                "Bi danh cua his_tho_truc_buong: Protocol 'Tho truc buong' 1-Click tiep don buong benh nhan moi vao vien 4 buoc toan dien (suat an D0 +15p sau gio nhap khoa, to dieu tri lay tu tom tat vo EMR, de xuat CLS cho duyet)",
                 Obj(
                     "patientCode", Obj("type", "string", "description", "Ma benh nhan hoac ma dieu tri hoac ho ten BN"),
                     "facility", Obj("type", "string", "description", "Co so: 'HN' hoac 'NB' (tu dong nhan dien neu de trong)", "enum", Arr("HN", "NB")),
@@ -450,8 +450,10 @@ namespace HisWardDutyMcp
             // =========================================================================
             sb.AppendLine("-------------------------------------------------------------------------------");
             sb.AppendLine("📝 BƯỚC 1: RÀ SOÁT & ĐIỀN VỎ BỆNH ÁN NGOẠI KHOA EMR (INPATIENT SURGERY RECORD)");
+            sb.AppendLine("   (Lưu ý: Chỉ làm vỏ vào viện tiếp đón, TUYỆT ĐỐI KHÔNG làm vỏ kết thúc bệnh án)");
             sb.AppendLine("-------------------------------------------------------------------------------");
-            bool step1Ok = Step1_EnsureEmrCover(tr, dryRun, sb);
+            string emrSummary = "";
+            bool step1Ok = Step1_EnsureEmrCover(tr, dryRun, sb, out emrSummary);
             sb.AppendLine();
 
             // =========================================================================
@@ -459,16 +461,17 @@ namespace HisWardDutyMcp
             // =========================================================================
             sb.AppendLine("-------------------------------------------------------------------------------");
             sb.AppendLine("📋 BƯỚC 2: RÀ SOÁT & TẠO TỜ ĐIỀU TRỊ ĐẦU TIÊN (FIRST TREATMENT TRACKING)");
+            sb.AppendLine("   (Nội dung diễn biến lấy trực tiếp từ Tóm tắt bệnh án của vỏ EMR)");
             sb.AppendLine("-------------------------------------------------------------------------------");
             long createdOrExistingTrackingId = 0;
-            bool step2Ok = Step2_EnsureFirstTracking(tr, targetDeptId, targetRoomId, dryRun, sb, out createdOrExistingTrackingId);
+            bool step2Ok = Step2_EnsureFirstTracking(tr, targetDeptId, targetRoomId, emrSummary, dryRun, sb, out createdOrExistingTrackingId);
             sb.AppendLine();
 
             // =========================================================================
-            // BƯỚC 3: CẤP SUẤT ĂN DINH DƯỠNG D0 VÀ D1 LÚC 06:00 SÁNG
+            // BƯỚC 3: CẤP SUẤT ĂN DINH DƯỠNG (D0: SAU NHẬP KHOA 15P & D1: 06:00 SÁNG)
             // =========================================================================
             sb.AppendLine("-------------------------------------------------------------------------------");
-            sb.AppendLine("🍲 BƯỚC 3: CHỈ ĐỊNH SUẤT ĂN DINH DƯỠNG (D0 & D1 LÚC 06:00 SÁNG)");
+            sb.AppendLine("🍲 BƯỚC 3: CHỈ ĐỊNH SUẤT ĂN DINH DƯỠNG (D0: SAU NHẬP KHOA 15P & D1: 06:00 SÁNG)");
             sb.AppendLine("-------------------------------------------------------------------------------");
             bool step3Ok = Step3_AssignAdmissionRations(tr, createdOrExistingTrackingId, targetRoomId, comboRation, dryRun, sb);
             sb.AppendLine();
@@ -477,7 +480,7 @@ namespace HisWardDutyMcp
             // BƯỚC 4: RÀ SOÁT CẬN LÂM SÀNG 3 THÁNG & ĐỀ XUẤT BILAN THIẾU
             // =========================================================================
             sb.AppendLine("-------------------------------------------------------------------------------");
-            sb.AppendLine("🔬 BƯỚC 4: RÀ SOÁT CẬN LÂM SÀNG 3 THÁNG (90 NGÀY) & ĐỀ XUẤT BILAN TRƯỚC MỔ");
+            sb.AppendLine("🔬 BƯỚC 4: RÀ SOÁT CẬN LÂM SÀNG 3 THÁNG & ĐỀ XUẤT BILAN THIẾU (CHỜ DUYỆT TRƯỚC KHI KÊ)");
             sb.AppendLine("-------------------------------------------------------------------------------");
             bool step4Ok = Step4_AuditParaclinicalBilan3Months(tr, facility, sb);
             sb.AppendLine();
@@ -487,10 +490,10 @@ namespace HisWardDutyMcp
             // =========================================================================
             sb.AppendLine("===============================================================================");
             sb.AppendLine("🎉 KẾT QUẢ THỰC HIỆN PROTOCOL 'THỢ TRỰC BUỒNG':");
-            sb.AppendLine(string.Format("   1. Vỏ Bệnh Án Ngoại Khoa EMR : {0}", step1Ok ? "✔ THÀNH CÔNG / ĐÃ CÓ" : "⚠️ CẦN KIỂM TRA LẠI"));
-            sb.AppendLine(string.Format("   2. Tờ Điều Trị Đầu Tiên      : {0}", step2Ok ? "✔ THÀNH CÔNG / ĐÃ CÓ" : "⚠️ LỖI"));
-            sb.AppendLine(string.Format("   3. Suất Ăn D0 & D1 (06:00)   : {0}", step3Ok ? "✔ THÀNH CÔNG / ĐÃ CÓ" : "⚠️ LỖI"));
-            sb.AppendLine(string.Format("   4. Rà Soát Bilan CLS 3 Tháng : {0}", step4Ok ? "✔ HOÀN THÀNH ĐỐI SOÁT" : "⚠️ LỖI"));
+            sb.AppendLine(string.Format("   1. Vỏ Bệnh Án Ngoại Khoa EMR : {0}", step1Ok ? "✔ THÀNH CÔNG (Không làm vỏ kết thúc)" : "⚠️ CẦN KIỂM TRA LẠI"));
+            sb.AppendLine(string.Format("   2. Tờ Điều Trị Đầu Tiên      : {0}", step2Ok ? "✔ THÀNH CÔNG (Tích hợp tóm tắt vỏ EMR)" : "⚠️ LỖI"));
+            sb.AppendLine(string.Format("   3. Suất Ăn D0 (+15p) & D1    : {0}", step3Ok ? "✔ THÀNH CÔNG / ĐÃ CÓ" : "⚠️ LỖI"));
+            sb.AppendLine(string.Format("   4. Đề Xuất Bilan CLS Thiếu   : {0}", step4Ok ? "✔ ĐÃ ĐỐI SOÁT (CHỜ DUYỆT TRƯỚC KHI KÊ)" : "⚠️ LỖI"));
             sb.AppendLine("===============================================================================");
 
             isError = !(step1Ok && step2Ok && step3Ok && step4Ok);
@@ -501,8 +504,9 @@ namespace HisWardDutyMcp
 
         #region Step 1: Vỏ Bệnh Án Ngoại Khoa EMR (Inpatient Only)
 
-        private static bool Step1_EnsureEmrCover(V_HIS_TREATMENT tr, bool isDryRun, StringBuilder sb)
+        private static bool Step1_EnsureEmrCover(V_HIS_TREATMENT tr, bool isDryRun, StringBuilder sb, out string emrSummary)
         {
+            emrSummary = "";
             // Kiểm tra diện nội trú
             if (tr.TDL_TREATMENT_TYPE_ID != 3)
             {
@@ -540,9 +544,35 @@ namespace HisWardDutyMcp
                     string err = proc.StandardError.ReadToEnd();
                     proc.WaitForExit(45000); // Đợi tối đa 45 giây
 
+                    // Trích xuất Tóm tắt bệnh án từ output của HisEmrFiller
+                    if (!string.IsNullOrEmpty(output))
+                    {
+                        int idx = output.IndexOf("[5. TÓM TẮT BỆNH ÁN NGOẠI KHOA]");
+                        if (idx >= 0)
+                        {
+                            int start = idx + "[5. TÓM TẮT BỆNH ÁN NGOẠI KHOA]".Length;
+                            int end = output.IndexOf("PhanBiet", start);
+                            if (end < 0) end = output.IndexOf("[6. BÌA TỔNG KẾT", start);
+                            if (end < 0) end = output.IndexOf("TienLuong", start);
+                            if (end > start)
+                            {
+                                string raw = output.Substring(start, end - start).Trim();
+                                var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                                               .Select(l => l.Trim())
+                                               .Where(l => !string.IsNullOrEmpty(l));
+                                emrSummary = string.Join("\r\n", lines);
+                            }
+                        }
+                    }
+
                     if (proc.ExitCode == 0 || output.Contains("LƯU THÀNH CÔNG") || output.Contains("Đã lưu thành công") || output.Contains("THÀNH CÔNG"))
                     {
                         sb.AppendLine("   ✔ Engine HisEmrFiller đã hoàn tất rà soát & điền vỏ bệnh án ngoại khoa EMR!");
+                        sb.AppendLine("     ✔ Tuân thủ quy chuẩn tiếp đón: Tuyệt đối không làm vỏ kết thúc bệnh án (Bìa tổng kết ra viện để trống 100%).");
+                        if (!string.IsNullOrEmpty(emrSummary))
+                        {
+                            sb.AppendLine("     ✔ Đã trích xuất Tóm tắt bệnh án ngoại khoa từ vỏ EMR để đồng bộ sang Tờ điều trị đầu tiên.");
+                        }
                         if (isDryRun) sb.AppendLine("     [DRY-RUN]: Đã tạo dữ liệu mô phỏng thành công (chưa lưu STB).");
                         else sb.AppendLine("     ✔ Đã lưu thành công dữ liệu vào Oracle EMR STB (BENHANNGOAIKHOA & THONGTINDIEUTRI).");
                         return true;
@@ -568,7 +598,7 @@ namespace HisWardDutyMcp
 
         #region Step 2: Tờ Điều Trị Đầu Tiên
 
-        private static bool Step2_EnsureFirstTracking(V_HIS_TREATMENT tr, long deptId, long roomId, bool isDryRun, StringBuilder sb, out long trackingId)
+        private static bool Step2_EnsureFirstTracking(V_HIS_TREATMENT tr, long deptId, long roomId, string emrSummary, bool isDryRun, StringBuilder sb, out long trackingId)
         {
             trackingId = 0;
             try
@@ -594,7 +624,25 @@ namespace HisWardDutyMcp
                 // 2. Nếu chưa có tờ điều trị nào của khoa tiếp đón -> Tự động tạo tờ điều trị đầu tiên
                 sb.AppendLine("   📝 Chưa có tờ điều trị của khoa tiếp đón. Tiến hành lập Tờ điều trị đầu tiên...");
 
-                long trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                long trackingTime;
+                if (tr.CLINICAL_IN_TIME.HasValue && tr.CLINICAL_IN_TIME.Value > 0)
+                {
+                    DateTime clinInDt;
+                    if (DateTime.TryParseExact(tr.CLINICAL_IN_TIME.Value.ToString(), "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out clinInDt))
+                    {
+                        DateTime candidateTime = clinInDt.AddMinutes(5);
+                        DateTime now = DateTime.Now;
+                        trackingTime = long.Parse((candidateTime > now ? now : candidateTime).ToString("yyyyMMddHHmmss"));
+                    }
+                    else
+                    {
+                        trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                    }
+                }
+                else
+                {
+                    trackingTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+                }
 
                 long workingRoomId = (deptId == 915) ? 18679 : 5248;
 
@@ -616,16 +664,16 @@ namespace HisWardDutyMcp
                 }
                 catch { }
 
-                string locationText = !string.IsNullOrEmpty(tr.ICD_TEXT) ? tr.ICD_TEXT : tr.ICD_NAME;
+                string summaryBlock = !string.IsNullOrWhiteSpace(emrSummary)
+                    ? emrSummary.Trim()
+                    : string.Format("- Bệnh nhân vào viện với chẩn đoán: {0} ({1}).\r\n- Đau và hạn chế vận động vùng tổn thương.", tr.ICD_NAME, tr.ICD_CODE);
+
                 string content = string.Format(
                     "Mạch: 78 l/p, HA: 120/80 mmHg, T: 36.5°C, NT: 18 l/p, SpO2: 98%.\r\n" +
-                    "- Bệnh nhân tỉnh táo, tiếp xúc tốt.\r\n" +
-                    "- Da niêm mạc hồng, thể trạng trung bình.\r\n" +
-                    "- Đau và hạn chế vận động vùng tổn thương ({0}).\r\n" +
-                    "- Tim đều, T1 T2 rõ; Phổi thông khí tốt, không rales; Bụng mềm không chướng.\r\n" +
-                    "- Đại tiểu tiện tự chủ.\r\n" +
-                    "- Tiếp đón bệnh nhân vào buồng bệnh, hoàn thiện hồ sơ bệnh án nội trú, chỉ định bilan xét nghiệm và CĐHA chuẩn bị điều trị.",
-                    locationText
+                    "- Bệnh nhân tiếp đón vào buồng bệnh nội trú, hoàn thiện hồ sơ bệnh án ngoại khoa EMR.\r\n" +
+                    "- Tóm tắt bệnh án từ vỏ EMR:\r\n{0}\r\n" +
+                    "- Hiện tại: Bệnh nhân tỉnh táo, tiếp xúc tốt, đại tiểu tiện tự chủ. Tiếp tục theo dõi sát tại buồng bệnh, thực hiện y lệnh điều trị và hoàn thiện các xét nghiệm bilan trước mổ.",
+                    summaryBlock
                 );
 
                 string care = "Chế độ chăm sóc cấp 3. Theo dõi dấu hiệu sinh tồn 2 lần/ngày. Dinh dưỡng bệnh lý theo y lệnh.";
@@ -720,21 +768,34 @@ namespace HisWardDutyMcp
                 string comboDesc = (comboType == "DD01") ? "Đái tháo đường (DD01)" : ((comboType == "TM01") ? "Tim mạch / Tăng huyết áp (TM01)" : "Ngoại khoa thường quy (BT01)");
                 sb.AppendLine(string.Format("   🍱 Phân loại Combo Dinh Dưỡng: {0} ({1})", comboType, comboDesc));
 
-                // 2. Xác định ngày D0 (ngày vào viện) và D1 (ngày hôm sau)
-                DateTime d0 = DateTime.Today;
-                if (tr.IN_TIME > 0 && tr.IN_TIME.ToString().Length >= 8)
+                // 2. Xác định ngày D0 (ngày vào khoa/viện) và D1 (ngày hôm sau)
+                long admissionTimeRaw = (tr.CLINICAL_IN_TIME.HasValue && tr.CLINICAL_IN_TIME.Value > 0) ? tr.CLINICAL_IN_TIME.Value : tr.IN_TIME;
+                DateTime inTimeDt = DateTime.Today;
+                bool hasExactInTime = false;
+                if (admissionTimeRaw > 0 && admissionTimeRaw.ToString().Length >= 14)
                 {
-                    string ymd = tr.IN_TIME.ToString().Substring(0, 8);
-                    DateTime parsedD0;
-                    if (DateTime.TryParseExact(ymd, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedD0))
+                    DateTime parsed;
+                    if (DateTime.TryParseExact(admissionTimeRaw.ToString(), "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed))
                     {
-                        d0 = parsedD0;
+                        inTimeDt = parsed;
+                        hasExactInTime = true;
                     }
                 }
+                else if (admissionTimeRaw > 0 && admissionTimeRaw.ToString().Length >= 8)
+                {
+                    string ymd = admissionTimeRaw.ToString().Substring(0, 8);
+                    DateTime parsed;
+                    if (DateTime.TryParseExact(ymd, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed))
+                    {
+                        inTimeDt = parsed;
+                    }
+                }
+
+                DateTime d0 = inTimeDt.Date;
                 DateTime d1 = d0.AddDays(1);
 
                 sb.AppendLine(string.Format("   📅 Lập lịch suất ăn: Ngày vào viện D0 ({0}) & Ngày kế tiếp D1 ({1})", d0.ToString("dd/MM/yyyy"), d1.ToString("dd/MM/yyyy")));
-                sb.AppendLine("   ⏰ Giờ y lệnh chuẩn hóa: 06:00:00 Sáng cho 100% các ngày");
+                sb.AppendLine("   ⏰ Quy tắc giờ y lệnh: Ngày D0 sau giờ nhập khoa 15 phút (+15p); Ngày D1 lúc 06:00:00 sáng");
 
                 // 3. Kiểm tra suất ăn đã tồn tại trên đợt điều trị (Tránh trùng lặp)
                 var rf = new HisSereServRationViewFilter { TREATMENT_ID = tr.ID };
@@ -765,18 +826,32 @@ namespace HisWardDutyMcp
                         continue;
                     }
 
-                    long instructionTime = long.Parse(dayStr + "060000");
+                    long instructionTime;
+                    string timeNotice;
+                    if (dt.Date == d0 && hasExactInTime)
+                    {
+                        // QUY TẮC CỨNG: Ngày vào viện D0 giờ y lệnh sau giờ nhập khoa 15 phút (+15p)
+                        DateTime d0InstructionDt = inTimeDt.AddMinutes(15);
+                        instructionTime = long.Parse(d0InstructionDt.ToString("yyyyMMddHHmmss"));
+                        timeNotice = string.Format("{0} (sau giờ nhập khoa {1} đúng 15p)", d0InstructionDt.ToString("HH:mm:ss"), inTimeDt.ToString("HH:mm:ss"));
+                    }
+                    else
+                    {
+                        // Ngày kế tiếp D1 chuẩn hóa lúc 06:00:00 sáng
+                        instructionTime = long.Parse(dayStr + "060000");
+                        timeNotice = "06:00:00 sáng";
+                    }
 
                     if (isDryRun)
                     {
-                        sb.AppendLine(string.Format("   [DRY-RUN]: Sẽ chỉ định 3 bữa (Sáng/Trưa/Tối) ngày {0} lúc 06:00 (Combo {1}, PatientTypeId 42, Room 5809)", dayDisplay, comboType));
+                        sb.AppendLine(string.Format("   [DRY-RUN]: Sẽ chỉ định 3 bữa (Sáng/Trưa/Tối) ngày {0} lúc {1} (Combo {2}, PatientTypeId 42, Room 5809)", dayDisplay, timeNotice, comboType));
                         continue;
                     }
 
                     bool ok = AssignSingleDayRation(tr, trackingId, instructionTime, comboType, requestRoomId, sb);
                     if (ok)
                     {
-                        sb.AppendLine(string.Format("   ✔ Ngày {0}: Cấp thành công 3 bữa suất ăn ({1}) lúc 06:00 sáng!", dayDisplay, comboType));
+                        sb.AppendLine(string.Format("   ✔ Ngày {0}: Cấp thành công 3 bữa suất ăn ({1}) lúc {2}!", dayDisplay, comboType, timeNotice));
                     }
                     else
                     {
@@ -914,53 +989,71 @@ namespace HisWardDutyMcp
 
                 sb.AppendLine(string.Format("   ✔ Đã tải {0} dịch vụ đã chỉ định trong 3 tháng.", allSereServ.Count));
 
-                // 3. Khởi tạo Ma trận Bilan 8 nhóm phẫu thuật
+                // 3. Khởi tạo Ma trận Bilan 11 nhóm chu phẫu (Bộ 10 tiêu chuẩn cơ bản + CĐHA chuyên khoa)
                 var bilan = new List<BilanItem>
                 {
                     new BilanItem {
                         Category = "1. Công thức máu (Huyết học)",
-                        MissingProposal = "Tổng phân tích tế bào máu ngoại vi (Laser)",
+                        MissingProposal = "Tổng phân tích tế bào máu ngoại vi (Laser) [BM00110]",
                         ExecuteRoomHn = "Khoa Huyết học truyền máu (P.XN Nhà Q)",
                         ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
                     },
                     new BilanItem {
-                        Category = "2. Đông máu cơ bản (3 chỉ số)",
-                        MissingProposal = "Đông máu cơ bản (PT, APTT, Fibrinogen)",
+                        Category = "2. Nhóm máu hệ ABO & Rh(D)",
+                        MissingProposal = "Định nhóm máu hệ ABO và Rh(D) (Gelcard/Scangel) [BM01700]",
+                        ExecuteRoomHn = "Trung tâm Huyết học truyền máu (P.XN Nhà Q)",
+                        ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
+                    },
+                    new BilanItem {
+                        Category = "3. Đông máu cơ bản (3 chỉ số)",
+                        MissingProposal = "Đông máu cơ bản: PT (TQ), APTT (TCK), Fibrinogen [BM00531, BM260527.52, BM00542]",
                         ExecuteRoomHn = "Phòng 626 Nhà Q (Khoa Huyết học)",
                         ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
                     },
                     new BilanItem {
-                        Category = "3. Sinh hóa máu (Đường, Thận, Gan, Điện giải)",
+                        Category = "4. Sinh hóa máu (Đường, Thận, Gan, Điện giải)",
                         MissingProposal = "Sinh hóa máu: Glucose, Ure, Creatinin, AST, ALT, Điện giải đồ (Na, K, Cl)",
                         ExecuteRoomHn = "Khoa Hóa sinh (Nhà Q)",
                         ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
                     },
                     new BilanItem {
-                        Category = "4. Nhóm máu hệ ABO & Rh",
-                        MissingProposal = "Định nhóm máu hệ ABO và Rh(D)",
-                        ExecuteRoomHn = "Trung tâm Huyết học truyền máu",
-                        ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
-                    },
-                    new BilanItem {
                         Category = "5. Bilan Vi sinh (HIV, HBsAg, HCV)",
-                        MissingProposal = "Test nhanh hoặc Miễn dịch: HBsAg, Anti-HCV, HIV Ab/Ag",
+                        MissingProposal = "Test nhanh hoặc Miễn dịch: HIV Ab/Ag [BM00871], HBsAg [BM00859], Anti-HCV [BM00837]",
                         ExecuteRoomHn = "Khoa Vi sinh (Nhà Q)",
                         ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
                     },
                     new BilanItem {
-                        Category = "6. X-quang tim phổi thẳng",
-                        MissingProposal = "Chụp X-quang tim phổi thẳng (Kỹ thuật số)",
-                        ExecuteRoomHn = "Phòng XQ Nhà Q / Trung tâm Điện quang",
+                        Category = "6. Siêu âm ổ bụng tổng quát",
+                        MissingProposal = "Siêu âm ổ bụng tổng quát (gan mật, lách, tụy, thận, bàng quang) [BM00199]",
+                        ExecuteRoomHn = "Phòng Siêu âm Nhà Q / TT Điện quang (P.17547)",
+                        ExecuteRoomNb = "Phòng Siêu âm Nhà E CS2"
+                    },
+                    new BilanItem {
+                        Category = "7. X-quang tim phổi thẳng",
+                        MissingProposal = "Chụp X-quang ngực thẳng số hóa [BM21074 / BM00338]",
+                        ExecuteRoomHn = "Phòng XQ Nhà Q / Trung tâm Điện quang (P.17552)",
                         ExecuteRoomNb = "Phòng Chụp X-quang Nhà E CS2"
                     },
                     new BilanItem {
-                        Category = "7. Điện tâm đồ (ECG)",
-                        MissingProposal = "Ghi điện tim vi tính (12 chuyển đạo)",
-                        ExecuteRoomHn = "Phòng 734 Khoa 57 hoặc Trung tâm TDCN",
+                        Category = "8. Tổng phân tích nước tiểu",
+                        MissingProposal = "Tổng phân tích nước tiểu (10 thông số máy tự động) [BM02998]",
+                        ExecuteRoomHn = "Phòng Xét nghiệm Nước tiểu (P.566 Nhà Q)",
+                        ExecuteRoomNb = "Phòng Xét nghiệm Trung tâm CS2 (Tầng 1 Nhà E)"
+                    },
+                    new BilanItem {
+                        Category = "9. Điện tâm đồ (ECG)",
+                        MissingProposal = "Ghi điện tim vi tính (12 chuyển đạo) [BM04258]",
+                        ExecuteRoomHn = "Phòng 734 Khoa 57 hoặc Phòng 931 Nhà Q / Trung tâm TDCN",
                         ExecuteRoomNb = "Phòng Thăm dò chức năng Nhà E CS2"
                     },
                     new BilanItem {
-                        Category = "8. CĐHA chuyên khoa tổn thương",
+                        Category = "10. Siêu âm Doppler tim, van tim",
+                        MissingProposal = "Siêu âm Doppler tim, van tim [BM00201] (Bắt buộc với BN >= 60t hoặc > 50t kèm bệnh tim mạch)",
+                        ExecuteRoomHn = "Trung tâm Tim mạch / Phòng Siêu âm tim (P.1715)",
+                        ExecuteRoomNb = "Phòng Thăm dò chức năng / Tim mạch Nhà E CS2"
+                    },
+                    new BilanItem {
+                        Category = "11. CĐHA chuyên khoa tổn thương",
                         MissingProposal = DetectSpecialistImagingProposal(tr),
                         ExecuteRoomHn = "Trung tâm Điện quang Bệnh viện Bạch Mai",
                         ExecuteRoomNb = "Phòng Cắt lớp vi tính & CHT Nhà E CS2"
@@ -980,22 +1073,22 @@ namespace HisWardDutyMcp
                         bilan[0].DoneDetails = AppendDetail(bilan[0].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
 
-                    // Nhóm 2: Đông máu
-                    if (name.Contains("đông máu") || name.Contains("prothrombin") || name.Contains("aptt") || name.Contains("fibrinogen") || name.Contains("pt-inr"))
+                    // Nhóm 2: Nhóm máu
+                    if (name.Contains("nhóm máu") || name.Contains("hệ abo") || name.Contains("hệ rh") || name.Contains("định nhóm máu"))
                     {
                         bilan[1].IsDone = true;
                         bilan[1].DoneDetails = AppendDetail(bilan[1].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
 
-                    // Nhóm 3: Sinh hóa máu
-                    if (name.Contains("glucose") || name.Contains("ure") || name.Contains("creatinin") || name.Contains("ast") || name.Contains("alt") || name.Contains("điện giải"))
+                    // Nhóm 3: Đông máu
+                    if (name.Contains("đông máu") || name.Contains("prothrombin") || name.Contains("aptt") || name.Contains("fibrinogen") || name.Contains("pt-inr") || name.Contains("thời gian prothrombin"))
                     {
                         bilan[2].IsDone = true;
                         bilan[2].DoneDetails = AppendDetail(bilan[2].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
 
-                    // Nhóm 4: Nhóm máu
-                    if (name.Contains("nhóm máu") || name.Contains("hệ abo") || name.Contains("hệ rh") || name.Contains("định nhóm máu"))
+                    // Nhóm 4: Sinh hóa máu
+                    if (name.Contains("glucose") || name.Contains("ure") || name.Contains("creatinin") || name.Contains("ast") || name.Contains("alt") || name.Contains("điện giải"))
                     {
                         bilan[3].IsDone = true;
                         bilan[3].DoneDetails = AppendDetail(bilan[3].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
@@ -1008,30 +1101,51 @@ namespace HisWardDutyMcp
                         bilan[4].DoneDetails = AppendDetail(bilan[4].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
 
-                    // Nhóm 6: X-quang tim phổi
-                    if ((name.Contains("xquang") || name.Contains("x-quang") || name.Contains("chụp")) && (name.Contains("tim phổi") || name.Contains("ngực thẳng") || name.Contains("ngực")))
+                    // Nhóm 6: Siêu âm ổ bụng
+                    if (name.Contains("siêu âm ổ bụng") || name.Contains("siêu âm bụng") || name.Contains("sa ổ bụng"))
                     {
                         bilan[5].IsDone = true;
                         bilan[5].DoneDetails = AppendDetail(bilan[5].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
 
-                    // Nhóm 7: Điện tim
-                    if (name.Contains("điện tim") || name.Contains("điện tâm đồ") || name.Contains("ecg"))
+                    // Nhóm 7: X-quang tim phổi
+                    if ((name.Contains("xquang") || name.Contains("x-quang") || name.Contains("chụp")) && (name.Contains("tim phổi") || name.Contains("ngực thẳng") || name.Contains("ngực")))
                     {
                         bilan[6].IsDone = true;
                         bilan[6].DoneDetails = AppendDetail(bilan[6].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
 
-                    // Nhóm 8: CĐHA chuyên khoa (MRI, CT, XQ chi/cột sống)
-                    if (name.Contains("cộng hưởng từ") || name.Contains("mri") || name.Contains("cắt lớp") || name.Contains("ct ") || name.Contains("x-quang cột sống") || name.Contains("xquang cột sống") || name.Contains("x-quang xương") || name.Contains("xquang xương"))
+                    // Nhóm 8: Nước tiểu 10 thông số
+                    if (name.Contains("nước tiểu") || name.Contains("10 thông số") || name.Contains("tổng phân tích nước tiểu"))
                     {
                         bilan[7].IsDone = true;
                         bilan[7].DoneDetails = AppendDetail(bilan[7].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
                     }
+
+                    // Nhóm 9: Điện tim
+                    if (name.Contains("điện tim") || name.Contains("điện tâm đồ") || name.Contains("ecg"))
+                    {
+                        bilan[8].IsDone = true;
+                        bilan[8].DoneDetails = AppendDetail(bilan[8].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
+                    }
+
+                    // Nhóm 10: Siêu âm Doppler tim
+                    if (name.Contains("siêu âm tim") || name.Contains("doppler tim"))
+                    {
+                        bilan[9].IsDone = true;
+                        bilan[9].DoneDetails = AppendDetail(bilan[9].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
+                    }
+
+                    // Nhóm 11: CĐHA chuyên khoa (MRI, CT, XQ chi/cột sống)
+                    if (name.Contains("cộng hưởng từ") || name.Contains("mri") || name.Contains("cắt lớp") || name.Contains("ct ") || name.Contains("x-quang cột sống") || name.Contains("xquang cột sống") || name.Contains("x-quang xương") || name.Contains("xquang xương"))
+                    {
+                        bilan[10].IsDone = true;
+                        bilan[10].DoneDetails = AppendDetail(bilan[10].DoneDetails, ss.TDL_SERVICE_NAME, timeStr);
+                    }
                 }
 
                 // 5. Trình bày Bảng Đối Soát Lâm Sàng
-                sb.AppendLine("\n📊 BẢNG ĐỐI SOÁT MA TRẬN BILAN TRƯỚC MỔ (3 THÁNG GẦN NHẤT):");
+                sb.AppendLine("\n📊 BẢNG ĐỐI SOÁT MA TRẬN BILAN CHU PHẪU (3 THÁNG GẦN NHẤT):");
                 sb.AppendLine("┌──────────────────────────────────────────────┬──────────────┬────────────────────────────────────────────────────────┐");
                 sb.AppendLine("│ Danh mục Bilan Chu Phẫu                      │ Trạng thái   │ Chi tiết dịch vụ đã làm & Ngày chỉ định                │");
                 sb.AppendLine("├──────────────────────────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤");
@@ -1054,10 +1168,12 @@ namespace HisWardDutyMcp
                 }
                 sb.AppendLine("└──────────────────────────────────────────────┴──────────────┴────────────────────────────────────────────────────────┘");
 
-                // 6. Đề Xuất Chỉ Định Còn Thiếu Kèm Phòng Thực Hiện Đích Danh
+                // 6. Đề Xuất Chỉ Định Còn Thiếu Kèm Phòng Thực Hiện Đích Danh Để Người Điều Hành Duyệt Trước Khi Kê
                 if (missingItems.Count > 0)
                 {
-                    sb.AppendLine("\n⚠️ DANH SÁCH CẬN LÂM SÀNG CÒN THIẾU CẦN BỔ SUNG CHỈ ĐỊNH:");
+                    sb.AppendLine("\n📋 DANH SÁCH ĐỀ XUẤT CẬN LÂM SÀNG CÒN THIẾU (CHỜ NGƯỜI ĐIỀU HÀNH / BÁC SĨ DUYỆT TRƯỚC KHI KÊ):");
+                    sb.AppendLine("⚠️ LƯU Ý BẢO VỆ AN TOÀN: Thợ trực buồng KHÔNG tự động kê các chỉ định này lên hệ thống HIS.");
+                    sb.AppendLine("👉 Vui lòng gửi danh sách đề xuất này để Người điều hành / Bác sĩ trực duyệt và xác nhận trước khi kê:");
                     bool isNb = (facility == "NB");
                     int idx = 1;
                     foreach (var m in missingItems)
@@ -1065,12 +1181,12 @@ namespace HisWardDutyMcp
                         string targetRoom = isNb ? m.ExecuteRoomNb : m.ExecuteRoomHn;
                         sb.AppendLine(string.Format("   {0}. {1}:", idx++, m.Category));
                         sb.AppendLine(string.Format("      • Chỉ định đề xuất : {0}", m.MissingProposal));
-                        sb.AppendLine(string.Format("      • Phòng thực hiện  : 🏥 {0}", targetRoom));
+                        sb.AppendLine(string.Format("      • Phòng chỉ định   : 🏥 {0}", targetRoom));
                     }
                 }
                 else
                 {
-                    sb.AppendLine("\n🎉 HOÀN HẢO: Bệnh nhân ĐÃ ĐẦY ĐỦ 100% các hạng mục Bilan chu phẫu trong 3 tháng qua!");
+                    sb.AppendLine("\n🎉 HOÀN HẢO: Bệnh nhân ĐÃ ĐẦY ĐỦ 100% các hạng mục Bilan chu phẫu cơ bản trong 3 tháng qua!");
                 }
 
                 return true;

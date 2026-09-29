@@ -312,3 +312,38 @@ Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối so�
 
 
 
+
+## 16. QUY TẮC ĐẶC QUYỀN BÍ DANH: "THỢ TRỰC BUỒNG" (WARD DUTY 1-CLICK PROTOCOL & DUAL-AGENT AUDIT)
+* **Bí danh kích hoạt:** Bất cứ khi nào bác sĩ yêu cầu **"thợ trực buồng"**, **"trực buồng"**, **"tiếp đón buồng"**, **"ward duty"**, Agent PHẢI tự động kích hoạt ngay luồng xử lý chuẩn hóa 4 bước chuyên biệt, giải quyết triệt để các sai sót lâm sàng thực tế:
+
+### 16.1. Bốn Tiêu Chuẩn Nghiệp Vụ Lâm Sàng Bắt Buộc (4 Clinical Core Standards):
+1. 🍚 **Giờ chỉ định suất ăn ngày vào viện (D_0) BẮT BUỘC sau giờ nhập khoa 15 phút (+15p)**:
+   - **Ngày vào viện (D_0)**: InstructionTime = CLINICAL_IN_TIME + 15 phút (hoặc IN_TIME + 15 phút).
+     * *Tuyệt đối cấm:* Đặt cứng 06:00 hay 05:00 sáng trước giờ bệnh nhân nhập khoa (ví dụ: BN vào khoa lúc 10:30 mà đặt suất ăn 06:00 sáng sẽ gây lỗi logic thời gian và vi phạm quy chế BHYT/HIS).
+   - **Ngày tiếp theo (D_1)**: InstructionTime đặt lúc ** 6:00:00 sáng**.
+   - **Phân loại suất ăn tự động**: ĐTĐ/Đường huyết cao gán **DD01**; Tim mạch/Tăng huyết áp gán **TM01**; Ngoại thông thường gán **BT01**.
+
+2. 📝 **Nội dung Tờ điều trị đầu tiên lấy trực tiếp từ Tóm tắt bệnh án của vỏ EMR**:
+   - Tờ điều trị tiếp đón đầu tiên (HisTrackingCreator.exe) **BẮT BUỘC lấy nội dung từ khối [5. TÓM TẮT BỆNH ÁN NGOẠI KHOA] (TomTatBenhAn)** của vỏ EMR (BENHANNGOAIKHOA), kết hợp với DHST và tình trạng tiếp đón thực tế.
+   - **Thời gian tờ điều trị (TRACKING_TIME)**: Được đặt tự động sau giờ nhập khoa **5 phút** (CLINICAL_IN_TIME + 5 phút).
+   - Tuyệt đối không sinh template 7 dòng chung chung, sáo rỗng không phản ánh đúng bệnh lý của người bệnh.
+
+3. 🚫 **TUYỆT ĐỐI KHÔNG làm vỏ kết thúc bệnh án khi tiếp đón**:
+   - Khi tiếp đón bệnh nhân mới vào viện hoặc xử lý hồ sơ trực buồng, **CẤM KỴ TUYỆT ĐỐI việc điền phần Tổng kết ra viện** trong vỏ bệnh án ngoại khoa.
+   - Các trường trong EMR BENHANNGOAIKHOA: QuaTrinhBenhLyVaDienBien, TomTatKetQuaXetNghiem, PhuongPhapDieuTri, TinhTrangNguoiBenhRaVien, HuongDieuTri, NgayTongKet, NguoiGiaoHoSo, NguoiNhanHoSo, BacSiDieuTri (kết thúc) và ngày ra viện trong THONGTINDIEUTRI **PHẢI ĐỂ TRỐNG 100%**.
+   - Bắt buộc luôn kích hoạt cờ --admission (hoặc isAdmission = true) trong HisEmrFiller.exe.
+
+4. 🔍 **Cơ chế Kiểm duyệt Chéo 2 Agent (Dual-Agent Clinical Audit) - CHỐNG ẢO GIÁC & KHÔNG BỊA QUÁ ĐÀ**:
+   - **Nguyên tắc "2 Cặp Mắt" (Four-Eyes Principle)**: Trước khi Agent chính thực thi ghi dữ liệu vào EMR hoặc Tờ điều trị, **BẮT BUỘC PHẢI GỌI 1 SUBAGENT (Clinical Fact-Checker)** lên để đối soát chéo độc lập.
+   - **Checklist Kiểm duyệt của Subagent**:
+     * 🎯 **Đích danh tầng tổn thương**: Đối chiếu kết quả CĐHA (MRI, CT, X-quang) từ PACS/RIS; xác định chính xác tầng gãy/xẹp cấp (VD: Xẹp cấp L1, L2 hay L3? Tránh nhầm với xẹp cũ T12).
+     * 🎯 **Đúng bên tổn thương**: Xác định rõ ràng bên Trái hay bên Phải (Khớp háng Trái/Phải, Xương đùi Trái/Phải, Tay Trái/Phải).
+     * 🚫 **Không bịa đặt hoàn cảnh chấn thương/bệnh sử**: Tuyệt đối không tự suy diễn các tình tiết ly kỳ, không có trong hồ sơ (như tự bịa ngã xe máy ở Lào Cai, tự bịa tiền sử phẫu thuật chưa được kiểm chứng). Mọi dữ liệu phải trích xuất trung thực từ Phiếu khám vào viện, lời khai bệnh nhân và hình ảnh học.
+     * Subagent phê duyệt PASS thì Agent chính mới được phép thực thi POST API.
+
+### 16.2. Đối Soát Bilan Cận Lâm Sàng & Trình Duyệt Trước Khi Kê (Pre-Op Bilan Approval):
+* **Rà soát ma trận Bilan chu phẫu 3 tháng gần nhất**: Rà soát đầy đủ 10 tiêu chuẩn tiền phẫu bắt buộc (Công thức máu BM00110, Nhóm máu ABO/Rh BM01700, Đông máu bộ 3 BM00531..., Sinh hóa 6 chỉ số BM02304..., Vi sinh bộ 3 BM00871..., Siêu âm bụng tổng quát BM00199, X-quang ngực BM21074/BM00338, Tổng phân tích nước tiểu BM02998, Điện tim ECG BM04258, Siêu âm Doppler tim BM00201 cho người ≥ 60t / bệnh tim mạch) cùng các phim CĐHA chuyên khoa (MRI, CT, X-quang khớp/cột sống).
+* ⚠️ **QUY TẮC PHÊ DUYỆT BẮT BUỘC (APPROVAL BEFORE ORDERING)**:
+  - Khi phát hiện cận lâm sàng còn thiếu, Thợ trực buồng **CHỈ XUẤT DANH SÁCH BẢNG ĐỀ XUẤT** gồm: Tên dịch vụ, Mã dịch vụ HIS, Lý do lâm sàng cần làm, và Phòng thực hiện đích danh tại cơ sở tương ứng (P734/Tiểu phẫu nhà Q/P.17547... tại Hà Nội; P3E-05/P3D-05... tại Ninh Bình).
+  - **TUYỆT ĐỐI CẤM tự ý bấm kê hàng loạt CLS lên hệ thống HIS**.
+  - Bảng đề xuất phải được trình rõ ràng để **Bác sĩ / Người điều hành duyệt trước khi kê**. Chỉ thực hiện chỉ định những mục đã được Bác sĩ phê duyệt.
