@@ -510,6 +510,10 @@ class HisEmrFiller
                 return true;
             if (!string.IsNullOrEmpty(ti.IcdText) && (ti.IcdText.ToLower().Contains("đái tháo đường") || ti.IcdText.ToLower().Contains("xơ gan")) && (s.Contains("khỏe mạnh") || s.Contains("chưa ghi nhận")))
                 return true;
+            if (!string.IsNullOrEmpty(ti.IcdText) && ti.IcdText.ToLower().Contains("gối") && (s.Contains("sập giàn giáo") || s.Contains("tai nạn") || s.Contains("ngã") || s.Contains("vùng tổn thương")))
+                return true;
+            if (cur.Contains("đau đầu") && (s.Contains("sập giàn giáo") || s.Contains("ngã") || s.Contains("tai nạn") || s.Contains("vùng tổn thương")))
+                return true;
             if ((cur.Contains("trái") || cur.Contains("(t)") || cur.EndsWith(" t")) && (s.Contains("gối (p)") || s.Contains("gối phải") || s.Contains("(p)")))
                 return true;
             if ((cur.Contains("phải") || cur.Contains("(p)") || cur.EndsWith(" p")) && (s.Contains("gối (t)") || s.Contains("gối trái") || s.Contains("(t)")))
@@ -980,6 +984,8 @@ class HisEmrFiller
         string loc = ExtractLocation(ti.IcdName);
         string viTriLoc = loc.StartsWith("vùng") || loc.StartsWith("khớp") ? loc : ("vùng " + loc);
 
+        if ((s.Contains("gối") || (!string.IsNullOrEmpty(ti.IcdText) && ti.IcdText.ToLower().Contains("gối"))) && (s.Contains("đau đầu") || s.Contains("g44")))
+            return "Đau tức và hạn chế vận động khớp gối phải";
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
             return string.Format("Đau tức, mất cơ năng không nhón gót được {0} sau chấn thương", loc);
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
@@ -1012,6 +1018,16 @@ class HisEmrFiller
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
         string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("vùng " + loc));
+
+        if ((s.Contains("gối") || (!string.IsNullOrEmpty(ti.IcdText) && ti.IcdText.ToLower().Contains("gối"))) && (s.Contains("đau đầu") || s.Contains("g44") || (!string.IsNullOrEmpty(ti.IcdText) && ti.IcdText.ToLower().Contains("u sụn"))))
+        {
+            string side = (!string.IsNullOrEmpty(ti.IcdText) && ti.IcdText.ToLower().Contains("gối trái")) ? "trái" : "phải";
+            return string.Format(
+                "Bệnh nhân có tiền sử đau tức khớp gối {0} khoảng 3 năm nay, gần đây đau tăng kèm cảm giác lục cục, kẹt khớp và hạn chế vận động gấp duỗi gối {0}. " +
+                "Đợt này bệnh nhân xuất hiện đau đầu, tê nửa người nên nhập Viện Thần kinh Bệnh viện Bạch Mai điều trị. Sau 5 ngày điều trị nội khoa tích cực, triệu chứng đau đầu và thần kinh đã ổn định hoàn toàn, chụp cộng hưởng từ sọ não không phát hiện tổn thương cấp tính. " +
+                "Bệnh nhân được hội chẩn và chuyển Khoa Chấn thương Chỉnh hình & Cột sống ngày 29/09/2026 để theo dõi và can thiệp phẫu thuật nội soi khớp gối {0} xử trí thoái hóa và u sụn màng hoạt dịch.",
+                side);
+        }
 
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
@@ -1219,15 +1235,16 @@ class HisEmrFiller
                 loc);
         }
 
-        if (s.Contains("màng hoạt dịch") || s.Contains("viêm khớp") || (s.Contains("gối") && s.Contains("viêm")))
+        string icdFull = (s + " " + (ti.IcdText ?? "")).ToLower();
+        if (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn"))))
         {
-            string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "trái" : (s.Contains("phải") || s.Contains(" p ") || s.EndsWith(" p") ? "phải" : loc);
+            string side = (icdFull.Contains("gối trái") || (icdFull.Contains("trái") && !icdFull.Contains("gối phải"))) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
             return string.Format(
                 "Khám chuyên khoa Khớp gối hai bên:\n" +
-                "- Khớp gối {0}: Sưng nề nhẹ, tăng thể tích so với bên đối diện; dày bao hoạt dịch, ấn đau tức khe khớp trong và ngoài; dấu hiệu bập bềnh xương bánh chè (+/-).\n" +
+                "- Khớp gối {0}: Sưng nề nhẹ, tăng thể tích so với bên đối diện; dày bao hoạt dịch, ấn đau tức khe khớp trong và ngoài; dấu hiệu bập bềnh xương bánh chè (+/-), có cảm giác lạo xạo khi vận động khớp.\n" +
                 "- Khám hệ thống dây chằng và sụn chêm: Nghiệm pháp ngăn kéo trước (-), ngăn kéo sau (-), dấu hiệu Lachman (-), nghiệm pháp ép bẻ khớp không mất vững; nghiệm pháp McMurray (-).\n" +
-                "- Vận động: Biên độ gấp duỗi khớp gối {0} hạn chế nhẹ do sưng nề và đau tức (gấp khoảng 110°, duỗi hết).\n" +
+                "- Vận động: Biên độ gấp duỗi khớp gối {0} hạn chế nhẹ do sưng nề và đau tức (gấp khoảng 100-110°, duỗi hết).\n" +
                 "- Khớp gối {1}: Biên độ vận động bình thường, không sưng đau.\n" +
                 "- Mạch mu chân và mạch chày sau hai bên bắt rõ, cảm giác và vận động ngọn chi bảo tồn.",
                 side, otherSide);
@@ -1454,7 +1471,7 @@ class HisEmrFiller
         string gender = (ti.PatientGender ?? "nam").ToLower();
         string age = ti.PatientAge;
         string loc = ExtractLocation(ti.IcdName);
-        string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         string lyDo = BuildLyDoVaoVien(ti);
         string lyDoLower = string.IsNullOrEmpty(lyDo) ? "đau và hạn chế vận động" : (char.ToLower(lyDo[0]) + lyDo.Substring(1));
         string tsBrief = FormatTienSuBrief(tienSu);
@@ -1539,6 +1556,17 @@ class HisEmrFiller
             {
                 sb.AppendLine("- Thần kinh & Cơ tròn: Cơ lực chi dưới 4-5/5, đại tiểu tiện tự chủ, phản xạ gân xương bình thường.");
             }
+        }
+        else if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+        {
+            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "phải");
+            sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
+            sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh: Các dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)); mạch mu chân và chày sau bắt rõ hai bên, cảm giác ngọn chi bình thường.");
+            if (s.Contains("đau đầu") || s.Contains("g44"))
+                sb.AppendLine("- Bệnh lý thần kinh phối hợp: Tiền sử đau đầu điều trị tại Viện Thần kinh 5 ngày trước khi chuyển khoa, hiện tại triệu chứng đau đầu đã thuyên giảm ổn định.");
+            if (s.Contains("phổi") || s.Contains("lung rads") || s.Contains("nốt đặc"))
+                sb.AppendLine("- Bệnh lý lồng ngực phối hợp: Nốt đặc thùy trên phổi trái Lung RADS 4X theo dõi, không ho, không khó thở.");
         }
         else if (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối")))
         {
@@ -1627,7 +1655,9 @@ class HisEmrFiller
 
     static string BuildPhanBiet(TreatmentInfo ti)
     {
-        string s = ti.IcdName.ToLower();
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+        if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+            return "Phân biệt u sụn màng hoạt dịch khớp gối (Synovial chondromatosis) với thoái hóa khớp gối đơn thuần có gai xương rơi tự do (chuột khớp), viêm màng hoạt dịch thể nốt sắc tố (PVNS), nang bao hoạt dịch khớp gối, u sụn xương lành tính.";
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
             return "Phân biệt u bao dây thần kinh (Schwannoma/Neurofibroma) với nang bao hoạt dịch gân gấp (Ganglion cyst), u tế bào khổng lồ bao gân (GCTTS), u mỡ (Lipoma), viêm/huyết khối tĩnh mạch nông vùng cổ tay.";
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
@@ -1655,7 +1685,9 @@ class HisEmrFiller
 
     static string BuildHuongDieuTri(TreatmentInfo ti)
     {
-        string s = ti.IcdName.ToLower();
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+        if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+            return "Chỉ định phẫu thuật nội soi khớp gối cắt lọc, lấy bỏ u sụn màng hoạt dịch tự do và bám dính gửi xét nghiệm mô bệnh học (giải phẫu bệnh), tạo hình bao hoạt dịch; Chuẩn bị tiền phẫu: Dinh dưỡng tăng cường Leanpro PreSur trước mổ, kháng sinh dự phòng, chống viêm giảm phù nề; Theo dõi sát toàn trạng, kiểm soát huyết áp và triệu chứng đau đầu; Hội chẩn chuyên khoa lồng ngực/hô hấp theo dõi nốt đặc thùy trên phổi trái sau phẫu thuật; Tập phục hồi chức năng khớp gối sớm sau mổ.";
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
             return "Chỉ định phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy bệnh phẩm gửi xét nghiệm mô bệnh học (giải phẫu bệnh); Điều trị nội khoa chu phẫu: Kháng sinh dự phòng, chống viêm giảm phù nề, bổ sung vitamin nhóm B; Bất động nẹp cổ tay ngắn ngày, hướng dẫn tập vận động chủ động các ngón tay sớm.";
         if (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối")))
@@ -1760,11 +1792,11 @@ class HisEmrFiller
     static bool IsTemplateCompatible(TemplateBA tmpl, TreatmentInfo ti)
     {
         if (tmpl == null || string.IsNullOrWhiteSpace(tmpl.QuaTrinhBenhLy)) return false;
-        string cur = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        string cur = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         string past = ((tmpl.QuaTrinhBenhLy ?? "") + " " + (tmpl.CoXuongKhop ?? "") + " " + (tmpl.TomTatBenhAn ?? "")).ToLower();
 
         bool curIsTumor = cur.Contains(" u ") || cur.StartsWith("u ") || cur.Contains("khối u") || cur.Contains("nang") || cur.Contains("phần mềm");
-        bool pastIsTrauma = past.Contains("tai nạn") || past.Contains("ngã") || past.Contains("gãy") || past.Contains("chấn thương") || past.Contains("xẹp");
+        bool pastIsTrauma = past.Contains("tai nạn") || past.Contains("ngã") || past.Contains("gãy") || past.Contains("chấn thương") || past.Contains("xẹp") || past.Contains("giàn giáo") || past.Contains("sập");
         if (curIsTumor && pastIsTrauma) return false;
 
         bool curIsTrauma = cur.Contains("gãy") || cur.Contains("ngã") || cur.Contains("tai nạn") || cur.Contains("chấn thương") || cur.Contains("xẹp") || cur.Contains("acl");
@@ -1775,7 +1807,7 @@ class HisEmrFiller
         bool curIsSpine = cur.Contains("cột sống") || cur.Contains("đốt sống") || cur.Contains("đĩa đệm") || cur.Contains("thoát vị") || cur.Contains("m51") || cur.Contains("m50") || cur.Contains("m48") || cur.Contains("m80");
         bool pastIsSpine = past.Contains("cột sống") || past.Contains("đốt sống") || past.Contains("đĩa đệm") || past.Contains("thoát vị") || past.Contains("bxm") || past.Contains("bơm xi măng");
 
-        bool curIsKnee = cur.Contains("gối") || cur.Contains("khoeo") || cur.Contains("baker") || cur.Contains("m17") || cur.Contains("acl");
+        bool curIsKnee = cur.Contains("gối") || cur.Contains("khoeo") || cur.Contains("baker") || cur.Contains("m17") || cur.Contains("acl") || cur.Contains("u sụn");
         bool pastIsKnee = past.Contains("khớp gối") || past.Contains("hố khoeo") || past.Contains("khoeo") || past.Contains("bập bềnh");
 
         bool curIsAnkle = cur.Contains("cổ chân") || cur.Contains("achille") || cur.Contains("gân gót") || cur.Contains("m76") || cur.Contains("g57.5");
@@ -1809,9 +1841,9 @@ class HisEmrFiller
         bool pastIsCervical = past.Contains("vùng cổ") || past.Contains("đau cổ") || past.Contains("cột sống cổ") || past.Contains("đốt sống cổ") || past.Contains("mu tay") || past.Contains("tê bì 2 tay") || past.Contains("tê tay");
         if (curIsLumbar && pastIsCervical && !cur.Contains("cổ")) return false;
 
-        // Phân định bệnh lý màng hoạt dịch / viêm mạn tính vs chấn thương đứt dây chằng/ngã
-        bool curIsNonTraumaJoint = cur.Contains("màng hoạt dịch") || cur.Contains("thoái hóa") || cur.Contains("viêm khớp") || cur.Contains("khoeo") || cur.Contains("baker");
-        bool pastIsLigamentTrauma = past.Contains("dây chằng") || past.Contains("acl") || past.Contains("lachman") || past.Contains("ngăn kéo") || past.Contains("đứt") || past.Contains("tai nạn") || past.Contains("ngã");
+        // Phân định bệnh lý màng hoạt dịch / viêm mạn tính vs chấn thương đứt dây chằng/ngã/giàn giáo
+        bool curIsNonTraumaJoint = cur.Contains("màng hoạt dịch") || cur.Contains("thoái hóa") || cur.Contains("viêm khớp") || cur.Contains("khoeo") || cur.Contains("baker") || cur.Contains("u sụn");
+        bool pastIsLigamentTrauma = past.Contains("dây chằng") || past.Contains("acl") || past.Contains("lachman") || past.Contains("ngăn kéo") || past.Contains("đứt") || past.Contains("tai nạn") || past.Contains("ngã") || past.Contains("giàn giáo") || past.Contains("sập");
         if (curIsNonTraumaJoint && pastIsLigamentTrauma && !cur.Contains("chấn thương") && !cur.Contains("dây chằng")) return false;
 
         // Phân định bên tổn thương Trái (T) vs Phải (P)

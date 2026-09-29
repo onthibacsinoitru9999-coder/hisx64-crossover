@@ -2032,6 +2032,94 @@ public class HisClinicalCli
         AssignServiceBatch(treatmentId, trackingId, targetList, patientTypeId);
     }
 
+    public static void AssignRation(long treatmentId, long trackingId, string comboType, int patientTypeId = 42)
+    {
+        InitSession();
+        HIS_TRACKING tr = null;
+        if (trackingId > 0)
+        {
+            var tf = new HisTrackingFilter { ID = trackingId };
+            var list = myAdapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, tf, param);
+            if (list != null && list.Count > 0) tr = list[0];
+        }
+        if (tr == null)
+        {
+            var tf = new HisTrackingFilter { TREATMENT_ID = treatmentId };
+            var list = myAdapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", mosConsumer, tf, param);
+            if (list != null && list.Count > 0)
+            {
+                tr = list.OrderByDescending(x => x.TRACKING_TIME).First();
+                trackingId = tr.ID;
+            }
+        }
+        if (tr == null) throw new Exception("Không tìm thấy tờ điều trị nào cho bệnh nhân!");
+
+        long reqRoomId = ResolvePatientRoomId(treatmentId);
+        if (reqRoomId <= 0) reqRoomId = 5248;
+        EnsureWorkInfoForRoom(reqRoomId);
+
+        var rationList = new List<RationServiceSDO>();
+        long ptId = patientTypeId;
+
+        string combo = (comboType ?? "BT07").ToUpper();
+        if (combo.Contains("BT07"))
+        {
+            rationList.Add(new RationServiceSDO { ServiceId = 11063, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30151, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30059, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30064, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 4 } });
+        }
+        else if (combo.Contains("DD01"))
+        {
+            rationList.Add(new RationServiceSDO { ServiceId = 30180, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30181, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30133, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+        }
+        else if (combo.Contains("TM01"))
+        {
+            rationList.Add(new RationServiceSDO { ServiceId = 30117, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30093, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30094, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+        }
+        else
+        {
+            rationList.Add(new RationServiceSDO { ServiceId = 30073, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 1 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30153, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 3 } });
+            rationList.Add(new RationServiceSDO { ServiceId = 30154, PatientTypeId = ptId, RoomId = 5809, Amount = 1.0m, RationTimeIds = new List<long> { 5 } });
+        }
+
+        long instructionTime = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
+
+        var sdo = new HisRationServiceReqSDO
+        {
+            TreatmentIds = new List<long> { treatmentId },
+            InstructionTimes = new List<long> { instructionTime },
+            RequestRoomId = reqRoomId,
+            RequestLoginName = currentDoctorLogin,
+            RequestUserName = currentDoctorName,
+            IcdCode = tr.ICD_CODE,
+            IcdName = tr.ICD_NAME,
+            IcdSubCode = tr.ICD_SUB_CODE,
+            IcdText = tr.ICD_TEXT,
+            HalfInFirstDay = false,
+            IsForAutoCreateRation = false,
+            IsForHomie = false,
+            TrackingId = trackingId > 0 ? (long?)trackingId : null,
+            RationServices = rationList
+        };
+
+        var result = myAdapter.PostData<object>("api/HisServiceReq/RationCreate", mosConsumer, sdo, param);
+        if (param.HasException)
+        {
+            string err = "Chỉ định suất ăn thất bại!";
+            if (param.Messages != null && param.Messages.Count > 0) err += " " + string.Join("; ", param.Messages);
+            if (param.BugCodes != null && param.BugCodes.Count > 0) err += " Bug: " + string.Join("; ", param.BugCodes);
+            throw new Exception(err);
+        }
+
+        Console.WriteLine(string.Format("✔ Chỉ định suất ăn combo '{0}' ({1} bữa) THÀNH CÔNG cho BN!", combo, rationList.Count));
+    }
+
     public static void LookupCls(string keyword = "")
     {
         Console.WriteLine("=========================================================================================================");
@@ -4826,6 +4914,14 @@ public class HisClinicalCli
                 string rawItems = args[3];
                 int ptId = args.Length > 4 ? int.Parse(args[4]) : 1;
                 AssignCustomServices(treatmentId, trackingId, rawItems, ptId);
+            }
+            else if (cmd == "assign-ration" || cmd == "ration")
+            {
+                long treatmentId = long.Parse(args[1]);
+                long trackingId = long.Parse(args[2]);
+                string comboType = args.Length > 3 ? args[3] : "BT07";
+                int ptId = args.Length > 4 ? int.Parse(args[4]) : 42;
+                AssignRation(treatmentId, trackingId, comboType, ptId);
             }
             else if (cmd == "lookup-cls" || cmd == "cls-list" || cmd == "cls-catalog" || cmd == "cls")
             {

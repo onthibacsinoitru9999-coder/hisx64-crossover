@@ -339,13 +339,19 @@ public class HisWarehousePrescribe
             decimal sp;
             if (!string.IsNullOrEmpty(item.Speed) && decimal.TryParse(item.Speed, out sp)) speedVal = sp;
 
+            long medPatType = tr.TDL_PATIENT_TYPE_ID ?? 1;
+            if (item.StockId == STOCK_KHO_DINH_DUONG_HN || item.Medicine.ID == 26851 || (item.Medicine.MEDICINE_TYPE_CODE != null && item.Medicine.MEDICINE_TYPE_CODE.StartsWith("SPBM")))
+            {
+                medPatType = 42; // Viện phí cho SP Dinh dưỡng / Leanpro
+            }
+
             presMeds.Add(new PresMedicineSDO
             {
                 MedicineTypeId = item.Medicine.ID,
                 MediStockId = item.StockId > 0 ? item.StockId : STOCK_KHO_THUOC_VIEN_HN,
                 Amount = item.Amount,
                 PresAmount = item.Amount,
-                PatientTypeId = tr.TDL_PATIENT_TYPE_ID ?? 1,
+                PatientTypeId = medPatType,
                 Tutorial = !string.IsNullOrEmpty(item.Tutorial) ? item.Tutorial : "Dùng theo chỉ dẫn của bác sĩ",
                 MedicineUseFormId = useForm,
                 Speed = speedVal,
