@@ -2549,7 +2549,11 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 ### 46.1. Bối Cảnh Thực Tế & Yêu Cầu Của Bác Sĩ
 - **Vấn đề**: Bìa bệnh án Ngoại khoa EMR (`BENHANNGOAIKHOA`) trước đây thường bị dài dòng, rườm rà ở các ô *Tiên lượng* và *Hướng điều trị / Phương pháp điều trị* (liệt kê tràn lan các bước chu phẫu, kháng sinh, dinh dưỡng, PHCN dài cả đoạn văn). Điều này làm mất trọng tâm lâm sàng, gây rối mắt cho Bác sĩ và Hội đồng duyệt bệnh án.
 - **Yêu cầu cốt lõi (Ground Truth)**:
-  1. **Chi tiết phần Triệu chứng**: Tập trung 100% độ sâu vào các hội chứng ngoại khoa, vị trí giải phẫu, cơ chế chấn thương, các nghiệm pháp lâm sàng kinh điển, kết quả CĐHA đích danh và dấu hiệu sinh tồn.
+  1. **Chi tiết phần Triệu chứng (Trung thực hồ sơ gốc - Nghiệm pháp dạng (+/-))**:
+     - ⚠️ **Nguyên tắc vàng**: Nếu triệu chứng **không đọc được trong thông tin gốc của các Bác sĩ khác** (Phiếu khám vào viện KKB, Tờ điều trị tuyến trước, Biên bản hội chẩn, Kết quả CĐHA/Điện cơ):
+       * **TUYỆT ĐỐI KHÔNG TỰ THÊM, KHÔNG GHI DÀI DÒNG**.
+       * Các nghiệm pháp kinh điển nếu cần ghi nhận phải **BẮT BUỘC ĐỂ Ở DẠNG NGHI VẤN: `(+/-)`** (VD: `Tinel (+/-)`, `Phalen (+/-)`, `Lasegue (+/-)`, `Neer (+/-)`...). Tuyệt đối không tự ý khẳng định là `(+)` hay `(-)` khi chưa có bác sĩ khám xác nhận.
+     - Tập trung đúng mức độ vào các hội chứng ngoại khoa, vị trí giải phẫu, cơ chế chấn thương và dấu hiệu sinh tồn thực tế.
   2. **Tối giản phần Tiên lượng & Hướng điều trị**: Ghi ngắn gọn, súc tích, đúng chuẩn form hành chính bệnh viện:
      - **Tiên lượng (`TienLuong`)**: Ghi ngắn gọn: **`Dè dặt`** (hoặc `Tiên lượng dè dặt`).
      - **Phương pháp điều trị / Hướng điều trị (`HuongDieuTri` / `PhuongPhapDieuTri`)**: Ghi ngắn gọn: **`Theo phác đồ`** (hoặc `Phẫu thuật theo phác đồ` / `Điều trị theo phác đồ`).
@@ -2558,9 +2562,9 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 | Trường Dữ Liệu EMR | Mức Độ Chi Tiết | Quy Cách Điền Bắt Buộc | Ví Dụ Mẫu |
 | :--- | :--- | :--- | :--- |
 | **`LyDoVaoVien`** | Chi tiết | Đích danh vị trí giải phẫu + triệu chứng chính / cơ chế | *Tê bì, đau buốt và hạn chế vận động hai bàn tay (tay trái nhiều hơn tay phải)* |
-| **`QuaTrinhBenhLy`** | Chi tiết | Thời gian khởi phát, diễn biến tăng dần, hoàn cảnh đau/tê (về đêm, tì đè), xử trí trước | *Khoảng vài tháng nay, bệnh nhân xuất hiện tê bì, đau buốt hai bàn tay...* |
-| **`BenhNgoaiKhoa` / `CoXuongKhop`** | Rất chi tiết | Đầy đủ nghiệm pháp kinh điển, cơ lực, cảm giác, mạch ngoại vi | *Khám chuyên khoa Cổ - Bàn tay hai bên: Tinel (+), Phalen (+), teo nhẹ cơ mô cái...* |
-| **`TomTatBenhAn`** | Rất chi tiết | Đầy đủ hội chứng chính, định danh tổn thương, CLS hình ảnh, bệnh nền, DHST | *Bệnh nhân nữ, 39 tuổi, tiền sử khỏe mạnh... Hội chứng chèn ép TK giữa...* |
+| **`QuaTrinhBenhLy`** | Chi tiết vừa đủ | Thời gian khởi phát, diễn biến tăng dần, hoàn cảnh đau/tê theo hồ sơ gốc | *Khoảng vài tháng nay, bệnh nhân xuất hiện tê bì, đau buốt hai bàn tay...* |
+| **`BenhNgoaiKhoa` / `CoXuongKhop`** | Trung thực | Đầy đủ nghiệm pháp kinh điển ở dạng `(+/-)` nếu chưa rõ, cơ lực, cảm giác, mạch | *Khám chuyên khoa Cổ - Bàn tay hai bên: Tinel (+/-), Phalen (+/-), teo nhẹ cơ mô cái...* |
+| **`TomTatBenhAn`** | Trung thực | Đầy đủ hội chứng chính, định danh tổn thương, CLS hình ảnh, bệnh nền, DHST | *Bệnh nhân nữ, 39 tuổi, tiền sử khỏe mạnh... Hội chứng chèn ép TK giữa...* |
 | **`TienLuong`** | **Tối giản** | **Ghi duy nhất: `Dè dặt`** | **`Dè dặt`** |
 | **`HuongDieuTri`** | **Tối giản** | **Ghi duy nhất: `Theo phác đồ`** | **`Theo phác đồ`** |
 | **Bìa ra viện (Tổng kết)** | **Để trống 100%** | Khi tiếp đón vào viện (`--admission`), không điền bất kỳ ô nào | *Trống 100%* |

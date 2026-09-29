@@ -351,11 +351,15 @@ Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối so�
 ### 16.3. Chuẩn Hóa Bìa Bệnh Án Ngoại Khoa EMR: Chi Tiết Triệu Chứng — Tối Giản Tiên Lượng & Hướng Điều Trị (Lean EMR Cover Protocol)
 * **Nguyên tắc cốt lõi (Core Principle - BẮT BUỘC GHI NHỚ 100%)**:
   Bìa bệnh án Ngoại khoa EMR phải tập trung vào trọng tâm lâm sàng, tránh dài dòng rườm rà ở các phần suy diễn, tuân thủ đúng định dạng:
-  1. 🩺 **PHẦN TRIỆU CHỨNG (BẮT BUỘC CHI TIẾT & CHUẨN XÁC)**:
-     - **Lý do vào viện (`LyDoVaoVien`)**: Rõ ràng vị trí giải phẫu, cơ chế chấn thương hoặc triệu chứng nổi bật.
-     - **Quá trình bệnh lý (`QuaTrinhBenhLy`)**: Mô tả chi tiết thời gian khởi phát, diễn biến tăng dần, hoàn cảnh đau/tê (về đêm, khi tì đè, vận động), các nghiệm pháp giảm đau tự nhiên và điều trị trước đó.
-     - **Khám chuyên khoa (`BenhNgoaiKhoa`, `CoXuongKhop`, `ThanKinh`)**: Tỉ mỉ, chuẩn xác từng nghiệm pháp kinh điển (Neer, Hawkins, Jobe, Patte, Lachman, Drawer, Tinel, Phalen, Lasegue...), cơ lực, cảm giác ngọn chi, mạch ngoại vi.
-     - **Tóm tắt bệnh án (`TomTatBenhAn`)**: Trích xuất đầy đủ các hội chứng ngoại khoa chính, định danh tổn thương, kết quả CĐHA thực tế, bệnh nền và DHST.
+  1. 🩺 **PHẦN TRIỆU CHỨNG (BẮT BUỘC TRUNG THỰC VỚI HỒ SƠ GỐC & DẠNG NGHI VẤN (+/-))**:
+     - ⚠️ **QUY TẮC CỐT LÕI (GROUND-TRUTH ONLY)**: Nếu triệu chứng **KHÔNG ĐỌC ĐƯỢC trong thông tin gốc của các Bác sĩ khác** (Phiếu khám vào viện KKB, Tờ điều trị tuyến trước, Biên bản hội chẩn, Kết quả CĐHA/Điện cơ):
+       * **TUYỆT ĐỐI KHÔNG TỰ Ý THÊM THẮT HOẶC SUY DIỄN**.
+       * **TUYỆT ĐỐI KHÔNG GHI DÀI DÒNG, LAN MAN**.
+       * Các nghiệm pháp kinh điển nếu cần ghi nhận phải **BẮT BUỘC ĐỂ Ở DẠNG NGHI VẤN: `(+/-)`** (Ví dụ: **`Tinel (+/-)`**, **`Phalen (+/-)`**, **`Lasegue (+/-)`**, **`Neer (+/-)`**, **`Hawkins (+/-)`**, **`Lachman (+/-)`**, **`Bập bềnh xương bánh chè (+/-)`**). TUYỆT ĐỐI KHÔNG tự tiện khẳng định `(+)` hay `(-)` chắc nịch khi hồ sơ gốc chưa có bác sĩ khám xác nhận.
+     - **Lý do vào viện (`LyDoVaoVien`)**: Rõ ràng vị trí giải phẫu, cơ chế chấn thương hoặc triệu chứng nổi bật có trong hồ sơ gốc.
+     - **Quá trình bệnh lý (`QuaTrinhBenhLy`)**: Mô tả cô đọng, ngắn gọn theo đúng lời khai và ghi chép của bác sĩ tiếp đón ban đầu, không thêu dệt chi tiết ly kỳ.
+     - **Khám chuyên khoa (`BenhNgoaiKhoa`, `CoXuongKhop`, `ThanKinh`)**: Tỉ mỉ nhưng trung thực với hồ sơ gốc; nghiệm pháp chưa rõ để dạng `(+/-)`; cơ lực, cảm giác ngọn chi và mạch ngoại vi ghi nhận khách quan.
+     - **Tóm tắt bệnh án (`TomTatBenhAn`)**: Trích xuất ngắn gọn các hội chứng chính, định danh tổn thương, kết quả CĐHA thực tế, bệnh nền và DHST.
   2. ⚡ **PHẦN TIÊN LƯỢNG & PHƯƠNG PHÁP ĐIỀU TRỊ (BẮT BUỘC TỐI GIẢN - GỌN GÀNG)**:
      - **Tiên lượng (`TienLuong`)**: Ghi ngắn gọn duy nhất: **`Dè dặt`** (hoặc `Tiên lượng dè dặt`). Tuyệt đối không viết văn hoa giải thích dài dòng.
      - **Phương pháp điều trị / Hướng điều trị (`HuongDieuTri` / `PhuongPhapDieuTri`)**: Ghi ngắn gọn: **`Theo phác đồ`** (hoặc `Phẫu thuật theo phác đồ` / `Điều trị theo phác đồ`). Tuyệt đối không liệt kê tràn lan các bước chu phẫu dài 5-10 dòng làm bìa bệnh án bị rối mắt, mất trọng tâm.
