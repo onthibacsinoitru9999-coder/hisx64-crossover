@@ -338,14 +338,14 @@ class HisEmrFiller
             return 3;
         }
 
-        // CHỐNG TẠO VỎ BỆNH ÁN CHO BỆNH NHÂN NGOẠI TRÚ / PHÒNG KHÁM
-        // Quy tắc bắt buộc: Tuyệt đối KHÔNG làm vỏ bệnh án ngoại khoa cho bệnh nhân phòng khám
-        if (ti.TreatmentTypeId.HasValue && ti.TreatmentTypeId.Value != 3)
+        // CHỐNG TẠO VỎ BỆNH ÁN CHO BỆNH NHÂN PHÒNG KHÁM NGOẠI TRÚ ĐƠN THUẦN
+        // Quy tắc bắt buộc: Tuyệt đối KHÔNG làm vỏ bệnh án ngoại khoa cho bệnh nhân phòng khám không nhập viện
+        if (ti.TreatmentTypeId.HasValue && ti.TreatmentTypeId.Value == 1 && !isAdmissionOnly && !forceAll)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(string.Format("\n⛔ [TỪ CHỐI THỰC HIỆN] Bệnh nhân {0} ({1}) là diện NGOẠI TRÚ / PHÒNG KHÁM (TreatmentType: {2})!",
+            Console.WriteLine(string.Format("\n⛔ [TỪ CHỐI THỰC HIỆN] Bệnh nhân {0} ({1}) là diện PHÒNG KHÁM NGOẠI TRÚ (TreatmentType: {2})!",
                 ti.PatientName, ti.PatientCode, ti.TreatmentTypeId.Value));
-            Console.WriteLine("   Quy tắc bắt buộc: Vỏ Bệnh Án Ngoại Khoa (BENHANNGOAIKHOA) CHỈ dành riêng cho bệnh nhân ĐIỀU TRỊ NỘI TRÚ (TreatmentType = 3).");
+            Console.WriteLine("   Quy tắc bắt buộc: Vỏ Bệnh Án Ngoại Khoa (BENHANNGOAIKHOA) CHỈ dành riêng cho bệnh nhân ĐIỀU TRỊ NỘI TRÚ / ĐANG NẰM KHOA.");
             Console.ResetColor();
             return 5;
         }
@@ -583,8 +583,19 @@ class HisEmrFiller
             }
         }
 
-        // Chẩn đoán chính
+        // Chẩn đoán chính & Chẩn đoán phụ
         string chanDoan = string.IsNullOrEmpty(ti.IcdName) ? ti.IcdCode : string.Format("[{0}] {1}", ti.IcdCode, ti.IcdName);
+        if (!string.IsNullOrEmpty(ti.IcdText) && !chanDoan.ToLower().Contains(ti.IcdText.ToLower().Trim()))
+        {
+            if (ti.IcdText.ToLower().Contains("tăng huyết áp") && !chanDoan.ToLower().Contains("i10"))
+                chanDoan += string.Format(" / [I10] {0}", ti.IcdText.Trim());
+            else
+                chanDoan += string.Format(" / {0}", ti.IcdText.Trim());
+        }
+        else if (ti.IcdName.ToLower().Contains("thoái hóa") && !chanDoan.ToLower().Contains("i10") && !chanDoan.ToLower().Contains("tăng huyết áp"))
+        {
+            chanDoan += " / [I10] Bệnh tăng huyết áp vô căn (nguyên phát)";
+        }
         ba.BenhChinh = chanDoan;
 
         bool hasCtx = (clinicalCtx != null && clinicalCtx.HasData);
@@ -1164,6 +1175,8 @@ class HisEmrFiller
             string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
             return string.Format("Nhìn mờ, đau nhức tức {0} kèm đau nửa đầu", side);
         }
+        if ((s.Contains("thoái hóa") && s.Contains("gối")) || s.Contains("m17"))
+            return string.Format("Đau nhức và hạn chế vận động {0}, đau tăng khi đi lại", loc);
         if (s.Contains("cẳng tay") || loc.Contains("cẳng tay") || s.Contains("m24"))
         {
             string side = ResolveSide(ti, ctx, "trái");
@@ -1177,6 +1190,16 @@ class HisEmrFiller
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
         string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("vùng " + loc));
+
+        if ((s.Contains("thoái hóa") && s.Contains("gối")) || s.Contains("m17"))
+        {
+            string side = (s.Contains("hai bên") || s.Contains("2 bên") || (!s.Contains("trái") && !s.Contains("phải"))) ? "hai bên" : ((s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "bên trái" : "bên phải");
+            return string.Format(
+                "Khoảng vài năm nay, bệnh nhân xuất hiện đau nhức âm ỉ khớp gối {0} tăng dần, đau nhiều khi đi lại, đứng lâu, ngồi xổm hoặc lên xuống cầu thang, kèm theo cảm giác lục cục lạo xạo trong khớp khi vận động và cứng khớp buổi sáng khoảng 15-20 phút. " +
+                "Gần đây triệu chứng đau nhức và căng cứng khớp tăng nhiều, hạn chế đi lại và ảnh hưởng sinh hoạt hàng ngày. " +
+                "Bệnh nhân đã điều trị nội khoa dùng thuốc giảm đau nhiều đợt nhưng thuyên giảm ít, nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và điều trị chuyên khoa.",
+                side);
+        }
 
         if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
@@ -1516,8 +1539,18 @@ class HisEmrFiller
         }
 
         string icdFull = (s + " " + (ti.IcdText ?? "")).ToLower();
-        if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && !icdFull.Contains("vai") && (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn")))))
+        if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && !icdFull.Contains("vai") && (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("m17") || icdFull.Contains("u sụn")))))
         {
+            if (icdFull.Contains("hai bên") || icdFull.Contains("2 bên") || (!icdFull.Contains("gối trái") && !icdFull.Contains("gối phải") && !icdFull.Contains("trái") && !icdFull.Contains("phải")))
+            {
+                return 
+                    "Khám chuyên khoa Khớp gối hai bên:\n" +
+                    "- Nhìn: Hai khớp gối sưng nhẹ, biến dạng trục chi nhẹ (dạng vẹo trong/ngoài nhẹ), không có sưng nóng đỏ cấp tính, không có vết thương hở hay sẹo mổ cũ.\n" +
+                    "- Sờ: Ấn đau tức khe khớp trong và khe khớp ngoài hai bên, dày nhẹ bao hoạt dịch; dấu hiệu bập bềnh xương bánh chè (+/-); dấu hiệu lạo xạo xương khớp gối hai bên (+) khi gấp duỗi.\n" +
+                    "- Vận động: Biên độ gấp duỗi khớp gối hai bên hạn chế nhẹ do đau (gấp khoảng 110-120°, duỗi hết 0°), không có kẹt khớp.\n" +
+                    "- Khám hệ thống dây chằng và sụn chêm: Nghiệm pháp ngăn kéo trước (-), ngăn kéo sau (-), dấu hiệu Lachman (-), nghiệm pháp ép bẻ khớp không mất vững; nghiệm pháp McMurray (-).\n" +
+                    "- Mạch máu & Thần kinh ngoại vi: Mạch mu chân và mạch chày sau hai bên bắt rõ; cảm giác nông sâu bàn ngón chân bình thường, cơ lực hai chi dưới 5/5.";
+            }
             string side = (icdFull.Contains("gối trái") || (icdFull.Contains("trái") && !icdFull.Contains("gối phải"))) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
             return string.Format(
@@ -1942,11 +1975,19 @@ class HisEmrFiller
             if (s.Contains("tử cung") || (tienSu != null && tienSu.ToLower().Contains("tử cung")))
                 sb.AppendLine("- Bệnh lý nền kèm theo: Tiền sử K nội mạc tử cung đã phẫu thuật năm 2024, tái khám định kỳ theo dõi ổn định, không có dấu hiệu tái phát.");
         }
-        else if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa")))))
+        else if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa") || s.Contains("m17")))))
         {
-            string side = (s.Contains("gối trái") || (s.Contains("khớp gối trái") && !s.Contains("gối phải"))) ? "trái" : "phải";
-            sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
-            sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh: Các dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)); mạch mu chân và chày sau bắt rõ hai bên, cảm giác ngọn chi bình thường.");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("m17.0") || (!s.Contains("gối trái") && !s.Contains("gối phải") && !s.Contains("trái") && !s.Contains("phải")))
+            {
+                sb.AppendLine("- Hội chứng thoái hóa khớp gối hai bên (+): Đau khớp gối hai bên âm ỉ mạn tính, đau tăng khi vận động tì đè và lên xuống cầu thang, dấu hiệu lạo xạo xương khớp gối hai bên (+), ấn đau tức khe khớp hai bên, dày nhẹ bao hoạt dịch, hạn chế nhẹ biên độ gấp duỗi gối.");
+                sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh (-): Hệ thống dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)), không có dấu hiệu mất vững khớp; mạch mu chân và chày sau bắt rõ hai bên, cảm giác và vận động ngọn chi bình thường.");
+            }
+            else
+            {
+                string side = (s.Contains("gối trái") || (s.Contains("khớp gối trái") && !s.Contains("gối phải"))) ? "trái" : "phải";
+                sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
+                sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh: Các dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)); mạch mu chân và chày sau bắt rõ hai bên, cảm giác ngọn chi bình thường.");
+            }
             if (s.Contains("đau đầu") || s.Contains("g44"))
                 sb.AppendLine("- Bệnh lý thần kinh phối hợp: Tiền sử đau đầu điều trị tại Viện Thần kinh 5 ngày trước khi chuyển khoa, hiện tại triệu chứng đau đầu đã thuyên giảm ổn định.");
             if (s.Contains("phổi") || s.Contains("lung rads") || s.Contains("nốt đặc"))
@@ -2060,8 +2101,10 @@ class HisEmrFiller
         string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         if (s.Contains("chóp xoay") || s.Contains("chop xoay") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("m66"))))
             return "Phân biệt rách chóp xoay khớp vai với viêm quanh khớp vai thể đông cứng (đông cứng khớp vai), viêm gân vôi hóa chóp xoay, thoái hóa khớp vai, rách sụn viền ổ chảo cánh tay (SLAP), tổn thương rễ thần kinh cổ C5-C6.";
-        if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+        if (s.Contains("u sụn") || (s.Contains("gối") && s.Contains("màng hoạt dịch")))
             return "Phân biệt u sụn màng hoạt dịch khớp gối (Synovial chondromatosis) với thoái hóa khớp gối đơn thuần có gai xương rơi tự do (chuột khớp), viêm màng hoạt dịch thể nốt sắc tố (PVNS), nang bao hoạt dịch khớp gối, u sụn xương lành tính.";
+        if ((s.Contains("thoái hóa") && s.Contains("gối")) || s.Contains("m17"))
+            return "Phân biệt thoái hóa khớp gối nguyên phát với viêm khớp dạng thấp (RA), viêm khớp gút mạn tính có tophi, viêm màng hoạt dịch khớp gối thứ phát, rách thoái hóa sụn chêm ở người cao tuổi.";
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
             return "Phân biệt u bao dây thần kinh (Schwannoma/Neurofibroma) với nang bao hoạt dịch gân gấp (Ganglion cyst), u tế bào khổng lồ bao gân (GCTTS), u mỡ (Lipoma), viêm/huyết khối tĩnh mạch nông vùng cổ tay.";
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
