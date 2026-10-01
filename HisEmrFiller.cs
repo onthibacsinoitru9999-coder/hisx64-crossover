@@ -403,7 +403,7 @@ class HisEmrFiller
         PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary, forceAll, clinicalCtx, customSummary, isAdmissionOnly);
 
         // Đảm bảo Trang bìa THONGTINDIEUTRI
-        EnsureThongTinDieuTri(con, ti, !dryRun);
+        EnsureThongTinDieuTri(con, ti, !dryRun, isAdmissionOnly);
 
         // Hiển thị xem trước
         PrintPreview(ba, ti);
@@ -567,7 +567,12 @@ class HisEmrFiller
         ba.TenBacSyKhamBenh  = docName;
 
         // Thời gian khám bệnh & số ngày vào
-        if (!string.IsNullOrEmpty(ti.InTime))
+        if (isAdmissionOnly)
+        {
+            ba.NgayKhamBenh = DateTime.Now;
+            ba.VaoNgayThu = 1;
+        }
+        else if (!string.IsNullOrEmpty(ti.InTime))
         {
             DateTime dt;
             if (DateTime.TryParseExact(ti.InTime, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
@@ -626,11 +631,17 @@ class HisEmrFiller
             {
                 ba.TienSuBenhBanThan = "Tiền sử tai biến mạch máu não cũ (di chứng đột quỵ đã ổn định). Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.";
             }
-            else if (!string.IsNullOrEmpty(ti.IcdText) && (ti.IcdText.ToLower().Contains("đái tháo đường") || ti.IcdText.ToLower().Contains("xơ gan") || ti.IcdText.ToLower().Contains("tăng huyết áp") || ti.IcdText.ToLower().Contains("viêm gan") || ti.IcdText.ToLower().Contains("tim mạch") || ti.IcdText.ToLower().Contains("dạ dày") || ti.IcdText.ToLower().Contains("đau đầu") || ti.IcdText.ToLower().Contains("viễn thị")))
+            else if (allIcd.Contains("đái tháo đường") || allIcd.Contains("tăng huyết áp") || allIcd.Contains("tiền đình") || allIcd.Contains("rltd") || allIcd.Contains("loãng xương") || allIcd.Contains("xơ gan") || allIcd.Contains("viêm gan") || allIcd.Contains("tim mạch") || allIcd.Contains("dạ dày") || allIcd.Contains("đau đầu") || allIcd.Contains("viễn thị"))
             {
-                string cleanIcdText = ti.IcdText.Trim().Replace(";", "; ");
-                while (cleanIcdText.Contains(";  ")) cleanIcdText = cleanIcdText.Replace(";  ", "; ");
-                ba.TienSuBenhBanThan = string.Format("Bệnh lý nội khoa ghi nhận: {0}. Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.", cleanIcdText);
+                List<string> benhNen = new List<string>();
+                if (allIcd.Contains("tăng huyết áp")) benhNen.Add("Tăng huyết áp");
+                if (allIcd.Contains("tiền đình") || allIcd.Contains("rltd")) benhNen.Add("Rối loạn tiền đình");
+                if (allIcd.Contains("loãng xương")) benhNen.Add("Loãng xương");
+                if (allIcd.Contains("đái tháo đường")) benhNen.Add("Đái tháo đường");
+                if (allIcd.Contains("tim mạch")) benhNen.Add("Bệnh tim mạch");
+                if (allIcd.Contains("dạ dày")) benhNen.Add("Viêm dạ dày");
+                string bnStr = benhNen.Count > 0 ? string.Join(", ", benhNen) : (!string.IsNullOrEmpty(ti.IcdText) ? ti.IcdText.Trim().Replace(";", ", ") : "Bệnh lý nội khoa mạn tính");
+                ba.TienSuBenhBanThan = string.Format("Tiền sử bệnh lý: {0}. Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.", bnStr);
             }
             else if (ti.IcdName.ToLower().Contains("dị ứng") || ti.IcdName.ToLower().Contains("đã mổ"))
             {
@@ -1129,7 +1140,10 @@ class HisEmrFiller
         if (s.Contains("gãy") || s.Contains("gay"))
             return string.Format("Đau chói, sưng nề, biến dạng, hạn chế vận động {0} sau chấn thương", loc);
         if (s.Contains("acl") || s.Contains("chằng") || s.Contains("chang"))
-            return string.Format("Đau, lỏng khớp {0}, hạn chế đi lại sau chấn thương", loc);
+        {
+            viTriLoc = loc.StartsWith("khớp ") ? loc.Substring(5).Trim() : loc;
+            return string.Format("Đau, lỏng khớp {0}, hạn chế đi lại sau chấn thương", viTriLoc);
+        }
         if (s.Contains("xẹp") || s.Contains("xep") || s.Contains("đốt sống") || s.Contains("dot song"))
             return string.Format("Đau cột sống thắt lưng cấp tính, hạn chế vận động cúi ngửa sau ngã/vận động sai tư thế");
         if (s.Contains("đuôi ngựa") || s.Contains("cauda"))
@@ -1470,7 +1484,7 @@ class HisEmrFiller
         }
 
         string icdFull = (s + " " + (ti.IcdText ?? "")).ToLower();
-        if (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn"))))
+        if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn")))))
         {
             string side = (icdFull.Contains("gối trái") || (icdFull.Contains("trái") && !icdFull.Contains("gối phải"))) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
@@ -1534,13 +1548,15 @@ class HisEmrFiller
 
         if (s.Contains("acl") || s.Contains("chằng"))
         {
+            string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t") || loc.Contains("trái")) ? "khớp gối trái" : ((s.Contains("phải") || s.Contains(" p ") || s.EndsWith(" p") || loc.Contains("phải")) ? "khớp gối phải" : ("khớp " + loc));
             return string.Format(
-                "Khám chuyên khoa khớp {0}:\n" +
-                "- Sưng nề nhẹ, không biến dạng, không tràn dịch lớn.\n" +
-                "- Nghiệm pháp Ngăn kéo trước (+), Lachman (+), Pivot shift (+).\n" +
-                "- Khe khớp không đau chói, nghiệm pháp McMurray (-).\n" +
-                "- Vận động gấp duỗi hạn chế nhẹ do đau. Mạch ngoại vi bắt rõ, cảm giác bình thường.",
-                loc);
+                "Khám chuyên khoa {0}:\n" +
+                "- Sưng nề nhẹ, không biến dạng, không tràn dịch lớn, dấu hiệu bập bềnh xương bánh chè (+/-).\n" +
+                "- Khám hệ thống dây chằng & sụn chêm: Nghiệm pháp Ngăn kéo trước (+/-), Lachman (+/-), Pivot shift (+/-).\n" +
+                "- Khe khớp trong và ngoài ấn đau tức nhẹ, nghiệm pháp McMurray (+/-).\n" +
+                "- Vận động: Gấp duỗi hạn chế nhẹ do đau, có cảm giác lỏng khớp khi chịu lực.\n" +
+                "- Thần kinh & mạch máu: Mạch mu chân và mạch chày sau bắt rõ, cảm giác và vận động bàn ngón chân bình thường.",
+                side);
         }
 
         if (s.Contains("xẹp") || s.Contains("đốt sống"))
@@ -1883,7 +1899,7 @@ class HisEmrFiller
             if (s.Contains("tử cung") || (tienSu != null && tienSu.ToLower().Contains("tử cung")))
                 sb.AppendLine("- Bệnh lý nền kèm theo: Tiền sử K nội mạc tử cung đã phẫu thuật năm 2024, tái khám định kỳ theo dõi ổn định, không có dấu hiệu tái phát.");
         }
-        else if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+        else if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa")))))
         {
             string side = (s.Contains("gối trái") || (s.Contains("khớp gối trái") && !s.Contains("gối phải"))) ? "trái" : "phải";
             sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
@@ -1901,7 +1917,8 @@ class HisEmrFiller
         }
         else if (s.Contains("acl") || s.Contains("chằng") || s.Contains("lỏng khớp"))
         {
-            sb.AppendLine(string.Format("- Hội chứng mất vững khớp {0}: Nghiệm pháp Lachman (+), Ngăn kéo trước (+), Pivot shift (+), sưng nề nhẹ khớp gối, đau khi đổi hướng vận động.", loc));
+            string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t") || loc.Contains("trái")) ? "khớp gối trái" : ((s.Contains("phải") || s.Contains(" p ") || s.EndsWith(" p") || loc.Contains("phải")) ? "khớp gối phải" : ("khớp " + loc));
+            sb.AppendLine(string.Format("- Hội chứng mất vững khớp {0}: Nghiệm pháp Lachman (+/-), Ngăn kéo trước (+/-), Pivot shift (+/-), sưng nề nhẹ khớp gối, đau và lỏng khớp khi đổi hướng vận động.", side));
             sb.AppendLine("- Mạch ngoại vi bắt rõ, cảm giác ngọn chi bình thường, không có dấu hiệu chèn ép mạch máu thần kinh.");
         }
         else if (s.Contains("vết thương") || s.Contains("vet thuong"))
@@ -2292,13 +2309,15 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // THÔNG TIN ĐIỀU TRỊ (TRANG BÌA EMR)
     // ──────────────────────────────────────────────────────────────
-    static bool EnsureThongTinDieuTri(dynamic con, TreatmentInfo ti, bool isSave)
+    static bool EnsureThongTinDieuTri(dynamic con, TreatmentInfo ti, bool isSave, bool isAdmissionOnly = false)
     {
         try
         {
             LoadEmrAssemblies();
             var ttdtFuncType = _emrMainLib.GetType("EMR_MAIN.ThongTinDieuTriFunc");
+            var ttdtType = _emrMainLib.GetType("EMR_MAIN.ThongTinDieuTri");
             var checkMethod = ttdtFuncType.GetMethod("checkExistThongTinDieuTri", new Type[] { _mdbConnType, typeof(decimal) });
+            var insertMethod = ttdtFuncType.GetMethod("InsertOrUpdateThongTinDieuTri", new Type[] { _mdbConnType, ttdtType });
             
             bool exists = (bool)checkMethod.Invoke(null, new object[] { con, ti.MaQuanLy });
             if (!exists && (decimal)ti.TreatmentId != ti.MaQuanLy)
@@ -2309,6 +2328,28 @@ class HisEmrFiller
             if (exists)
             {
                 Console.WriteLine("✓ Trang bìa THONGTINDIEUTRI: ĐÃ CÓ TRÊN HỆ THỐNG.");
+                if (isSave && isAdmissionOnly)
+                {
+                    try
+                    {
+                        var getMethod = ttdtFuncType.GetMethod("GetThongTinDieuTri", new Type[] { _mdbConnType, typeof(decimal) });
+                        if (getMethod != null)
+                        {
+                            dynamic curTtdt = getMethod.Invoke(null, new object[] { con, ti.MaQuanLy });
+                            if (curTtdt == null && (decimal)ti.TreatmentId != ti.MaQuanLy)
+                                curTtdt = getMethod.Invoke(null, new object[] { con, (decimal)ti.TreatmentId });
+                            if (curTtdt != null)
+                            {
+                                curTtdt.NgayVaoVien = DateTime.Now;
+                                curTtdt.NgayVaoKhoa = DateTime.Now;
+                                curTtdt.NgayThangNamTrangBia = DateTime.Now;
+                                insertMethod.Invoke(null, new object[] { con, curTtdt });
+                                Console.WriteLine("  ✓ Đã cập nhật NgayVaoVien = Hôm nay ({0}) chuẩn hồ sơ tiếp đón!", DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
+                            }
+                        }
+                    }
+                    catch { }
+                }
                 return true;
             }
 
@@ -2318,7 +2359,6 @@ class HisEmrFiller
 
             if (!isSave) return true;
 
-            var ttdtType = _emrMainLib.GetType("EMR_MAIN.ThongTinDieuTri");
             dynamic ttdt = Activator.CreateInstance(ttdtType);
             ttdt.MaQuanLy = ti.MaQuanLy;
             ttdt.MaBenhNhan = ti.PatientCode;
@@ -2332,7 +2372,13 @@ class HisEmrFiller
             ttdt.MaICD_KKB_CapCuu = ti.IcdCode;
             ttdt.VaoVienDoBenhNayLanThu = 1;
 
-            if (!string.IsNullOrEmpty(ti.InTime))
+            if (isAdmissionOnly)
+            {
+                ttdt.NgayVaoVien = DateTime.Now;
+                ttdt.NgayVaoKhoa = DateTime.Now;
+                ttdt.NgayThangNamTrangBia = DateTime.Now;
+            }
+            else if (!string.IsNullOrEmpty(ti.InTime))
             {
                 DateTime dt;
                 if (DateTime.TryParseExact(ti.InTime, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
@@ -2343,7 +2389,6 @@ class HisEmrFiller
                 }
             }
 
-            var insertMethod = ttdtFuncType.GetMethod("InsertOrUpdateThongTinDieuTri", new Type[] { _mdbConnType, ttdtType });
             object res = insertMethod.Invoke(null, new object[] { con, ttdt });
             bool ok = (res is bool) ? (bool)res : true;
 
