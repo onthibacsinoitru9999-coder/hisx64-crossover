@@ -763,15 +763,8 @@ class HisEmrFiller
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.PhanBiet)) || ShouldOverwrite(SafeStr(ba.PhanBiet), forceAll, ti))
             ba.PhanBiet = (!string.IsNullOrWhiteSpace(tmpl.PhanBiet) && !tmpl.PhanBiet.Contains("dây chằng") && tmpl.PhanBiet.Trim().Length > 60 && IsTemplateCompatible(tmpl, ti)) ? tmpl.PhanBiet : BuildPhanBiet(ti);
 
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienLuong) && ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
-            ba.TienLuong = clinicalCtx.TienLuong;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienLuong)) || ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
-            ba.TienLuong = "Dè dặt";
-
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTri) && ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = clinicalCtx.HuongDieuTri;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)) || ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = BuildHuongDieuTri(ti);
+        ba.TienLuong = "Dè dặt";
+        ba.HuongDieuTri = "Theo phác đồ";
 
         // Gán DauSinhTon
         try
