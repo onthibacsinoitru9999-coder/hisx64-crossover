@@ -707,15 +707,23 @@ class HisEmrFiller
         {
             if (ti.IcdName.ToLower().Contains("ống cổ tay") || ti.IcdName.ToLower().Contains("g56"))
             {
-                string sIcd = ti.IcdName.ToLower();
-                if (sIcd.Contains("hai bên") || sIcd.Contains("2 bên") || sIcd.Contains("trái > phải") || sIcd.Contains("t > p"))
+                string sIcd = ((ti.IcdName ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+                bool isRightHeavy = sIcd.Contains("phải mức độ nặng") || sIcd.Contains("phải nặng") || sIcd.Contains("p > t") || sIcd.Contains("phải > trái");
+                if (sIcd.Contains("hai bên") || sIcd.Contains("2 bên") || sIcd.Contains("trái > phải") || sIcd.Contains("t > p") || isRightHeavy)
                 {
-                    ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+), Phalen (+) hai bên cổ tay (bên trái rõ hơn bên phải), giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay (tay trái giảm nhiều hơn). Cơ lực đối chiếu ngón cái tay trái 4/5, tay phải 4+/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+                    if (isRightHeavy)
+                    {
+                        ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+/-), Phalen (+/-) hai bên cổ tay (bên phải rõ hơn bên trái), giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay (tay phải giảm nhiều hơn). Cơ lực đối chiếu ngón cái tay phải 4/5, tay trái 4+/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+                    }
+                    else
+                    {
+                        ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+/-), Phalen (+/-) hai bên cổ tay (bên trái rõ hơn bên phải), giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay (tay trái giảm nhiều hơn). Cơ lực đối chiếu ngón cái tay trái 4/5, tay phải 4+/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+                    }
                 }
                 else
                 {
                     string side = (sIcd.Contains("trái") || sIcd.Contains(" t ") || sIcd.EndsWith(" t")) ? "trái" : "phải";
-                    ba.ThanKinh = string.Format("Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+), Phalen (+) cổ tay {0}, giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay {0}. Cơ lực đối chiếu ngón cái {0} 4/5. Không liệt thần kinh sọ não, hội chứng màng não (-).", side);
+                    ba.ThanKinh = string.Format("Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+/-), Phalen (+/-) cổ tay {0}, giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay {0}. Cơ lực đối chiếu ngón cái {0} 4/5. Không liệt thần kinh sọ não, hội chứng màng não (-).", side);
                 }
             }
             else if (ti.IcdName.ToLower().Contains("tai biến") || (ti.IcdText != null && ti.IcdText.ToLower().Contains("đột quỵ")))
@@ -1366,7 +1374,7 @@ class HisEmrFiller
 
     static string BuildCoXuongKhop(TreatmentInfo ti, TemplateBA tmpl)
     {
-        string s = ti.IcdName.ToLower();
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         string loc = ExtractLocation(ti.IcdName);
 
         if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
@@ -1388,7 +1396,7 @@ class HisEmrFiller
                 "Khám chuyên khoa Cổ - Bàn tay {0}:\n" +
                 "- Nhìn: Vùng mặt trước cổ tay {0} có khối gồ nhẹ dưới da theo đường đi của dây thần kinh giữa, da phủ trên khối bình thường, không sưng nóng đỏ, không có sẹo mổ cũ.\n" +
                 "- Sờ: Sờ thấy khối kích thước khoảng 1-2 cm, mật độ chắc, ranh giới rõ ràng, ấn đau tức nhẹ tại chỗ. Khối di động theo phương ngang (vuông góc trục dây thần kinh) tốt hơn theo phương dọc.\n" +
-                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u gây cảm giác tê buốt châm chích lan dọc theo diện chi phối dây thần kinh giữa (ngón 1, 2, 3 và nửa ngoài ngón 4). Nghiệm pháp Phalen (+/-).\n" +
+                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+/-) trực tiếp tại vị trí khối u gây cảm giác tê buốt châm chích lan dọc theo diện chi phối dây thần kinh giữa (ngón 1, 2, 3 và nửa ngoài ngón 4). Nghiệm pháp Phalen (+/-).\n" +
                 "- Vận động & Dinh dưỡng: Cơ mô cái chưa teo rõ, cơ lực đối chiếu ngón cái 5/5, biên độ vận động khớp cổ tay và các ngón tay trong giới hạn bình thường.\n" +
                 "- Mạch máu & Dinh dưỡng ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.",
                 side);
@@ -1396,26 +1404,39 @@ class HisEmrFiller
 
         if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
         {
-            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
+            bool isRightHeavy = s.Contains("phải mức độ nặng") || s.Contains("phải nặng") || s.Contains("p > t") || s.Contains("phải > trái");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p") || isRightHeavy)
             {
-                return 
-                    "Khám chuyên khoa Cổ - Bàn tay hai bên:\n" +
-                    "- Cổ tay và bàn tay trái: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Dấu hiệu Tinel (+) rõ tại ống cổ tay trái, nghiệm pháp Phalen (+) xuất hiện sớm (< 30s) gây tê bì buốt ngón 1, 2, 3 và nửa ngoài ngón 4. Giảm cảm giác nông ngón 1, 2, 3 gan tay. Cơ lực đối chiếu ngón cái 4/5, hạn chế cầm nắm tinh tế.\n" +
-                    "- Cổ tay và bàn tay phải: Cơ mô cái chưa teo rõ, dấu hiệu Tinel (+) nhẹ tại ống cổ tay phải, nghiệm pháp Phalen (+), tê bì ngón 1, 2, 3 mức độ nhẹ hơn bên trái. Cơ lực đối chiếu ngón cái 4+/5.\n" +
-                    "- Khám chung hai bên: Khớp cổ tay và các khớp bàn ngón hai bên không sưng nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
-                    "- Thần kinh mạch máu ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
+                if (isRightHeavy)
+                {
+                    return 
+                        "Khám chuyên khoa Cổ - Bàn tay hai bên:\n" +
+                        "- Cổ tay và bàn tay phải: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Dấu hiệu Tinel (+/-) rõ tại ống cổ tay phải, nghiệm pháp Phalen (+/-) xuất hiện sớm (< 30s) gây tê bì buốt ngón 1, 2, 3 và nửa ngoài ngón 4. Giảm cảm giác nông ngón 1, 2, 3 gan tay. Cơ lực đối chiếu ngón cái 4/5, hạn chế cầm nắm tinh tế.\n" +
+                        "- Cổ tay và bàn tay trái: Cơ mô cái chưa teo rõ, dấu hiệu Tinel (+/-) nhẹ tại ống cổ tay trái, nghiệm pháp Phalen (+/-), tê bì ngón 1, 2, 3 mức độ trung bình (nhẹ hơn bên phải). Cơ lực đối chiếu ngón cái 4+/5.\n" +
+                        "- Khám chung hai bên: Khớp cổ tay và các khớp bàn ngón hai bên không sưng nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
+                        "- Thần kinh mạch máu ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
+                }
+                else
+                {
+                    return 
+                        "Khám chuyên khoa Cổ - Bàn tay hai bên:\n" +
+                        "- Cổ tay và bàn tay trái: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Dấu hiệu Tinel (+/-) rõ tại ống cổ tay trái, nghiệm pháp Phalen (+/-) xuất hiện sớm (< 30s) gây tê bì buốt ngón 1, 2, 3 và nửa ngoài ngón 4. Giảm cảm giác nông ngón 1, 2, 3 gan tay. Cơ lực đối chiếu ngón cái 4/5, hạn chế cầm nắm tinh tế.\n" +
+                        "- Cổ tay và bàn tay phải: Cơ mô cái chưa teo rõ, dấu hiệu Tinel (+/-) nhẹ tại ống cổ tay phải, nghiệm pháp Phalen (+/-), tê bì ngón 1, 2, 3 mức độ nhẹ hơn bên trái. Cơ lực đối chiếu ngón cái 4+/5.\n" +
+                        "- Khám chung hai bên: Khớp cổ tay và các khớp bàn ngón hai bên không sưng nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
+                        "- Thần kinh mạch máu ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
+                }
             }
 
             string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
             string otherSideNote = (s.Contains("đã mổ") || s.Contains("da mo")) ? 
                 string.Format("- Cổ tay {0}: Sẹo mổ cũ khô liền tốt, không sưng đau, không rối loạn cảm giác.\n", otherSide) :
-                string.Format("- Cổ tay {0}: Không sưng nóng đỏ, không teo cơ, dấu hiệu Tinel (-), Phalen (-).\n", otherSide);
+                string.Format("- Cổ tay {0}: Không sưng nóng đỏ, không teo cơ, dấu hiệu Tinel (+/-), Phalen (+/-).\n", otherSide);
 
             return string.Format(
                 "Khám chuyên khoa Bàn - Cổ tay:\n" +
                 "- Cổ tay và bàn tay {0}: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Không sưng nóng đỏ khớp.\n" +
-                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) tại ống cổ tay {0}, nghiệm pháp Phalen (+) gây tê bì tăng rõ vùng ngón 1, 2, 3.\n" +
+                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+/-) tại ống cổ tay {0}, nghiệm pháp Phalen (+/-) gây tê bì tăng rõ vùng ngón 1, 2, 3.\n" +
                 "- Rối loạn cảm giác: Giảm cảm giác nông ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay theo diện chi phối của dây thần kinh giữa.\n" +
                 "- Vận động: Cơ lực đối chiếu ngón cái giảm nhẹ (4/5), các động tác cầm nắm tinh tế bị hạn chế.\n" +
                 "{1}" +
@@ -1758,16 +1779,26 @@ class HisEmrFiller
         }
         else if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
         {
-            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
+            bool isRightHeavy = s.Contains("phải mức độ nặng") || s.Contains("phải nặng") || s.Contains("p > t") || s.Contains("phải > trái");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p") || isRightHeavy)
             {
-                sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay trái nặng hơn tay phải): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay trái tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay trái; dấu hiệu Tinel (+) hai bên cổ tay, nghiệm pháp Phalen (+) hai bên (bên trái dương tính sớm); giảm cơ lực đối chiếu ngón cái tay trái (4/5), tay phải (4+/5).");
-                sb.AppendLine("- Thăm dò chức năng: Đã ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác của dây thần kinh ngoại biên chi trên ghi nhận tổn thương dẫn truyền sợi cảm giác và vận động dây thần kinh giữa đoạn qua ống cổ tay hai bên.");
-                sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+                if (isRightHeavy)
+                {
+                    sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay phải mức độ nặng, tay trái mức độ trung bình): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay phải tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay phải; dấu hiệu Tinel (+/-) hai bên cổ tay, nghiệm pháp Phalen (+/-) hai bên; giảm cơ lực đối chiếu ngón cái tay phải (4/5), tay trái (4+/5).");
+                    sb.AppendLine("- Thăm dò chức năng: Đã ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác của dây thần kinh ngoại biên chi trên ghi nhận tổn thương dẫn truyền sợi cảm giác và vận động dây thần kinh giữa đoạn qua ống cổ tay hai bên (tay phải nặng hơn tay trái).");
+                    sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+                }
+                else
+                {
+                    sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay trái nặng hơn tay phải): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay trái tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay trái; dấu hiệu Tinel (+/-) hai bên cổ tay, nghiệm pháp Phalen (+/-) hai bên (bên trái dương tính sớm); giảm cơ lực đối chiếu ngón cái tay trái (4/5), tay phải (4+/5).");
+                    sb.AppendLine("- Thăm dò chức năng: Đã ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác của dây thần kinh ngoại biên chi trên ghi nhận tổn thương dẫn truyền sợi cảm giác và vận động dây thần kinh giữa đoạn qua ống cổ tay hai bên.");
+                    sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+                }
             }
             else
             {
                 string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "trái" : "phải";
-                sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay {0}: Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay tăng nhiều về đêm; teo nhẹ cơ mô cái; Tinel (+), Phalen (+); giảm cơ lực đối chiếu ngón cái (4/5).", side));
+                sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay {0}: Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay tăng nhiều về đêm; teo nhẹ cơ mô cái; Tinel (+/-), Phalen (+/-); giảm cơ lực đối chiếu ngón cái (4/5).", side));
                 if (s.Contains("đã mổ") || s.Contains("da mo"))
                     sb.AppendLine("- Sẹo mổ cũ hội chứng ống cổ tay bên đối diện khô liền tốt, không sưng đau.");
                 if (s.Contains("dị ứng") || s.Contains("di ung"))
@@ -2034,8 +2065,13 @@ class HisEmrFiller
         {
             if (s.Contains("dị ứng") || s.Contains("di ung"))
                 return "Phẫu thuật giải phóng dây thần kinh giữa ống cổ tay (cắt mạc giữ gân gấp). Kiểm soát giảm đau chu phẫu tránh các thuốc dị ứng (chống chỉ định dùng Paracetamol và nhóm kháng sinh dị ứng).";
-            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
+            bool isRightHeavy = s.Contains("phải mức độ nặng") || s.Contains("phải nặng") || s.Contains("p > t") || s.Contains("phải > trái");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p") || isRightHeavy)
+            {
+                if (isRightHeavy)
+                    return "Chỉ định phẫu thuật giải phóng chèn ép dây thần kinh giữa ống cổ tay bên phải trước (cắt mở mạc giữ gân gấp), theo dõi và đánh giá can thiệp thì hai bên trái; Điều trị nội khoa chu phẫu: Thuốc giảm đau thần kinh (Pregabalin/Lyrica 75mg), bổ sung vitamin nhóm B, giảm phù nề; Hướng dẫn tập phục hồi chức năng vận động bàn ngón tay sớm sau mổ.";
                 return "Chỉ định phẫu thuật giải phóng chèn ép dây thần kinh giữa ống cổ tay bên trái trước (cắt mở mạc giữ gân gấp), theo dõi và đánh giá can thiệp thì hai bên phải; Điều trị nội khoa chu phẫu: Thuốc giảm đau thần kinh (Pregabalin/Lyrica 75mg), bổ sung vitamin nhóm B, giảm phù nề; Hướng dẫn tập phục hồi chức năng vận động bàn ngón tay sớm sau mổ.";
+            }
             return "Chỉ định phẫu thuật giải phóng chèn ép dây thần kinh giữa ống cổ tay (cắt mở mạc giữ gân gấp). Điều trị nội khoa chu phẫu: Kháng sinh dự phòng, thuốc giảm đau thần kinh, chống phù nề, bổ sung vitamin nhóm B; Hướng dẫn tập vận động bàn ngón tay sớm sau mổ.";
         }
         if (s.Contains("vết thương") || s.Contains("vet thuong"))
