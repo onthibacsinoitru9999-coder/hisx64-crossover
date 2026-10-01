@@ -626,7 +626,7 @@ class HisEmrFiller
             {
                 ba.TienSuBenhBanThan = "Tiền sử tai biến mạch máu não cũ (di chứng đột quỵ đã ổn định). Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.";
             }
-            else if (!string.IsNullOrEmpty(ti.IcdText) && (ti.IcdText.ToLower().Contains("đái tháo đường") || ti.IcdText.ToLower().Contains("xơ gan") || ti.IcdText.ToLower().Contains("tăng huyết áp") || ti.IcdText.ToLower().Contains("viêm gan") || ti.IcdText.ToLower().Contains("tim mạch")))
+            else if (!string.IsNullOrEmpty(ti.IcdText) && (ti.IcdText.ToLower().Contains("đái tháo đường") || ti.IcdText.ToLower().Contains("xơ gan") || ti.IcdText.ToLower().Contains("tăng huyết áp") || ti.IcdText.ToLower().Contains("viêm gan") || ti.IcdText.ToLower().Contains("tim mạch") || ti.IcdText.ToLower().Contains("dạ dày") || ti.IcdText.ToLower().Contains("đau đầu") || ti.IcdText.ToLower().Contains("viễn thị")))
             {
                 string cleanIcdText = ti.IcdText.Trim().Replace(";", "; ");
                 while (cleanIcdText.Contains(";  ")) cleanIcdText = cleanIcdText.Replace(";  ", "; ");
@@ -771,7 +771,7 @@ class HisEmrFiller
         if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTri) && ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
             ba.HuongDieuTri = clinicalCtx.HuongDieuTri;
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)) || ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = "Theo phác đồ";
+            ba.HuongDieuTri = BuildHuongDieuTri(ti);
 
         // Gán DauSinhTon
         try
@@ -848,10 +848,16 @@ class HisEmrFiller
                 ba.HuongDieuTriVaCacCheDoTiepTheo = BuildHuongDieuTriTiepTheo(ti);
 
             // Bác sĩ điều trị & Ngày tổng kết & Lời dặn
+            string icdLow = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
             ba.BacSyDieuTri = docCode;
             ba.TenBacSyDieuTri = docName;
             if (string.IsNullOrWhiteSpace(SafeStr(ba.LoiDanBacSi)) || forceAll || forceSummary)
-                ba.LoiDanBacSi = "Uống thuốc đúng liều lượng và thời gian theo đơn thuốc ra viện; giữ vệ sinh vết mổ khô sạch, thay băng định kỳ; tập phục hồi chức năng nhẹ nhàng; tái khám định kỳ sau 1 tháng hoặc ngay khi có dấu hiệu bất thường.";
+            {
+                if (icdLow.Contains("glôcôm") || icdLow.Contains("glocom") || icdLow.Contains("glaucoma") || icdLow.Contains("h40") || icdLow.Contains("mắt"))
+                    ba.LoiDanBacSi = "Tra thuốc nhỏ mắt đúng giờ, đúng liều lượng theo đơn ra viện; tuyệt đối không tự ý ngừng thuốc hạ nhãn áp; giữ gìn vệ sinh mắt và tái khám định kỳ theo hẹn.";
+                else
+                    ba.LoiDanBacSi = "Uống thuốc đúng liều lượng và thời gian theo đơn thuốc ra viện; giữ vệ sinh vết mổ khô sạch, thay băng định kỳ; tập phục hồi chức năng nhẹ nhàng; tái khám định kỳ sau 1 tháng hoặc ngay khi có dấu hiệu bất thường.";
+            }
 
             try
             {
@@ -862,8 +868,8 @@ class HisEmrFiller
 
         // Cờ Phẫu thuật / Thủ thuật
         string allClinicalText = (clinicalCtx != null ? string.Join("\n", clinicalCtx.RawTrackingContents.Concat(clinicalCtx.DebateSummaries)) : "").ToLower();
-        string icdLow = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
-        if (allClinicalText.Contains("hậu phẫu") || allClinicalText.Contains("sau mổ") || allClinicalText.Contains("phẫu thuật") || icdLow.Contains("sau mổ") || icdLow.Contains("sau phẫu thuật"))
+        string icdCheck = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        if (allClinicalText.Contains("hậu phẫu") || allClinicalText.Contains("sau mổ") || allClinicalText.Contains("phẫu thuật") || icdCheck.Contains("sau mổ") || icdCheck.Contains("sau phẫu thuật"))
         {
             try { ba.PhauThuat = true; } catch { }
         }
@@ -926,6 +932,12 @@ class HisEmrFiller
 
             sb.AppendLine(string.Format("- Bệnh nhân được hoàn thiện các xét nghiệm, hội chẩn thông qua mổ và {0}.", ptTen));
             sb.AppendLine("- Diễn biến hậu phẫu: Toàn trạng ổn định, vết mổ khô sạch, không sưng đỏ nề, không chảy dịch bất thường; tưới máu ngọn chi tốt, vận động và cảm giác cải thiện rõ rệt, không có tai biến hay biến chứng chu phẫu.");
+        }
+        else if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
+        {
+            string side = icdLower.Contains("trái") ? "mắt trái" : (icdLower.Contains("phải") || icdLower.Contains("mp") ? "mắt phải" : "hai mắt");
+            sb.AppendLine("- Bệnh nhân được điều trị nội khoa chuyên khoa Mắt tích cực: Dùng thuốc nhỏ mắt hạ nhãn áp tại chỗ, bổ sung dinh dưỡng và bảo vệ sợi thần kinh thị giác, theo dõi sát nhãn áp ngày 2 lần kết hợp soi đáy mắt.");
+            sb.AppendLine(string.Format("- Diễn biến lâm sàng: Triệu chứng đau nhức {0} và đau đầu thuyên giảm rõ rệt, thị lực cải thiện, nhãn áp kiểm soát ổn định trong giới hạn an toàn, không có biến chứng.", side));
         }
         else
         {
@@ -998,6 +1010,10 @@ class HisEmrFiller
 
             return string.Format("{0} kết hợp điều trị nội khoa chu phẫu: Kháng sinh dự phòng/điều trị, giảm đau, chống phù nề, thay băng chăm sóc vết mổ hàng ngày và hướng dẫn tập phục hồi chức năng sớm.", phauThuatTen);
         }
+        else if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
+        {
+            return "Điều trị nội khoa chuyên khoa Mắt: Thuốc nhỏ mắt hạ nhãn áp tại chỗ, thuốc bảo vệ tế bào hạch và sợi thần kinh thị giác, theo dõi nhãn áp hàng ngày kết hợp chế độ nghỉ ngơi điều tiết mắt hợp lý.";
+        }
         else
         {
             return "Điều trị nội khoa bảo tồn: Kháng sinh, giảm đau, chống viêm phù nề, giãn cơ, bất động nẹp/áo nẹp chuyên dụng và tập phục hồi chức năng vận động.";
@@ -1010,6 +1026,18 @@ class HisEmrFiller
         string pulse = (dhst != null && !string.IsNullOrEmpty(dhst.Pulse)) ? dhst.Pulse : "78";
         string spo2 = (dhst != null && !string.IsNullOrEmpty(dhst.SpO2)) ? dhst.SpO2 : "98";
 
+        string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
+        {
+            string side = icdLower.Contains("trái") ? "mắt trái" : (icdLower.Contains("phải") || icdLower.Contains("mp") ? "mắt phải" : "hai mắt");
+            return string.Format(
+                "Bệnh nhân tỉnh táo, tiếp xúc tốt, da niêm mạc hồng hào, không sốt. " +
+                "Dấu hiệu sinh tồn ổn định (Mạch {0} ck/phút, Huyết áp {1} mmHg, SpO2 {2}%). " +
+                "{3} hết đau nhức tức, không cộm chói, không chảy nước mắt, nhìn rõ hơn; kết mạc không cương tụ, giác mạc trong, nhãn áp kiểm soát an toàn trong giới hạn bình thường. " +
+                "Bệnh nhân ổn định, đáp ứng tốt với phác đồ điều trị, đủ điều kiện xuất viện.",
+                pulse, bp, spo2, side);
+        }
+
         return string.Format(
             "Bệnh nhân tỉnh táo, tiếp xúc tốt, da niêm mạc hồng hào, không sốt. " +
             "Dấu hiệu sinh tồn ổn định (Mạch {0} ck/phút, Huyết áp {1} mmHg, SpO2 {2}%), tim đều, phổi trong. " +
@@ -1021,6 +1049,16 @@ class HisEmrFiller
 
     static string BuildHuongDieuTriTiepTheo(TreatmentInfo ti)
     {
+        string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
+        {
+            return 
+                "- Duy trì tra thuốc nhỏ mắt hạ nhãn áp đều đặn theo đơn thuốc ngoại trú ra viện.\n" +
+                "- Chế độ sinh hoạt: Tránh làm việc căng thẳng mắt kéo dài, không đọc sách hoặc xem màn hình điện tử trong bóng tối, không thức khuya, kiêng các chất kích thích (rượu, bia, cà phê, thuốc lá).\n" +
+                "- Đeo kính bảo vệ mắt khi đi ra ngoài, tránh chấn thương hoặc va quẹt vào mắt.\n" +
+                "- Khám lại và đo nhãn áp định kỳ sau 2 tuần - 1 tháng tại chuyên khoa Mắt (hoặc tái khám ngay nếu mắt nhìn mờ tăng, đau nhức mắt hoặc đau đầu tái phát).";
+        }
+
         return 
             "- Kê đơn thuốc điều trị ngoại trú dùng tại nhà theo hướng dẫn.\n" +
             "- Vận động nhẹ nhàng, tránh lao động nặng, mang vác hoặc vận động sai tư thế.\n" +
@@ -1101,6 +1139,11 @@ class HisEmrFiller
         {
             string side = (s.Contains("phải") || loc.Contains("phải")) ? "phải" : "trái";
             return string.Format("Đau chói, bất lực vận động hoàn toàn chân {0} sau ngã", side);
+        }
+        if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
+        {
+            string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
+            return string.Format("Nhìn mờ, đau nhức tức {0} kèm đau nửa đầu", side);
         }
         if (s.Contains("cẳng tay") || loc.Contains("cẳng tay") || s.Contains("m24"))
         {
@@ -1303,6 +1346,16 @@ class HisEmrFiller
                 viTri);
         }
 
+        if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
+        {
+            string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
+            return string.Format(
+                "Cách vào viện khoảng 1-2 ngày, bệnh nhân xuất hiện triệu chứng {0} nhìn mờ tăng dần kèm cảm giác đau nhức tức sâu trong hốc mắt, đau lan lên nửa đầu cùng bên (đau đầu VAS 5/10), nhìn đèn có quầng tán sắc. " +
+                "Bệnh nhân không sốt, không nôn, đã điều trị nội khoa tại nhà thuyên giảm ít. " +
+                "Nay bệnh nhân đến khám tại Bệnh viện Bạch Mai, được khám chuyên khoa Mắt, đo nhãn áp, soi đáy mắt và chụp OCT bán phần trước nhãn cầu xác định bệnh Glôcôm góc mở nguyên phát {0}, chỉ định nhập viện theo dõi và điều trị.",
+                side);
+        }
+
         return string.Format(
             "Bệnh nhân xuất hiện triệu chứng đau tức và hạn chế vận động tại {0} tăng dần. " +
             "Đã điều trị nội khoa tại tuyến trước không đỡ, nay đến Bệnh viện Bạch Mai khám và được chỉ định nhập viện theo dõi, điều trị chuyên khoa.",
@@ -1322,6 +1375,17 @@ class HisEmrFiller
     {
         string s = ti.IcdName.ToLower();
         string loc = ExtractLocation(ti.IcdName);
+
+        if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
+        {
+            string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
+            return string.Format(
+                "Khám chuyên khoa Mắt:\n" +
+                "- {0}: Thị lực giảm, kết mạc cương tụ rìa nhẹ, giác mạc trong, tiền phòng sâu vừa, góc tiền phòng mở (trên OCT bán phần trước), đồng tử tròn đều đường kính ~ 3mm, phản xạ ánh sáng (+), thể thủy tinh trong/đục nhẹ sinh lý, dịch kính trong. Đáy mắt: Gai thị hồng viền rõ, tỷ lệ lõm đĩa C/D tăng dạng Glôcôm, mạch máu võng mạc bình thường.\n" +
+                "- Mắt đối diện: Bán phần trước bình thường, môi trường trong suốt, nhãn áp trong giới hạn an toàn.\n" +
+                "- Nhãn áp được theo dõi sát và kiểm soát bằng phác đồ tra thuốc hạ nhãn áp chuyên khoa.",
+                side);
+        }
 
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
@@ -1851,6 +1915,16 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Hội chứng khối u phần mềm: Khối gồ rõ tại {0}, ranh giới rõ ràng, mật độ chắc vừa, di động tương đối, ấn đau tức nhẹ, không nóng đỏ.", loc));
             sb.AppendLine("- Không có hội chứng nhiễm trùng, thể trạng bình thường.");
         }
+        else if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
+        {
+            string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
+            sb.AppendLine(string.Format("- Hội chứng tăng nhãn áp / Glôcôm {0}: {0} nhìn mờ tăng dần, đau nhức tức hốc mắt kèm đau lan nửa đầu (VAS 5/10 điểm), nhìn đèn có quầng tán sắc.", side));
+            sb.AppendLine(string.Format("- Khám mắt & CĐHA: Bán phần trước giác mạc trong, góc tiền phòng mở hai mắt trên OCT bán phần trước; gai thị {0} tổn thương lõm đĩa C/D tăng dạng Glôcôm; nhãn áp được theo dõi và kiểm soát bằng thuốc hạ nhãn áp.", side));
+            if (s.Contains("dạ dày") || (tienSu != null && tienSu.ToLower().Contains("dạ dày")))
+                sb.AppendLine("- Bệnh lý tiêu hóa kết hợp: Viêm dạ dày mạn tính.");
+            if (s.Contains("viễn thị") || (tienSu != null && tienSu.ToLower().Contains("viễn thị")))
+                sb.AppendLine("- Tật khúc xạ kèm theo: Viễn thị.");
+        }
         else
         {
             sb.AppendLine(string.Format("- Đau nhức và hạn chế tầm vận động chuyên khoa tại {0}.", loc));
@@ -1925,6 +1999,8 @@ class HisEmrFiller
             return "Phân biệt hội chứng ống cổ tay với bệnh lý rễ thần kinh cổ C6-C7 (thoát vị đĩa đệm cột sống cổ), hội chứng Guyon (chèn ép thần kinh trụ), hội chứng lối thoát ngực, viêm đa dây thần kinh ngoại biên.";
         if (s.Contains("mấu chuyển") || s.Contains("cổ xương đùi") || (s.Contains("xương đùi") && s.Contains("gãy")) || s.Contains("s72"))
             return "Phân biệt gãy liên mấu chuyển xương đùi, trật khớp háng, đụng dập phần mềm vùng khớp háng, thoái hóa khớp háng đợt cấp.";
+        if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
+            return "Phân biệt Glôcôm góc mở với Glôcôm góc đóng nguyên phát, viêm màng bồ đào tăng nhãn áp, hội chứng đau đầu Migraine, tăng nhãn áp thứ phát.";
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
             return "Phân biệt đau dây thần kinh số V (nhánh V1), đau đầu Migraine, u góc cầu tiểu não, thoát vị đĩa đệm cột sống cổ chèn ép rễ C2-C3.";
         if (s.Contains("khoeo") || s.Contains("baker"))
@@ -1947,6 +2023,8 @@ class HisEmrFiller
     static string BuildHuongDieuTri(TreatmentInfo ti)
     {
         string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+        if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
+            return "Điều trị nội khoa hạ nhãn áp: Tra thuốc nhỏ mắt hạ nhãn áp tại chỗ, bổ sung dưỡng thần kinh thị giác; Theo dõi sát nhãn áp ngày 2 lần, soi góc tiền phòng và đo thị trường định kỳ; Đánh giá chỉ định laser tạo hình vùng bè (SLT/ALT) hoặc phẫu thuật hạ nhãn áp nếu điều trị nội khoa không đạt nhãn áp đích.";
         if (s.Contains("mấu chuyển") || s.Contains("cổ xương đùi") || (s.Contains("xương đùi") && s.Contains("gãy")) || s.Contains("s72"))
             return "Chỉ định phẫu thuật thay khớp háng bán phần / kết hợp xương đùi; Chuẩn bị chu phẫu: Kháng sinh dự phòng, dinh dưỡng trước mổ, kiểm soát bệnh lý nền tim mạch và hô hấp; Hậu phẫu: Giảm đau chu phẫu, chống đông dự phòng huyết khối tĩnh mạch sâu (LMWH), chăm sóc vết mổ và hướng dẫn tập phục hồi chức năng sớm.";
         if (s.Contains("chóp xoay") || s.Contains("chop xoay") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("m66"))))
