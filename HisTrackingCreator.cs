@@ -1025,9 +1025,9 @@ public class MainForm : Form
                     var p = row.Tag as PatientLookupInfo;
                     if (p == null) p = LookupPatientDirect(patCode);
 
-                    long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (p.DepartmentId == 915 ? 18679 : 5257);
                     long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
                     long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
+                    long roomId = doctorWorkRoomId;
 
                     try
                     {
@@ -1070,11 +1070,28 @@ public class MainForm : Form
 
                     CommonParam cp = new CommonParam();
                     var created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
-                    if (created == null || created.ID == 0)
+                    if (created == null || created.ID <= 0)
                     {
+                        var resSdo = myAdapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                        if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                        {
+                            created = resSdo.Tracking;
+                        }
+                    }
+                    if (created == null || created.ID <= 0)
+                    {
+                        tracking.ROOM_ID = doctorWorkRoomId;
                         sdo.WorkingRoomId = doctorWorkRoomId;
                         cp = new CommonParam();
                         created = myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                        if (created == null || created.ID <= 0)
+                        {
+                            var resSdo = myAdapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                            if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                            {
+                                created = resSdo.Tracking;
+                            }
+                        }
                     }
                     if (created == null || created.ID == 0)
                     {
@@ -1855,6 +1872,52 @@ class Program
 
         MainForm.InitSession();
 
+        if (args.Contains("-check"))
+        {
+            foreach (var code in codes)
+            {
+                var p = MainForm.LookupPatientDirect(code);
+                if (p == null) continue;
+                HisTrackingFilter tf = new HisTrackingFilter { TREATMENT_ID = p.TreatmentId };
+                Console.WriteLine(string.Format("=== TRACKING CỦA {0} (TreatmentId: {1}) ===", p.TDL_PATIENT_NAME, p.TreatmentId));
+                Console.WriteLine(string.Format("  • ICD: {0} | SubCode: {1} | Text: {2}", p.IcdCode, p.IcdSubCode, p.IcdText));
+
+                HisDepartmentTranViewFilter dtf = new HisDepartmentTranViewFilter { TREATMENT_ID = p.TreatmentId };
+                var dTrans = MainForm.myAdapter.FetchList<V_HIS_DEPARTMENT_TRAN>("api/HisDepartmentTran/GetView", ApiConsumers.MosConsumer, dtf, MainForm.param);
+                Console.WriteLine("--- LỊCH SỬ KHOA (DEPARTMENT_TRAN) ---");
+                if (dTrans != null)
+                {
+                    foreach (var dt in dTrans)
+                    {
+                        Console.WriteLine(string.Format("  • TranId: {0} | DeptId: {1} | DeptName: {2} | InTime: {3}", dt.ID, dt.DEPARTMENT_ID, dt.DEPARTMENT_NAME, dt.DEPARTMENT_IN_TIME));
+                    }
+                }
+                HisTreatmentBedRoomViewFilter tbrf = new HisTreatmentBedRoomViewFilter { TREATMENT_ID = p.TreatmentId };
+                var tbrs = MainForm.myAdapter.FetchList<V_HIS_TREATMENT_BED_ROOM>("api/HisTreatmentBedRoom/GetView", ApiConsumers.MosConsumer, tbrf, MainForm.param);
+                Console.WriteLine("--- BUỒNG GIƯỜNG (TREATMENT_BED_ROOM) ---");
+                if (tbrs != null)
+                {
+                    foreach (var tb in tbrs)
+                    {
+                        Console.WriteLine(string.Format("  • BedRoom: {0} (Id: {1}, RoomId: {2}) | Bed: {3} | AddTime: {4}", tb.BED_ROOM_NAME, tb.BED_ROOM_ID, tb.ROOM_ID, tb.BED_NAME, tb.ADD_TIME));
+                    }
+                }
+                var trks = MainForm.myAdapter.FetchList<HIS_TRACKING>("api/HisTracking/Get", ApiConsumers.MosConsumer, tf, MainForm.param);
+                if (trks != null && trks.Count > 0)
+                {
+                    foreach (var t in trks)
+                    {
+                        Console.WriteLine(string.Format("  • ID: {0} | Time: {1} | Room: {2} | Content: {3}", t.ID, t.TRACKING_TIME, t.ROOM_ID, t.CONTENT));
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("  (Chưa có tờ điều trị nào)");
+                }
+            }
+            return;
+        }
+
         int successCount = 0;
         int failCount = 0;
 
@@ -1886,7 +1949,7 @@ class Program
 
                 long deptId = p.DepartmentId > 0 ? p.DepartmentId : 57;
                 long doctorWorkRoomId = (deptId == 915 ? 18679 : 5248);
-                long roomId = p.WorkingRoomId > 0 ? p.WorkingRoomId : (deptId == 915 ? 18679 : 5248);
+                long roomId = doctorWorkRoomId;
 
                 try
                 {
@@ -1895,7 +1958,6 @@ class Program
                         Rooms = new List<RoomSDO>
                         {
                             new RoomSDO { RoomId = doctorWorkRoomId },
-                            new RoomSDO { RoomId = roomId },
                             new RoomSDO { RoomId = 5248 },
                             new RoomSDO { RoomId = 18679 },
                             new RoomSDO { RoomId = 18681 }
@@ -1917,9 +1979,8 @@ class Program
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
                     MEDICAL_INSTRUCTION = medInstruction,
-                    CARE_INSTRUCTION = careInstruction,
-                    ICD_CODE = !string.IsNullOrEmpty(p.IcdCode) ? p.IcdCode : "M51.2",
-                    ICD_NAME = !string.IsNullOrEmpty(p.IcdName) ? p.IcdName : "Thoát vị đĩa đệm",
+                    ICD_CODE = (!string.IsNullOrEmpty(p.IcdCode) ? (p.IcdCode == "M23.90" ? "M23.9" : p.IcdCode) : "M51.2"),
+                    ICD_NAME = !string.IsNullOrEmpty(p.IcdName) ? p.IcdName : (!string.IsNullOrEmpty(p.IcdText) ? p.IcdText : "Rối loạn khớp gối"),
                     ICD_SUB_CODE = p.IcdSubCode,
                     ICD_TEXT = p.IcdText
                 };
@@ -1947,24 +2008,43 @@ class Program
                 HisTrackingSDO sdo = new HisTrackingSDO
                 {
                     Tracking = tracking,
-                    WorkingRoomId = roomId > 0 ? roomId : doctorWorkRoomId,
+                    WorkingRoomId = doctorWorkRoomId,
                     Dhst = dhst
                 };
 
                 CommonParam cp = new CommonParam();
                 var created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
-                if (created == null || created.ID == 0)
+                if (created == null || created.ID <= 0)
                 {
+                    var resSdo = MainForm.myAdapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                    if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                    {
+                        created = resSdo.Tracking;
+                    }
+                }
+                if (created == null || created.ID <= 0)
+                {
+                    tracking.ROOM_ID = doctorWorkRoomId;
                     sdo.WorkingRoomId = doctorWorkRoomId;
                     cp = new CommonParam();
                     created = MainForm.myAdapter.PostData<HIS_TRACKING>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                    if (created == null || created.ID <= 0)
+                    {
+                        var resSdo = MainForm.myAdapter.PostData<HisTrackingSDO>("api/HisTracking/Create", ApiConsumers.MosConsumer, sdo, cp);
+                        if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                        {
+                            created = resSdo.Tracking;
+                        }
+                    }
                 }
                 if (created == null || created.ID == 0)
                 {
                     string errMsg = "Hệ thống MOS từ chối tạo!";
-                    if (cp.Messages != null && cp.Messages.Count > 0) errMsg = string.Join("; ", cp.Messages);
-                    else if (cp.BugCodes != null && cp.BugCodes.Count > 0) errMsg = string.Join("; ", cp.BugCodes);
-                    else errMsg += string.Format(" (RoomId: {0}, DeptId: {1})", roomId, deptId);
+                    try
+                    {
+                        errMsg += " | CP: " + Newtonsoft.Json.JsonConvert.SerializeObject(cp);
+                    }
+                    catch { }
                     throw new Exception(errMsg);
                 }
 
