@@ -1526,13 +1526,6 @@ public class MainForm : Form
                 trackingId = sameDay.ID;
                 trackingTime = sameDay.TRACKING_TIME;
             }
-            else
-            {
-                var latest = trackings.OrderByDescending(t => t.TRACKING_TIME).First();
-                targetTracking = latest;
-                trackingId = latest.ID;
-                trackingTime = latest.TRACKING_TIME;
-            }
         }
 
         bool isNB = patient.IsNinhBinh;
@@ -1540,11 +1533,10 @@ public class MainForm : Form
         long defaultWorkingRoom = isNB ? (patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 17416) : 5248;
         string defaultInstructionName = isNB ? "Xét nghiệm đường máu mao mạch tại giường (NB260620.6231)" : "Xét nghiệm đường máu mao mạch tại giường (BM02426)";
 
-        // If no tracking exists at all and autoCreate is enabled, create one
+        // If no tracking exists on the same day and autoCreate is enabled, create one
         if (trackingId == 0 && autoCreateTracking)
         {
-            long nowNum = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmss"));
-            long createTrackingTime = instructionTime >= nowNum ? instructionTime : nowNum;
+            long createTrackingTime = instructionTime;
 
             var newTracking = new HIS_TRACKING
             {
@@ -1603,7 +1595,7 @@ public class MainForm : Form
             long[] validRoomIds = new long[] {
                 931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
                 5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
-                5267, 6622, 6623
+                5267, 5539, 6622, 6623, 18679, 18681
             };
 
             requestRoomId = patient.WorkingRoomId > 0 ? patient.WorkingRoomId : 5248;

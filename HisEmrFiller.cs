@@ -1174,9 +1174,18 @@ class HisEmrFiller
         string loc = ExtractLocation(ti.IcdName);
         string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("vùng " + loc));
 
-        if (s.Contains("chóp xoay") || s.Contains("chop xoay") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("m66"))))
+        if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
+            if (s.Contains("màng hoạt dịch") || s.Contains("tràn dịch") || s.Contains("viêm"))
+            {
+                return string.Format(
+                    "Khoảng vài tháng nay, bệnh nhân xuất hiện đau tức và sưng nề khớp vai {0} tăng dần, đau nhiều hơn khi vận động giạng, nâng cánh tay hoặc khi nằm tì đè lên vai tổn thương. " +
+                    "Kèm theo cảm giác căng tức trong khớp, hạn chế tầm vận động khớp vai {0}. " +
+                    "Bệnh nhân đã điều trị nội khoa nhiều đợt tại tuyến trước nhưng thuyên giảm ít, các đợt sưng đau tái phát nhiều lần. " +
+                    "Nay đến khám tại Bệnh viện Bạch Mai, được chụp MRI xác định viêm dày màng hoạt dịch và tràn dịch khớp vai {0}, được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để điều trị chuyên khoa.",
+                    side);
+            }
             return string.Format(
                 "Khoảng vài tháng nay, bệnh nhân xuất hiện đau nhức âm ỉ vùng khớp vai {0}, đau tăng dần, đau nhiều về đêm khiến bệnh nhân khó ngủ khi nằm nghiêng đè lên vai tổn thương. " +
                 "Kèm theo bệnh nhân thấy hạn chế tầm vận động khớp vai {0}, khó khăn khi giạng tay, chải đầu, mặc áo hoặc đưa tay ra sau lưng. " +
@@ -1484,7 +1493,7 @@ class HisEmrFiller
         }
 
         string icdFull = (s + " " + (ti.IcdText ?? "")).ToLower();
-        if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn")))))
+        if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && !icdFull.Contains("vai") && (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn")))))
         {
             string side = (icdFull.Contains("gối trái") || (icdFull.Contains("trái") && !icdFull.Contains("gối phải"))) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
@@ -1595,15 +1604,15 @@ class HisEmrFiller
                 loc);
         }
 
-        if (s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m66") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("gân"))))
+        if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
             return string.Format(
                 "Khám chuyên khoa Khớp vai {0}:\n" +
-                "- Nhìn: Khớp vai {0} không sưng nóng đỏ, không biến dạng, khối cơ delta chưa teo rõ, không có vết thương hay sẹo mổ cũ.\n" +
-                "- Sờ: Ấn đau tức rõ tại vị trí bám tận gân chóp xoay (diện củ lớn xương cánh tay {0}), đau tăng khi làm động tác giạng hoặc xoay ngoài cánh tay.\n" +
-                "- Vận động: Hạn chế tầm vận động chủ động khớp vai {0} do đau (giạng khoảng 70-80 độ, đưa trước 90 độ, xoay ngoài hạn chế), tầm vận động thụ động tốt hơn chủ động.\n" +
-                "- Nghiệm pháp chuyên khoa chóp xoay (+): Nghiệm pháp Neer (+), Hawkins-Kennedy (+), Nghiệm pháp Jobe (đánh giá gân trên gai) (+), Nghiệm pháp Patte (gân dưới gai) (+), Nghiệm pháp rớt cánh tay (Drop arm test) (+/-).\n" +
+                "- Nhìn: Khớp vai {0} sưng nề nhẹ, tràn dịch bao hoạt dịch khớp vai, không nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
+                "- Sờ: Ấn đau tức rõ tại khe khớp vai, rãnh gân nhị đầu và vị trí bám tận gân chóp xoay (diện củ lớn xương cánh tay {0}), đau tăng khi làm động tác giạng hoặc xoay ngoài cánh tay.\n" +
+                "- Vận động: Hạn chế tầm vận động chủ động khớp vai {0} do đau (giạng khoảng 70-80°, đưa trước 90°, xoay ngoài hạn chế), tầm vận động thụ động tốt hơn chủ động.\n" +
+                "- Nghiệm pháp chuyên khoa khớp vai & chóp xoay (+/-): Nghiệm pháp Neer (+/-), Hawkins-Kennedy (+/-), Nghiệm pháp Jobe (+/-), Nghiệm pháp Patte (+/-), Palm-up test (+/-), Yergason (+/-).\n" +
                 "- Thần kinh - Mạch máu: Mạch quay và mạch trụ tay {0} bắt rõ; cơ lực bàn ngón tay 5/5, cảm giác ngọn chi bình thường.",
                 side);
         }
@@ -1890,16 +1899,24 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Khám khớp gối: Khớp gối căng to, tràn dịch - máu bao khớp (dấu hiệu bập bềnh xương bánh chè (+))."));
             sb.AppendLine(string.Format("- Mạch máu & Thần kinh ngoại vi: Mạch mu chân và chày sau bên {0} bắt rõ, cảm giác bàn ngón chân bình thường, thời gian hồi lưu mao mạch (CRT) < 2s, các khoang mềm mại, chưa có biểu hiện chèn ép khoang cấp. Hiện chi tổn thương đã được cố định nẹp đùi cẳng bàn chân.", side));
         }
-        else if (s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m66") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("gân"))))
+        else if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
-            sb.AppendLine(string.Format("- Hội chứng tổn thương rách chóp xoay khớp vai {0}: Đau nhức vùng khớp vai {0} âm ỉ tăng dần, đau tăng nhiều về đêm khi nằm nghiêng đè lên vai tổn thương và khi làm động tác giạng cánh tay hoặc với tay lên cao; ấn điểm đau chói tại diện bám củ lớn xương cánh tay; hạn chế tầm vận động chủ động khớp vai (giạng, đưa trước, xoay ngoài), tầm vận động thụ động bảo tồn tốt hơn chủ động.", side));
-            sb.AppendLine("- Các nghiệm pháp va chạm và kiểm tra tổn thương gân chóp xoay (+): Nghiệm pháp Neer (+), Hawkins-Kennedy (+), Nghiệm pháp Jobe (+), Nghiệm pháp Patte (+), Nghiệm pháp rớt cánh tay (+/-).");
+            if (s.Contains("màng hoạt dịch") || s.Contains("tràn dịch"))
+            {
+                sb.AppendLine(string.Format("- Hội chứng viêm tràn dịch màng hoạt dịch khớp vai {0}: Khớp vai {0} sưng nề nhẹ, căng tức diện khớp, đau tăng khi giạng hoặc nâng vai, hạn chế tầm vận động khớp vai {0}.", side));
+                sb.AppendLine("- Khám các nghiệm pháp khớp vai & chóp xoay (+/-): Neer (+/-), Hawkins-Kennedy (+/-), Jobe (+/-), Palm-up (+/-), Yergason (+/-).");
+            }
+            else
+            {
+                sb.AppendLine(string.Format("- Hội chứng tổn thương rách chóp xoay khớp vai {0}: Đau nhức vùng khớp vai {0} âm ỉ tăng dần, đau tăng nhiều về đêm khi nằm nghiêng đè lên vai tổn thương và khi làm động tác giạng cánh tay hoặc với tay lên cao; ấn điểm đau chói tại diện bám củ lớn xương cánh tay; hạn chế tầm vận động chủ động khớp vai (giạng, đưa trước, xoay ngoài), tầm vận động thụ động bảo tồn tốt hơn chủ động.", side));
+                sb.AppendLine("- Các nghiệm pháp va chạm và kiểm tra tổn thương gân chóp xoay (+/-): Nghiệm pháp Neer (+/-), Hawkins-Kennedy (+/-), Nghiệm pháp Jobe (+/-), Nghiệm pháp Patte (+/-), Nghiệm pháp rớt cánh tay (+/-).");
+            }
             sb.AppendLine(string.Format("- Thần kinh & Mạch máu chi trên: Mạch quay, mạch trụ tay {0} bắt rõ; cơ lực bàn ngón tay 5/5, cảm giác ngọn chi bình thường, không có dấu hiệu chèn ép thần kinh.", side));
             if (s.Contains("tử cung") || (tienSu != null && tienSu.ToLower().Contains("tử cung")))
                 sb.AppendLine("- Bệnh lý nền kèm theo: Tiền sử K nội mạc tử cung đã phẫu thuật năm 2024, tái khám định kỳ theo dõi ổn định, không có dấu hiệu tái phát.");
         }
-        else if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa")))))
+        else if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa")))))
         {
             string side = (s.Contains("gối trái") || (s.Contains("khớp gối trái") && !s.Contains("gối phải"))) ? "trái" : "phải";
             sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
@@ -1909,7 +1926,7 @@ class HisEmrFiller
             if (s.Contains("phổi") || s.Contains("lung rads") || s.Contains("nốt đặc"))
                 sb.AppendLine("- Bệnh lý lồng ngực phối hợp: Nốt đặc thùy trên phổi trái Lung RADS 4X theo dõi, không ho, không khó thở.");
         }
-        else if (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối")))
+        else if (!s.Contains("vai") && (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối"))))
         {
             string locKhop = loc.StartsWith("khớp") ? loc : ("khớp " + loc);
             sb.AppendLine(string.Format("- Hội chứng tổn thương màng hoạt dịch {0}: Khớp sưng nề, dày bao hoạt dịch, ấn đau tức diện khớp, dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp.", locKhop));

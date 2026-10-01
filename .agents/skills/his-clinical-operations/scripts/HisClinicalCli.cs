@@ -1825,7 +1825,8 @@ public class HisClinicalCli
             });
         }
 
-        var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", mosConsumer, sdo, param);
+        CommonParam cp = new CommonParam();
+        var res = myAdapter.PostData<HisServiceReqListResultSDO>("api/HisServiceReq/AssignServiceByInstructionTimes", mosConsumer, sdo, cp);
         if (res != null && res.ServiceReqs != null && res.ServiceReqs.Count > 0)
         {
             Console.WriteLine(string.Format("✔ CHỈ ĐỊNH THÀNH CÔNG! Đã tạo {0} phiếu y lệnh (gom tự động theo phòng/ống bệnh phẩm):", res.ServiceReqs.Count));
@@ -1838,8 +1839,9 @@ public class HisClinicalCli
         else
         {
             string err = "Chỉ định nhóm CLS thất bại!";
-            if (param.Messages != null && param.Messages.Count > 0) err += " Messages: " + string.Join("; ", param.Messages);
-            if (param.BugCodes != null && param.BugCodes.Count > 0) err += " BugCodes: " + string.Join("; ", param.BugCodes);
+            if (cp.Messages != null && cp.Messages.Count > 0) err += " Messages: " + string.Join("; ", cp.Messages);
+            if (cp.BugCodes != null && cp.BugCodes.Count > 0) err += " BugCodes: " + string.Join("; ", cp.BugCodes);
+            if (cp.HasException) err += " HasException: true";
             throw new Exception(err);
         }
     }
@@ -2030,6 +2032,35 @@ public class HisClinicalCli
         Console.WriteLine(string.Format("=== THỰC THI CHỈ ĐỊNH TÙY CHỌN ({0} DỊCH VỤ) ===", targetList.Count));
         Console.WriteLine(string.Format("Treatment ID: {0} | Tờ điều trị ID: {1}", treatmentId, trackingId));
         AssignServiceBatch(treatmentId, trackingId, targetList, patientTypeId);
+    }
+
+    public static void InspectServiceRooms(long serviceId)
+    {
+        InitSession();
+        var srf = new HisServiceRoomViewFilter { SERVICE_ID = serviceId };
+        var srs = myAdapter.FetchList<V_HIS_SERVICE_ROOM>("api/HisServiceRoom/GetView", mosConsumer, srf, param);
+        Console.WriteLine(string.Format("Phòng tiếp nhận dịch vụ ID {0}:", serviceId));
+        if (srs != null && srs.Count > 0)
+        {
+            foreach (var sr in srs)
+            {
+                Console.WriteLine(string.Format("  • RoomId: {0} | Tên: {1} | Khoa: {2}", sr.ROOM_ID, sr.ROOM_NAME, sr.DEPARTMENT_NAME));
+            }
+        }
+        else
+        {
+            Console.WriteLine("  (Không tìm thấy phòng cấu hình cụ thể trong HisServiceRoom)");
+        }
+
+        var pts = myAdapter.FetchList<HIS_PATIENT_TYPE>("api/HisPatientType/Get", mosConsumer, new HisPatientTypeFilter(), param);
+        Console.WriteLine("Danh sách đối tượng (Patient Types):");
+        if (pts != null)
+        {
+            foreach (var pt in pts)
+            {
+                Console.WriteLine(string.Format("  • ID: {0} | Mã: {1} | Tên: {2}", pt.ID, pt.PATIENT_TYPE_CODE, pt.PATIENT_TYPE_NAME));
+            }
+        }
     }
 
     public static void AssignRation(long treatmentId, long trackingId, string comboType, int patientTypeId = 42)
@@ -4922,6 +4953,11 @@ public class HisClinicalCli
                 string comboType = args.Length > 3 ? args[3] : "BT07";
                 int ptId = args.Length > 4 ? int.Parse(args[4]) : 42;
                 AssignRation(treatmentId, trackingId, comboType, ptId);
+            }
+            else if (cmd == "inspect-svc")
+            {
+                long svcId = long.Parse(args[1]);
+                InspectServiceRooms(svcId);
             }
             else if (cmd == "lookup-cls" || cmd == "cls-list" || cmd == "cls-catalog" || cmd == "cls")
             {

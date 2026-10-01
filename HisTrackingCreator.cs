@@ -1979,8 +1979,9 @@ class Program
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
                     MEDICAL_INSTRUCTION = medInstruction,
-                    ICD_CODE = (!string.IsNullOrEmpty(p.IcdCode) ? (p.IcdCode == "M23.90" ? "M23.9" : p.IcdCode) : "M51.2"),
-                    ICD_NAME = !string.IsNullOrEmpty(p.IcdName) ? p.IcdName : (!string.IsNullOrEmpty(p.IcdText) ? p.IcdText : "Rối loạn khớp gối"),
+                    CARE_INSTRUCTION = careInstruction,
+                    ICD_CODE = (!string.IsNullOrEmpty(p.IcdCode) ? (p.IcdCode.Contains(".") && p.IcdCode.EndsWith("0") && p.IcdCode.Length >= 5 ? p.IcdCode.TrimEnd('0') : p.IcdCode) : "M51.2"),
+                    ICD_NAME = !string.IsNullOrEmpty(p.IcdName) ? p.IcdName : (!string.IsNullOrEmpty(p.IcdText) ? p.IcdText : "Bệnh lý cơ xương khớp"),
                     ICD_SUB_CODE = p.IcdSubCode,
                     ICD_TEXT = p.IcdText
                 };

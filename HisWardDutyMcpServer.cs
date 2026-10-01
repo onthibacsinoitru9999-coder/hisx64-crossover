@@ -747,7 +747,7 @@ namespace HisWardDutyMcp
                 {
                     TREATMENT_ID = tr.ID,
                     DEPARTMENT_ID = deptId,
-                    ROOM_ID = (roomId > 0 ? roomId : workingRoomId),
+                    ROOM_ID = workingRoomId,
                     TRACKING_TIME = trackingTime,
                     CONTENT = content,
                     CARE_INSTRUCTION = care,
@@ -772,15 +772,19 @@ namespace HisWardDutyMcp
 
                 if (res == null || res.ID <= 0)
                 {
-                    // Fallback thử với ROOM_ID = roomId
-                    tracking.ROOM_ID = roomId;
-                    res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, cp);
-                    if (res == null || res.ID <= 0)
+                    // Fallback thử với ROOM_ID = roomId nếu có buồng bệnh
+                    if (roomId > 0)
                     {
-                        var resSdo = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", mosConsumer, sdo, cp);
-                        if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                        tracking.ROOM_ID = roomId;
+                        sdo.WorkingRoomId = roomId;
+                        res = adapter.PostData<HIS_TRACKING>("api/HisTracking/Create", mosConsumer, sdo, cp);
+                        if (res == null || res.ID <= 0)
                         {
-                            res = resSdo.Tracking;
+                            var resSdo = adapter.PostData<HisTrackingSDO>("api/HisTracking/Create", mosConsumer, sdo, cp);
+                            if (resSdo != null && resSdo.Tracking != null && resSdo.Tracking.ID > 0)
+                            {
+                                res = resSdo.Tracking;
+                            }
                         }
                     }
                 }
