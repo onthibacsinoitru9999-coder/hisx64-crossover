@@ -1135,8 +1135,12 @@ class HisEmrFiller
             return string.Format("Đau tức, vướng cộm {0} còn nẹp vít sau mổ kết hợp xương", viTriLoc);
         if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
             return string.Format("Khối u {0}, đau tức nhẹ khi vận động/tì đè", viTriLoc);
-        if (s.Contains("vết thương") || s.Contains("vet thuong"))
-            return string.Format("Vết thương phức tạp, đau chảy máu và hạn chế vận động {0} sau tai nạn lao động", loc);
+        if (s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội"))
+        {
+            if (s.Contains("gãy") || s.Contains("tai nạn") || s.Contains("chấn thương") || s.Contains("khối khớp"))
+                return "Đau chói vùng cột sống cổ, hạn chế vận động cổ sau chấn thương";
+            return "Đau tức vùng cột sống cổ, hạn chế vận động cúi ngửa xoay cổ";
+        }
         if (s.Contains("gãy") || s.Contains("gay"))
             return string.Format("Đau chói, sưng nề, biến dạng, hạn chế vận động {0} sau chấn thương", loc);
         if (s.Contains("acl") || s.Contains("chằng") || s.Contains("chang"))
@@ -1211,6 +1215,14 @@ class HisEmrFiller
                 "Cách vào viện khoảng vài giờ, theo lời kể bệnh nhân bị tai nạn sinh hoạt, sau tai nạn đau chói và hạn chế vận động cẳng tay {0}. " +
                 "Bệnh nhân được đưa vào Trung tâm Cấp cứu A9 khám, được xử trí cố định tạm thời bằng nẹp cẳng tay, tiêm phòng uốn ván (SAT), chụp X-quang ghi nhận hình ảnh gãy 1/3 giữa thân xương trụ {0}, sau đó được chuyển Khoa Chấn thương Chỉnh hình & Cột sống tiếp tục điều trị.",
                 side);
+        }
+
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội")) && (s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("khối khớp")))
+        {
+            return "Cách vào viện khoảng vài giờ, theo lời kể bệnh nhân bị tai nạn chấn thương trực tiếp/gián tiếp vùng đầu - cổ. " +
+                   "Sau tai nạn xuất hiện đau chói dữ dội vùng gáy và cột sống cổ, co cứng khối cơ cạnh sống cổ hai bên, hạn chế tối đa vận động cúi - ngửa - xoay cổ, không tê yếu hay liệt tứ chi, không rối loạn tiểu tiện. " +
+                   "Bệnh nhân được sơ cứu nẹp cố định cột sống cổ (nẹp cổ cứng) và chuyển đến Bệnh viện Bạch Mai cấp cứu. " +
+                   "Tại Bệnh viện Bạch Mai, bệnh nhân được làm các xét nghiệm cấp cứu, chụp cắt lớp vi tính (CT Scanner) xác định hình ảnh gãy khối khớp bên phải và cung trước trái C1 (gãy đốt đội C1), sau đó được chuyển vào Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và điều trị chuyên khoa.";
         }
 
         if (s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("tngt") || s.Contains("chày") || s.Contains("gãy"))
@@ -1465,6 +1477,17 @@ class HisEmrFiller
                 "{1}" +
                 "- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm.",
                 side, otherSideNote);
+        }
+
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội")) && (s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("khối khớp")))
+        {
+            return 
+                "Khám chuyên khoa Cột sống cổ:\n" +
+                "- Bất động tạm thời: Đang được cố định nẹp cổ cứng (nẹp Philadelphia) vững chắc.\n" +
+                "- Nhìn: Vùng cổ không sưng nề biến dạng lớn, không có vết thương hở thấu xương (chấn thương kín).\n" +
+                "- Sờ: Điểm đau chói khu trú khi ấn dọc gai sau C1-C2 và vùng khối bên cột sống cổ cao; co cứng rõ khối cơ cạnh sống cổ hai bên; hạn chế vận động cúi - ngửa - nghiêng - xoay cột sống cổ do đau chói.\n" +
+                "- Thần kinh & Tủy sống: Cơ lực tứ chi 5/5, cảm giác nông và sâu bảo tồn, không có dấu hiệu chèn ép tủy cổ (Hoffmann (-), Babinski (-)); không có hội chứng chèn ép rễ thần kinh cánh tay; đại tiểu tiện tự chủ, không rối loạn cơ tròn.\n" +
+                "- Mạch máu & Ngoại vi: Mạch quay hai bên và mạch mu chân hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
         }
 
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
@@ -1879,6 +1902,12 @@ class HisEmrFiller
             if (s.Contains("loét") || s.Contains("tỳ đè"))
                 sb.AppendLine("- Tổn thương da mô mềm do tỳ đè: Vùng cùng cụt có ổ loét tỳ đè độ II diện tích ~ 3x3 cm, bề mặt sạch tiết ít dịch, đang được chăm sóc thay băng vô khuẩn và dự phòng chống tỳ đè.");
         }
+        else if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội")) && (s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("khối khớp")))
+        {
+            sb.AppendLine("- Hội chứng chấn thương cột sống cổ gãy đốt đội C1: Đau chói dữ dội vùng gáy cổ sau chấn thương, co cứng khối cơ cạnh sống cổ, điểm đau chói cố định tại C1-C2, hạn chế vận động cột sống cổ; hiện đang được cố định bằng nẹp cổ cứng.");
+            sb.AppendLine("- Thần kinh & Tủy sống: Không có dấu hiệu chèn ép tủy hay rễ thần kinh cổ khu trú; cơ lực tứ chi 5/5, cảm giác và cơ tròn bảo tồn, đại tiểu tiện tự chủ.");
+            sb.AppendLine("- Thần kinh - Mạch máu ngoại vi: Mạch ngoại vi bắt rõ, cảm giác ngọn chi bình thường.");
+        }
         else if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("cột sống") || s.Contains("đốt sống") || s.Contains("hẹp ống sống") || s.Contains("m51") || s.Contains("m50"))
         {
             sb.AppendLine("- Hội chứng cột sống (+): Đau cột sống thắt lưng, co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế tầm vận động cúi - ngửa.");
@@ -2059,6 +2088,8 @@ class HisEmrFiller
             return "Phân biệt gãy liên mấu chuyển xương đùi, trật khớp háng, đụng dập phần mềm vùng khớp háng, thoái hóa khớp háng đợt cấp.";
         if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
             return "Phân biệt Glôcôm góc mở với Glôcôm góc đóng nguyên phát, viêm màng bồ đào tăng nhãn áp, hội chứng đau đầu Migraine, tăng nhãn áp thứ phát.";
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")) && (s.Contains("gãy") || s.Contains("khối khớp")))
+            return "Phân biệt gãy Jefferson C1 mất vững (rách dây chằng ngang) với gãy vững, gãy mỏm nha C2 (Odontoid fracture), trật khớp đội - trục (C1-C2), chấn thương phần mềm cột sống cổ đơn thuần.";
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
             return "Phân biệt đau dây thần kinh số V (nhánh V1), đau đầu Migraine, u góc cầu tiểu não, thoát vị đĩa đệm cột sống cổ chèn ép rễ C2-C3.";
         if (s.Contains("khoeo") || s.Contains("baker"))
@@ -2093,6 +2124,8 @@ class HisEmrFiller
             return "Chỉ định phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy bệnh phẩm gửi xét nghiệm mô bệnh học (giải phẫu bệnh); Điều trị nội khoa chu phẫu: Kháng sinh dự phòng, chống viêm giảm phù nề, bổ sung vitamin nhóm B; Bất động nẹp cổ tay ngắn ngày, hướng dẫn tập vận động chủ động các ngón tay sớm.";
         if (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối")))
             return "Chỉ định phẫu thuật nội soi khớp gối cắt lọc, tạo hình màng hoạt dịch tăng sinh kết hợp lấy bệnh phẩm làm mô bệnh học (giải phẫu bệnh); Điều trị nội khoa kết hợp: Kháng sinh dự phòng, giảm đau chống phù nề; Kiểm soát ổn định đường huyết chu phẫu và theo dõi chức năng gan mật; Tập phục hồi chức năng vận động khớp gối sớm sau mổ.";
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")) && (s.Contains("gãy") || s.Contains("khối khớp")))
+            return "Điều trị bảo tồn bất động cột sống cổ bằng nẹp cổ cứng (nẹp Philadelphia) hoặc đánh giá chỉ định can thiệp phẫu thuật cố định chẩm - cổ / C1-C2 nếu tổn thương mất vững; Điều trị nội khoa: Giảm đau, chống phù nề, giãn cơ; Theo dõi sát tri giác, dấu hiệu thần kinh khu trú và chức năng hô hấp.";
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
             return "Điều trị nội khoa bảo tồn: Giảm đau thần kinh (Gabapentin/Pregabalin), chống viêm giảm đau không steroid (NSAID), thuốc giãn cơ, bổ sung vitamin nhóm B liều cao; Phong bế điểm đau thần kinh chẩm (tiêm điểm đau Arnold); Đeo nẹp cổ mềm khi đi lại; Đánh giá chỉ định can thiệp phẫu thuật giải phóng thần kinh chẩm nếu thất bại điều trị nội khoa.";
         if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
@@ -2216,7 +2249,7 @@ class HisEmrFiller
         if (curIsTrauma && pastIsTumor) return false;
 
         // Phân định giải phẫu nghiêm ngặt giữa các phân khoa CTCH
-        bool curIsSpine = cur.Contains("cột sống") || cur.Contains("đốt sống") || cur.Contains("đĩa đệm") || cur.Contains("thoát vị") || cur.Contains("m51") || cur.Contains("m50") || cur.Contains("m48") || cur.Contains("m80");
+        bool curIsSpine = cur.Contains("cột sống") || cur.Contains("đốt sống") || cur.Contains("đĩa đệm") || cur.Contains("thoát vị") || cur.Contains("c1") || cur.Contains("c2") || cur.Contains("c3") || cur.Contains("c4") || cur.Contains("c5") || cur.Contains("c6") || cur.Contains("c7") || cur.Contains("m54") || cur.Contains("m51") || cur.Contains("m50") || cur.Contains("m48") || cur.Contains("m80");
         bool pastIsSpine = past.Contains("cột sống") || past.Contains("đốt sống") || past.Contains("đĩa đệm") || past.Contains("thoát vị") || past.Contains("bxm") || past.Contains("bơm xi măng");
 
         bool curIsKnee = cur.Contains("gối") || cur.Contains("khoeo") || cur.Contains("baker") || cur.Contains("m17") || cur.Contains("acl") || cur.Contains("u sụn");
@@ -2253,12 +2286,12 @@ class HisEmrFiller
         bool pastIsSpineOrKneeOrHeadOrLeg = past.Contains("cột sống") || past.Contains("thắt lưng") || past.Contains("khớp gối") || past.Contains("vùng gáy") || past.Contains("chẩm") || past.Contains("arnold") || past.Contains("l4") || past.Contains("l5") || past.Contains("xẹp") || past.Contains("cẳng chân") || past.Contains("chân") || past.Contains("bắp chân") || past.Contains("cổ chân") || past.Contains("bàn chân") || past.Contains("khớp háng") || past.Contains("vai") || past.Contains("khớp vai") || past.Contains("cánh tay");
         if (curIsWristOrNerve && pastIsSpineOrKneeOrHeadOrLeg) return false;
 
-        bool curIsCervical = cur.Contains("chẩm") || cur.Contains("cột sống cổ") || cur.Contains("đốt sống cổ") || (cur.Contains("cổ") && !cur.Contains("cổ tay") && !cur.Contains("cổ chân") && !cur.Contains("cổ xương đùi"));
-        bool pastIsLumbar = past.Contains("thắt lưng") || past.Contains("tlif") || past.Contains("l4") || past.Contains("l5") || past.Contains("l1") || past.Contains("l2") || past.Contains("l3") || past.Contains("bxm") || past.Contains("bơm xi măng") || past.Contains("lasegue");
-        if (curIsCervical && pastIsLumbar && !cur.Contains("thắt lưng")) return false;
+        bool curIsCervical = cur.Contains("chẩm") || cur.Contains("cột sống cổ") || cur.Contains("đốt sống cổ") || cur.Contains("c1") || cur.Contains("c2") || cur.Contains("c3") || cur.Contains("c4") || cur.Contains("c5") || cur.Contains("c6") || cur.Contains("c7") || cur.Contains("m54.2") || (cur.Contains("cổ") && !cur.Contains("cổ tay") && !cur.Contains("cổ chân") && !cur.Contains("cổ xương đùi"));
+        bool pastIsLumbar = past.Contains("thắt lưng") || past.Contains("tlif") || past.Contains("l4") || past.Contains("l5") || past.Contains("l1") || past.Contains("l2") || past.Contains("l3") || past.Contains("đau lưng") || past.Contains("bxm") || past.Contains("bơm xi măng") || past.Contains("lasegue");
+        if (curIsCervical && pastIsLumbar && !cur.Contains("thắt lưng") && !cur.Contains("lưng")) return false;
 
-        bool curIsLumbar = cur.Contains("thắt lưng") || cur.Contains("l1") || cur.Contains("l2") || cur.Contains("l3") || cur.Contains("l4") || cur.Contains("l5") || cur.Contains("s1") || cur.Contains("trượt");
-        bool pastIsCervical = past.Contains("vùng cổ") || past.Contains("đau cổ") || past.Contains("cột sống cổ") || past.Contains("đốt sống cổ") || past.Contains("mu tay") || past.Contains("tê bì 2 tay") || past.Contains("tê tay");
+        bool curIsLumbar = (cur.Contains("thắt lưng") || cur.Contains("l1") || cur.Contains("l2") || cur.Contains("l3") || cur.Contains("l4") || cur.Contains("l5") || cur.Contains("s1") || cur.Contains("trượt")) && !curIsCervical;
+        bool pastIsCervical = past.Contains("vùng cổ") || past.Contains("đau cổ") || past.Contains("cột sống cổ") || past.Contains("đốt sống cổ") || past.Contains("c1") || past.Contains("c2") || past.Contains("mu tay") || past.Contains("tê bì 2 tay") || past.Contains("tê tay");
         if (curIsLumbar && pastIsCervical && !cur.Contains("cổ")) return false;
 
         // Phân định bệnh lý màng hoạt dịch / viêm mạn tính vs chấn thương đứt dây chằng/ngã/giàn giáo
@@ -3646,8 +3679,7 @@ class HisEmrFiller
         if (s.Contains("vai")) return "khớp vai" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("háng")) return "khớp háng" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("đùi") || s.Contains("xương đùi")) return "xương đùi" + (side.Length > 0 ? " " + side : "");
-        if (s.Contains("lưng")) return "vùng lưng" + (side.Length > 0 ? " " + side : "");
-        if (s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")) return "cột sống cổ";
+        if (s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội") || s.Contains("khối khớp")) return "cột sống cổ";
         if (s.Contains("cột sống ngực") || s.Contains("đốt sống ngực")) return "cột sống ngực";
         if (s.Contains("cột sống") || s.Contains("đốt sống")) return "cột sống thắt lưng";
         if (s.Contains("đòn")) return "xương đòn" + (side.Length > 0 ? " " + side : "");
