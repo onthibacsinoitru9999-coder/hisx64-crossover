@@ -363,3 +363,6 @@ Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối so�
   2. ⚡ **PHẦN TIÊN LƯỢNG & PHƯƠNG PHÁP ĐIỀU TRỊ (BẮT BUỘC TỐI GIẢN - GỌN GÀNG)**:
      - **Tiên lượng (`TienLuong`)**: Ghi ngắn gọn duy nhất: **`Dè dặt`** (hoặc `Tiên lượng dè dặt`). Tuyệt đối không viết văn hoa giải thích dài dòng.
      - **Phương pháp điều trị / Hướng điều trị (`HuongDieuTri` / `PhuongPhapDieuTri`)**: Ghi ngắn gọn: **`Theo phác đồ`** (hoặc `Phẫu thuật theo phác đồ` / `Điều trị theo phác đồ`). Tuyệt đối không liệt kê tràn lan các bước chu phẫu dài 5-10 dòng làm bìa bệnh án bị rối mắt, mất trọng tâm.
+   3. 📝 **QUY TẮC TÓM TẮT BỆNH ÁN & TIỀN SỬ (SIÊU GỌN - TỐI ĐA 5-7 DÒNG - TUYỆT ĐỐI KHÔNG CHÉP NGUYÊN VĂN DANH MỤC ICD)**:
+      - **Tiền sử bệnh lý**: Bắt buộc ghi ngắn gọn tên bệnh thực tế lâm sàng (Ví dụ: Tiền sử Tăng huyết áp, Đái tháo đường típ 2, Tai biến MMN cũ). **TUYỆT ĐỐI CẤM** sao chép nguyên xi chuỗi danh mục ICD dài dòng, lặp từ (như Bệnh lý nội khoa ghi nhận: Xẹp đốt sống, không phân loại mục khác, vùng ngực - thắt lưng; Bệnh tăng huyết áp vô căn (nguyên phát); Xẹp đốt sống...).
+      - **Độ dài Tóm tắt bệnh án / Diễn biến vào viện**: Bắt buộc viết cô đọng, súc tích trong khoảng **5 đến 7 dòng**, tập trung trực diện vào các hội chứng ngoại khoa cốt lõi, tầng tổn thương CĐHA đích danh và toàn trạng/DHST. Tuyệt đối không viết văn hoa, giải thích lan man.

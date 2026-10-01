@@ -2572,3 +2572,8 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 
 
 
+
+
+### 46.3. Quy Tắc Tiền Sử Lâm Sàng & Tóm Tắt Bệnh Án Siêu Gọn (5-7 Dòng)
+- **Tiền sử bệnh**: Tuyệt đối không copy-paste chuỗi chẩn đoán ICD dài dòng (như `Xẹp đốt sống, không phân loại mục khác, vùng ngực - thắt lưng; Bệnh tăng huyết áp vô căn (nguyên phát); Xẹp đốt sống...`). Phải chuyển hóa thành tên lâm sàng ngắn gọn: *Tiền sử Tăng huyết áp, Đái tháo đường, Loãng xương, TD nhồi máu não cũ...*
+- **Độ dài Tóm tắt**: Tối đa 5-7 dòng, tập trung trực diện vào hội chứng ngoại khoa, CĐHA tầng tổn thương đích danh, toàn trạng/DHST và bệnh nền phối hợp.
