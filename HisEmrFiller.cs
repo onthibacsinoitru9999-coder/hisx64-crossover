@@ -1833,13 +1833,11 @@ class HisEmrFiller
                 if (isRightHeavy)
                 {
                     sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay phải mức độ nặng, tay trái mức độ trung bình): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay phải tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay phải; dấu hiệu Tinel (+/-) hai bên cổ tay, nghiệm pháp Phalen (+/-) hai bên; giảm cơ lực đối chiếu ngón cái tay phải (4/5), tay trái (4+/5).");
-                    sb.AppendLine("- Thăm dò chức năng: Đã ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác của dây thần kinh ngoại biên chi trên ghi nhận tổn thương dẫn truyền sợi cảm giác và vận động dây thần kinh giữa đoạn qua ống cổ tay hai bên (tay phải nặng hơn tay trái).");
                     sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
                 }
                 else
                 {
                     sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay trái nặng hơn tay phải): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay trái tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay trái; dấu hiệu Tinel (+/-) hai bên cổ tay, nghiệm pháp Phalen (+/-) hai bên (bên trái dương tính sớm); giảm cơ lực đối chiếu ngón cái tay trái (4/5), tay phải (4+/5).");
-                    sb.AppendLine("- Thăm dò chức năng: Đã ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác của dây thần kinh ngoại biên chi trên ghi nhận tổn thương dẫn truyền sợi cảm giác và vận động dây thần kinh giữa đoạn qua ống cổ tay hai bên.");
                     sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
                 }
             }
@@ -1882,7 +1880,6 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Hội chứng đau dây thần kinh chẩm {0} (+): Đau tức âm ỉ vùng gáy chẩm lan lên đỉnh đầu bên {0}, đau tăng khi cử động cổ hoặc tì đè, ấn điểm Arnold (dây thần kinh chẩm lớn) bên {0} đau chói (+).", side));
             sb.AppendLine("- Hội chứng cột sống cổ (+): Đau mỏi vùng cột sống cổ, co cứng nhẹ cơ cạnh sống cổ hai bên, hạn chế nhẹ biên độ cúi ngửa và xoay cổ.");
             sb.AppendLine("- Khám thần kinh: Không có dấu hiệu chèn ép tủy cổ hay rễ thần kinh cánh tay (Spurling (-), Hoffmann (-), cơ lực hai tay 5/5, cảm giác bàn ngón tay bình thường, đại tiểu tiện tự chủ).");
-            sb.AppendLine("- Cận lâm sàng hình ảnh: Đã chụp X-quang/CĐHA cột sống cổ ghi nhận hình ảnh thoái hóa cột sống cổ.");
             sb.AppendLine("- Toàn trạng: Bệnh nhân tỉnh táo, tiếp xúc tốt. Dấu hiệu sinh tồn ổn định (Mạch 78 ck/phút, Huyết áp 120/80 mmHg, SpO2 98%), tim đều phổi trong, không có hội chứng nhiễm trùng.");
         }
         else if (s.Contains("xẹp") || s.Contains("lún") || (s.Contains("đốt sống") && s.Contains("m80")))
@@ -2006,7 +2003,7 @@ class HisEmrFiller
         {
             string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
             sb.AppendLine(string.Format("- Hội chứng tăng nhãn áp / Glôcôm {0}: {0} nhìn mờ tăng dần, đau nhức tức hốc mắt kèm đau lan nửa đầu (VAS 5/10 điểm), nhìn đèn có quầng tán sắc.", side));
-            sb.AppendLine(string.Format("- Khám mắt & CĐHA: Bán phần trước giác mạc trong, góc tiền phòng mở hai mắt trên OCT bán phần trước; gai thị {0} tổn thương lõm đĩa C/D tăng dạng Glôcôm; nhãn áp được theo dõi và kiểm soát bằng thuốc hạ nhãn áp.", side));
+            sb.AppendLine(string.Format("- Khám chuyên khoa mắt: Bán phần trước giác mạc trong, góc tiền phòng mở hai mắt; gai thị {0} tổn thương lõm đĩa C/D tăng dạng Glôcôm; nhãn áp được theo dõi và kiểm soát bằng thuốc hạ nhãn áp.", side));
             if (s.Contains("dạ dày") || (tienSu != null && tienSu.ToLower().Contains("dạ dày")))
                 sb.AppendLine("- Bệnh lý tiêu hóa kết hợp: Viêm dạ dày mạn tính.");
             if (s.Contains("viễn thị") || (tienSu != null && tienSu.ToLower().Contains("viễn thị")))
@@ -2025,20 +2022,7 @@ class HisEmrFiller
             sb.AppendLine("- Diễn biến lâm sàng ghi nhận qua các tờ điều trị: " + string.Join("; ", trackingSyms.ToArray()) + ".");
         }
 
-        // 3. Cận lâm sàng hình ảnh & Xét nghiệm thực tế
-        if (ctx != null && ctx.CdhaConclusions.Count > 0)
-        {
-            sb.AppendLine("- Cận lâm sàng hình ảnh ghi nhận:");
-            int cdhaCount = 0;
-            foreach (var c in ctx.CdhaConclusions)
-            {
-                if (cdhaCount++ >= 2) break;
-                string cdhaText = c.Length > 120 ? (c.Substring(0, 117).TrimEnd() + "...") : c;
-                sb.AppendLine("  + " + cdhaText);
-            }
-        }
-
-        // 4. Bệnh lý kết hợp nổi bật
+        // 3. Bệnh lý kết hợp nổi bật
         var coMorbidities = new List<string>();
         bool hasNoChronic = (tienSu != null && (tienSu.ToLower().Contains("chưa phát hiện bệnh lý") || tienSu.ToLower().Contains("không có tiền sử bệnh")));
         if (!hasNoChronic && (s.Contains("tiểu đường") || s.Contains("đái tháo đường") || (tienSu != null && (tienSu.ToLower().Contains("tiểu đường") || tienSu.ToLower().Contains("đái tháo đường")))))

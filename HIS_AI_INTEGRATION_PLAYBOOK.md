@@ -1,4 +1,4 @@
-# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
 > **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
 > **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
@@ -2564,7 +2564,7 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 | **`LyDoVaoVien`** | Chi tiết | Đích danh vị trí giải phẫu + triệu chứng chính / cơ chế | *Tê bì, đau buốt và hạn chế vận động hai bàn tay (tay trái nhiều hơn tay phải)* |
 | **`QuaTrinhBenhLy`** | Chi tiết vừa đủ | Thời gian khởi phát, diễn biến tăng dần, hoàn cảnh đau/tê theo hồ sơ gốc | *Khoảng vài tháng nay, bệnh nhân xuất hiện tê bì, đau buốt hai bàn tay...* |
 | **`BenhNgoaiKhoa` / `CoXuongKhop`** | Trung thực | Đầy đủ nghiệm pháp kinh điển ở dạng `(+/-)` nếu chưa rõ, cơ lực, cảm giác, mạch | *Khám chuyên khoa Cổ - Bàn tay hai bên: Tinel (+/-), Phalen (+/-), teo nhẹ cơ mô cái...* |
-| **`TomTatBenhAn`** | Trung thực | Đầy đủ hội chứng chính, định danh tổn thương, CLS hình ảnh, bệnh nền, DHST | *Bệnh nhân nữ, 39 tuổi, tiền sử khỏe mạnh... Hội chứng chèn ép TK giữa...* |
+| **`TomTatBenhAn`** | Trung thực | Đầy đủ hội chứng chính, triệu chứng cơ năng & thực thể, nghiệm pháp (+/-), bệnh nền, DHST (TUYỆT ĐỐI KHÔNG GHI CẬN LÂM SÀNG) | *Bệnh nhân nữ, 39 tuổi, tiền sử khỏe mạnh... Hội chứng chèn ép TK giữa...* |
 | **`TienLuong`** | **Tối giản** | **Ghi duy nhất: `Dè dặt`** | **`Dè dặt`** |
 | **`HuongDieuTri`** | **Tối giản** | **Ghi duy nhất: `Theo phác đồ`** | **`Theo phác đồ`** |
 | **Bìa ra viện (Tổng kết)** | **Để trống 100%** | Khi tiếp đón vào viện (`--admission`), không điền bất kỳ ô nào | *Trống 100%* |
@@ -2576,4 +2576,4 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 
 ### 46.3. Quy Tắc Tiền Sử Lâm Sàng & Tóm Tắt Bệnh Án Siêu Gọn (5-7 Dòng)
 - **Tiền sử bệnh**: Tuyệt đối không copy-paste chuỗi chẩn đoán ICD dài dòng (như `Xẹp đốt sống, không phân loại mục khác, vùng ngực - thắt lưng; Bệnh tăng huyết áp vô căn (nguyên phát); Xẹp đốt sống...`). Phải chuyển hóa thành tên lâm sàng ngắn gọn: *Tiền sử Tăng huyết áp, Đái tháo đường, Loãng xương, TD nhồi máu não cũ...*
-- **Độ dài Tóm tắt**: Tối đa 5-7 dòng, tập trung trực diện vào hội chứng ngoại khoa, CĐHA tầng tổn thương đích danh, toàn trạng/DHST và bệnh nền phối hợp.
+- **Độ dài Tóm tắt**: Tối đa 5-7 dòng, tập trung trực diện vào hội chứng ngoại khoa, triệu chứng cơ năng/thực thể, nghiệm pháp (+/-), toàn trạng/DHST và bệnh nền phối hợp. ⚠️ **QUY TẮC CỨNG: TUYỆT ĐỐI KHÔNG GHI CẬN LÂM SÀNG (X-quang, CT, MRI, Siêu âm, Điện cơ, XN máu) VÀO TÓM TẮT BỆNH ÁN** (Cận lâm sàng đã có tab và mục quản lý riêng trên EMR).
