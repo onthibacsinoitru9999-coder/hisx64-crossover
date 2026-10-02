@@ -692,9 +692,9 @@ namespace HisDischargeMcp
                     if (dtMax > minDt) minDt = dtMax;
                 }
 
-                // Mặc định Tổng kết ra viện vào buổi chiều lúc 16:00
-                DateTime disDt = new DateTime(disDate.Year, disDate.Month, disDate.Day, 16, 0, 0);
-                if (minDt >= disDt)
+                // Mặc định Tổng kết ra viện vào buổi trưa lúc 12:00
+                DateTime disDt = new DateTime(disDate.Year, disDate.Month, disDate.Day, 12, 0, 0);
+                if (minDt >= disDt && minDt < new DateTime(disDate.Year, disDate.Month, disDate.Day, 12, 30, 0))
                 {
                     disDt = minDt.AddMinutes(5);
                 }
@@ -720,12 +720,22 @@ namespace HisDischargeMcp
                 usedTimes.Add(disTime);
 
                 string disContent = 
-                    "TỔNG KẾT RA VIỆN:\n" +
-                    "- Toàn trạng: Bệnh nhân tỉnh táo, tiếp xúc tốt, da niêm mạc hồng, không sốt, ăn ngủ tốt, đại tiểu tiện bình thường.\n" +
-                    "- Tình trạng chuyên khoa: Vết mổ/tổn thương khô sạch liền sẹo tốt, không sưng đỏ nề, không chảy dịch bất thường. Trục chi vững/cột sống ổn định, tưới máu ngọn chi tốt, vận động các khớp cải thiện rõ rệt, sinh hiệu ổn định.\n" +
-                    "- Đánh giá kết quả điều trị: Bệnh nhân đáp ứng rất tốt với phác đồ điều trị, diễn biến điều trị ổn định, đủ điều kiện xuất viện.";
-                string careDis = "Chăm sóc cấp II. Ăn uống dinh dưỡng đầy đủ.";
-                string medDis = "Cho ra viện. Kê đơn ngoại trú. Hướng dẫn chăm sóc và hẹn tái khám sau 1 tháng (hoặc khi có dấu hiệu bất thường).";
+@"TỔNG KẾT RA KHOA
+=======================
+Bệnh nhân tỉnh
+Huyết động ổn
+Da niêm mạc hồng
+Đau vết mổ VAS3đ
+Vết mổ băng khô
+Đầu chi ấm
+Vận động cảm giác đầu chi bình thường
+=> Xin ý kiến ban lãnh đạo khoa
+=> Thay băng chăm sóc vết thương
+=> Tập phục hồi chức năng theo hướng dẫn
+=> BN ỔN ĐỊNH
+=> RA VIỆN";
+                string careDis = "Chăm sóc cấp II. Ăn theo chế độ bệnh lý.";
+                string medDis = "Xin ý kiến ban lãnh đạo khoa. BN ổn định -> Cho ra viện. Kê đơn ngoại trú.";
 
                 if (isDryRun)
                 {
