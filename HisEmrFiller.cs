@@ -939,17 +939,16 @@ class HisEmrFiller
     static string BuildQuaTrinhBenhLyVaDienBien(TreatmentInfo ti, ClinicalContextInfo ctx)
     {
         var sb = new StringBuilder();
-        string inTimeStr = !string.IsNullOrEmpty(ti.InTime) ? ti.InTime : "29/09/2026 08:45";
         string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         string allText = (ctx != null ? string.Join("\n", ctx.RawTrackingContents.Concat(ctx.DebateSummaries)) : "").ToLower();
 
         if (icdLower.Contains("thần kinh giữa") || icdLower.Contains("u thần kinh") || (icdLower.Contains("u ") && icdLower.Contains("cổ tay")))
         {
             string side = ResolveSide(ti, ctx, "trái");
-            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện Khoa Chấn thương Chỉnh hình & Cột sống với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
-            sb.AppendLine("- Ngày 30/09/2026: Hoàn thiện đầy đủ bilan xét nghiệm tiền phẫu (Công thức máu, Đông máu cơ bản, Sinh hóa máu, Điện tâm đồ, X-quang ngực thẳng); hội chẩn chuyên khoa thông qua mổ và giải thích kỹ lưỡng cho người bệnh cùng gia đình về kế hoạch phẫu thuật bóc u vi phẫu bảo tồn thần kinh.");
-            sb.AppendLine(string.Format("- Ngày 01/10/2026: Tiến hành phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay {0} bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy bệnh phẩm gửi xét nghiệm mô bệnh học (giải phẫu bệnh).", side));
-            sb.AppendLine(string.Format("- Ngày 02/10/2026 (12:00): Hậu phẫu ngày thứ 2, toàn trạng bệnh nhân ổn định, tỉnh táo, không sốt. Vết mổ cổ tay {0} băng khô sạch, không sưng đỏ nề, không chảy dịch; các ngón tay I, II, III giảm tê bì rõ rệt; vận động gấp duỗi và cảm giác ngọn chi hồi phục tốt (cơ lực đối chiếu 5/5), tưới máu đầu chi hồng ấm, mạch quay bắt rõ. Bệnh nhân ổn định, được tổng kết hồ sơ bệnh án và cho ra viện.", side));
+            sb.AppendLine(string.Format("- 29/09/2026: Tiếp nhận BN tỉnh, khối cổ tay {0} ~2x2 cm chắc, di động ngang > dọc, Tinel (+), Phalen (+), tê bì ngón I-III.", side));
+            sb.AppendLine("- 30/09/2026: Hoàn thiện bilan tiền phẫu (Hb 127, WBC 4.9, PLT 344; PT-INR 0.99, Fib 3.48; Glu 4.8, Ure 4.1, Cre 60; XQ ngực & ĐTĐ bình thường). Hội chẩn thông qua mổ: Chỉ định phẫu thuật vi phẫu bóc u bảo tồn thần kinh.");
+            sb.AppendLine(string.Format("- 01/10/2026: Phẫu thuật vi phẫu bóc u bao dây thần kinh giữa và bóc nang bao hoạt dịch gan tay {0}. Khối u ~2x2 cm phát triển từ bao dây TK giữa được bóc tách trọn vẹn, bảo tồn nguyên vẹn các bó sợi thần kinh; nang dịch bóc trọn. Gửi bệnh phẩm GPB.", side));
+            sb.AppendLine(string.Format("- 02/10/2026 (12:00): Hậu phẫu N2: Tỉnh, không sốt, vết mổ khô sạch, nẹp cẳng bàn tay vững, giảm tê bì ngón I-III rõ rệt, vận động gập duỗi các ngón và đối ngón cái tốt (cơ lực 5/5), đầu chi hồng ấm. Đủ điều kiện xuất viện.", side));
             return sb.ToString().TrimEnd();
         }
 
@@ -957,32 +956,34 @@ class HisEmrFiller
 
         if (hadSurgery)
         {
-            string ptTen = "tiến hành can thiệp phẫu thuật theo đúng chỉ định chuyên khoa Ngoại CTCH & Cột sống";
+            string ptTen = "tiến hành can thiệp phẫu thuật theo chỉ định";
             if (allText.Contains("thay khớp háng") || icdLower.Contains("cổ xương đùi") || icdLower.Contains("khớp háng"))
                 ptTen = "tiến hành phẫu thuật thay khớp háng bán phần bên " + ResolveSide(ti, ctx, "phải");
             else if (allText.Contains("bơm xi măng") || allText.Contains("bxm"))
                 ptTen = "tiến hành phẫu thuật tạo hình đốt sống bằng bơm xi măng sinh học";
             else if (allText.Contains("kết hợp xương") || allText.Contains("khx"))
-                ptTen = "tiến hành phẫu thuật kết hợp xương chuyên khoa";
+                ptTen = "tiến hành phẫu thuật kết hợp xương";
             else if (allText.Contains("cố định cột sống") || allText.Contains("tlif") || allText.Contains("plif"))
                 ptTen = "tiến hành phẫu thuật giải ép và cố định cột sống thắt lưng";
 
-            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện Khoa CTCH & Cột sống với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
-            sb.AppendLine(string.Format("- Giai đoạn chu phẫu: Bệnh nhân được hoàn thiện các xét nghiệm, hội chẩn thông qua mổ và {0}.", ptTen));
-            sb.AppendLine("- Diễn biến hậu phẫu đến ngày ra viện (02/10/2026 12:00): Toàn trạng ổn định, vết mổ khô sạch, không sưng đỏ nề, không chảy dịch bất thường; tưới máu ngọn chi tốt, vận động và cảm giác cải thiện rõ rệt, không có tai biến hay biến chứng chu phẫu; đủ điều kiện ra viện.");
+            string inTimeStr = !string.IsNullOrEmpty(ti.InTime) ? ti.InTime : "vào viện";
+            sb.AppendLine(string.Format("- Vào viện ngày {0}: Chẩn đoán [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
+            sb.AppendLine(string.Format("- Chu phẫu: Hoàn thiện bilan xét nghiệm, hội chẩn thông qua mổ và {0}.", ptTen));
+            sb.AppendLine("- Hậu phẫu đến ngày ra viện (02/10/2026 12:00): Toàn trạng ổn định, vết mổ khô sạch, không sưng đỏ nề, không biến chứng; đủ điều kiện ra viện.");
         }
         else if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
         {
             string side = icdLower.Contains("trái") ? "mắt trái" : (icdLower.Contains("phải") || icdLower.Contains("mp") ? "mắt phải" : "hai mắt");
-            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện điều trị chuyên khoa Mắt với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
-            sb.AppendLine("- Quá trình điều trị: Điều trị nội khoa tích cực bằng thuốc nhỏ mắt hạ nhãn áp tại chỗ, bổ sung dinh dưỡng và bảo vệ sợi thần kinh thị giác, theo dõi sát nhãn áp ngày 2 lần kết hợp soi đáy mắt.");
-            sb.AppendLine(string.Format("- Diễn biến đến ngày ra viện (02/10/2026 12:00): Triệu chứng đau nhức {0} và đau đầu thuyên giảm rõ rệt, thị lực cải thiện, nhãn áp kiểm soát ổn định trong giới hạn an toàn, không có biến chứng.", side));
+            sb.AppendLine(string.Format("- Nhập viện chuyên khoa Mắt với chẩn đoán: [{0}] {1}.", ti.IcdCode, ti.IcdName));
+            sb.AppendLine("- Điều trị nội khoa: Thuốc nhỏ mắt hạ nhãn áp, bảo vệ sợi thần kinh thị giác, theo dõi sát nhãn áp hàng ngày.");
+            sb.AppendLine(string.Format("- Diễn biến đến ngày ra viện (02/10/2026 12:00): Hết đau nhức {0}, thị lực cải thiện, nhãn áp kiểm soát an toàn; đủ điều kiện ra viện.", side));
         }
         else
         {
-            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
-            sb.AppendLine("- Quá trình điều trị: Được điều trị nội khoa tích cực kết hợp bất động, chăm sóc và tập phục hồi chức năng chuyên khoa.");
-            sb.AppendLine("- Diễn biến đến ngày ra viện (02/10/2026 12:00): Triệu chứng đau và hạn chế vận động thuyên giảm rõ rệt, sinh hiệu ổn định, vết thương tiến triển tốt, không có biến chứng; đủ điều kiện ra viện.");
+            string inTimeStr = !string.IsNullOrEmpty(ti.InTime) ? ti.InTime : "vào viện";
+            sb.AppendLine(string.Format("- Vào viện ngày {0}: Chẩn đoán [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
+            sb.AppendLine("- Điều trị: Nội khoa tích cực, bất động, chăm sóc và tập phục hồi chức năng.");
+            sb.AppendLine("- Diễn biến đến ngày ra viện (02/10/2026 12:00): Triệu chứng thuyên giảm, vết thương tiến triển tốt, không biến chứng; đủ điều kiện ra viện.");
         }
 
         return sb.ToString().TrimEnd();
@@ -996,8 +997,9 @@ class HisEmrFiller
         string icdLow = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         if (icdLow.Contains("thần kinh giữa") || icdLow.Contains("u thần kinh") || (icdLow.Contains("u ") && icdLow.Contains("cổ tay")))
         {
-            sb.AppendLine("  + Chẩn đoán hình ảnh: Chụp MRI cổ tay trái có tiêm thuốc đối quang từ (Gadovist) ngày 24/09/2026 xác định khối kích thước 21x17 mm liên tục với dây thần kinh giữa ngang mức gân gấp nông (tăng tín hiệu T2W, giảm T1W, ngấm thuốc không đồng nhất - theo dõi Schwannoma) kèm nang bao hoạt dịch gan tay kích thước 8x5 mm; X-quang dày mô mềm mặt trước cổ tay.");
-            sb.AppendLine("  + Xét nghiệm: Công thức máu (Hb 127 g/L, WBC 4.9 G/L, PLT 344 G/L), Đông máu cơ bản (PT-INR 0.99, Fibrinogen 3.48 g/L, APTT 1.02), Sinh hóa máu (Glucose 4.8 mmol/L, Ure 4.1 mmol/L, Creatinin 60 µmol/L, AST 24 U/L, ALT 28 U/L), Nhóm máu O Rh(+) kiểm soát tốt trong suốt quá trình điều trị.");
+            sb.AppendLine("  + CĐHA: MRI cổ tay (T) (24/09): Khối 21x17 mm liên tục thần kinh giữa ngang gân gấp nông (T1 giảm, T2 tăng, ngấm thuốc không đều - Schwannoma) + Nang bao hoạt dịch gan tay 8x5 mm; X-quang dày mô mềm trước cổ tay.");
+            sb.AppendLine("  + Huyết học & Đông máu: Hb 127 g/L, WBC 4.9 G/L, PLT 344 G/L, PT-INR 0.99, Fibrinogen 3.48 g/L.");
+            sb.AppendLine("  + Sinh hóa máu: Glucose 4.8 mmol/L, Ure 4.1 mmol/L, Creatinine 60 µmol/L, men gan và điện giải đồ bình thường.");
             return sb.ToString().TrimEnd();
         }
 
@@ -1041,7 +1043,7 @@ class HisEmrFiller
         if (icdLower.Contains("thần kinh giữa") || icdLower.Contains("u thần kinh") || (icdLower.Contains("u ") && icdLower.Contains("cổ tay")))
         {
             string side = ResolveSide(ti, ctx, "trái");
-            return string.Format("Phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay {0} bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy trọn bệnh phẩm làm xét nghiệm mô bệnh học (giải phẫu bệnh) kết hợp điều trị nội khoa chu phẫu: Kháng sinh dự phòng, giảm đau, chống phù nề, vitamin nhóm B và thay băng chăm sóc vết mổ.", side);
+            return string.Format("Phẫu thuật vi phẫu bóc u bao dây thần kinh giữa + bóc nang bao hoạt dịch gan tay {0} bảo tồn nguyên vẹn chức năng thần kinh (01/10/2026) kết hợp điều trị nội khoa chu phẫu: Kháng sinh, giảm đau, chống phù nề, vitamin nhóm B và cố định nẹp cẳng bàn tay.", side);
         }
 
         if (hadSurgery)
@@ -1070,11 +1072,20 @@ class HisEmrFiller
 
     static string BuildTinhTrangNguoiBenhRaVien(TreatmentInfo ti, DhstInfo dhst)
     {
-        string bp = (dhst != null && !string.IsNullOrEmpty(dhst.BloodPressure)) ? dhst.BloodPressure : "120/80";
-        string pulse = (dhst != null && !string.IsNullOrEmpty(dhst.Pulse)) ? dhst.Pulse : "78";
+        string bp = (dhst != null && !string.IsNullOrEmpty(dhst.BloodPressure)) ? dhst.BloodPressure : "120/75";
+        string pulse = (dhst != null && !string.IsNullOrEmpty(dhst.Pulse)) ? dhst.Pulse : "75";
         string spo2 = (dhst != null && !string.IsNullOrEmpty(dhst.SpO2)) ? dhst.SpO2 : "98";
 
         string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        if (icdLower.Contains("thần kinh giữa") || icdLower.Contains("u thần kinh") || (icdLower.Contains("u ") && icdLower.Contains("cổ tay")))
+        {
+            return string.Format(
+                "Toàn trạng ổn định, tỉnh táo, không sốt, huyết động vững (Mạch {0} l/p, HA {1} mmHg, SpO2 {2}%). " +
+                "Vết mổ cổ tay (T) khô sạch, không sưng đỏ nề; nẹp cẳng bàn tay vững. " +
+                "Tê bì ngón I-III cải thiện rõ rệt, cơ lực đối ngón cái 5/5, đầu chi hồng ấm, tưới máu ngoại vi tốt. Đủ điều kiện xuất viện.",
+                pulse, bp, spo2);
+        }
+
         if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
         {
             string side = icdLower.Contains("trái") ? "mắt trái" : (icdLower.Contains("phải") || icdLower.Contains("mp") ? "mắt phải" : "hai mắt");
@@ -1098,6 +1109,15 @@ class HisEmrFiller
     static string BuildHuongDieuTriTiepTheo(TreatmentInfo ti)
     {
         string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+        if (icdLower.Contains("thần kinh giữa") || icdLower.Contains("u thần kinh") || (icdLower.Contains("u ") && icdLower.Contains("cổ tay")))
+        {
+            return 
+                "- Thuốc: Uống kháng sinh, giảm đau, vitamin nhóm B theo đơn ngoại trú.\n" +
+                "- Vết thương: Thay băng cách ngày tại cơ sở y tế; giữ vết mổ và nẹp khô sạch; cắt chỉ sau 10 - 12 ngày.\n" +
+                "- Bất động & Vận động: Cố định nẹp cổ tay 2 tuần; tập vận động chủ động nhẹ nhàng các ngón tay tránh phù nề, cứng khớp.\n" +
+                "- Tái khám: Sau 2 tuần nhận kết quả Giải phẫu bệnh (hoặc khám lại ngay nếu đau nhức tăng, sưng đỏ vết mổ hoặc tê yếu ngón tay bất thường).";
+        }
+
         if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
         {
             return 
@@ -1158,7 +1178,7 @@ class HisEmrFiller
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
             return string.Format("Đau tức, mất cơ năng không nhón gót được {0} sau chấn thương", loc);
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
-            return string.Format("Khối gồ vùng cổ tay {0}, tê tức bàn ngón tay khi tì đè", loc.Contains("trái") ? "trái" : (loc.Contains("phải") ? "phải" : loc));
+            return string.Format("Khối bất thường mặt trước cổ tay ({0}) kèm tê buốt các ngón tay I - III", loc.Contains("trái") ? "T" : (loc.Contains("phải") ? "P" : "T"));
         if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
         {
             if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
@@ -1293,13 +1313,10 @@ class HisEmrFiller
 
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
-            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
-                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "trái");
+            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "T" : 
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "P" : "T");
             return string.Format(
-                "Khoảng 6 tháng nay, bệnh nhân tự sờ thấy một khối gồ nhỏ tại mặt trước vùng cổ tay {0}, ban đầu kích thước nhỏ, không đau. " +
-                "Thời gian gần đây khối to dần, sờ thấy chắc, ấn vào có cảm giác đau tức nhẹ kèm theo tê bì, châm chích lan xuống các ngón I, II, III và nửa ngoài ngón IV gan bàn tay {0} (theo diện chi phối của dây thần kinh giữa), đau tê tăng nhiều khi tì đè cổ tay hoặc gấp duỗi nhiều. " +
-                "Ngày 24/09/2026, bệnh nhân đến khám tại Trung tâm Cơ Xương Khớp - Bệnh viện Bạch Mai, được chụp MRI cổ tay {0} có tiêm thuốc đối quang từ (Gadovist) xác định hình ảnh khối u bao dây thần kinh giữa (kích thước 21x17 mm, tăng tín hiệu T2W, giảm T1W, ngấm thuốc không đồng nhất - theo dõi Schwannoma) kèm nang bao hoạt dịch gan tay (8x5 mm). " +
-                "Ngày 29/09/2026, bệnh nhân được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và phẫu thuật vi phẫu bóc u bảo tồn dây thần kinh.",
+                "Bệnh khởi phát ~6 tháng trước với khối u nhỏ mặt trước cổ tay ({0}), lớn dần kèm tê bì, dị cảm châm chích vùng ngón I, II, III ({0}) tăng khi gấp duỗi cổ tay. Ngày 24/09/2026 khám ngoại trú, MRI cổ tay ({0}) ghi nhận khối 21x17 mm liên tục dây TK giữa (nghĩ Schwannoma) và nang bao hoạt dịch gan tay 8x5 mm. BN vào viện ngày 29/09/2026 điều trị phẫu thuật.",
                 side);
         }
 
@@ -1474,15 +1491,15 @@ class HisEmrFiller
 
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
-            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
-                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "trái");
+            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "T" : 
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "P" : "T");
             return string.Format(
-                "Khám chuyên khoa Cổ - Bàn tay {0}:\n" +
-                "- Nhìn: Vùng mặt trước cổ tay {0} có khối gồ nhẹ dưới da kích thước ~ 2x2 cm theo đường đi giải phẫu của dây thần kinh giữa. Da phủ trên khối bình thường, không sưng nóng đỏ, không có sẹo mổ cũ hay lỗ rò.\n" +
-                "- Sờ: Khối mật độ chắc vừa, ranh giới rõ ràng với tổ chức xung quanh, ấn đau tức nhẹ tại chỗ. Khối di động theo phương ngang (vuông góc trục dây thần kinh) tốt hơn theo phương dọc.\n" +
-                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u gây cảm giác tê buốt châm chích lan dọc theo diện chi phối dây thần kinh giữa (ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay {0}). Nghiệm pháp Phalen (+).\n" +
-                "- Vận động & Dinh dưỡng: Cơ mô cái chưa teo rõ, cơ lực đối chiếu ngón cái 5/5, biên độ vận động khớp cổ tay và các ngón tay trong giới hạn bình thường.\n" +
-                "- Mạch máu & Dinh dưỡng ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, thời gian hồi lưu mao mạch (CRT) < 2s.",
+                "Khám chuyên khoa Cổ - Bàn tay ({0}):\n" +
+                "- Mặt trước cổ tay ({0}): Khối u ~2x2 cm, mật độ chắc, ranh giới rõ, ấn tức nhẹ, di động theo chiều ngang tốt hơn chiều dọc, không nóng đỏ.\n" +
+                "- Dấu hiệu Tinel (+) tại khối lan xuống ngón I-III. Nghiệm pháp Phalen (+).\n" +
+                "- Cảm giác: Tê bì, giảm cảm giác nông ngón I, II, III và nửa ngoài ngón IV bàn tay ({0}).\n" +
+                "- Vận động: Cơ lực đối ngón cái và các ngón 5/5; không teo cơ mô cái.\n" +
+                "- Mạch máu: Mạch quay, mạch trụ đập rõ, tưới máu đầu chi tốt (CRT < 2s).",
                 side);
         }
 
@@ -1931,12 +1948,10 @@ class HisEmrFiller
         }
         else if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
-            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
-                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "trái");
-            sb.AppendLine(string.Format("- Triệu chứng khối u vùng cổ tay {0}: Khối mặt trước cổ tay {0} nằm theo trục giải phẫu dây thần kinh giữa, kích thước ~ 2x2 cm, mật độ chắc, ranh giới rõ, di động ngang tốt hơn dọc, ấn đau tức tại chỗ.", side));
-            sb.AppendLine(string.Format("- Hội chứng tổn thương thần kinh ngoại vi (+): Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u gây cảm giác tê bì dị cảm lan xuống ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay {0} theo diện chi phối thần kinh giữa; nghiệm pháp Phalen (+).", side));
-            sb.AppendLine("- Vận động & Dinh dưỡng ngọn chi: Cơ mô cái bảo tồn, cơ lực đối chiếu ngón cái 5/5, biên độ vận động cổ bàn tay bình thường; mạch quay và mạch trụ bắt rõ, tưới máu đầu chi hồng ấm (CRT < 2s).");
-            sb.AppendLine("- Cận lâm sàng có giá trị: MRI cổ tay trái (24/09/2026) xác định khối 21x17 mm liên tục dây thần kinh giữa (theo dõi Schwannoma) kèm nang bao hoạt dịch gan tay 8x5 mm; X-quang dày mô mềm trước cổ tay; Bilan xét nghiệm máu (CTM, Đông máu, Sinh hóa) trong giới hạn bình thường.");
+            string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "T" : 
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "P" : "T");
+            sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa / U dây TK: Khối mặt trước cổ tay ({0}) ~2x2 cm, chắc, ranh giới rõ, di động ngang > dọc; Tinel (+), Phalen (+); Giảm cảm giác nông ngón I-III. Cơ lực đối ngón cái 5/5, chưa teo cơ mô cái.", side));
+            sb.AppendLine("- Cận lâm sàng (MRI 24/09): Khối 21x17 mm liên tục TK giữa ngang gân gấp nông (T1 giảm, T2 tăng, ngấm thuốc không đều - Schwannoma); Kèm nang bao hoạt dịch gan tay 8x5 mm. Bilan tiền phẫu (CTM, Đông máu, Sinh hóa) trong giới hạn bình thường.");
         }
         else if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
         {
