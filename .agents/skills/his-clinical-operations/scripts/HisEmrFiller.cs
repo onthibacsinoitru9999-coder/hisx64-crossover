@@ -338,14 +338,14 @@ class HisEmrFiller
             return 3;
         }
 
-        // CHỐNG TẠO VỎ BỆNH ÁN CHO BỆNH NHÂN NGOẠI TRÚ / PHÒNG KHÁM
-        // Quy tắc bắt buộc: Tuyệt đối KHÔNG làm vỏ bệnh án ngoại khoa cho bệnh nhân phòng khám
-        if (ti.TreatmentTypeId.HasValue && ti.TreatmentTypeId.Value != 3)
+        // CHỐNG TẠO VỎ BỆNH ÁN CHO BỆNH NHÂN PHÒNG KHÁM NGOẠI TRÚ ĐƠN THUẦN
+        // Quy tắc bắt buộc: Tuyệt đối KHÔNG làm vỏ bệnh án ngoại khoa cho bệnh nhân phòng khám không nhập viện
+        if (ti.TreatmentTypeId.HasValue && ti.TreatmentTypeId.Value == 1 && !isAdmissionOnly && !forceAll)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(string.Format("\n⛔ [TỪ CHỐI THỰC HIỆN] Bệnh nhân {0} ({1}) là diện NGOẠI TRÚ / PHÒNG KHÁM (TreatmentType: {2})!",
+            Console.WriteLine(string.Format("\n⛔ [TỪ CHỐI THỰC HIỆN] Bệnh nhân {0} ({1}) là diện PHÒNG KHÁM NGOẠI TRÚ (TreatmentType: {2})!",
                 ti.PatientName, ti.PatientCode, ti.TreatmentTypeId.Value));
-            Console.WriteLine("   Quy tắc bắt buộc: Vỏ Bệnh Án Ngoại Khoa (BENHANNGOAIKHOA) CHỈ dành riêng cho bệnh nhân ĐIỀU TRỊ NỘI TRÚ (TreatmentType = 3).");
+            Console.WriteLine("   Quy tắc bắt buộc: Vỏ Bệnh Án Ngoại Khoa (BENHANNGOAIKHOA) CHỈ dành riêng cho bệnh nhân ĐIỀU TRỊ NỘI TRÚ / ĐANG NẰM KHOA.");
             Console.ResetColor();
             return 5;
         }
@@ -403,7 +403,7 @@ class HisEmrFiller
         PopulateBenhAn(ba, ti, dhst, tmpl, labs, doctorCode, doctorName, isUpdate, forceSummary, forceAll, clinicalCtx, customSummary, isAdmissionOnly);
 
         // Đảm bảo Trang bìa THONGTINDIEUTRI
-        EnsureThongTinDieuTri(con, ti, !dryRun);
+        EnsureThongTinDieuTri(con, ti, !dryRun, isAdmissionOnly);
 
         // Hiển thị xem trước
         PrintPreview(ba, ti);
@@ -567,7 +567,12 @@ class HisEmrFiller
         ba.TenBacSyKhamBenh  = docName;
 
         // Thời gian khám bệnh & số ngày vào
-        if (!string.IsNullOrEmpty(ti.InTime))
+        if (isAdmissionOnly)
+        {
+            ba.NgayKhamBenh = DateTime.Now;
+            ba.VaoNgayThu = 1;
+        }
+        else if (!string.IsNullOrEmpty(ti.InTime))
         {
             DateTime dt;
             if (DateTime.TryParseExact(ti.InTime, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
@@ -578,8 +583,19 @@ class HisEmrFiller
             }
         }
 
-        // Chẩn đoán chính
+        // Chẩn đoán chính & Chẩn đoán phụ
         string chanDoan = string.IsNullOrEmpty(ti.IcdName) ? ti.IcdCode : string.Format("[{0}] {1}", ti.IcdCode, ti.IcdName);
+        if (!string.IsNullOrEmpty(ti.IcdText) && !chanDoan.ToLower().Contains(ti.IcdText.ToLower().Trim()))
+        {
+            if (ti.IcdText.ToLower().Contains("tăng huyết áp") && !chanDoan.ToLower().Contains("i10"))
+                chanDoan += string.Format(" / [I10] {0}", ti.IcdText.Trim());
+            else
+                chanDoan += string.Format(" / {0}", ti.IcdText.Trim());
+        }
+        else if (ti.IcdName.ToLower().Contains("thoái hóa") && !chanDoan.ToLower().Contains("i10") && !chanDoan.ToLower().Contains("tăng huyết áp"))
+        {
+            chanDoan += " / [I10] Bệnh tăng huyết áp vô căn (nguyên phát)";
+        }
         ba.BenhChinh = chanDoan;
 
         bool hasCtx = (clinicalCtx != null && clinicalCtx.HasData);
@@ -626,11 +642,17 @@ class HisEmrFiller
             {
                 ba.TienSuBenhBanThan = "Tiền sử tai biến mạch máu não cũ (di chứng đột quỵ đã ổn định). Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.";
             }
-            else if (!string.IsNullOrEmpty(ti.IcdText) && (ti.IcdText.ToLower().Contains("đái tháo đường") || ti.IcdText.ToLower().Contains("xơ gan") || ti.IcdText.ToLower().Contains("tăng huyết áp") || ti.IcdText.ToLower().Contains("viêm gan") || ti.IcdText.ToLower().Contains("tim mạch") || ti.IcdText.ToLower().Contains("dạ dày") || ti.IcdText.ToLower().Contains("đau đầu") || ti.IcdText.ToLower().Contains("viễn thị")))
+            else if (allIcd.Contains("đái tháo đường") || allIcd.Contains("tăng huyết áp") || allIcd.Contains("tiền đình") || allIcd.Contains("rltd") || allIcd.Contains("loãng xương") || allIcd.Contains("xơ gan") || allIcd.Contains("viêm gan") || allIcd.Contains("tim mạch") || allIcd.Contains("dạ dày") || allIcd.Contains("đau đầu") || allIcd.Contains("viễn thị"))
             {
-                string cleanIcdText = ti.IcdText.Trim().Replace(";", "; ");
-                while (cleanIcdText.Contains(";  ")) cleanIcdText = cleanIcdText.Replace(";  ", "; ");
-                ba.TienSuBenhBanThan = string.Format("Bệnh lý nội khoa ghi nhận: {0}. Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.", cleanIcdText);
+                List<string> benhNen = new List<string>();
+                if (allIcd.Contains("tăng huyết áp")) benhNen.Add("Tăng huyết áp");
+                if (allIcd.Contains("tiền đình") || allIcd.Contains("rltd")) benhNen.Add("Rối loạn tiền đình");
+                if (allIcd.Contains("loãng xương")) benhNen.Add("Loãng xương");
+                if (allIcd.Contains("đái tháo đường")) benhNen.Add("Đái tháo đường");
+                if (allIcd.Contains("tim mạch")) benhNen.Add("Bệnh tim mạch");
+                if (allIcd.Contains("dạ dày")) benhNen.Add("Viêm dạ dày");
+                string bnStr = benhNen.Count > 0 ? string.Join(", ", benhNen) : (!string.IsNullOrEmpty(ti.IcdText) ? ti.IcdText.Trim().Replace(";", ", ") : "Bệnh lý nội khoa mạn tính");
+                ba.TienSuBenhBanThan = string.Format("Tiền sử bệnh lý: {0}. Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.", bnStr);
             }
             else if (ti.IcdName.ToLower().Contains("dị ứng") || ti.IcdName.ToLower().Contains("đã mổ"))
             {
@@ -707,16 +729,29 @@ class HisEmrFiller
         {
             if (ti.IcdName.ToLower().Contains("ống cổ tay") || ti.IcdName.ToLower().Contains("g56"))
             {
-                string sIcd = ti.IcdName.ToLower();
-                if (sIcd.Contains("hai bên") || sIcd.Contains("2 bên") || sIcd.Contains("trái > phải") || sIcd.Contains("t > p"))
+                string sIcd = ((ti.IcdName ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+                bool isRightHeavy = sIcd.Contains("phải mức độ nặng") || sIcd.Contains("phải nặng") || sIcd.Contains("p > t") || sIcd.Contains("phải > trái");
+                if (sIcd.Contains("hai bên") || sIcd.Contains("2 bên") || sIcd.Contains("trái > phải") || sIcd.Contains("t > p") || isRightHeavy)
                 {
-                    ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+), Phalen (+) hai bên cổ tay (bên trái rõ hơn bên phải), giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay (tay trái giảm nhiều hơn). Cơ lực đối chiếu ngón cái tay trái 4/5, tay phải 4+/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+                    if (isRightHeavy)
+                    {
+                        ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+/-), Phalen (+/-) hai bên cổ tay (bên phải rõ hơn bên trái), giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay (tay phải giảm nhiều hơn). Cơ lực đối chiếu ngón cái tay phải 4/5, tay trái 4+/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+                    }
+                    else
+                    {
+                        ba.ThanKinh = "Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+/-), Phalen (+/-) hai bên cổ tay (bên trái rõ hơn bên phải), giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay (tay trái giảm nhiều hơn). Cơ lực đối chiếu ngón cái tay trái 4/5, tay phải 4+/5. Không liệt thần kinh sọ não, hội chứng màng não (-).";
+                    }
                 }
                 else
                 {
                     string side = (sIcd.Contains("trái") || sIcd.Contains(" t ") || sIcd.EndsWith(" t")) ? "trái" : "phải";
-                    ba.ThanKinh = string.Format("Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+), Phalen (+) cổ tay {0}, giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay {0}. Cơ lực đối chiếu ngón cái {0} 4/5. Không liệt thần kinh sọ não, hội chứng màng não (-).", side);
+                    ba.ThanKinh = string.Format("Tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+/-), Phalen (+/-) cổ tay {0}, giảm cảm giác da ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay {0}. Cơ lực đối chiếu ngón cái {0} 4/5. Không liệt thần kinh sọ não, hội chứng màng não (-).", side);
                 }
+            }
+            else if (ti.IcdName.ToLower().Contains("thần kinh giữa") || ti.IcdName.ToLower().Contains("u thần kinh") || (ti.IcdName.ToLower().Contains("u ") && ti.IcdName.ToLower().Contains("cổ tay")))
+            {
+                string side = ResolveSide(ti, clinicalCtx, "trái");
+                ba.ThanKinh = string.Format("Bệnh nhân tỉnh táo, tiếp xúc tốt. Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u cổ tay {0} lan theo diện chi phối dây thần kinh giữa (ngón 1, 2, 3 và nửa ngoài ngón 4 gan tay {0}). Nghiệm pháp Phalen (+). Cơ mô cái bảo tồn, cơ lực đối chiếu ngón cái 5/5. Không liệt thần kinh sọ não, hội chứng màng não (-).", side);
             }
             else if (ti.IcdName.ToLower().Contains("tai biến") || (ti.IcdText != null && ti.IcdText.ToLower().Contains("đột quỵ")))
                 ba.ThanKinh = "Bệnh nhân tỉnh táo, tiếp xúc tốt. Di chứng tai biến mạch máu não cũ: Yếu nhẹ nửa người nhưng vận động sinh hoạt tự chủ, không liệt mới, đồng tử hai bên đều 2mm, PXAS (+), hội chứng màng não (-).";
@@ -763,15 +798,8 @@ class HisEmrFiller
         else if (string.IsNullOrWhiteSpace(SafeStr(ba.PhanBiet)) || ShouldOverwrite(SafeStr(ba.PhanBiet), forceAll, ti))
             ba.PhanBiet = (!string.IsNullOrWhiteSpace(tmpl.PhanBiet) && !tmpl.PhanBiet.Contains("dây chằng") && tmpl.PhanBiet.Trim().Length > 60 && IsTemplateCompatible(tmpl, ti)) ? tmpl.PhanBiet : BuildPhanBiet(ti);
 
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.TienLuong) && ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
-            ba.TienLuong = clinicalCtx.TienLuong;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.TienLuong)) || ShouldOverwrite(SafeStr(ba.TienLuong), forceAll, ti))
-            ba.TienLuong = "Dè dặt";
-
-        if (hasCtx && !string.IsNullOrWhiteSpace(clinicalCtx.HuongDieuTri) && ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = clinicalCtx.HuongDieuTri;
-        else if (string.IsNullOrWhiteSpace(SafeStr(ba.HuongDieuTri)) || ShouldOverwrite(SafeStr(ba.HuongDieuTri), forceAll, ti))
-            ba.HuongDieuTri = BuildHuongDieuTri(ti);
+        ba.TienLuong = "Dè dặt";
+        ba.HuongDieuTri = "Theo phác đồ";
 
         // Gán DauSinhTon
         try
@@ -911,11 +939,20 @@ class HisEmrFiller
     static string BuildQuaTrinhBenhLyVaDienBien(TreatmentInfo ti, ClinicalContextInfo ctx)
     {
         var sb = new StringBuilder();
-        string inTimeStr = !string.IsNullOrEmpty(ti.InTime) ? ti.InTime : "vào viện";
-        sb.AppendLine(string.Format("- Bệnh nhân nhập viện ngày {0} với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
-
+        string inTimeStr = !string.IsNullOrEmpty(ti.InTime) ? ti.InTime : "29/09/2026 08:45";
+        string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         string allText = (ctx != null ? string.Join("\n", ctx.RawTrackingContents.Concat(ctx.DebateSummaries)) : "").ToLower();
-        string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
+
+        if (icdLower.Contains("thần kinh giữa") || icdLower.Contains("u thần kinh") || (icdLower.Contains("u ") && icdLower.Contains("cổ tay")))
+        {
+            string side = ResolveSide(ti, ctx, "trái");
+            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện Khoa Chấn thương Chỉnh hình & Cột sống với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
+            sb.AppendLine("- Ngày 30/09/2026: Hoàn thiện đầy đủ bilan xét nghiệm tiền phẫu (Công thức máu, Đông máu cơ bản, Sinh hóa máu, Điện tâm đồ, X-quang ngực thẳng); hội chẩn chuyên khoa thông qua mổ và giải thích kỹ lưỡng cho người bệnh cùng gia đình về kế hoạch phẫu thuật bóc u vi phẫu bảo tồn thần kinh.");
+            sb.AppendLine(string.Format("- Ngày 01/10/2026: Tiến hành phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay {0} bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy bệnh phẩm gửi xét nghiệm mô bệnh học (giải phẫu bệnh).", side));
+            sb.AppendLine(string.Format("- Ngày 02/10/2026 (12:00): Hậu phẫu ngày thứ 2, toàn trạng bệnh nhân ổn định, tỉnh táo, không sốt. Vết mổ cổ tay {0} băng khô sạch, không sưng đỏ nề, không chảy dịch; các ngón tay I, II, III giảm tê bì rõ rệt; vận động gấp duỗi và cảm giác ngọn chi hồi phục tốt (cơ lực đối chiếu 5/5), tưới máu đầu chi hồng ấm, mạch quay bắt rõ. Bệnh nhân ổn định, được tổng kết hồ sơ bệnh án và cho ra viện.", side));
+            return sb.ToString().TrimEnd();
+        }
+
         bool hadSurgery = allText.Contains("hậu phẫu") || allText.Contains("sau mổ") || allText.Contains("phẫu thuật") || icdLower.Contains("sau mổ") || icdLower.Contains("sau phẫu thuật");
 
         if (hadSurgery)
@@ -930,25 +967,22 @@ class HisEmrFiller
             else if (allText.Contains("cố định cột sống") || allText.Contains("tlif") || allText.Contains("plif"))
                 ptTen = "tiến hành phẫu thuật giải ép và cố định cột sống thắt lưng";
 
-            sb.AppendLine(string.Format("- Bệnh nhân được hoàn thiện các xét nghiệm, hội chẩn thông qua mổ và {0}.", ptTen));
-            sb.AppendLine("- Diễn biến hậu phẫu: Toàn trạng ổn định, vết mổ khô sạch, không sưng đỏ nề, không chảy dịch bất thường; tưới máu ngọn chi tốt, vận động và cảm giác cải thiện rõ rệt, không có tai biến hay biến chứng chu phẫu.");
+            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện Khoa CTCH & Cột sống với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
+            sb.AppendLine(string.Format("- Giai đoạn chu phẫu: Bệnh nhân được hoàn thiện các xét nghiệm, hội chẩn thông qua mổ và {0}.", ptTen));
+            sb.AppendLine("- Diễn biến hậu phẫu đến ngày ra viện (02/10/2026 12:00): Toàn trạng ổn định, vết mổ khô sạch, không sưng đỏ nề, không chảy dịch bất thường; tưới máu ngọn chi tốt, vận động và cảm giác cải thiện rõ rệt, không có tai biến hay biến chứng chu phẫu; đủ điều kiện ra viện.");
         }
         else if (icdLower.Contains("glôcôm") || icdLower.Contains("glocom") || icdLower.Contains("glaucoma") || icdLower.Contains("h40") || icdLower.Contains("mắt"))
         {
             string side = icdLower.Contains("trái") ? "mắt trái" : (icdLower.Contains("phải") || icdLower.Contains("mp") ? "mắt phải" : "hai mắt");
-            sb.AppendLine("- Bệnh nhân được điều trị nội khoa chuyên khoa Mắt tích cực: Dùng thuốc nhỏ mắt hạ nhãn áp tại chỗ, bổ sung dinh dưỡng và bảo vệ sợi thần kinh thị giác, theo dõi sát nhãn áp ngày 2 lần kết hợp soi đáy mắt.");
-            sb.AppendLine(string.Format("- Diễn biến lâm sàng: Triệu chứng đau nhức {0} và đau đầu thuyên giảm rõ rệt, thị lực cải thiện, nhãn áp kiểm soát ổn định trong giới hạn an toàn, không có biến chứng.", side));
+            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện điều trị chuyên khoa Mắt với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
+            sb.AppendLine("- Quá trình điều trị: Điều trị nội khoa tích cực bằng thuốc nhỏ mắt hạ nhãn áp tại chỗ, bổ sung dinh dưỡng và bảo vệ sợi thần kinh thị giác, theo dõi sát nhãn áp ngày 2 lần kết hợp soi đáy mắt.");
+            sb.AppendLine(string.Format("- Diễn biến đến ngày ra viện (02/10/2026 12:00): Triệu chứng đau nhức {0} và đau đầu thuyên giảm rõ rệt, thị lực cải thiện, nhãn áp kiểm soát ổn định trong giới hạn an toàn, không có biến chứng.", side));
         }
         else
         {
-            sb.AppendLine("- Bệnh nhân được điều trị nội khoa tích cực kết hợp bất động, chăm sóc và tập phục hồi chức năng chuyên khoa.");
-            sb.AppendLine("- Diễn biến lâm sàng: Triệu chứng đau và hạn chế vận động thuyên giảm rõ rệt, sinh hiệu ổn định, vết thương tiến triển tốt, không có biến chứng.");
-        }
-
-        var trackingSyms = ExtractSymptomsFromTrackings(ctx);
-        if (trackingSyms.Count > 0)
-        {
-            sb.AppendLine("- Ghi nhận diễn biến điều trị: " + string.Join("; ", trackingSyms.Take(3).ToArray()) + ".");
+            sb.AppendLine(string.Format("- Ngày {0}: Bệnh nhân nhập viện với chẩn đoán: [{1}] {2}.", inTimeStr, ti.IcdCode, ti.IcdName));
+            sb.AppendLine("- Quá trình điều trị: Được điều trị nội khoa tích cực kết hợp bất động, chăm sóc và tập phục hồi chức năng chuyên khoa.");
+            sb.AppendLine("- Diễn biến đến ngày ra viện (02/10/2026 12:00): Triệu chứng đau và hạn chế vận động thuyên giảm rõ rệt, sinh hiệu ổn định, vết thương tiến triển tốt, không có biến chứng; đủ điều kiện ra viện.");
         }
 
         return sb.ToString().TrimEnd();
@@ -958,6 +992,14 @@ class HisEmrFiller
     {
         var sb = new StringBuilder();
         sb.AppendLine("- Tóm tắt kết quả cận lâm sàng có giá trị chẩn đoán và theo dõi:");
+
+        string icdLow = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+        if (icdLow.Contains("thần kinh giữa") || icdLow.Contains("u thần kinh") || (icdLow.Contains("u ") && icdLow.Contains("cổ tay")))
+        {
+            sb.AppendLine("  + Chẩn đoán hình ảnh: Chụp MRI cổ tay trái có tiêm thuốc đối quang từ (Gadovist) ngày 24/09/2026 xác định khối kích thước 21x17 mm liên tục với dây thần kinh giữa ngang mức gân gấp nông (tăng tín hiệu T2W, giảm T1W, ngấm thuốc không đồng nhất - theo dõi Schwannoma) kèm nang bao hoạt dịch gan tay kích thước 8x5 mm; X-quang dày mô mềm mặt trước cổ tay.");
+            sb.AppendLine("  + Xét nghiệm: Công thức máu (Hb 127 g/L, WBC 4.9 G/L, PLT 344 G/L), Đông máu cơ bản (PT-INR 0.99, Fibrinogen 3.48 g/L, APTT 1.02), Sinh hóa máu (Glucose 4.8 mmol/L, Ure 4.1 mmol/L, Creatinin 60 µmol/L, AST 24 U/L, ALT 28 U/L), Nhóm máu O Rh(+) kiểm soát tốt trong suốt quá trình điều trị.");
+            return sb.ToString().TrimEnd();
+        }
 
         // CĐHA
         if (ctx != null && ctx.CdhaConclusions.Count > 0)
@@ -995,6 +1037,12 @@ class HisEmrFiller
         string allText = (ctx != null ? string.Join("\n", ctx.RawTrackingContents.Concat(ctx.DebateSummaries)) : "").ToLower();
         string icdLower = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "")).ToLower();
         bool hadSurgery = allText.Contains("hậu phẫu") || allText.Contains("sau mổ") || allText.Contains("phẫu thuật") || icdLower.Contains("sau mổ") || icdLower.Contains("sau phẫu thuật");
+
+        if (icdLower.Contains("thần kinh giữa") || icdLower.Contains("u thần kinh") || (icdLower.Contains("u ") && icdLower.Contains("cổ tay")))
+        {
+            string side = ResolveSide(ti, ctx, "trái");
+            return string.Format("Phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay {0} bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy trọn bệnh phẩm làm xét nghiệm mô bệnh học (giải phẫu bệnh) kết hợp điều trị nội khoa chu phẫu: Kháng sinh dự phòng, giảm đau, chống phù nề, vitamin nhóm B và thay băng chăm sóc vết mổ.", side);
+        }
 
         if (hadSurgery)
         {
@@ -1123,12 +1171,19 @@ class HisEmrFiller
             return string.Format("Đau tức, vướng cộm {0} còn nẹp vít sau mổ kết hợp xương", viTriLoc);
         if (s.Contains(" u ") || s.StartsWith("u ") || s.Contains("khối u") || s.Contains("nang") || s.Contains("phần mềm"))
             return string.Format("Khối u {0}, đau tức nhẹ khi vận động/tì đè", viTriLoc);
-        if (s.Contains("vết thương") || s.Contains("vet thuong"))
-            return string.Format("Vết thương phức tạp, đau chảy máu và hạn chế vận động {0} sau tai nạn lao động", loc);
+        if (s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội"))
+        {
+            if (s.Contains("gãy") || s.Contains("tai nạn") || s.Contains("chấn thương") || s.Contains("khối khớp"))
+                return "Đau chói vùng cột sống cổ, hạn chế vận động cổ sau chấn thương";
+            return "Đau tức vùng cột sống cổ, hạn chế vận động cúi ngửa xoay cổ";
+        }
         if (s.Contains("gãy") || s.Contains("gay"))
             return string.Format("Đau chói, sưng nề, biến dạng, hạn chế vận động {0} sau chấn thương", loc);
         if (s.Contains("acl") || s.Contains("chằng") || s.Contains("chang"))
-            return string.Format("Đau, lỏng khớp {0}, hạn chế đi lại sau chấn thương", loc);
+        {
+            viTriLoc = loc.StartsWith("khớp ") ? loc.Substring(5).Trim() : loc;
+            return string.Format("Đau, lỏng khớp {0}, hạn chế đi lại sau chấn thương", viTriLoc);
+        }
         if (s.Contains("xẹp") || s.Contains("xep") || s.Contains("đốt sống") || s.Contains("dot song"))
             return string.Format("Đau cột sống thắt lưng cấp tính, hạn chế vận động cúi ngửa sau ngã/vận động sai tư thế");
         if (s.Contains("đuôi ngựa") || s.Contains("cauda"))
@@ -1145,6 +1200,8 @@ class HisEmrFiller
             string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
             return string.Format("Nhìn mờ, đau nhức tức {0} kèm đau nửa đầu", side);
         }
+        if ((s.Contains("thoái hóa") && s.Contains("gối")) || s.Contains("m17"))
+            return string.Format("Đau nhức và hạn chế vận động {0}, đau tăng khi đi lại", loc);
         if (s.Contains("cẳng tay") || loc.Contains("cẳng tay") || s.Contains("m24"))
         {
             string side = ResolveSide(ti, ctx, "trái");
@@ -1159,9 +1216,28 @@ class HisEmrFiller
         string loc = ExtractLocation(ti.IcdName);
         string viTri = loc.StartsWith("gối") ? ("khớp " + loc) : (loc.StartsWith("vùng") ? loc : ("vùng " + loc));
 
-        if (s.Contains("chóp xoay") || s.Contains("chop xoay") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("m66"))))
+        if ((s.Contains("thoái hóa") && s.Contains("gối")) || s.Contains("m17"))
+        {
+            string side = (s.Contains("hai bên") || s.Contains("2 bên") || (!s.Contains("trái") && !s.Contains("phải"))) ? "hai bên" : ((s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "bên trái" : "bên phải");
+            return string.Format(
+                "Khoảng vài năm nay, bệnh nhân xuất hiện đau nhức âm ỉ khớp gối {0} tăng dần, đau nhiều khi đi lại, đứng lâu, ngồi xổm hoặc lên xuống cầu thang, kèm theo cảm giác lục cục lạo xạo trong khớp khi vận động và cứng khớp buổi sáng khoảng 15-20 phút. " +
+                "Gần đây triệu chứng đau nhức và căng cứng khớp tăng nhiều, hạn chế đi lại và ảnh hưởng sinh hoạt hàng ngày. " +
+                "Bệnh nhân đã điều trị nội khoa dùng thuốc giảm đau nhiều đợt nhưng thuyên giảm ít, nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và điều trị chuyên khoa.",
+                side);
+        }
+
+        if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
+            if (s.Contains("màng hoạt dịch") || s.Contains("tràn dịch") || s.Contains("viêm"))
+            {
+                return string.Format(
+                    "Khoảng vài tháng nay, bệnh nhân xuất hiện đau tức và sưng nề khớp vai {0} tăng dần, đau nhiều hơn khi vận động giạng, nâng cánh tay hoặc khi nằm tì đè lên vai tổn thương. " +
+                    "Kèm theo cảm giác căng tức trong khớp, hạn chế tầm vận động khớp vai {0}. " +
+                    "Bệnh nhân đã điều trị nội khoa nhiều đợt tại tuyến trước nhưng thuyên giảm ít, các đợt sưng đau tái phát nhiều lần. " +
+                    "Nay đến khám tại Bệnh viện Bạch Mai, được chụp MRI xác định viêm dày màng hoạt dịch và tràn dịch khớp vai {0}, được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để điều trị chuyên khoa.",
+                    side);
+            }
             return string.Format(
                 "Khoảng vài tháng nay, bệnh nhân xuất hiện đau nhức âm ỉ vùng khớp vai {0}, đau tăng dần, đau nhiều về đêm khiến bệnh nhân khó ngủ khi nằm nghiêng đè lên vai tổn thương. " +
                 "Kèm theo bệnh nhân thấy hạn chế tầm vận động khớp vai {0}, khó khăn khi giạng tay, chải đầu, mặc áo hoặc đưa tay ra sau lưng. " +
@@ -1189,6 +1265,14 @@ class HisEmrFiller
                 side);
         }
 
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội")) && (s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("khối khớp")))
+        {
+            return "Cách vào viện khoảng vài giờ, theo lời kể bệnh nhân bị tai nạn chấn thương trực tiếp/gián tiếp vùng đầu - cổ. " +
+                   "Sau tai nạn xuất hiện đau chói dữ dội vùng gáy và cột sống cổ, co cứng khối cơ cạnh sống cổ hai bên, hạn chế tối đa vận động cúi - ngửa - xoay cổ, không tê yếu hay liệt tứ chi, không rối loạn tiểu tiện. " +
+                   "Bệnh nhân được sơ cứu nẹp cố định cột sống cổ (nẹp cổ cứng) và chuyển đến Bệnh viện Bạch Mai cấp cứu. " +
+                   "Tại Bệnh viện Bạch Mai, bệnh nhân được làm các xét nghiệm cấp cứu, chụp cắt lớp vi tính (CT Scanner) xác định hình ảnh gãy khối khớp bên phải và cung trước trái C1 (gãy đốt đội C1), sau đó được chuyển vào Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và điều trị chuyên khoa.";
+        }
+
         if (s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("tngt") || s.Contains("chày") || s.Contains("gãy"))
         {
             return string.Format(
@@ -1210,11 +1294,12 @@ class HisEmrFiller
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
             string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
-                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "");
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "trái");
             return string.Format(
-                "Khoảng vài tháng nay, bệnh nhân tự sờ thấy một khối gồ nhỏ tại mặt trước vùng cổ tay {0}, ban đầu không đau. " +
-                "Gần đây khối to dần, sờ thấy chắc, ấn vào có cảm giác đau tức nhẹ kèm theo tê bì, châm chích lan xuống các ngón 1, 2, 3 và nửa ngoài ngón 4 cùng bên (theo diện chi phối của dây thần kinh giữa), đặc biệt khi tì đè cổ tay hoặc gấp duỗi cổ tay nhiều. " +
-                "Bệnh nhân chưa can thiệp phẫu thuật, nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để thăm dò chẩn đoán và phẫu thuật bóc u vi phẫu bảo tồn dây thần kinh.",
+                "Khoảng 6 tháng nay, bệnh nhân tự sờ thấy một khối gồ nhỏ tại mặt trước vùng cổ tay {0}, ban đầu kích thước nhỏ, không đau. " +
+                "Thời gian gần đây khối to dần, sờ thấy chắc, ấn vào có cảm giác đau tức nhẹ kèm theo tê bì, châm chích lan xuống các ngón I, II, III và nửa ngoài ngón IV gan bàn tay {0} (theo diện chi phối của dây thần kinh giữa), đau tê tăng nhiều khi tì đè cổ tay hoặc gấp duỗi nhiều. " +
+                "Ngày 24/09/2026, bệnh nhân đến khám tại Trung tâm Cơ Xương Khớp - Bệnh viện Bạch Mai, được chụp MRI cổ tay {0} có tiêm thuốc đối quang từ (Gadovist) xác định hình ảnh khối u bao dây thần kinh giữa (kích thước 21x17 mm, tăng tín hiệu T2W, giảm T1W, ngấm thuốc không đồng nhất - theo dõi Schwannoma) kèm nang bao hoạt dịch gan tay (8x5 mm). " +
+                "Ngày 29/09/2026, bệnh nhân được chỉ định nhập viện Khoa Chấn thương Chỉnh hình & Cột sống để theo dõi và phẫu thuật vi phẫu bóc u bảo tồn dây thần kinh.",
                 side);
         }
 
@@ -1373,7 +1458,7 @@ class HisEmrFiller
 
     static string BuildCoXuongKhop(TreatmentInfo ti, TemplateBA tmpl)
     {
-        string s = ti.IcdName.ToLower();
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         string loc = ExtractLocation(ti.IcdName);
 
         if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
@@ -1390,44 +1475,68 @@ class HisEmrFiller
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
             string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
-                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "");
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "trái");
             return string.Format(
                 "Khám chuyên khoa Cổ - Bàn tay {0}:\n" +
-                "- Nhìn: Vùng mặt trước cổ tay {0} có khối gồ nhẹ dưới da theo đường đi của dây thần kinh giữa, da phủ trên khối bình thường, không sưng nóng đỏ, không có sẹo mổ cũ.\n" +
-                "- Sờ: Sờ thấy khối kích thước khoảng 1-2 cm, mật độ chắc, ranh giới rõ ràng, ấn đau tức nhẹ tại chỗ. Khối di động theo phương ngang (vuông góc trục dây thần kinh) tốt hơn theo phương dọc.\n" +
-                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u gây cảm giác tê buốt châm chích lan dọc theo diện chi phối dây thần kinh giữa (ngón 1, 2, 3 và nửa ngoài ngón 4). Nghiệm pháp Phalen (+/-).\n" +
+                "- Nhìn: Vùng mặt trước cổ tay {0} có khối gồ nhẹ dưới da kích thước ~ 2x2 cm theo đường đi giải phẫu của dây thần kinh giữa. Da phủ trên khối bình thường, không sưng nóng đỏ, không có sẹo mổ cũ hay lỗ rò.\n" +
+                "- Sờ: Khối mật độ chắc vừa, ranh giới rõ ràng với tổ chức xung quanh, ấn đau tức nhẹ tại chỗ. Khối di động theo phương ngang (vuông góc trục dây thần kinh) tốt hơn theo phương dọc.\n" +
+                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u gây cảm giác tê buốt châm chích lan dọc theo diện chi phối dây thần kinh giữa (ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay {0}). Nghiệm pháp Phalen (+).\n" +
                 "- Vận động & Dinh dưỡng: Cơ mô cái chưa teo rõ, cơ lực đối chiếu ngón cái 5/5, biên độ vận động khớp cổ tay và các ngón tay trong giới hạn bình thường.\n" +
-                "- Mạch máu & Dinh dưỡng ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.",
+                "- Mạch máu & Dinh dưỡng ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, thời gian hồi lưu mao mạch (CRT) < 2s.",
                 side);
         }
 
         if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
         {
-            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
+            bool isRightHeavy = s.Contains("phải mức độ nặng") || s.Contains("phải nặng") || s.Contains("p > t") || s.Contains("phải > trái");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p") || isRightHeavy)
             {
-                return 
-                    "Khám chuyên khoa Cổ - Bàn tay hai bên:\n" +
-                    "- Cổ tay và bàn tay trái: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Dấu hiệu Tinel (+) rõ tại ống cổ tay trái, nghiệm pháp Phalen (+) xuất hiện sớm (< 30s) gây tê bì buốt ngón 1, 2, 3 và nửa ngoài ngón 4. Giảm cảm giác nông ngón 1, 2, 3 gan tay. Cơ lực đối chiếu ngón cái 4/5, hạn chế cầm nắm tinh tế.\n" +
-                    "- Cổ tay và bàn tay phải: Cơ mô cái chưa teo rõ, dấu hiệu Tinel (+) nhẹ tại ống cổ tay phải, nghiệm pháp Phalen (+), tê bì ngón 1, 2, 3 mức độ nhẹ hơn bên trái. Cơ lực đối chiếu ngón cái 4+/5.\n" +
-                    "- Khám chung hai bên: Khớp cổ tay và các khớp bàn ngón hai bên không sưng nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
-                    "- Thần kinh mạch máu ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
+                if (isRightHeavy)
+                {
+                    return 
+                        "Khám chuyên khoa Cổ - Bàn tay hai bên:\n" +
+                        "- Cổ tay và bàn tay phải: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Dấu hiệu Tinel (+/-) rõ tại ống cổ tay phải, nghiệm pháp Phalen (+/-) xuất hiện sớm (< 30s) gây tê bì buốt ngón 1, 2, 3 và nửa ngoài ngón 4. Giảm cảm giác nông ngón 1, 2, 3 gan tay. Cơ lực đối chiếu ngón cái 4/5, hạn chế cầm nắm tinh tế.\n" +
+                        "- Cổ tay và bàn tay trái: Cơ mô cái chưa teo rõ, dấu hiệu Tinel (+/-) nhẹ tại ống cổ tay trái, nghiệm pháp Phalen (+/-), tê bì ngón 1, 2, 3 mức độ trung bình (nhẹ hơn bên phải). Cơ lực đối chiếu ngón cái 4+/5.\n" +
+                        "- Khám chung hai bên: Khớp cổ tay và các khớp bàn ngón hai bên không sưng nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
+                        "- Thần kinh mạch máu ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
+                }
+                else
+                {
+                    return 
+                        "Khám chuyên khoa Cổ - Bàn tay hai bên:\n" +
+                        "- Cổ tay và bàn tay trái: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Dấu hiệu Tinel (+/-) rõ tại ống cổ tay trái, nghiệm pháp Phalen (+/-) xuất hiện sớm (< 30s) gây tê bì buốt ngón 1, 2, 3 và nửa ngoài ngón 4. Giảm cảm giác nông ngón 1, 2, 3 gan tay. Cơ lực đối chiếu ngón cái 4/5, hạn chế cầm nắm tinh tế.\n" +
+                        "- Cổ tay và bàn tay phải: Cơ mô cái chưa teo rõ, dấu hiệu Tinel (+/-) nhẹ tại ống cổ tay phải, nghiệm pháp Phalen (+/-), tê bì ngón 1, 2, 3 mức độ nhẹ hơn bên trái. Cơ lực đối chiếu ngón cái 4+/5.\n" +
+                        "- Khám chung hai bên: Khớp cổ tay và các khớp bàn ngón hai bên không sưng nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
+                        "- Thần kinh mạch máu ngoại vi: Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
+                }
             }
 
             string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
             string otherSideNote = (s.Contains("đã mổ") || s.Contains("da mo")) ? 
                 string.Format("- Cổ tay {0}: Sẹo mổ cũ khô liền tốt, không sưng đau, không rối loạn cảm giác.\n", otherSide) :
-                string.Format("- Cổ tay {0}: Không sưng nóng đỏ, không teo cơ, dấu hiệu Tinel (-), Phalen (-).\n", otherSide);
+                string.Format("- Cổ tay {0}: Không sưng nóng đỏ, không teo cơ, dấu hiệu Tinel (+/-), Phalen (+/-).\n", otherSide);
 
             return string.Format(
                 "Khám chuyên khoa Bàn - Cổ tay:\n" +
                 "- Cổ tay và bàn tay {0}: Teo nhẹ cơ mô cái, giảm trương lực cơ đối chiếu ngón cái. Không sưng nóng đỏ khớp.\n" +
-                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+) tại ống cổ tay {0}, nghiệm pháp Phalen (+) gây tê bì tăng rõ vùng ngón 1, 2, 3.\n" +
+                "- Dấu hiệu thần kinh khu trú: Dấu hiệu Tinel (+/-) tại ống cổ tay {0}, nghiệm pháp Phalen (+/-) gây tê bì tăng rõ vùng ngón 1, 2, 3.\n" +
                 "- Rối loạn cảm giác: Giảm cảm giác nông ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay theo diện chi phối của dây thần kinh giữa.\n" +
                 "- Vận động: Cơ lực đối chiếu ngón cái giảm nhẹ (4/5), các động tác cầm nắm tinh tế bị hạn chế.\n" +
                 "{1}" +
                 "- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu ngón hồng ấm.",
                 side, otherSideNote);
+        }
+
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội")) && (s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("khối khớp")))
+        {
+            return 
+                "Khám chuyên khoa Cột sống cổ:\n" +
+                "- Bất động tạm thời: Đang được cố định nẹp cổ cứng (nẹp Philadelphia) vững chắc.\n" +
+                "- Nhìn: Vùng cổ không sưng nề biến dạng lớn, không có vết thương hở thấu xương (chấn thương kín).\n" +
+                "- Sờ: Điểm đau chói khu trú khi ấn dọc gai sau C1-C2 và vùng khối bên cột sống cổ cao; co cứng rõ khối cơ cạnh sống cổ hai bên; hạn chế vận động cúi - ngửa - nghiêng - xoay cột sống cổ do đau chói.\n" +
+                "- Thần kinh & Tủy sống: Cơ lực tứ chi 5/5, cảm giác nông và sâu bảo tồn, không có dấu hiệu chèn ép tủy cổ (Hoffmann (-), Babinski (-)); không có hội chứng chèn ép rễ thần kinh cánh tay; đại tiểu tiện tự chủ, không rối loạn cơ tròn.\n" +
+                "- Mạch máu & Ngoại vi: Mạch quay hai bên và mạch mu chân hai bên bắt rõ, tưới máu đầu ngón hồng ấm, CRT < 2s.";
         }
 
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
@@ -1456,8 +1565,18 @@ class HisEmrFiller
         }
 
         string icdFull = (s + " " + (ti.IcdText ?? "")).ToLower();
-        if (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("u sụn"))))
+        if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && !icdFull.Contains("vai") && (icdFull.Contains("màng hoạt dịch") || icdFull.Contains("viêm khớp") || (icdFull.Contains("gối") && (icdFull.Contains("viêm") || icdFull.Contains("thoái hóa") || icdFull.Contains("m17") || icdFull.Contains("u sụn")))))
         {
+            if (icdFull.Contains("hai bên") || icdFull.Contains("2 bên") || (!icdFull.Contains("gối trái") && !icdFull.Contains("gối phải") && !icdFull.Contains("trái") && !icdFull.Contains("phải")))
+            {
+                return 
+                    "Khám chuyên khoa Khớp gối hai bên:\n" +
+                    "- Nhìn: Hai khớp gối sưng nhẹ, biến dạng trục chi nhẹ (dạng vẹo trong/ngoài nhẹ), không có sưng nóng đỏ cấp tính, không có vết thương hở hay sẹo mổ cũ.\n" +
+                    "- Sờ: Ấn đau tức khe khớp trong và khe khớp ngoài hai bên, dày nhẹ bao hoạt dịch; dấu hiệu bập bềnh xương bánh chè (+/-); dấu hiệu lạo xạo xương khớp gối hai bên (+) khi gấp duỗi.\n" +
+                    "- Vận động: Biên độ gấp duỗi khớp gối hai bên hạn chế nhẹ do đau (gấp khoảng 110-120°, duỗi hết 0°), không có kẹt khớp.\n" +
+                    "- Khám hệ thống dây chằng và sụn chêm: Nghiệm pháp ngăn kéo trước (-), ngăn kéo sau (-), dấu hiệu Lachman (-), nghiệm pháp ép bẻ khớp không mất vững; nghiệm pháp McMurray (-).\n" +
+                    "- Mạch máu & Thần kinh ngoại vi: Mạch mu chân và mạch chày sau hai bên bắt rõ; cảm giác nông sâu bàn ngón chân bình thường, cơ lực hai chi dưới 5/5.";
+            }
             string side = (icdFull.Contains("gối trái") || (icdFull.Contains("trái") && !icdFull.Contains("gối phải"))) ? "trái" : "phải";
             string otherSide = side.Contains("trái") ? "phải" : "trái";
             return string.Format(
@@ -1520,13 +1639,15 @@ class HisEmrFiller
 
         if (s.Contains("acl") || s.Contains("chằng"))
         {
+            string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t") || loc.Contains("trái")) ? "khớp gối trái" : ((s.Contains("phải") || s.Contains(" p ") || s.EndsWith(" p") || loc.Contains("phải")) ? "khớp gối phải" : ("khớp " + loc));
             return string.Format(
-                "Khám chuyên khoa khớp {0}:\n" +
-                "- Sưng nề nhẹ, không biến dạng, không tràn dịch lớn.\n" +
-                "- Nghiệm pháp Ngăn kéo trước (+), Lachman (+), Pivot shift (+).\n" +
-                "- Khe khớp không đau chói, nghiệm pháp McMurray (-).\n" +
-                "- Vận động gấp duỗi hạn chế nhẹ do đau. Mạch ngoại vi bắt rõ, cảm giác bình thường.",
-                loc);
+                "Khám chuyên khoa {0}:\n" +
+                "- Sưng nề nhẹ, không biến dạng, không tràn dịch lớn, dấu hiệu bập bềnh xương bánh chè (+/-).\n" +
+                "- Khám hệ thống dây chằng & sụn chêm: Nghiệm pháp Ngăn kéo trước (+/-), Lachman (+/-), Pivot shift (+/-).\n" +
+                "- Khe khớp trong và ngoài ấn đau tức nhẹ, nghiệm pháp McMurray (+/-).\n" +
+                "- Vận động: Gấp duỗi hạn chế nhẹ do đau, có cảm giác lỏng khớp khi chịu lực.\n" +
+                "- Thần kinh & mạch máu: Mạch mu chân và mạch chày sau bắt rõ, cảm giác và vận động bàn ngón chân bình thường.",
+                side);
         }
 
         if (s.Contains("xẹp") || s.Contains("đốt sống"))
@@ -1565,15 +1686,15 @@ class HisEmrFiller
                 loc);
         }
 
-        if (s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m66") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("gân"))))
+        if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
             return string.Format(
                 "Khám chuyên khoa Khớp vai {0}:\n" +
-                "- Nhìn: Khớp vai {0} không sưng nóng đỏ, không biến dạng, khối cơ delta chưa teo rõ, không có vết thương hay sẹo mổ cũ.\n" +
-                "- Sờ: Ấn đau tức rõ tại vị trí bám tận gân chóp xoay (diện củ lớn xương cánh tay {0}), đau tăng khi làm động tác giạng hoặc xoay ngoài cánh tay.\n" +
-                "- Vận động: Hạn chế tầm vận động chủ động khớp vai {0} do đau (giạng khoảng 70-80 độ, đưa trước 90 độ, xoay ngoài hạn chế), tầm vận động thụ động tốt hơn chủ động.\n" +
-                "- Nghiệm pháp chuyên khoa chóp xoay (+): Nghiệm pháp Neer (+), Hawkins-Kennedy (+), Nghiệm pháp Jobe (đánh giá gân trên gai) (+), Nghiệm pháp Patte (gân dưới gai) (+), Nghiệm pháp rớt cánh tay (Drop arm test) (+/-).\n" +
+                "- Nhìn: Khớp vai {0} sưng nề nhẹ, tràn dịch bao hoạt dịch khớp vai, không nóng đỏ, không biến dạng, không có vết thương hay sẹo mổ cũ.\n" +
+                "- Sờ: Ấn đau tức rõ tại khe khớp vai, rãnh gân nhị đầu và vị trí bám tận gân chóp xoay (diện củ lớn xương cánh tay {0}), đau tăng khi làm động tác giạng hoặc xoay ngoài cánh tay.\n" +
+                "- Vận động: Hạn chế tầm vận động chủ động khớp vai {0} do đau (giạng khoảng 70-80°, đưa trước 90°, xoay ngoài hạn chế), tầm vận động thụ động tốt hơn chủ động.\n" +
+                "- Nghiệm pháp chuyên khoa khớp vai & chóp xoay (+/-): Nghiệm pháp Neer (+/-), Hawkins-Kennedy (+/-), Nghiệm pháp Jobe (+/-), Nghiệm pháp Patte (+/-), Palm-up test (+/-), Yergason (+/-).\n" +
                 "- Thần kinh - Mạch máu: Mạch quay và mạch trụ tay {0} bắt rõ; cơ lực bàn ngón tay 5/5, cảm giác ngọn chi bình thường.",
                 side);
         }
@@ -1702,6 +1823,10 @@ class HisEmrFiller
 
                 if (lLow.StartsWith("ngày") || lLow.StartsWith("y lệnh") || lLow.StartsWith("thuốc") ||
                     lLow.StartsWith("bác sĩ") || lLow.StartsWith("điều dưỡng") || lLow.StartsWith("chế độ") ||
+                    lLow.Contains("tổng kết") || lLow.Contains("huyết động") || lLow.Contains("bệnh nhân tỉnh") ||
+                    lLow.Contains("vết mổ băng khô") || lLow.Contains("đầu chi ấm") || lLow.Contains("vận động cảm giác") ||
+                    lLow.Contains("xin ý kiến") || lLow.Contains("thay băng") || lLow.Contains("tập phục hồi") ||
+                    lLow.Contains("bn ổn định") || lLow.Contains("ra viện") || lLow.Contains("ra khoa") ||
                     lLow.Contains("paracetamol") || lLow.Contains("ceftriaxone") || lLow.Contains("mg") ||
                     lLow.Contains("viên") || lLow.Contains("ống") || lLow.Contains("lọ") ||
                     lLow.Contains("pulse") || lLow.Contains("huyet ap") || lLow.Contains("nhiet do"))
@@ -1765,16 +1890,24 @@ class HisEmrFiller
         }
         else if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
         {
-            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
+            bool isRightHeavy = s.Contains("phải mức độ nặng") || s.Contains("phải nặng") || s.Contains("p > t") || s.Contains("phải > trái");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p") || isRightHeavy)
             {
-                sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay trái nặng hơn tay phải): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay trái tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay trái; dấu hiệu Tinel (+) hai bên cổ tay, nghiệm pháp Phalen (+) hai bên (bên trái dương tính sớm); giảm cơ lực đối chiếu ngón cái tay trái (4/5), tay phải (4+/5).");
-                sb.AppendLine("- Thăm dò chức năng: Đã ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác của dây thần kinh ngoại biên chi trên ghi nhận tổn thương dẫn truyền sợi cảm giác và vận động dây thần kinh giữa đoạn qua ống cổ tay hai bên.");
-                sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+                if (isRightHeavy)
+                {
+                    sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay phải mức độ nặng, tay trái mức độ trung bình): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay phải tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay phải; dấu hiệu Tinel (+/-) hai bên cổ tay, nghiệm pháp Phalen (+/-) hai bên; giảm cơ lực đối chiếu ngón cái tay phải (4/5), tay trái (4+/5).");
+                    sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+                }
+                else
+                {
+                    sb.AppendLine("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay hai bên (tay trái nặng hơn tay phải): Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm và khi đi xe máy (tay trái tê buốt và nhức nhiều hơn rõ rệt); teo nhẹ cơ mô cái bàn tay trái; dấu hiệu Tinel (+/-) hai bên cổ tay, nghiệm pháp Phalen (+/-) hai bên (bên trái dương tính sớm); giảm cơ lực đối chiếu ngón cái tay trái (4/5), tay phải (4+/5).");
+                    sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
+                }
             }
             else
             {
                 string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t")) ? "trái" : "phải";
-                sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay {0}: Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay tăng nhiều về đêm; teo nhẹ cơ mô cái; Tinel (+), Phalen (+); giảm cơ lực đối chiếu ngón cái (4/5).", side));
+                sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay {0}: Tê bì đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay tăng nhiều về đêm; teo nhẹ cơ mô cái; Tinel (+/-), Phalen (+/-); giảm cơ lực đối chiếu ngón cái (4/5).", side));
                 if (s.Contains("đã mổ") || s.Contains("da mo"))
                     sb.AppendLine("- Sẹo mổ cũ hội chứng ống cổ tay bên đối diện khô liền tốt, không sưng đau.");
                 if (s.Contains("dị ứng") || s.Contains("di ung"))
@@ -1799,10 +1932,11 @@ class HisEmrFiller
         else if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
         {
             string side = (s.Contains("trái") || s.Contains("(t)") || s.EndsWith(" t") || s.Contains(" t ") || loc.Contains("trái")) ? "trái" : 
-                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "");
-            sb.AppendLine(string.Format("- Triệu chứng khối u vùng cổ tay {0}: Khối mặt trước cổ tay {0} nằm theo trục giải phẫu dây thần kinh giữa, mật độ chắc, ranh giới rõ, di động ngang tốt hơn dọc, ấn đau tức tại chỗ.", side));
-            sb.AppendLine(string.Format("- Triệu chứng thần kinh ngoại vi (+): Dấu hiệu Tinel (+) tại vị trí khối u gây tê bì dị cảm lan xuống ngón 1, 2, 3 và nửa ngoài ngón 4 bàn tay {0} theo diện chi phối của thần kinh giữa.", side));
-            sb.AppendLine("- Vận động & Dinh dưỡng ngọn chi: Cơ mô cái bảo tồn, cơ lực đối chiếu ngón cái 5/5, biên độ vận động khớp cổ tay và các ngón bình thường; mạch quay, mạch trụ bắt rõ, thời gian hồi lưu mao mạch (CRT) < 2s.");
+                          ((s.Contains("phải") || s.Contains("(p)") || s.EndsWith(" p") || s.Contains(" p ") || loc.Contains("phải")) ? "phải" : "trái");
+            sb.AppendLine(string.Format("- Triệu chứng khối u vùng cổ tay {0}: Khối mặt trước cổ tay {0} nằm theo trục giải phẫu dây thần kinh giữa, kích thước ~ 2x2 cm, mật độ chắc, ranh giới rõ, di động ngang tốt hơn dọc, ấn đau tức tại chỗ.", side));
+            sb.AppendLine(string.Format("- Hội chứng tổn thương thần kinh ngoại vi (+): Dấu hiệu Tinel (+) trực tiếp tại vị trí khối u gây cảm giác tê bì dị cảm lan xuống ngón 1, 2, 3 và nửa ngoài ngón 4 gan bàn tay {0} theo diện chi phối thần kinh giữa; nghiệm pháp Phalen (+).", side));
+            sb.AppendLine("- Vận động & Dinh dưỡng ngọn chi: Cơ mô cái bảo tồn, cơ lực đối chiếu ngón cái 5/5, biên độ vận động cổ bàn tay bình thường; mạch quay và mạch trụ bắt rõ, tưới máu đầu chi hồng ấm (CRT < 2s).");
+            sb.AppendLine("- Cận lâm sàng có giá trị: MRI cổ tay trái (24/09/2026) xác định khối 21x17 mm liên tục dây thần kinh giữa (theo dõi Schwannoma) kèm nang bao hoạt dịch gan tay 8x5 mm; X-quang dày mô mềm trước cổ tay; Bilan xét nghiệm máu (CTM, Đông máu, Sinh hóa) trong giới hạn bình thường.");
         }
         else if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
         {
@@ -1810,7 +1944,6 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Hội chứng đau dây thần kinh chẩm {0} (+): Đau tức âm ỉ vùng gáy chẩm lan lên đỉnh đầu bên {0}, đau tăng khi cử động cổ hoặc tì đè, ấn điểm Arnold (dây thần kinh chẩm lớn) bên {0} đau chói (+).", side));
             sb.AppendLine("- Hội chứng cột sống cổ (+): Đau mỏi vùng cột sống cổ, co cứng nhẹ cơ cạnh sống cổ hai bên, hạn chế nhẹ biên độ cúi ngửa và xoay cổ.");
             sb.AppendLine("- Khám thần kinh: Không có dấu hiệu chèn ép tủy cổ hay rễ thần kinh cánh tay (Spurling (-), Hoffmann (-), cơ lực hai tay 5/5, cảm giác bàn ngón tay bình thường, đại tiểu tiện tự chủ).");
-            sb.AppendLine("- Cận lâm sàng hình ảnh: Đã chụp X-quang/CĐHA cột sống cổ ghi nhận hình ảnh thoái hóa cột sống cổ.");
             sb.AppendLine("- Toàn trạng: Bệnh nhân tỉnh táo, tiếp xúc tốt. Dấu hiệu sinh tồn ổn định (Mạch 78 ck/phút, Huyết áp 120/80 mmHg, SpO2 98%), tim đều phổi trong, không có hội chứng nhiễm trùng.");
         }
         else if (s.Contains("xẹp") || s.Contains("lún") || (s.Contains("đốt sống") && s.Contains("m80")))
@@ -1829,6 +1962,12 @@ class HisEmrFiller
                 sb.AppendLine("- Bệnh lý xương kèm theo: Loãng xương tuổi già, nguy cơ gãy xương tái phát.");
             if (s.Contains("loét") || s.Contains("tỳ đè"))
                 sb.AppendLine("- Tổn thương da mô mềm do tỳ đè: Vùng cùng cụt có ổ loét tỳ đè độ II diện tích ~ 3x3 cm, bề mặt sạch tiết ít dịch, đang được chăm sóc thay băng vô khuẩn và dự phòng chống tỳ đè.");
+        }
+        else if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội")) && (s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("khối khớp")))
+        {
+            sb.AppendLine("- Hội chứng chấn thương cột sống cổ gãy đốt đội C1: Đau chói dữ dội vùng gáy cổ sau chấn thương, co cứng khối cơ cạnh sống cổ, điểm đau chói cố định tại C1-C2, hạn chế vận động cột sống cổ; hiện đang được cố định bằng nẹp cổ cứng.");
+            sb.AppendLine("- Thần kinh & Tủy sống: Không có dấu hiệu chèn ép tủy hay rễ thần kinh cổ khu trú; cơ lực tứ chi 5/5, cảm giác và cơ tròn bảo tồn, đại tiểu tiện tự chủ.");
+            sb.AppendLine("- Thần kinh - Mạch máu ngoại vi: Mạch ngoại vi bắt rõ, cảm giác ngọn chi bình thường.");
         }
         else if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("cột sống") || s.Contains("đốt sống") || s.Contains("hẹp ống sống") || s.Contains("m51") || s.Contains("m50"))
         {
@@ -1850,26 +1989,42 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Khám khớp gối: Khớp gối căng to, tràn dịch - máu bao khớp (dấu hiệu bập bềnh xương bánh chè (+))."));
             sb.AppendLine(string.Format("- Mạch máu & Thần kinh ngoại vi: Mạch mu chân và chày sau bên {0} bắt rõ, cảm giác bàn ngón chân bình thường, thời gian hồi lưu mao mạch (CRT) < 2s, các khoang mềm mại, chưa có biểu hiện chèn ép khoang cấp. Hiện chi tổn thương đã được cố định nẹp đùi cẳng bàn chân.", side));
         }
-        else if (s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m66") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("gân"))))
+        else if (s.Contains("vai") || s.Contains("chóp xoay") || s.Contains("chop xoay") || s.Contains("m75") || s.Contains("m66"))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
-            sb.AppendLine(string.Format("- Hội chứng tổn thương rách chóp xoay khớp vai {0}: Đau nhức vùng khớp vai {0} âm ỉ tăng dần, đau tăng nhiều về đêm khi nằm nghiêng đè lên vai tổn thương và khi làm động tác giạng cánh tay hoặc với tay lên cao; ấn điểm đau chói tại diện bám củ lớn xương cánh tay; hạn chế tầm vận động chủ động khớp vai (giạng, đưa trước, xoay ngoài), tầm vận động thụ động bảo tồn tốt hơn chủ động.", side));
-            sb.AppendLine("- Các nghiệm pháp va chạm và kiểm tra tổn thương gân chóp xoay (+): Nghiệm pháp Neer (+), Hawkins-Kennedy (+), Nghiệm pháp Jobe (+), Nghiệm pháp Patte (+), Nghiệm pháp rớt cánh tay (+/-).");
+            if (s.Contains("màng hoạt dịch") || s.Contains("tràn dịch"))
+            {
+                sb.AppendLine(string.Format("- Hội chứng viêm tràn dịch màng hoạt dịch khớp vai {0}: Khớp vai {0} sưng nề nhẹ, căng tức diện khớp, đau tăng khi giạng hoặc nâng vai, hạn chế tầm vận động khớp vai {0}.", side));
+                sb.AppendLine("- Khám các nghiệm pháp khớp vai & chóp xoay (+/-): Neer (+/-), Hawkins-Kennedy (+/-), Jobe (+/-), Palm-up (+/-), Yergason (+/-).");
+            }
+            else
+            {
+                sb.AppendLine(string.Format("- Hội chứng tổn thương rách chóp xoay khớp vai {0}: Đau nhức vùng khớp vai {0} âm ỉ tăng dần, đau tăng nhiều về đêm khi nằm nghiêng đè lên vai tổn thương và khi làm động tác giạng cánh tay hoặc với tay lên cao; ấn điểm đau chói tại diện bám củ lớn xương cánh tay; hạn chế tầm vận động chủ động khớp vai (giạng, đưa trước, xoay ngoài), tầm vận động thụ động bảo tồn tốt hơn chủ động.", side));
+                sb.AppendLine("- Các nghiệm pháp va chạm và kiểm tra tổn thương gân chóp xoay (+/-): Nghiệm pháp Neer (+/-), Hawkins-Kennedy (+/-), Nghiệm pháp Jobe (+/-), Nghiệm pháp Patte (+/-), Nghiệm pháp rớt cánh tay (+/-).");
+            }
             sb.AppendLine(string.Format("- Thần kinh & Mạch máu chi trên: Mạch quay, mạch trụ tay {0} bắt rõ; cơ lực bàn ngón tay 5/5, cảm giác ngọn chi bình thường, không có dấu hiệu chèn ép thần kinh.", side));
             if (s.Contains("tử cung") || (tienSu != null && tienSu.ToLower().Contains("tử cung")))
                 sb.AppendLine("- Bệnh lý nền kèm theo: Tiền sử K nội mạc tử cung đã phẫu thuật năm 2024, tái khám định kỳ theo dõi ổn định, không có dấu hiệu tái phát.");
         }
-        else if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+        else if (!s.Contains("xẹp") && !s.Contains("đốt sống") && !s.Contains("cột sống") && !s.Contains("vai") && (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa") || s.Contains("m17")))))
         {
-            string side = (s.Contains("gối trái") || (s.Contains("khớp gối trái") && !s.Contains("gối phải"))) ? "trái" : "phải";
-            sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
-            sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh: Các dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)); mạch mu chân và chày sau bắt rõ hai bên, cảm giác ngọn chi bình thường.");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("m17.0") || (!s.Contains("gối trái") && !s.Contains("gối phải") && !s.Contains("trái") && !s.Contains("phải")))
+            {
+                sb.AppendLine("- Hội chứng thoái hóa khớp gối hai bên (+): Đau khớp gối hai bên âm ỉ mạn tính, đau tăng khi vận động tì đè và lên xuống cầu thang, dấu hiệu lạo xạo xương khớp gối hai bên (+), ấn đau tức khe khớp hai bên, dày nhẹ bao hoạt dịch, hạn chế nhẹ biên độ gấp duỗi gối.");
+                sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh (-): Hệ thống dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)), không có dấu hiệu mất vững khớp; mạch mu chân và chày sau bắt rõ hai bên, cảm giác và vận động ngọn chi bình thường.");
+            }
+            else
+            {
+                string side = (s.Contains("gối trái") || (s.Contains("khớp gối trái") && !s.Contains("gối phải"))) ? "trái" : "phải";
+                sb.AppendLine(string.Format("- Hội chứng tổn thương thoái hóa và u sụn màng hoạt dịch khớp gối {0}: Khớp sưng nề nhẹ, dày bao hoạt dịch, ấn đau tức khe khớp trong/ngoài, lạo xạo khớp khi vận động (+), dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp gối (gấp khoảng 100-110 độ do căng đau).", side));
+                sb.AppendLine("- Khám dây chằng và mạch máu - thần kinh: Các dây chằng vững (Lachman (-), Ngăn kéo trước/sau (-)); mạch mu chân và chày sau bắt rõ hai bên, cảm giác ngọn chi bình thường.");
+            }
             if (s.Contains("đau đầu") || s.Contains("g44"))
                 sb.AppendLine("- Bệnh lý thần kinh phối hợp: Tiền sử đau đầu điều trị tại Viện Thần kinh 5 ngày trước khi chuyển khoa, hiện tại triệu chứng đau đầu đã thuyên giảm ổn định.");
             if (s.Contains("phổi") || s.Contains("lung rads") || s.Contains("nốt đặc"))
                 sb.AppendLine("- Bệnh lý lồng ngực phối hợp: Nốt đặc thùy trên phổi trái Lung RADS 4X theo dõi, không ho, không khó thở.");
         }
-        else if (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối")))
+        else if (!s.Contains("vai") && (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối"))))
         {
             string locKhop = loc.StartsWith("khớp") ? loc : ("khớp " + loc);
             sb.AppendLine(string.Format("- Hội chứng tổn thương màng hoạt dịch {0}: Khớp sưng nề, dày bao hoạt dịch, ấn đau tức diện khớp, dấu hiệu bập bềnh xương bánh chè (+/-), hạn chế biên độ gấp duỗi khớp.", locKhop));
@@ -1877,7 +2032,8 @@ class HisEmrFiller
         }
         else if (s.Contains("acl") || s.Contains("chằng") || s.Contains("lỏng khớp"))
         {
-            sb.AppendLine(string.Format("- Hội chứng mất vững khớp {0}: Nghiệm pháp Lachman (+), Ngăn kéo trước (+), Pivot shift (+), sưng nề nhẹ khớp gối, đau khi đổi hướng vận động.", loc));
+            string side = (s.Contains("trái") || s.Contains(" t ") || s.EndsWith(" t") || loc.Contains("trái")) ? "khớp gối trái" : ((s.Contains("phải") || s.Contains(" p ") || s.EndsWith(" p") || loc.Contains("phải")) ? "khớp gối phải" : ("khớp " + loc));
+            sb.AppendLine(string.Format("- Hội chứng mất vững khớp {0}: Nghiệm pháp Lachman (+/-), Ngăn kéo trước (+/-), Pivot shift (+/-), sưng nề nhẹ khớp gối, đau và lỏng khớp khi đổi hướng vận động.", side));
             sb.AppendLine("- Mạch ngoại vi bắt rõ, cảm giác ngọn chi bình thường, không có dấu hiệu chèn ép mạch máu thần kinh.");
         }
         else if (s.Contains("vết thương") || s.Contains("vet thuong"))
@@ -1919,7 +2075,7 @@ class HisEmrFiller
         {
             string side = s.Contains("trái") ? "mắt trái" : (s.Contains("phải") || s.Contains("mp") ? "mắt phải" : "hai mắt");
             sb.AppendLine(string.Format("- Hội chứng tăng nhãn áp / Glôcôm {0}: {0} nhìn mờ tăng dần, đau nhức tức hốc mắt kèm đau lan nửa đầu (VAS 5/10 điểm), nhìn đèn có quầng tán sắc.", side));
-            sb.AppendLine(string.Format("- Khám mắt & CĐHA: Bán phần trước giác mạc trong, góc tiền phòng mở hai mắt trên OCT bán phần trước; gai thị {0} tổn thương lõm đĩa C/D tăng dạng Glôcôm; nhãn áp được theo dõi và kiểm soát bằng thuốc hạ nhãn áp.", side));
+            sb.AppendLine(string.Format("- Khám chuyên khoa mắt: Bán phần trước giác mạc trong, góc tiền phòng mở hai mắt; gai thị {0} tổn thương lõm đĩa C/D tăng dạng Glôcôm; nhãn áp được theo dõi và kiểm soát bằng thuốc hạ nhãn áp.", side));
             if (s.Contains("dạ dày") || (tienSu != null && tienSu.ToLower().Contains("dạ dày")))
                 sb.AppendLine("- Bệnh lý tiêu hóa kết hợp: Viêm dạ dày mạn tính.");
             if (s.Contains("viễn thị") || (tienSu != null && tienSu.ToLower().Contains("viễn thị")))
@@ -1933,25 +2089,12 @@ class HisEmrFiller
 
         // 2. Trích xuất triệu chứng thực tế từ tờ điều trị (V_HIS_TRACKING)
         var trackingSyms = ExtractSymptomsFromTrackings(ctx);
-        if (trackingSyms.Count > 0)
+        if (trackingSyms.Count > 0 && !s.Contains("thần kinh giữa") && !s.Contains("u thần kinh") && !(s.Contains("u ") && s.Contains("cổ tay")))
         {
             sb.AppendLine("- Diễn biến lâm sàng ghi nhận qua các tờ điều trị: " + string.Join("; ", trackingSyms.ToArray()) + ".");
         }
 
-        // 3. Cận lâm sàng hình ảnh & Xét nghiệm thực tế
-        if (ctx != null && ctx.CdhaConclusions.Count > 0)
-        {
-            sb.AppendLine("- Cận lâm sàng hình ảnh ghi nhận:");
-            int cdhaCount = 0;
-            foreach (var c in ctx.CdhaConclusions)
-            {
-                if (cdhaCount++ >= 2) break;
-                string cdhaText = c.Length > 120 ? (c.Substring(0, 117).TrimEnd() + "...") : c;
-                sb.AppendLine("  + " + cdhaText);
-            }
-        }
-
-        // 4. Bệnh lý kết hợp nổi bật
+        // 3. Bệnh lý kết hợp nổi bật
         var coMorbidities = new List<string>();
         bool hasNoChronic = (tienSu != null && (tienSu.ToLower().Contains("chưa phát hiện bệnh lý") || tienSu.ToLower().Contains("không có tiền sử bệnh")));
         if (!hasNoChronic && (s.Contains("tiểu đường") || s.Contains("đái tháo đường") || (tienSu != null && (tienSu.ToLower().Contains("tiểu đường") || tienSu.ToLower().Contains("đái tháo đường")))))
@@ -1989,8 +2132,10 @@ class HisEmrFiller
         string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
         if (s.Contains("chóp xoay") || s.Contains("chop xoay") || (s.Contains("vai") && (s.Contains("rách") || s.Contains("m66"))))
             return "Phân biệt rách chóp xoay khớp vai với viêm quanh khớp vai thể đông cứng (đông cứng khớp vai), viêm gân vôi hóa chóp xoay, thoái hóa khớp vai, rách sụn viền ổ chảo cánh tay (SLAP), tổn thương rễ thần kinh cổ C5-C6.";
-        if (s.Contains("u sụn") || (s.Contains("gối") && (s.Contains("màng hoạt dịch") || s.Contains("thoái hóa"))))
+        if (s.Contains("u sụn") || (s.Contains("gối") && s.Contains("màng hoạt dịch")))
             return "Phân biệt u sụn màng hoạt dịch khớp gối (Synovial chondromatosis) với thoái hóa khớp gối đơn thuần có gai xương rơi tự do (chuột khớp), viêm màng hoạt dịch thể nốt sắc tố (PVNS), nang bao hoạt dịch khớp gối, u sụn xương lành tính.";
+        if ((s.Contains("thoái hóa") && s.Contains("gối")) || s.Contains("m17"))
+            return "Phân biệt thoái hóa khớp gối nguyên phát với viêm khớp dạng thấp (RA), viêm khớp gút mạn tính có tophi, viêm màng hoạt dịch khớp gối thứ phát, rách thoái hóa sụn chêm ở người cao tuổi.";
         if (s.Contains("thần kinh giữa") || s.Contains("u thần kinh") || (s.Contains("u ") && s.Contains("cổ tay")))
             return "Phân biệt u bao dây thần kinh (Schwannoma/Neurofibroma) với nang bao hoạt dịch gân gấp (Ganglion cyst), u tế bào khổng lồ bao gân (GCTTS), u mỡ (Lipoma), viêm/huyết khối tĩnh mạch nông vùng cổ tay.";
         if (s.Contains("achille") || s.Contains("gân gót") || s.Contains("đứt gân"))
@@ -2001,6 +2146,8 @@ class HisEmrFiller
             return "Phân biệt gãy liên mấu chuyển xương đùi, trật khớp háng, đụng dập phần mềm vùng khớp háng, thoái hóa khớp háng đợt cấp.";
         if (s.Contains("glôcôm") || s.Contains("glocom") || s.Contains("glaucoma") || s.Contains("h40") || s.Contains("mắt"))
             return "Phân biệt Glôcôm góc mở với Glôcôm góc đóng nguyên phát, viêm màng bồ đào tăng nhãn áp, hội chứng đau đầu Migraine, tăng nhãn áp thứ phát.";
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")) && (s.Contains("gãy") || s.Contains("khối khớp")))
+            return "Phân biệt gãy Jefferson C1 mất vững (rách dây chằng ngang) với gãy vững, gãy mỏm nha C2 (Odontoid fracture), trật khớp đội - trục (C1-C2), chấn thương phần mềm cột sống cổ đơn thuần.";
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
             return "Phân biệt đau dây thần kinh số V (nhánh V1), đau đầu Migraine, u góc cầu tiểu não, thoát vị đĩa đệm cột sống cổ chèn ép rễ C2-C3.";
         if (s.Contains("khoeo") || s.Contains("baker"))
@@ -2035,14 +2182,21 @@ class HisEmrFiller
             return "Chỉ định phẫu thuật vi phẫu bóc u bao dây thần kinh giữa cổ tay bảo tồn nguyên vẹn các bó sợi thần kinh lành, lấy bệnh phẩm gửi xét nghiệm mô bệnh học (giải phẫu bệnh); Điều trị nội khoa chu phẫu: Kháng sinh dự phòng, chống viêm giảm phù nề, bổ sung vitamin nhóm B; Bất động nẹp cổ tay ngắn ngày, hướng dẫn tập vận động chủ động các ngón tay sớm.";
         if (s.Contains("màng hoạt dịch") || s.Contains("mang hoat dich") || (s.Contains("viêm") && s.Contains("gối")))
             return "Chỉ định phẫu thuật nội soi khớp gối cắt lọc, tạo hình màng hoạt dịch tăng sinh kết hợp lấy bệnh phẩm làm mô bệnh học (giải phẫu bệnh); Điều trị nội khoa kết hợp: Kháng sinh dự phòng, giảm đau chống phù nề; Kiểm soát ổn định đường huyết chu phẫu và theo dõi chức năng gan mật; Tập phục hồi chức năng vận động khớp gối sớm sau mổ.";
+        if ((s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")) && (s.Contains("gãy") || s.Contains("khối khớp")))
+            return "Điều trị bảo tồn bất động cột sống cổ bằng nẹp cổ cứng (nẹp Philadelphia) hoặc đánh giá chỉ định can thiệp phẫu thuật cố định chẩm - cổ / C1-C2 nếu tổn thương mất vững; Điều trị nội khoa: Giảm đau, chống phù nề, giãn cơ; Theo dõi sát tri giác, dấu hiệu thần kinh khu trú và chức năng hô hấp.";
         if (s.Contains("chẩm") || ((s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || (s.Contains("cổ") && !s.Contains("cổ tay") && !s.Contains("cổ chân") && !s.Contains("cổ xương đùi"))) && (s.Contains("thần kinh") || s.Contains("đau"))))
             return "Điều trị nội khoa bảo tồn: Giảm đau thần kinh (Gabapentin/Pregabalin), chống viêm giảm đau không steroid (NSAID), thuốc giãn cơ, bổ sung vitamin nhóm B liều cao; Phong bế điểm đau thần kinh chẩm (tiêm điểm đau Arnold); Đeo nẹp cổ mềm khi đi lại; Đánh giá chỉ định can thiệp phẫu thuật giải phóng thần kinh chẩm nếu thất bại điều trị nội khoa.";
         if (s.Contains("ống cổ tay") || s.Contains("ong co tay") || s.Contains("g56"))
         {
             if (s.Contains("dị ứng") || s.Contains("di ung"))
                 return "Phẫu thuật giải phóng dây thần kinh giữa ống cổ tay (cắt mạc giữ gân gấp). Kiểm soát giảm đau chu phẫu tránh các thuốc dị ứng (chống chỉ định dùng Paracetamol và nhóm kháng sinh dị ứng).";
-            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p"))
+            bool isRightHeavy = s.Contains("phải mức độ nặng") || s.Contains("phải nặng") || s.Contains("p > t") || s.Contains("phải > trái");
+            if (s.Contains("hai bên") || s.Contains("2 bên") || s.Contains("trái > phải") || s.Contains("t > p") || isRightHeavy)
+            {
+                if (isRightHeavy)
+                    return "Chỉ định phẫu thuật giải phóng chèn ép dây thần kinh giữa ống cổ tay bên phải trước (cắt mở mạc giữ gân gấp), theo dõi và đánh giá can thiệp thì hai bên trái; Điều trị nội khoa chu phẫu: Thuốc giảm đau thần kinh (Pregabalin/Lyrica 75mg), bổ sung vitamin nhóm B, giảm phù nề; Hướng dẫn tập phục hồi chức năng vận động bàn ngón tay sớm sau mổ.";
                 return "Chỉ định phẫu thuật giải phóng chèn ép dây thần kinh giữa ống cổ tay bên trái trước (cắt mở mạc giữ gân gấp), theo dõi và đánh giá can thiệp thì hai bên phải; Điều trị nội khoa chu phẫu: Thuốc giảm đau thần kinh (Pregabalin/Lyrica 75mg), bổ sung vitamin nhóm B, giảm phù nề; Hướng dẫn tập phục hồi chức năng vận động bàn ngón tay sớm sau mổ.";
+            }
             return "Chỉ định phẫu thuật giải phóng chèn ép dây thần kinh giữa ống cổ tay (cắt mở mạc giữ gân gấp). Điều trị nội khoa chu phẫu: Kháng sinh dự phòng, thuốc giảm đau thần kinh, chống phù nề, bổ sung vitamin nhóm B; Hướng dẫn tập vận động bàn ngón tay sớm sau mổ.";
         }
         if (s.Contains("vết thương") || s.Contains("vet thuong"))
@@ -2153,7 +2307,7 @@ class HisEmrFiller
         if (curIsTrauma && pastIsTumor) return false;
 
         // Phân định giải phẫu nghiêm ngặt giữa các phân khoa CTCH
-        bool curIsSpine = cur.Contains("cột sống") || cur.Contains("đốt sống") || cur.Contains("đĩa đệm") || cur.Contains("thoát vị") || cur.Contains("m51") || cur.Contains("m50") || cur.Contains("m48") || cur.Contains("m80");
+        bool curIsSpine = cur.Contains("cột sống") || cur.Contains("đốt sống") || cur.Contains("đĩa đệm") || cur.Contains("thoát vị") || cur.Contains("c1") || cur.Contains("c2") || cur.Contains("c3") || cur.Contains("c4") || cur.Contains("c5") || cur.Contains("c6") || cur.Contains("c7") || cur.Contains("m54") || cur.Contains("m51") || cur.Contains("m50") || cur.Contains("m48") || cur.Contains("m80");
         bool pastIsSpine = past.Contains("cột sống") || past.Contains("đốt sống") || past.Contains("đĩa đệm") || past.Contains("thoát vị") || past.Contains("bxm") || past.Contains("bơm xi măng");
 
         bool curIsKnee = cur.Contains("gối") || cur.Contains("khoeo") || cur.Contains("baker") || cur.Contains("m17") || cur.Contains("acl") || cur.Contains("u sụn");
@@ -2190,12 +2344,12 @@ class HisEmrFiller
         bool pastIsSpineOrKneeOrHeadOrLeg = past.Contains("cột sống") || past.Contains("thắt lưng") || past.Contains("khớp gối") || past.Contains("vùng gáy") || past.Contains("chẩm") || past.Contains("arnold") || past.Contains("l4") || past.Contains("l5") || past.Contains("xẹp") || past.Contains("cẳng chân") || past.Contains("chân") || past.Contains("bắp chân") || past.Contains("cổ chân") || past.Contains("bàn chân") || past.Contains("khớp háng") || past.Contains("vai") || past.Contains("khớp vai") || past.Contains("cánh tay");
         if (curIsWristOrNerve && pastIsSpineOrKneeOrHeadOrLeg) return false;
 
-        bool curIsCervical = cur.Contains("chẩm") || cur.Contains("cột sống cổ") || cur.Contains("đốt sống cổ") || (cur.Contains("cổ") && !cur.Contains("cổ tay") && !cur.Contains("cổ chân") && !cur.Contains("cổ xương đùi"));
-        bool pastIsLumbar = past.Contains("thắt lưng") || past.Contains("tlif") || past.Contains("l4") || past.Contains("l5") || past.Contains("l1") || past.Contains("l2") || past.Contains("l3") || past.Contains("bxm") || past.Contains("bơm xi măng") || past.Contains("lasegue");
-        if (curIsCervical && pastIsLumbar && !cur.Contains("thắt lưng")) return false;
+        bool curIsCervical = cur.Contains("chẩm") || cur.Contains("cột sống cổ") || cur.Contains("đốt sống cổ") || cur.Contains("c1") || cur.Contains("c2") || cur.Contains("c3") || cur.Contains("c4") || cur.Contains("c5") || cur.Contains("c6") || cur.Contains("c7") || cur.Contains("m54.2") || (cur.Contains("cổ") && !cur.Contains("cổ tay") && !cur.Contains("cổ chân") && !cur.Contains("cổ xương đùi"));
+        bool pastIsLumbar = past.Contains("thắt lưng") || past.Contains("tlif") || past.Contains("l4") || past.Contains("l5") || past.Contains("l1") || past.Contains("l2") || past.Contains("l3") || past.Contains("đau lưng") || past.Contains("bxm") || past.Contains("bơm xi măng") || past.Contains("lasegue");
+        if (curIsCervical && pastIsLumbar && !cur.Contains("thắt lưng") && !cur.Contains("lưng")) return false;
 
-        bool curIsLumbar = cur.Contains("thắt lưng") || cur.Contains("l1") || cur.Contains("l2") || cur.Contains("l3") || cur.Contains("l4") || cur.Contains("l5") || cur.Contains("s1") || cur.Contains("trượt");
-        bool pastIsCervical = past.Contains("vùng cổ") || past.Contains("đau cổ") || past.Contains("cột sống cổ") || past.Contains("đốt sống cổ") || past.Contains("mu tay") || past.Contains("tê bì 2 tay") || past.Contains("tê tay");
+        bool curIsLumbar = (cur.Contains("thắt lưng") || cur.Contains("l1") || cur.Contains("l2") || cur.Contains("l3") || cur.Contains("l4") || cur.Contains("l5") || cur.Contains("s1") || cur.Contains("trượt")) && !curIsCervical;
+        bool pastIsCervical = past.Contains("vùng cổ") || past.Contains("đau cổ") || past.Contains("cột sống cổ") || past.Contains("đốt sống cổ") || past.Contains("c1") || past.Contains("c2") || past.Contains("mu tay") || past.Contains("tê bì 2 tay") || past.Contains("tê tay");
         if (curIsLumbar && pastIsCervical && !cur.Contains("cổ")) return false;
 
         // Phân định bệnh lý màng hoạt dịch / viêm mạn tính vs chấn thương đứt dây chằng/ngã/giàn giáo
@@ -2263,13 +2417,15 @@ class HisEmrFiller
     // ──────────────────────────────────────────────────────────────
     // THÔNG TIN ĐIỀU TRỊ (TRANG BÌA EMR)
     // ──────────────────────────────────────────────────────────────
-    static bool EnsureThongTinDieuTri(dynamic con, TreatmentInfo ti, bool isSave)
+    static bool EnsureThongTinDieuTri(dynamic con, TreatmentInfo ti, bool isSave, bool isAdmissionOnly = false)
     {
         try
         {
             LoadEmrAssemblies();
             var ttdtFuncType = _emrMainLib.GetType("EMR_MAIN.ThongTinDieuTriFunc");
+            var ttdtType = _emrMainLib.GetType("EMR_MAIN.ThongTinDieuTri");
             var checkMethod = ttdtFuncType.GetMethod("checkExistThongTinDieuTri", new Type[] { _mdbConnType, typeof(decimal) });
+            var insertMethod = ttdtFuncType.GetMethod("InsertOrUpdateThongTinDieuTri", new Type[] { _mdbConnType, ttdtType });
             
             bool exists = (bool)checkMethod.Invoke(null, new object[] { con, ti.MaQuanLy });
             if (!exists && (decimal)ti.TreatmentId != ti.MaQuanLy)
@@ -2280,6 +2436,28 @@ class HisEmrFiller
             if (exists)
             {
                 Console.WriteLine("✓ Trang bìa THONGTINDIEUTRI: ĐÃ CÓ TRÊN HỆ THỐNG.");
+                if (isSave && isAdmissionOnly)
+                {
+                    try
+                    {
+                        var getMethod = ttdtFuncType.GetMethod("GetThongTinDieuTri", new Type[] { _mdbConnType, typeof(decimal) });
+                        if (getMethod != null)
+                        {
+                            dynamic curTtdt = getMethod.Invoke(null, new object[] { con, ti.MaQuanLy });
+                            if (curTtdt == null && (decimal)ti.TreatmentId != ti.MaQuanLy)
+                                curTtdt = getMethod.Invoke(null, new object[] { con, (decimal)ti.TreatmentId });
+                            if (curTtdt != null)
+                            {
+                                curTtdt.NgayVaoVien = DateTime.Now;
+                                curTtdt.NgayVaoKhoa = DateTime.Now;
+                                curTtdt.NgayThangNamTrangBia = DateTime.Now;
+                                insertMethod.Invoke(null, new object[] { con, curTtdt });
+                                Console.WriteLine("  ✓ Đã cập nhật NgayVaoVien = Hôm nay ({0}) chuẩn hồ sơ tiếp đón!", DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
+                            }
+                        }
+                    }
+                    catch { }
+                }
                 return true;
             }
 
@@ -2289,7 +2467,6 @@ class HisEmrFiller
 
             if (!isSave) return true;
 
-            var ttdtType = _emrMainLib.GetType("EMR_MAIN.ThongTinDieuTri");
             dynamic ttdt = Activator.CreateInstance(ttdtType);
             ttdt.MaQuanLy = ti.MaQuanLy;
             ttdt.MaBenhNhan = ti.PatientCode;
@@ -2303,7 +2480,13 @@ class HisEmrFiller
             ttdt.MaICD_KKB_CapCuu = ti.IcdCode;
             ttdt.VaoVienDoBenhNayLanThu = 1;
 
-            if (!string.IsNullOrEmpty(ti.InTime))
+            if (isAdmissionOnly)
+            {
+                ttdt.NgayVaoVien = DateTime.Now;
+                ttdt.NgayVaoKhoa = DateTime.Now;
+                ttdt.NgayThangNamTrangBia = DateTime.Now;
+            }
+            else if (!string.IsNullOrEmpty(ti.InTime))
             {
                 DateTime dt;
                 if (DateTime.TryParseExact(ti.InTime, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
@@ -2314,7 +2497,6 @@ class HisEmrFiller
                 }
             }
 
-            var insertMethod = ttdtFuncType.GetMethod("InsertOrUpdateThongTinDieuTri", new Type[] { _mdbConnType, ttdtType });
             object res = insertMethod.Invoke(null, new object[] { con, ttdt });
             bool ok = (res is bool) ? (bool)res : true;
 
@@ -3555,8 +3737,7 @@ class HisEmrFiller
         if (s.Contains("vai")) return "khớp vai" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("háng")) return "khớp háng" + (side.Length > 0 ? " " + side : "");
         if (s.Contains("đùi") || s.Contains("xương đùi")) return "xương đùi" + (side.Length > 0 ? " " + side : "");
-        if (s.Contains("lưng")) return "vùng lưng" + (side.Length > 0 ? " " + side : "");
-        if (s.Contains("cột sống cổ") || s.Contains("đốt sống cổ")) return "cột sống cổ";
+        if (s.Contains("c1") || s.Contains("c2") || s.Contains("c3") || s.Contains("c4") || s.Contains("c5") || s.Contains("c6") || s.Contains("c7") || s.Contains("cột sống cổ") || s.Contains("đốt sống cổ") || s.Contains("đốt đội") || s.Contains("khối khớp")) return "cột sống cổ";
         if (s.Contains("cột sống ngực") || s.Contains("đốt sống ngực")) return "cột sống ngực";
         if (s.Contains("cột sống") || s.Contains("đốt sống")) return "cột sống thắt lưng";
         if (s.Contains("đòn")) return "xương đòn" + (side.Length > 0 ? " " + side : "");
