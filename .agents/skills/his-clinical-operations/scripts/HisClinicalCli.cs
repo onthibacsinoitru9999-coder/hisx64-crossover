@@ -216,7 +216,15 @@ public class HisClinicalCli
         string tokenCode = null;
 
         // 1. Kiểm tra cache token độc lập của Bác sĩ (hạn 6 tiếng)
-        string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+        string cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_hn.token");
+        if (!File.Exists(cacheFile))
+        {
+            cacheFile = Path.Combine(Directory.GetCurrentDirectory(), "doctor_hn.token");
+        }
+        if (!File.Exists(cacheFile))
+        {
+            cacheFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_standalone.token");
+        }
         if (!File.Exists(cacheFile))
         {
             string altCache = Path.Combine(@"F:\NB\LBP2900_R150_V330_W64_uk_EN_2\x64\MISC\ANIMIMG\his\HIS CSNB", "doctor_standalone.token");
@@ -280,7 +288,20 @@ public class HisClinicalCli
             {
                 Load.Init();
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                string defaultPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                if (string.IsNullOrEmpty(defaultPass)) defaultPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                if (string.IsNullOrEmpty(defaultPass)) defaultPass = "981";
+
+                var token = tokenManager.Login(param, "034727", defaultPass, "2.390.0");
+                if (token == null && defaultPass != "981")
+                {
+                    token = tokenManager.Login(param, "034727", "981", "2.390.0");
+                }
+                if (token == null)
+                {
+                    token = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                }
+
                 if (token != null)
                 {
                     tokenCode = token.TokenCode;
@@ -302,7 +323,12 @@ public class HisClinicalCli
                 {
                     try
                     {
-                        File.WriteAllText(cacheFile, tokenCode + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin, Encoding.UTF8);
+                        string payload = tokenCode + "|" + DateTime.Now.Ticks + "|" + currentDoctorLogin;
+                        File.WriteAllText(cacheFile, payload, Encoding.UTF8);
+                        string hnToken = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_hn.token");
+                        File.WriteAllText(hnToken, payload, Encoding.UTF8);
+                        string rootHn = Path.Combine(Directory.GetCurrentDirectory(), "doctor_hn.token");
+                        if (rootHn != hnToken) File.WriteAllText(rootHn, payload, Encoding.UTF8);
                     }
                     catch { }
                 }
