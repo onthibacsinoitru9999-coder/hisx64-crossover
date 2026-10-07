@@ -38,6 +38,8 @@
 39. [Kiến Trúc Điều Phối Chuyên Biệt Cơ Sở & Cách Ly Token Tuyệt Đối (`his_hn` & `his_nb`)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#39-kiến-trúc-điều-phối-chuyên-biệt-cơ-sở--cách-ly-token-tuyệt-đối-facility-specialized-routers--token-isolation-his_hn--his_nb)
 40. [Quy Chuẩn Protocol 'Thợ Trực Buồng' (1-Click Ward Duty Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#40-quy-chuẩn-protocol-thợ-trực-buồng-1-click-ward-duty-protocol)
 41. [Quy Trình Đăng Ký Bệnh Nhân Mổ Cấp Cứu Phân Luồng Cơ Sở (Emergency Surgery Protocol)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#41-quy-trình-đăng-ký-bệnh-nhân-mổ-cấp-cứu-google-forms-phân-luồng-cơ-sở-emergency-surgery-protocol)
+46. [Quy Chuẩn Bìa Bệnh Án Ngoại Khoa EMR: Chi Tiết Triệu Chứng - Tối Giản Tiên Lượng & Phương Pháp Điều Trị](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#46-quy-chuẩn-bìa-bệnh-án-ngoại-khoa-emr-chi-tiết-triệu-chứng--tối-giản-tiên-lượng--phương-pháp-điều-trị)
+47. [Quy Chuẩn Cập Nhật Chẩn Đoán & Mã ICD Hồ Sơ Điều Trị (`api/HisTreatment/UpdateCommonInfoSdo` & EMR Dual-Write)](file:///HIS_AI_INTEGRATION_PLAYBOOK.md#47-quy-chuẩn-cập-nhật-chẩn-đoán--mã-icd-hồ-sơ-điều-trị-apihistreatmentupdatecommoninfosdo--emr-dual-write)
 
 ---
 
@@ -2595,3 +2597,40 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 | **Bịa số liệu xét nghiệm & CĐHA** (Hb 127, WBC 4.9, MRI...) | Code cũ hardcode số liệu của ca mẫu | Trích xuất trực tiếp từ `ctx.CdhaConclusions` (`HIS_SERE_SERV_EXT`) và `labs.Summary` (`HIS_SERE_SERV`). Nếu chưa có, dùng cấu trúc bilan kiểm soát an toàn, không bịa số liệu. |
 | **Tự khẳng định nghiệm pháp (+) chắc nịch** (Tinel (+), Phalen (+)...) | Suy diễn triệu chứng điển hình | Mọi nghiệm pháp kinh điển chưa được bác sĩ khám ghi nhận trên giấy tờ gốc **BẮT BUỘC ĐỂ DẠNG `(+/-)`**. |
 | **Điền bìa ra viện khi tiếp đón buồng bệnh** | Tham số không phân biệt tiếp đón hay ra viện | Tiếp đón buồng bệnh (`--admission`) **BẮT BUỘC để trống 100% các trường bìa ra viện**. |
+
+---
+
+## 47. QUY CHUẨN CẬP NHẬT CHẨN ĐOÁN & MÃ ICD HỒ SƠ ĐIỀU TRỊ (`api/HisTreatment/UpdateCommonInfoSdo` & EMR DUAL-WRITE)
+
+### 47.1. Bối Cảnh Nghiệp Vụ
+Khi bác sĩ buồng bệnh hoặc bác sĩ điều trị cần điều chỉnh, bổ sung chẩn đoán chính/phụ (ví dụ bổ sung bệnh nền mới phát hiện như *Đái tháo đường típ 2 - E11*, *COPD - J44*, *Xơ gan - K74*), thông tin chẩn đoán cần phải được đồng bộ thống nhất giữa 2 phân hệ:
+1. **Hệ thống HIS MOS Backend (`HIS_TREATMENT`)**: Quản lý hồ sơ điều trị, thanh toán BHYT, hiển thị trên danh sách buồng bệnh và điều phối suất ăn dinh dưỡng.
+2. **Hệ thống Bệnh án Điện tử Oracle EMR (`BENHANNGOAIKHOA` & `THONGTINDIEUTRI`)**: Quản lý bệnh án ngoại khoa, hiển thị trên EMR Desktop Client cho bác sĩ duyệt và ký số.
+
+### 47.2. Kỹ Thuật Headless Cập Nhật HIS MOS: `UpdateCommonInfoSdo`
+- **Endpoint**: `api/HisTreatment/UpdateCommonInfoSdo`
+- **Method**: `POST`
+- **DTO**: `MOS.SDO.HisTreatmentCommonInfoUpdateSDO` (trong `MOS.SDO.dll`)
+- **Cấu trúc trường nạp**:
+  * `Id`: `TreatmentId` của đợt điều trị (ví dụ `7398417`).
+  * `IcdCode`: Mã ICD-10 bệnh chính (ví dụ `M48.50`).
+  * `IcdName`: Tên bệnh chính theo danh mục.
+  * `IcdSubCode`: Chuỗi các mã ICD bệnh kèm theo, phân tách bằng dấu chấm phẩy (ví dụ `E11.9;J44.9;K74.6;B18.2;M54.50`).
+  * `IcdText`: Diễn giải chẩn đoán chi tiết đầy đủ (bệnh chính / bệnh kèm theo).
+  * `InIcdCode`, `InIcdName`, `InIcdSubCode`, `InIcdText`: Chẩn đoán khi vào viện (đồng bộ tương ứng).
+  * `DoctorLoginName`, `DoctorUserName`: Định danh bác sĩ điều trị (`034727` / `ThS.BS Nguyễn Hữu Sâm`).
+  * `InTime`, `ClinicalInTime`, `OutTime`: Giữ nguyên thời gian từ bản ghi `HIS_TREATMENT` gốc.
+- **Ưu điểm**: Thực thi tức thì qua backend API mà không cần mở form giao diện Desktop UI `FormTreatmentIcdEdit`, không gây khóa bảng và không phụ thuộc DevExpress UI.
+
+### 47.3. Kỹ Thuật Đồng Bộ Oracle EMR: Dual-Write
+1. **Bảng `EMR_FINAL.BENHANNGOAIKHOA`**:
+   - Sử dụng `HisEmrFiller.exe <MãBN|MãĐT> --admission --save` (nếu tiếp đón) hoặc ghi đè trực tiếp trường `BENHCHINH`:
+     `[M48.50] Tên bệnh chính / Tên các bệnh phụ kèm theo`
+   - Đảm bảo ghi đồng thời cho cả `MAQUANLY` (chuẩn số của `TREATMENT_CODE`) và `TreatmentId`.
+2. **Bảng `EMR_FINAL.THONGTINDIEUTRI`**:
+   - Cập nhật các trường:
+     * `CHANDOAN_KHIVAOKHOADIEUTRI`: Chuỗi chẩn đoán chi tiết.
+     * `MAICD_KHIVAOKHOADIEUTRI`: Mã ICD chính.
+     * `CHANDOAN_KKB_CAPCUU`: Đồng bộ chẩn đoán ban đầu.
+     * `MAICD_KKB_CAPCUU`: Mã ICD tương ứng.
+
