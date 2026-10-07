@@ -45,26 +45,34 @@ public class HisCabinetPrescribe
     public static string ReadLiveToken()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        string currentDir = Directory.GetCurrentDirectory();
         try
         {
-            string cacheFile = Path.Combine(baseDir, "doctor_standalone.token");
-            if (!File.Exists(cacheFile))
+            List<string> tokenFiles = new List<string>
             {
-                string alt1 = Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token");
-                if (File.Exists(alt1)) cacheFile = alt1;
-            }
-            if (File.Exists(cacheFile))
+                Path.Combine(baseDir, "doctor_hn.token"),
+                Path.Combine(currentDir, "doctor_hn.token"),
+                Path.Combine(baseDir, "doctor_standalone.token"),
+                Path.Combine(currentDir, "doctor_standalone.token"),
+                Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_standalone.token"),
+                Path.Combine(baseDir, ".agents", "skills", "his-clinical-operations", "scripts", "doctor_hn.token")
+            };
+
+            foreach (var cacheFile in tokenFiles)
             {
-                string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
-                if (parts.Length >= 2)
+                if (File.Exists(cacheFile))
                 {
-                    long savedTime;
-                    if (long.TryParse(parts[1], out savedTime))
+                    string[] parts = File.ReadAllText(cacheFile, Encoding.UTF8).Split('|');
+                    if (parts.Length >= 2)
                     {
-                        DateTime savedDt = new DateTime(savedTime);
-                        if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                        long savedTime;
+                        if (long.TryParse(parts[1], out savedTime))
                         {
-                            return parts[0];
+                            DateTime savedDt = new DateTime(savedTime);
+                            if ((DateTime.Now - savedDt).TotalHours < 6.0 && parts[0].Length == 64)
+                            {
+                                return parts[0];
+                            }
                         }
                     }
                 }
@@ -211,28 +219,38 @@ public class HisCabinetPrescribe
         CommonParam cp = new CommonParam();
         List<V_HIS_TREATMENT> trList = null;
 
-        // 1. Thử tìm theo PATIENT_CODE__EXACT
-        HisTreatmentViewFilter tf = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = cleanKey };
-        trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
-        Console.WriteLine(string.Format("[DEBUG] Step 1 (PATIENT_CODE={0}): {1} items, cpMsg={2}, ex={3}",
-            cleanKey, trList != null ? trList.Count : 0, cp.Messages != null ? string.Join(";", cp.Messages) : "", cp.HasException));
+        // 1. Thử tìm qua HisPatient/Get trước để lấy PATIENT_ID (đáng tin cậy nhất)
+        try
+        {
+            var patFilter = new HisPatientFilter { PATIENT_CODE = cleanKey };
+            var pats = adapter.Get<List<HIS_PATIENT>>("api/HisPatient/Get", consumer, patFilter, cp);
+            if (pats != null && pats.Count > 0)
+            {
+                var trmFilter = new HisTreatmentViewFilter { PATIENT_ID = pats[0].ID };
+                trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, trmFilter, cp);
+            }
+        }
+        catch { }
 
-        // 2. Thử tìm theo TREATMENT_CODE__EXACT
+        // 2. Thử tìm theo PATIENT_CODE__EXACT
         if (trList == null || trList.Count == 0)
         {
-            tf = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = cleanKey.PadLeft(12, '0') };
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = cleanKey };
             trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
-            Console.WriteLine(string.Format("[DEBUG] Step 2 (TREATMENT_CODE={0}): {1} items, cpMsg={2}, ex={3}",
-                cleanKey.PadLeft(12, '0'), trList != null ? trList.Count : 0, cp.Messages != null ? string.Join(";", cp.Messages) : "", cp.HasException));
         }
 
-        // 3. Thử tìm theo KEY_WORD
+        // 3. Thử tìm theo TREATMENT_CODE__EXACT
         if (trList == null || trList.Count == 0)
         {
-            tf = new HisTreatmentViewFilter { KEY_WORD = cleanKey };
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = cleanKey.PadLeft(12, '0') };
             trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
-            Console.WriteLine(string.Format("[DEBUG] Step 3 (KEY_WORD={0}): {1} items, cpMsg={2}, ex={3}",
-                cleanKey, trList != null ? trList.Count : 0, cp.Messages != null ? string.Join(";", cp.Messages) : "", cp.HasException));
+        }
+
+        // 4. Thử tìm theo KEY_WORD
+        if (trList == null || trList.Count == 0)
+        {
+            HisTreatmentViewFilter tf = new HisTreatmentViewFilter { KEY_WORD = cleanKey };
+            trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
         }
 
         if (trList == null || trList.Count == 0) return null;
@@ -727,8 +745,10 @@ public class HisCabinetPrescribe
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode đăng nhập!"); return; }
 
+        try { HIS.Desktop.LocalStorage.ConfigSystem.Load.Init(); } catch { }
         try { ApiConsumers.SetConsunmer(token); } catch { }
-        ApiConsumer consumer = ApiConsumers.MosConsumer ?? new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        UpdateWorkInfo(consumer, 5248);
         var tr = FindTreatment(consumer, patKey);
         if (tr == null) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
 
@@ -829,8 +849,10 @@ public class HisCabinetPrescribe
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode đăng nhập!"); return; }
 
+        try { HIS.Desktop.LocalStorage.ConfigSystem.Load.Init(); } catch { }
         try { ApiConsumers.SetConsunmer(token); } catch { }
-        ApiConsumer consumer = ApiConsumers.MosConsumer ?? new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        UpdateWorkInfo(consumer, 5248);
         var tr = FindTreatment(consumer, patKey);
         if (tr == null) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
 
@@ -948,8 +970,10 @@ public class HisCabinetPrescribe
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode!"); return; }
 
+        try { HIS.Desktop.LocalStorage.ConfigSystem.Load.Init(); } catch { }
         try { ApiConsumers.SetConsunmer(token); } catch { }
-        ApiConsumer consumer = ApiConsumers.MosConsumer ?? new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        UpdateWorkInfo(consumer, 5248);
         var tr = FindTreatment(consumer, patKey);
         if (tr == null) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
 
@@ -970,7 +994,8 @@ public class HisCabinetPrescribe
             {
                 string[] tp = timeStr.Split(':');
                 DateTime dt = DateTime.Today.AddHours(int.Parse(tp[0])).AddMinutes(int.Parse(tp[1]));
-                insTime = long.Parse(dt.ToString("yyyyMMddHHmmss"));
+                long customTime = long.Parse(dt.ToString("yyyyMMddHHmmss"));
+                if (customTime >= insTime) insTime = customTime;
             }
             catch { }
         }
