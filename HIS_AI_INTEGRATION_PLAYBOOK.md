@@ -2584,3 +2584,14 @@ private static void LinkServiceReqToTracking(TokenCredentials cp, HisServiceReqR
 ### 46.3. Quy Tắc Tiền Sử Lâm Sàng & Tóm Tắt Bệnh Án Siêu Gọn (5-7 Dòng)
 - **Tiền sử bệnh**: Tuyệt đối không copy-paste chuỗi chẩn đoán ICD dài dòng (như `Xẹp đốt sống, không phân loại mục khác, vùng ngực - thắt lưng; Bệnh tăng huyết áp vô căn (nguyên phát); Xẹp đốt sống...`). Phải chuyển hóa thành tên lâm sàng ngắn gọn: *Tiền sử Tăng huyết áp, Đái tháo đường, Loãng xương, TD nhồi máu não cũ...*
 - **Độ dài Tóm tắt**: Tối đa 5-7 dòng, tập trung trực diện vào hội chứng ngoại khoa, triệu chứng cơ năng/thực thể, nghiệm pháp (+/-), toàn trạng/DHST và bệnh nền phối hợp. ⚠️ **QUY TẮC CỨNG: TUYỆT ĐỐI KHÔNG GHI CẬN LÂM SÀNG (X-quang, CT, MRI, Siêu âm, Điện cơ, XN máu) VÀO TÓM TẮT BỆNH ÁN** (Cận lâm sàng đã có tab và mục quản lý riêng trên EMR).
+
+
+### 46.4. Bảng Tổng Hợp Bẫy Lỗi & Nguyên Tắc Chống Bịa Đặt Bệnh Án (Anti-Fabrication & Ground-Truth First)
+| Bẫy Lỗi Nguy Hiểm Cũ (Gotcha) | Nguyên Nhân Kỹ Thuật | Giải Pháp Triệt Để & Chuẩn Hóa Mới |
+| :--- | :--- | :--- |
+| **Bịa cơ chế chấn thương** (TNGT đâm vào xe tải, ngã giàn giáo, thanh sắt đè...) | Code cũ dùng template hư cấu khi không tìm thấy mô tả chấn thương | Tuyệt đối không suy diễn. Chỉ dùng cơ chế chấn thương nếu có ghi nhận trong hồ sơ gốc (`ti.HospitalizeReasonName` hoặc tờ điều trị). Nếu không có, dùng văn phong ngoại khoa trung tính dựa trên triệu chứng thực tế. |
+| **Gán ghép bệnh án theo tên bệnh nhân** (`nameLower.Contains("loan", "my", "tình", "thức", "phong", "thông", "khương", "thịnh")`) | Các case mẫu test cũ hardcode theo tên bệnh nhân | **Xóa bỏ 100% điều kiện lọc theo tên bệnh nhân**. Nhận diện bệnh cảnh 100% bằng `ICD_CODE`, `ICD_NAME`, `ICD_TEXT` và chẩn đoán thực tế. |
+| **Hardcode ngày tháng cố định** (29/09, 01/10, 02/10/2026...) | Mốc thời gian của đợt thử nghiệm cũ | Bắt buộc lấy thời gian thực từ `ti.InTime`, `ti.OutTime` hoặc thời gian y lệnh thực tế, tuyệt đối không hardcode ngày tháng. |
+| **Bịa số liệu xét nghiệm & CĐHA** (Hb 127, WBC 4.9, MRI...) | Code cũ hardcode số liệu của ca mẫu | Trích xuất trực tiếp từ `ctx.CdhaConclusions` (`HIS_SERE_SERV_EXT`) và `labs.Summary` (`HIS_SERE_SERV`). Nếu chưa có, dùng cấu trúc bilan kiểm soát an toàn, không bịa số liệu. |
+| **Tự khẳng định nghiệm pháp (+) chắc nịch** (Tinel (+), Phalen (+)...) | Suy diễn triệu chứng điển hình | Mọi nghiệm pháp kinh điển chưa được bác sĩ khám ghi nhận trên giấy tờ gốc **BẮT BUỘC ĐỂ DẠNG `(+/-)`**. |
+| **Điền bìa ra viện khi tiếp đón buồng bệnh** | Tham số không phân biệt tiếp đón hay ra viện | Tiếp đón buồng bệnh (`--admission`) **BẮT BUỘC để trống 100% các trường bìa ra viện**. |

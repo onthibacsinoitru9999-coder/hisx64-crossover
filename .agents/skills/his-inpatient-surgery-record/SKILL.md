@@ -135,3 +135,16 @@ Khi tạo vỏ bệnh án, **TUYỆT ĐỐI KHÔNG DÙNG NỘI DUNG MẪU SƠ S�
 3. **Quy Chuẩn Ký Số Vỏ Bệnh Án Ngoại Khoa**:
    - Khác với Tờ điều trị (Type 7 ký tự động 100% qua Cloud HSM), Vỏ bệnh án ngoại khoa đòi hỏi bác sĩ kiểm tra và bấm **Ký 1-click trực tiếp trên giao diện EMR Desktop Client** để DevExpress XtraReports đóng gói chữ ký nội bộ.
    - Tuyệt đối không can thiệp API ký ngầm giả lập PDF cho Vỏ bệnh án để tránh phá vỡ liên kết báo cáo của EMR Client.
+
+
+---
+
+## 6. QUY CHUẨN CHỐNG BỊA ĐẶT & ƯU TIÊN DỮ LIỆU CÓ SẴN (ZERO HALLUCINATION PROTOCOL)
+
+1. **Lý do vào viện (`LyDoVaoVien`)**: Ưu tiên 1 từ `ti.HospitalizeReasonName` (phiếu khám vào viện KKB/Cấp cứu). Tuyệt đối không tự suy diễn cơ chế chấn thương hư cấu.
+2. **Quá trình bệnh lý (`QuaTrinhBenhLy`)**: Trích xuất từ diễn biến lâm sàng thực tế và các tờ điều trị (`HIS_TRACKING`), biên bản hội chẩn (`HIS_DEBATE`). Tuyệt đối không bịa chuyện xe máy va chạm, ngã giàn giáo, thanh sắt đè.
+3. **Nghiệm pháp lâm sàng (`CoXuongKhop`, `BenhNgoaiKhoa`)**: Mọi nghiệm pháp kinh điển nếu chưa được khám xác nhận trên giấy tờ gốc bắt buộc để dạng nghi vấn `(+/-)` (Tinel, Phalen, Lasegue, Trendelenburg, Lachman, Bập bềnh bánh chè...).
+4. **Tóm tắt bệnh án (`TomTatBenhAn`)**: Siêu gọn (5-7 dòng), cô đọng hội chứng chính và DHST. **TUYỆT ĐỐI KHÔNG GHI CẬN LÂM SÀNG VÀO TÓM TẮT BỆNH ÁN**.
+5. **Tiên lượng & Hướng điều trị**: Tiên lượng ghi duy nhất `Dè dặt`; Hướng điều trị ghi duy nhất `Theo phác đồ`.
+6. **Không nhận diện theo tên bệnh nhân**: Loại bỏ 100% điều kiện `nameLower.Contains(...)`. Nhận diện thuần túy theo mã và tên bệnh ICD (`ICD_CODE`, `ICD_NAME`).
+7. **Tiếp đón buồng bệnh (`--admission`)**: Để trống 100% các trường bìa ra viện (`QuaTrinhBenhLyVaDienBien`, `TomTatKetQuaXetNghiem`, `PhuongPhapDieuTri`, `TinhTrangNguoiBenhRaVien`, `HuongDieuTriTiepTheo`, `NgayTongKet`, `LoiDanBacSi`).

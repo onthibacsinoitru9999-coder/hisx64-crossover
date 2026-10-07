@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # QUY TẮC BẮT BUỘC DÀNH CHO AI AGENT (HIS AUTOMATION PROJECT RULES)
 # ==============================================================================
 
@@ -366,3 +366,25 @@ Mọi Agent khi nhận yêu cầu "soát bilan", "kiểm tra bilan", "đối so�
    3. 📝 **QUY TẮC TÓM TẮT BỆNH ÁN & TIỀN SỬ (SIÊU GỌN - TỐI ĐA 5-7 DÒNG - TUYỆT ĐỐI KHÔNG CHÉP NGUYÊN VĂN DANH MỤC ICD)**:
       - **Tiền sử bệnh lý**: Bắt buộc ghi ngắn gọn tên bệnh thực tế lâm sàng (Ví dụ: Tiền sử Tăng huyết áp, Đái tháo đường típ 2, Tai biến MMN cũ). **TUYỆT ĐỐI CẤM** sao chép nguyên xi chuỗi danh mục ICD dài dòng, lặp từ (như Bệnh lý nội khoa ghi nhận: Xẹp đốt sống, không phân loại mục khác, vùng ngực - thắt lưng; Bệnh tăng huyết áp vô căn (nguyên phát); Xẹp đốt sống...).
       - **Độ dài & Nội dung Tóm tắt bệnh án**: Bắt buộc viết cô đọng, súc tích trong khoảng **5 đến 7 dòng**, tập trung trực diện vào các hội chứng ngoại khoa cốt lõi, nghiệm pháp khám `(+/-)` và toàn trạng/DHST. **TUYỆT ĐỐI KHÔNG CHÉP KẾT QUẢ CẬN LÂM SÀNG VÀO TÓM TẮT BỆNH ÁN**, không viết văn hoa, giải thích lan man.
+
+
+### 16.4. NGUYÊN TẮC VÀNG VIẾT VĂN BỆNH ÁN: ƯU TIÊN DỮ LIỆU CÓ SẴN - KHÔNG BỊA ĐẶT - CHUẨN HÓA LÂM SÀNG (ZERO HALLUCINATION & GROUND-TRUTH FIRST PROTOCOL)
+Mọi Agent và công cụ sinh nội dung lâm sàng (Vỏ bệnh án EMR `BENHANNGOAIKHOA`, Tờ điều trị `HIS_TRACKING`, Trích biên bản hội chẩn `HIS_DEBATE`) BẮT BUỘC tuân thủ nghiêm ngặt 3 nguyên tắc sau:
+1. 🛡️ **Ưu Tiên Thông Tin Đã Có Sẵn (Ground-Truth First)**:
+   - **Khai thác 100% dữ liệu gốc trong hệ thống HIS/EMR**:
+     * **Lý do vào viện**: Bắt buộc ưu tiên đọc từ `ti.HospitalizeReasonName` (tương ứng trường `HOSPITALIZE_REASON_NAME` từ phiếu khám vào viện / phòng khám KKB) hoặc diễn biến tiếp đón đầu tiên.
+     * **Quá trình bệnh lý**: Kế thừa và trích xuất từ các tờ điều trị (`HIS_TRACKING`), biên bản hội chẩn (`HIS_DEBATE`), không tự bịa cơ chế chấn thương.
+     * **Tiền sử**: Trích xuất chuẩn xác từ mã bệnh phụ ICD và ghi chép khám lâm sàng thực tế.
+     * **Tóm tắt bệnh án**: Ưu tiên tái sử dụng `ctx.TomTatBenhAn` có sẵn nếu đã được bác sĩ điền; nếu sinh mới phải cô đọng 5-7 dòng, không chép kết quả CĐHA vào tóm tắt (vì CĐHA đã có tab riêng `CacXetNghiemCanLamSangCanLam` và tab CĐHA).
+     * **Kết quả cận lâm sàng**: Trích xuất đích danh từ kết luận CĐHA thực tế (`HIS_SERE_SERV_EXT` / `ctx.CdhaConclusions`) và kết quả xét nghiệm thực tế (`labs.Summary`), tuyệt đối không bịa số liệu CTM, sinh hóa, đông máu.
+2. 🚫 **Tuyệt Đối Không Bịa Bệnh Án (Zero Hallucination / Anti-Fabrication)**:
+   - **Loại bỏ triệt để mọi chi tiết hư cấu**:
+     * **Tuyệt đối không tự bịa cơ chế chấn thương** (như xe máy va chạm, ngã giàn giáo, thanh sắt đè, trượt chân cầu thang...).
+     * **Tuyệt đối không hardcode ngày tháng ảo** (như các mốc ngày 29/09, 01/10, 02/10/2026...).
+     * **Tuyệt đối không nhận diện hay gán ghép bệnh cảnh theo tên bệnh nhân cũ** (xóa bỏ 100% các điều kiện `nameLower.Contains("...")`). Logic nhận diện bệnh án dựa 100% vào `ICD_CODE`, `ICD_NAME`, `ICD_TEXT` và chẩn đoán thực tế.
+     * **Tuyệt đối không bịa các tổn thương tạng hư cấu** (như khối đa chấn thương Lào Cai, vỡ lách, chấn thương thận...).
+3. 🩺 **Ưu Tiên Nội Dung Chuẩn Mực Ngoại Khoa**:
+   - **Nghiệm pháp khám lâm sàng kinh điển** nếu chưa được bác sĩ khám ghi nhận cụ thể trên giấy tờ gốc bắt buộc để ở dạng nghi vấn `(+/-)` (Tinel, Phalen, Lasegue, Trendelenburg, Lachman, Bập bềnh bánh chè...).
+   - **Bìa ra viện khi tiếp đón buồng (`--admission`)**: Để trống 100% các trường tổng kết ra viện (`QuaTrinhBenhLyVaDienBien`, `TomTatKetQuaXetNghiem`, `PhuongPhapDieuTri`, `TinhTrangNguoiBenhRaVien`, `HuongDieuTriTiepTheo`, `NgayTongKet`, `LoiDanBacSi`).
+   - **Tiên lượng ghi duy nhất**: `Dè dặt`.
+   - **Hướng điều trị ghi duy nhất**: `Theo phác đồ`.
