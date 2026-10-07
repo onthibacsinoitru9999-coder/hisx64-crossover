@@ -424,7 +424,9 @@ namespace HisGlucoseMcp
 
                 sb.AppendLine("\n[XEM TRƯỚC BƯỚC 3] Kê đơn Insulin tủ trực (+5 phút):");
                 long sId = (facility == "NB") ? 5142 : 810;
-                string tStr = (slot == "17h") ? "17:05" : (slot == "21h" ? "21:05" : "06:05");
+                string tStr = (slot == "17h" || slot == "17") ? "17:05" :
+                              (slot == "21h" || slot == "21") ? "21:05" :
+                              (slot == "11h" || slot == "11") ? "11:05" : "06:05";
                 sb.AppendLine(string.Format("  HisCabinetPrescribe.exe insulin {0} {1} {2} {3} {4}",
                     pCode, units, insulinType, tStr, sId));
 
@@ -465,7 +467,9 @@ namespace HisGlucoseMcp
             bool step3Error;
             long stockId = (facility == "NB") ? 5142 : 810;
             string toolPrescribe = ResolveToolPath("HisCabinetPrescribe.exe");
-            string timeStr = (slot == "17h") ? "17:05" : (slot == "21h" ? "21:05" : "06:05");
+            string timeStr = (slot == "17h" || slot == "17") ? "17:05" :
+                             (slot == "21h" || slot == "21") ? "21:05" :
+                             (slot == "11h" || slot == "11") ? "11:05" : "06:05";
             string res3 = RunProcess(toolPrescribe, string.Format("insulin {0} {1} {2} {3} {4}",
                 EscapeArg(pCode), units, EscapeArg(insulinType), EscapeArg(timeStr), stockId), out step3Error, facility);
             sb.AppendLine(res3);

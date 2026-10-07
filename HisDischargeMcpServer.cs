@@ -1300,12 +1300,17 @@ Vận động cảm giác đầu chi bình thường
             string path1 = Path.Combine(BaseDir, exeName);
             if (File.Exists(path1)) return path1;
 
+            string scriptPath = Path.Combine(BaseDir, ".agents", "skills", "his-clinical-operations", "scripts", exeName);
+            if (File.Exists(scriptPath)) return scriptPath;
+
             DirectoryInfo cur = new DirectoryInfo(BaseDir);
             for (int i = 0; i < 4; i++)
             {
                 if (cur == null) break;
                 string p = Path.Combine(cur.FullName, exeName);
                 if (File.Exists(p)) return p;
+                string sp = Path.Combine(cur.FullName, ".agents", "skills", "his-clinical-operations", "scripts", exeName);
+                if (File.Exists(sp)) return sp;
                 cur = cur.Parent;
             }
 

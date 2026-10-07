@@ -9,6 +9,7 @@ using Inventec.Common.Adapter;
 using Inventec.Common.WebApiClient;
 using Inventec.Token.ClientSystem;
 using HIS.Desktop.LocalStorage.ConfigSystem;
+using HIS.Desktop.ApiConsumer;
 using MOS.Filter;
 using MOS.SDO;
 using MOS.EFMODEL.DataModels;
@@ -207,20 +208,31 @@ public class HisCabinetPrescribe
         string cleanKey = patKey.Trim();
         if (cleanKey.All(char.IsDigit) && cleanKey.Length < 10) cleanKey = cleanKey.PadLeft(10, '0');
 
-        HisTreatmentViewFilter tf = new HisTreatmentViewFilter();
-        if (cleanKey.Length == 12 && cleanKey.StartsWith("0000"))
-            tf.TREATMENT_CODE__EXACT = cleanKey;
-        else if (cleanKey.Length >= 8 && cleanKey.StartsWith("000"))
-            tf.PATIENT_CODE__EXACT = cleanKey;
-        else
-            tf.KEY_WORD = cleanKey;
-
         CommonParam cp = new CommonParam();
-        var trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
+        List<V_HIS_TREATMENT> trList = null;
+
+        // 1. Thử tìm theo PATIENT_CODE__EXACT
+        HisTreatmentViewFilter tf = new HisTreatmentViewFilter { PATIENT_CODE__EXACT = cleanKey };
+        trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
+        Console.WriteLine(string.Format("[DEBUG] Step 1 (PATIENT_CODE={0}): {1} items, cpMsg={2}, ex={3}",
+            cleanKey, trList != null ? trList.Count : 0, cp.Messages != null ? string.Join(";", cp.Messages) : "", cp.HasException));
+
+        // 2. Thử tìm theo TREATMENT_CODE__EXACT
+        if (trList == null || trList.Count == 0)
+        {
+            tf = new HisTreatmentViewFilter { TREATMENT_CODE__EXACT = cleanKey.PadLeft(12, '0') };
+            trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
+            Console.WriteLine(string.Format("[DEBUG] Step 2 (TREATMENT_CODE={0}): {1} items, cpMsg={2}, ex={3}",
+                cleanKey.PadLeft(12, '0'), trList != null ? trList.Count : 0, cp.Messages != null ? string.Join(";", cp.Messages) : "", cp.HasException));
+        }
+
+        // 3. Thử tìm theo KEY_WORD
         if (trList == null || trList.Count == 0)
         {
             tf = new HisTreatmentViewFilter { KEY_WORD = cleanKey };
             trList = adapter.FetchList<V_HIS_TREATMENT>("api/HisTreatment/GetView", consumer, tf, cp);
+            Console.WriteLine(string.Format("[DEBUG] Step 3 (KEY_WORD={0}): {1} items, cpMsg={2}, ex={3}",
+                cleanKey, trList != null ? trList.Count : 0, cp.Messages != null ? string.Join(";", cp.Messages) : "", cp.HasException));
         }
 
         if (trList == null || trList.Count == 0) return null;
@@ -715,7 +727,8 @@ public class HisCabinetPrescribe
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode đăng nhập!"); return; }
 
-        ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        try { ApiConsumers.SetConsunmer(token); } catch { }
+        ApiConsumer consumer = ApiConsumers.MosConsumer ?? new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
         var tr = FindTreatment(consumer, patKey);
         if (tr == null) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
 
@@ -816,7 +829,8 @@ public class HisCabinetPrescribe
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode đăng nhập!"); return; }
 
-        ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        try { ApiConsumers.SetConsunmer(token); } catch { }
+        ApiConsumer consumer = ApiConsumers.MosConsumer ?? new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
         var tr = FindTreatment(consumer, patKey);
         if (tr == null) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
 
@@ -920,7 +934,11 @@ public class HisCabinetPrescribe
 
         string medKw = "14956";
         string medDisplay = "Lantus";
-        if (typeStr.StartsWith("R") || typeStr.Contains("ACT")) { medKw = "27727"; medDisplay = "Actrapid"; }
+        if (typeStr.StartsWith("R") || typeStr.Contains("ACT"))
+        {
+            medKw = (stockId == STOCK_TU_TRUC_CTCH_HN) ? "29507" : "27727";
+            medDisplay = "Actrapid";
+        }
         else if (typeStr.StartsWith("M") || typeStr.Contains("MIX")) { medKw = "18119"; medDisplay = "Mixtard"; }
 
         decimal presAmount = ui / 1000.0m;
@@ -930,7 +948,8 @@ public class HisCabinetPrescribe
         string token = ReadLiveToken();
         if (string.IsNullOrEmpty(token)) { Console.WriteLine("❌ Không tìm thấy TokenCode!"); return; }
 
-        ApiConsumer consumer = new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
+        try { ApiConsumers.SetConsunmer(token); } catch { }
+        ApiConsumer consumer = ApiConsumers.MosConsumer ?? new ApiConsumer("http://192.168.7.236:1608/", token, "HIS");
         var tr = FindTreatment(consumer, patKey);
         if (tr == null) { Console.WriteLine("❌ Không tìm thấy bệnh nhân: " + patKey); return; }
 
@@ -956,8 +975,33 @@ public class HisCabinetPrescribe
             catch { }
         }
 
+        string cuVal = ((int)ui).ToString("D2");
+        string morning = null, noon = null, afternoon = null, evening = null;
+        int hour = 21;
+        if (!string.IsNullOrEmpty(timeStr) && timeStr.Contains(":"))
+        {
+            int.TryParse(timeStr.Split(':')[0], out hour);
+        }
+        if (hour < 10) morning = cuVal;
+        else if (hour <= 14) noon = cuVal;
+        else if (hour < 19) afternoon = cuVal;
+        else evening = cuVal;
+
+        var presItem = new CabinetPrescribeItem
+        {
+            Medicine = med,
+            Amount = presAmount,
+            Tutorial = tutorial,
+            UseFormId = med.MEDICINE_USE_FORM_ID ?? 15,
+            Morning = morning,
+            Noon = noon,
+            Afternoon = afternoon,
+            Evening = evening,
+            IsExpend = false
+        };
+
         string sCode, eCode, err;
-        bool ok = PrescribeCabinetItem(consumer, tr, roomId, stockId, med.ID, presAmount, tutorial, med.MEDICINE_USE_FORM_ID ?? 15, false, trkId, insTime, "034727", "Ths.BS NGUYỄN HỮU SÂM", out sCode, out eCode, out err, med);
+        bool ok = PrescribeCabinetItemList(consumer, tr, roomId, stockId, new List<CabinetPrescribeItem> { presItem }, trkId, insTime, "034727", "Ths.BS NGUYỄN HỮU SÂM", out sCode, out eCode, out err);
         if (ok)
         {
             Console.WriteLine("===============================================================================");

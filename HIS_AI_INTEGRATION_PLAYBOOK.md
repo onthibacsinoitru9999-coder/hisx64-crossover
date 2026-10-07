@@ -1,4 +1,4 @@
-﻿# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
+# 🏥 CẨM NANG TOÀN DIỆN TÍCH HỢP HIS / MOS / EMR CHO AI AGENT (MASTER PLAYBOOK)
 > **Phiên bản Hợp nhất Tối thượng (Desktop & Laptop Unified Master Edition)**
 > **Mục đích**: Tài liệu hóa 100% kinh nghiệm thực chiến, kiến trúc, cấu trúc DTO, các bẫy runtime (gotchas), từ điển lâm sàng chuẩn hóa và toàn bộ kho công cụ tự động hóa trên hệ thống HIS Bệnh viện Bạch Mai. Một Agent ở bất kỳ máy tính nào chỉ cần đọc duy nhất tài liệu này là có thể thực thi chính xác 100% ngay lập tức mà **không cần thử lỗi hay phân tích ngược lại từ đầu**.
 
@@ -2176,6 +2176,12 @@ Protocol **"Thợ làm ra viện"** (`his_execute_protocol_discharge`) tích h�
 7. **Tách MCP Server Độc Lập Cho Protocol Liên Hoàn (Architecture Decoupling Gotcha):**
    - **Bẫy**: Nhồi nhét các quy trình liên hoàn lớn (như Thợ làm ra viện 3 bước) vào `HisClinicalCli.cs` và `HisMcpServer.cs` gây quá tải codebase (>5400 dòng), tăng nguy cơ xung đột phụ thuộc và làm chậm CLI đa dụng.
    - **Quy chuẩn**: Tách hẳn thành một MCP server và executable độc lập `HisDischargeMcpServer.cs` / `HisDischargeMcpServer.exe`, cấu hình riêng server `his-discharge` trong `mcp_config.json`. Giữ `HisClinicalCli.exe` và `HisMcpServer.exe` sạch sẽ, tập trung duy nhất vào các tác vụ đơn lẻ chuẩn lâm sàng.
+8. **Tương Thích EMR_MAIN.Library.dll vs EMR_MAIN.dll (BadImageFormatException & File Not Found):**
+   - **Bẫy**: `HisEmrFiller.cs` cố định nạp `EMR_MAIN.Library.dll`. Trên một số phiên bản máy trạm HIS x64/crossover, toàn bộ các lớp `BenhAnNgoaiKhoa`, `DauSinhTon` được tích hợp thẳng trong `Integrate\EMR\EMR_MAIN.dll`, dẫn đến ngoại lệ `FileNotFoundException`.
+   - **Quy chuẩn**: Kiểm tra tồn tại `EMR_MAIN.Library.dll`, nếu không có tự động fallback nạp trực tiếp `EMR_MAIN.dll`. Đồng thời biên dịch `HisEmrFiller.exe` với `/platform:x86` qua 32-bit `csc.exe` để tương thích với `MDB.dll` (x86).
+9. **Dò Đường Dẫn Công Cụ Con (ResolveToolPath Scripts Discovery):**
+   - **Bẫy**: `HisDischargeMcpServer.exe` chỉ tìm kiếm công cụ con ở thư mục gốc hoặc thư mục cha, bỏ sót thư mục `.agents/skills/his-clinical-operations/scripts/` nơi lưu các file binary mới nhất.
+   - **Quy chuẩn**: Bổ sung kiểm tra đường dẫn thư mục `scripts` trong `ResolveToolPath` để đảm bảo gọi đúng `HisEmrFiller.exe` mà không phụ thuộc vào vị trí thư mục hiện hành.
 
 ---
 
