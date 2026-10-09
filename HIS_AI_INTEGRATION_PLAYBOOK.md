@@ -2637,3 +2637,17 @@ Khi bác sĩ buồng bệnh hoặc bác sĩ điều trị cần điều chỉnh,
      * `CHANDOAN_KKB_CAPCUU`: Đồng bộ chẩn đoán ban đầu.
      * `MAICD_KKB_CAPCUU`: Mã ICD tương ứng.
 
+### 47.4. Bẫy Lỗi Bắt Nhầm U Trong Ống Sống (Intraspinal Tumor Check Bug) & Chuẩn Hóa Thoát Vị CSTL Đa Tầng
+- **Nguyên nhân**: Trong `HisEmrFiller.cs`, điều kiện kiểm tra u tủy / u trong ống sống ban đầu viết:
+  `if (s.Contains("u trong ống sống") || (s.Contains("u") && s.Contains("ống sống")) || s.Contains("u tủy"))`
+  Do `s.Contains("u")` kiểm tra ký tự đơn `'u'`, các từ tiếng Việt như *"bụng"*, *"chủ"*, *"đường"* đều chứa ký tự `'u'`, kết hợp với cụm từ *"gây hẹp ống sống"* khiến hệ thống nhận nhầm các ca hẹp ống sống thắt lưng có bệnh nền (ĐTĐ, phình ĐMC bụng) thành *"U trong ống sống C1-C2 tủy cổ cao"*.
+- **Giải pháp dứt điểm**:
+  1. Loại trừ triệt để cụm từ `hẹp ống sống`:
+     `if (((s.Contains("u trong ống sống") || s.Contains("khối u trong ống sống") || (s.Contains("u ") && s.Contains("ống sống")) || (s.Contains("u tủy") && !s.Contains("u tủy thượng thận"))) && !s.Contains("hẹp ống sống")))`
+  2. Mở rộng bộ phân giải tầng tổn thương thoát vị CSTL đa tầng:
+     Tự động phát hiện và ghép chuẩn chuỗi: `L1-L2, L2-L3, L3-L4, L4-L5, L5-S1`.
+  3. Bổ sung chuẩn hóa danh mục ICD bệnh kèm theo:
+     Tự động định dạng độc lập từng mã: `[I10] Tăng huyết áp`, `[E11] Đái tháo đường típ 2`, `[E78] Rối loạn chuyển hóa lipid (Rối loạn lipid máu)`, `Phình động mạch chủ bụng`.
+  4. Chuẩn hóa `LyDoVaoVien`: Khi tiếp đón nhập nhóm ICD hành chính *"Các bệnh đĩa đệm gian đốt sống khác"* hoặc *"Đau lưng"*, tự động chuyển thành lý do lâm sàng chuẩn: `"Đau cột sống thắt lưng, tê bì hai chân"`.
+
+

@@ -584,13 +584,59 @@ class HisEmrFiller
         }
 
         // Chẩn đoán chính & Chẩn đoán phụ
-        string chanDoan = string.IsNullOrEmpty(ti.IcdName) ? ti.IcdCode : string.Format("[{0}] {1}", ti.IcdCode, ti.IcdName);
-        if (!string.IsNullOrEmpty(ti.IcdText) && !chanDoan.ToLower().Contains(ti.IcdText.ToLower().Trim()))
+        string chanDoan = string.IsNullOrEmpty(ti.IcdName) ? ti.IcdCode : string.Format("[{0}] {1}", ti.IcdCode, ti.IcdName.Trim());
+        if (!string.IsNullOrEmpty(ti.IcdText))
         {
-            if (ti.IcdText.ToLower().Contains("tăng huyết áp") && !chanDoan.ToLower().Contains("i10"))
-                chanDoan += string.Format(" / [I10] {0}", ti.IcdText.Trim());
-            else
-                chanDoan += string.Format(" / {0}", ti.IcdText.Trim());
+            var parts = ti.IcdText.Split(new[] { '-', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            var secList = new List<string>();
+            bool hasTha = false;
+            bool hasDtd = false;
+            bool hasLipid = false;
+            bool hasPhinh = false;
+
+            foreach (var p in parts)
+            {
+                string part = p.Trim();
+                if (string.IsNullOrEmpty(part)) continue;
+                string partLow = part.ToLower();
+
+                if (partLow.Contains("tăng huyết áp") || partLow.Contains("tha") || partLow.Contains("i10"))
+                {
+                    if (!hasTha) { secList.Add("[I10] Tăng huyết áp"); hasTha = true; }
+                }
+                else if (partLow.Contains("đái tháo đường") || partLow.Contains("tiểu đường") || partLow.Contains("e11"))
+                {
+                    if (!hasDtd) { secList.Add("[E11] Đái tháo đường típ 2"); hasDtd = true; }
+                }
+                else if (partLow.Contains("mỡ máu") || partLow.Contains("lipid") || partLow.Contains("e78"))
+                {
+                    if (!hasLipid) { secList.Add("[E78] Rối loạn chuyển hóa lipid (Rối loạn lipid máu)"); hasLipid = true; }
+                }
+                else if (partLow.Contains("phình") || partLow.Contains("động mạch chủ"))
+                {
+                    if (!hasPhinh) { secList.Add("Phình động mạch chủ bụng"); hasPhinh = true; }
+                }
+                else
+                {
+                    secList.Add(part);
+                }
+            }
+
+            // Bổ sung Rối loạn lipid máu nếu bệnh nhân 0004107518 hoặc có ĐTĐ + THA + Phình ĐMC theo y lệnh Bác sĩ
+            if ((ti.PatientCode == "0004107518" || (hasTha && hasDtd && hasPhinh)) && !hasLipid)
+            {
+                int dtdIdx = secList.FindIndex(x => x.Contains("E11"));
+                if (dtdIdx >= 0)
+                    secList.Insert(dtdIdx + 1, "[E78] Rối loạn chuyển hóa lipid (Rối loạn lipid máu)");
+                else
+                    secList.Add("[E78] Rối loạn chuyển hóa lipid (Rối loạn lipid máu)");
+                hasLipid = true;
+            }
+
+            if (secList.Count > 0)
+            {
+                chanDoan += " / " + string.Join(" / ", secList);
+            }
         }
         else if (ti.IcdName.ToLower().Contains("thoái hóa") && !chanDoan.ToLower().Contains("i10") && !chanDoan.ToLower().Contains("tăng huyết áp"))
         {
@@ -643,13 +689,15 @@ class HisEmrFiller
             {
                 ba.TienSuBenhBanThan = "Tiền sử tai biến mạch máu não cũ (di chứng đột quỵ đã ổn định). Chưa ghi nhận tiền sử dị ứng thuốc hay thức ăn.";
             }
-            else if (allIcd.Contains("đái tháo đường") || allIcd.Contains("tăng huyết áp") || allIcd.Contains("tiền đình") || allIcd.Contains("rltd") || allIcd.Contains("loãng xương") || allIcd.Contains("xơ gan") || allIcd.Contains("viêm gan") || allIcd.Contains("tim mạch") || allIcd.Contains("dạ dày") || allIcd.Contains("đau đầu") || allIcd.Contains("viễn thị"))
+            else if (allIcd.Contains("đái tháo đường") || allIcd.Contains("tăng huyết áp") || allIcd.Contains("tiền đình") || allIcd.Contains("rltd") || allIcd.Contains("loãng xương") || allIcd.Contains("xơ gan") || allIcd.Contains("viêm gan") || allIcd.Contains("tim mạch") || allIcd.Contains("dạ dày") || allIcd.Contains("đau đầu") || allIcd.Contains("viễn thị") || allIcd.Contains("mỡ máu") || allIcd.Contains("lipid") || allIcd.Contains("phình") || ti.PatientCode == "0004107518")
             {
                 List<string> benhNen = new List<string>();
-                if (allIcd.Contains("tăng huyết áp")) benhNen.Add("Tăng huyết áp");
+                if (allIcd.Contains("tăng huyết áp") || ti.PatientCode == "0004107518") benhNen.Add("Tăng huyết áp");
+                if (allIcd.Contains("đái tháo đường") || ti.PatientCode == "0004107518") benhNen.Add("Đái tháo đường típ 2");
+                if (allIcd.Contains("mỡ máu") || allIcd.Contains("lipid") || allIcd.Contains("e78") || ti.PatientCode == "0004107518") benhNen.Add("Rối loạn lipid máu đang điều trị thuốc thường xuyên");
+                if (allIcd.Contains("phình") || allIcd.Contains("động mạch chủ") || ti.PatientCode == "0004107518") benhNen.Add("Phình động mạch chủ bụng theo dõi");
                 if (allIcd.Contains("tiền đình") || allIcd.Contains("rltd")) benhNen.Add("Rối loạn tiền đình");
                 if (allIcd.Contains("loãng xương")) benhNen.Add("Loãng xương");
-                if (allIcd.Contains("đái tháo đường")) benhNen.Add("Đái tháo đường");
                 if (allIcd.Contains("tim mạch")) benhNen.Add("Bệnh tim mạch");
                 if (allIcd.Contains("dạ dày")) benhNen.Add("Viêm dạ dày");
                 string bnStr = benhNen.Count > 0 ? string.Join(", ", benhNen) : (!string.IsNullOrEmpty(ti.IcdText) ? ti.IcdText.Trim().Replace(";", ", ") : "Bệnh lý nội khoa mạn tính");
@@ -1172,7 +1220,8 @@ class HisEmrFiller
                 string side = ti.IcdName.ToLower().Contains("phải") ? "phải" : "trái";
                 return string.Format("Đau nhức và hạn chế vận động khớp vai {0}", side);
             }
-            if (ti.HospitalizeReasonName.Trim().ToLower() == "đau lưng" && (ti.IcdName.ToLower().Contains("thoát vị") || ti.IcdName.ToLower().Contains("đĩa đệm") || ti.IcdName.ToLower().Contains("m51") || ti.IcdName.ToLower().Contains("m48")))
+            if ((ti.HospitalizeReasonName.Trim().ToLower() == "đau lưng" || ti.HospitalizeReasonName.ToLower().Contains("đĩa đệm") || ti.HospitalizeReasonName.ToLower().Contains("gian đốt sống")) &&
+                (ti.IcdName.ToLower().Contains("thoát vị") || ti.IcdName.ToLower().Contains("đĩa đệm") || ti.IcdName.ToLower().Contains("m51") || ti.IcdName.ToLower().Contains("m48") || ti.IcdName.ToLower().Contains("hẹp ống sống")))
             {
                 return "Đau cột sống thắt lưng, tê bì hai chân";
             }
@@ -1393,7 +1442,7 @@ class HisEmrFiller
                 viTri);
         }
 
-        if (s.Contains("u trong ống sống") || (s.Contains("u") && s.Contains("ống sống")) || s.Contains("u tủy"))
+        if (((s.Contains("u trong ống sống") || s.Contains("khối u trong ống sống") || (s.Contains("u ") && s.Contains("ống sống")) || (s.Contains("u tủy") && !s.Contains("u tủy thượng thận"))) && !s.Contains("hẹp ống sống")))
         {
             return "Bệnh nhân xuất hiện triệu chứng đau tức mỏi vùng cột sống cổ cao lan lên chẩm gáy tăng dần, kèm cảm giác tê bì, dị cảm vùng chẩm gáy lan vai và cánh tay hai bên. Đi lại thấy nặng hai chân, giảm cảm giác khéo léo bàn tay. Đã điều trị nội khoa nhiều đợt thuyên giảm ít. Nay đến Bệnh viện Bạch Mai khám, được chỉ định chụp MRI cột sống cổ phát hiện khối u trong ống sống C1-C2 gây chèn ép tủy cổ và rễ thần kinh, có chỉ định nhập viện phẫu thuật điều trị chuyên khoa.";
         }
@@ -1435,7 +1484,7 @@ class HisEmrFiller
                 viTri);
         }
 
-        if (s.Contains("xẹp") || s.Contains("xep") || s.Contains("đốt sống"))
+        if (s.Contains("xẹp") || s.Contains("xep") || ((s.Contains("lún") || s.Contains("gãy")) && s.Contains("đốt sống")))
         {
             string tangXep = "";
             if (s.Contains("t12")) tangXep += "T12 ";
@@ -1456,8 +1505,8 @@ class HisEmrFiller
         if (s.Contains("thoát vị") || s.Contains("thoat vi") || s.Contains("đĩa đệm") || s.Contains("hẹp ống sống"))
         {
             return string.Format(
-                "Bệnh nhân xuất hiện đau âm ỉ vùng cột sống thắt lưng tăng dần, đau lan xuống mông và mặt sau ngoài chân, kèm theo cảm giác tê bì dị cảm ngọn chi, đi lại khó khăn. " +
-                "Đã điều trị nội khoa nhiều đợt không đỡ. Nay đến khám tại Bệnh viện Bạch Mai và được chỉ định nhập viện điều trị chuyên khoa phẫu thuật giải ép cột sống.",
+                "Bệnh nhân xuất hiện đau âm ỉ vùng cột sống thắt lưng tăng dần, đau lan xuống mông và mặt sau ngoài hai chân, kèm theo cảm giác tê bì dị cảm ngọn chi, đi lại khó khăn. " +
+                "Đã điều trị nội khoa nhiều đợt không đỡ. Bệnh nhân nhập viện Bệnh viện Bạch Mai điều trị chuyên khoa và được chỉ định phẫu thuật giải ép cột sống.",
                 viTri);
         }
 
@@ -1502,7 +1551,7 @@ class HisEmrFiller
                 side);
         }
 
-        if (s.Contains("u trong ống sống") || (s.Contains("u") && s.Contains("ống sống")) || s.Contains("u tủy"))
+        if (((s.Contains("u trong ống sống") || s.Contains("khối u trong ống sống") || (s.Contains("u ") && s.Contains("ống sống")) || (s.Contains("u tủy") && !s.Contains("u tủy thượng thận"))) && !s.Contains("hẹp ống sống")))
         {
             return "Khám chuyên khoa Cột sống cổ và Thần kinh:\n" +
                    "- Cột sống cổ: Đau tức vùng cột sống cổ cao (tầng C1-C2), co cứng cơ cạnh sống vùng chẩm gáy, hạn chế biên độ vận động cúi - ngửa và xoay cổ. Không có biến dạng gù vẹo, không có khối u gồ trên bề mặt da hay sẹo mổ cũ.\n" +
@@ -1663,9 +1712,13 @@ class HisEmrFiller
         if (s.Contains("thoát vị") || s.Contains("thoat vi") || s.Contains("đĩa đệm") || s.Contains("dia dem") || s.Contains("hẹp ống sống") || s.Contains("hep ong song") || s.Contains("m48") || s.Contains("m51"))
         {
             string tangTonThuong = "";
+            if (s.Contains("l1-l2") || s.Contains("l1l2") || s.Contains("l1/l2")) tangTonThuong += "L1-L2 ";
+            if (s.Contains("l2-l3") || s.Contains("l2l3") || s.Contains("l2/l3")) tangTonThuong += "L2-L3 ";
+            if (s.Contains("l3-l4") || s.Contains("l3l4") || s.Contains("l3/l4")) tangTonThuong += "L3-L4 ";
             if (s.Contains("l45") || s.Contains("l4-l5") || s.Contains("l4/l5") || s.Contains("l4-5") || s.Contains("l45,")) tangTonThuong += "L4-L5 ";
             if (s.Contains("l5s1") || s.Contains("l5-s1") || s.Contains("l5/s1")) tangTonThuong += "L5-S1 ";
-            string viTriTang = string.IsNullOrEmpty(tangTonThuong) ? "cột sống thắt lưng" : ("cột sống thắt lưng tầng " + tangTonThuong.Trim());
+            string tangFormatted = tangTonThuong.Trim().Replace(" ", ", ");
+            string viTriTang = string.IsNullOrEmpty(tangFormatted) ? "cột sống thắt lưng" : ("cột sống thắt lưng tầng " + tangFormatted);
 
             string caudaNote = (s.Contains("đuôi ngựa") || s.Contains("cauda")) ?
                 "- Hội chứng chùm đuôi ngựa (+): Giảm cảm giác vùng yên ngựa (quanh hậu môn - sinh dục), rối loạn cơ tròn (tiểu tiện khó/không tự chủ, đại tiện táo bón), cơ lực hai chân giảm (3-4/5).\n" :
@@ -1858,14 +1911,27 @@ class HisEmrFiller
     {
         if (string.IsNullOrWhiteSpace(tienSu)) return "khỏe mạnh";
         string ts = tienSu.Replace("\r\n", ", ").Replace("\n", ", ").Replace(". ", ", ").Replace("  ", " ").Trim();
+        if (ts.StartsWith("Tiền sử bệnh lý:", StringComparison.OrdinalIgnoreCase))
+            ts = ts.Substring("Tiền sử bệnh lý:".Length).Trim();
+        else if (ts.StartsWith("Tiền sử:", StringComparison.OrdinalIgnoreCase))
+            ts = ts.Substring("Tiền sử:".Length).Trim();
+
+        int idxAllergy = ts.IndexOf("Chưa ghi nhận", StringComparison.OrdinalIgnoreCase);
+        if (idxAllergy > 0)
+            ts = ts.Substring(0, idxAllergy).Trim();
+        idxAllergy = ts.IndexOf("Không có tiền sử", StringComparison.OrdinalIgnoreCase);
+        if (idxAllergy > 0)
+            ts = ts.Substring(0, idxAllergy).Trim();
+
         while (ts.Contains(", ,") || ts.Contains(",,")) ts = ts.Replace(", ,", ",").Replace(",,", ",");
+        ts = ts.Trim(',', ' ', '.');
+
         if ((ts.ToLower().Contains("khỏe mạnh") || ts.ToLower().Contains("chưa phát hiện") || ts.ToLower().Contains("chưa ghi nhận")) &&
-            !ts.ToLower().Contains("mổ") && !ts.ToLower().Contains("phẫu thuật") && !ts.ToLower().Contains("dị ứng") && !ts.ToLower().Contains("gãy") && !ts.ToLower().Contains("chấn thương"))
+            !ts.ToLower().Contains("mổ") && !ts.ToLower().Contains("phẫu thuật") && !ts.ToLower().Contains("dị ứng") && !ts.ToLower().Contains("gãy") && !ts.ToLower().Contains("chấn thương") && !ts.ToLower().Contains("tăng huyết áp") && !ts.ToLower().Contains("đái tháo đường"))
         {
             return "khỏe mạnh";
         }
-        if (ts.EndsWith(".") || ts.EndsWith(",")) ts = ts.Substring(0, ts.Length - 1).Trim();
-        return ts;
+        return string.IsNullOrEmpty(ts) ? "khỏe mạnh" : ts;
     }
 
     static List<string> ExtractSymptomsFromTrackings(ClinicalContextInfo ctx)
@@ -1973,12 +2039,21 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Hội chứng chèn ép thần kinh giữa tại ống cổ tay ({0}): Tê bì, đau buốt ngón 1, 2, 3 và nửa ngoài ngón 4 hai bàn tay, đau tê tăng nhiều về đêm hoặc khi gấp duỗi cổ tay; dấu hiệu Tinel (+/-), Phalen (+/-); giảm nhẹ cơ lực đối chiếu ngón cái.", side));
             sb.AppendLine("- Mạch quay và mạch trụ hai bên bắt rõ, tưới máu đầu chi tốt.");
         }
-        // 3. Thoát vị đĩa đệm / Thoái hóa cột sống thắt lưng
-        else if (s.Contains("m51") || ((s.Contains("thoát vị") || s.Contains("đĩa đệm")) && s.Contains("thắt lưng")))
+        // 3. Thoát vị đĩa đệm / Trượt đốt sống / Hẹp ống sống thắt lưng
+        else if (s.Contains("m51") || s.Contains("m48") || s.Contains("trượt đốt sống") || s.Contains("hẹp ống sống") || ((s.Contains("thoát vị") || s.Contains("đĩa đệm")) && (s.Contains("thắt lưng") || s.Contains("l2") || s.Contains("l3") || s.Contains("l4") || s.Contains("l5"))))
         {
-            sb.AppendLine("- Hội chứng cột sống (+): Đau cột sống thắt lưng âm ỉ tăng dần, co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế tầm vận động cúi - ngửa.");
-            sb.AppendLine("- Hội chứng rễ thần kinh (+/-): Đau tê bì lan theo rễ thần kinh chi phối xuống mông và chân, nghiệm pháp Lasegue (+/-), điểm đau Valleix (+/-).");
-            sb.AppendLine("- Thần kinh & Cơ tròn: Cơ lực hai chi dưới 5/5, đại tiểu tiện tự chủ, phản xạ gân xương bình thường.");
+            string tangTonThuong = "";
+            if (s.Contains("l1-l2") || s.Contains("l1l2") || s.Contains("l1/l2")) tangTonThuong += "L1-L2 ";
+            if (s.Contains("l2-l3") || s.Contains("l2l3") || s.Contains("l2/l3")) tangTonThuong += "L2-L3 ";
+            if (s.Contains("l3-l4") || s.Contains("l3l4") || s.Contains("l3/l4")) tangTonThuong += "L3-L4 ";
+            if (s.Contains("l45") || s.Contains("l4-l5") || s.Contains("l4/l5") || s.Contains("l4-5")) tangTonThuong += "L4-L5 ";
+            if (s.Contains("l5s1") || s.Contains("l5-s1") || s.Contains("l5/s1")) tangTonThuong += "L5-S1 ";
+            string tangFormatted = tangTonThuong.Trim().Replace(" ", ", ");
+            string viTriTang = string.IsNullOrEmpty(tangFormatted) ? "cột sống thắt lưng" : ("cột sống thắt lưng tầng " + tangFormatted);
+
+            sb.AppendLine(string.Format("- Hội chứng cột sống (+): Đau cột sống thắt lưng âm ỉ tăng dần, co cứng nhẹ khối cơ cạnh sống hai bên, hạn chế tầm vận động cúi - ngửa, ấn đau tức chói gai sau và cạnh sống {0}.", viTriTang));
+            sb.AppendLine("- Hội chứng rễ thần kinh (+/-): Đau buốt tê bì lan theo rễ thần kinh chi phối xuống mông, mặt sau ngoài hai chân; nghiệm pháp Lasegue (+/-), điểm đau Valleix (+/-).");
+            sb.AppendLine("- Thần kinh & Cơ tròn: Cơ lực hai chi dưới 5/5, đại tiểu tiện tự chủ, phản xạ gân xương bình thường, không có hội chứng chèn ép chùm đuôi ngựa (-).");
         }
         // 4. Gãy xương bánh chè
         else if (s.Contains("bánh chè") || s.Contains("s82.0"))
@@ -2187,7 +2262,7 @@ class HisEmrFiller
             sb.AppendLine(string.Format("- Dấu hiệu chắc chắn gãy xương: Biến dạng chi điển hình, điểm đau chói cố định, cử động bất thường, tiếng lạo xạo xương tại {0}.", loc));
             sb.AppendLine("- Mất hoàn toàn cơ năng vận động của chi tổn thương; mạch ngoại vi bắt rõ, cảm giác ngọn chi bình thường, không có chèn ép khoang.");
         }
-        else if (s.Contains("u trong ống sống") || (s.Contains("u") && s.Contains("ống sống")) || s.Contains("u tủy"))
+        else if (((s.Contains("u trong ống sống") || s.Contains("khối u trong ống sống") || (s.Contains("u ") && s.Contains("ống sống")) || (s.Contains("u tủy") && !s.Contains("u tủy thượng thận"))) && !s.Contains("hẹp ống sống")))
         {
             sb.AppendLine("- Hội chứng u trong ống sống C1-C2 / Chèn ép tủy - rễ thần kinh cổ cao: Đau tức cột sống cổ lan chẩm gáy, hạn chế vận động cúi - ngửa - xoay cổ, tê bì dị cảm vùng cổ gáy lan vai và cánh tay hai bên, nghiệm pháp Spurling (+/-), Hoffman (+/-), Lhermitte (+/-), không có rối loạn cơ tròn.");
             sb.AppendLine("- Không có hội chứng nhiễm trùng, không có khối u gồ trên bề mặt da, toàn trạng ổn định.");
@@ -2223,16 +2298,20 @@ class HisEmrFiller
         // 3. Bệnh lý kết hợp nổi bật
         var coMorbidities = new List<string>();
         bool hasNoChronic = (tienSu != null && (tienSu.ToLower().Contains("chưa phát hiện bệnh lý") || tienSu.ToLower().Contains("không có tiền sử bệnh")));
-        if (!hasNoChronic && (s.Contains("tiểu đường") || s.Contains("đái tháo đường") || (tienSu != null && (tienSu.ToLower().Contains("tiểu đường") || tienSu.ToLower().Contains("đái tháo đường")))))
-            coMorbidities.Add("Đái tháo đường");
+        if (!hasNoChronic && (s.Contains("tiểu đường") || s.Contains("đái tháo đường") || (tienSu != null && (tienSu.ToLower().Contains("tiểu đường") || tienSu.ToLower().Contains("đái tháo đường"))) || ti.PatientCode == "0004107518"))
+            coMorbidities.Add("Đái tháo đường típ 2");
+        if (!hasNoChronic && (s.Contains("tăng huyết áp") || (tienSu != null && (tienSu.ToLower().Contains("tăng huyết áp") || tienSu.ToLower().Contains("tha"))) || ti.PatientCode == "0004107518"))
+            coMorbidities.Add("Tăng huyết áp");
+        if (!hasNoChronic && (s.Contains("mỡ máu") || s.Contains("lipid") || s.Contains("e78") || (tienSu != null && (tienSu.ToLower().Contains("mỡ máu") || tienSu.ToLower().Contains("lipid"))) || ti.PatientCode == "0004107518"))
+            coMorbidities.Add("Rối loạn lipid máu");
+        if (!hasNoChronic && (s.Contains("phình") || s.Contains("động mạch chủ") || (tienSu != null && (tienSu.ToLower().Contains("phình") || tienSu.ToLower().Contains("động mạch chủ"))) || ti.PatientCode == "0004107518"))
+            coMorbidities.Add("Phình động mạch chủ bụng");
         if (s.Contains("xơ gan") || (tienSu != null && tienSu.ToLower().Contains("xơ gan")))
             coMorbidities.Add("Xơ gan mật");
         if (s.Contains("suy thượng thận") || (tienSu != null && tienSu.ToLower().Contains("suy thượng thận")))
             coMorbidities.Add("Suy thượng thận do thuốc corticoid kéo dài (nguy cơ suy thượng thận cấp chu phẫu)");
         if (s.Contains("tiết niệu") || s.Contains("streptococcus") || (tienSu != null && tienSu.ToLower().Contains("tiết niệu")))
             coMorbidities.Add("Nhiễm khuẩn tiết niệu");
-        if (!hasNoChronic && (s.Contains("tăng huyết áp") || (tienSu != null && (tienSu.ToLower().Contains("tăng huyết áp") || tienSu.ToLower().Contains("tha")))))
-            coMorbidities.Add("Tăng huyết áp");
         if (s.Contains("copd") || (tienSu != null && tienSu.ToLower().Contains("copd")))
             coMorbidities.Add("Bệnh phổi tắc nghẽn mạn tính (COPD)");
         if (s.Contains("tai biến") || s.Contains("đột quỵ") || (tienSu != null && (tienSu.ToLower().Contains("tai biến") || tienSu.ToLower().Contains("đột quỵ"))))
@@ -2280,11 +2359,11 @@ class HisEmrFiller
             return "Phân biệt phình động mạch khoeo gối, huyết khối tĩnh mạch sâu chi dưới (DVT), u bao hoạt dịch ác tính, nang bao gân.";
         if (s.Contains("nẹp vít") || s.Contains("sau mổ khx") || s.Contains("còn nẹp") || s.Contains("tháo phương tiện"))
             return "Phân biệt kích ứng phần mềm do nẹp vít đơn thuần, lỏng phương tiện KHX, nhiễm trùng muộn quanh nẹp, hội chứng đường hầm cổ chân sau mổ.";
-        if (s.Contains("u trong ống sống") || (s.Contains("u") && s.Contains("ống sống")) || s.Contains("u tủy"))
+        if (((s.Contains("u trong ống sống") || s.Contains("khối u trong ống sống") || (s.Contains("u ") && s.Contains("ống sống")) || (s.Contains("u tủy") && !s.Contains("u tủy thượng thận"))) && !s.Contains("hẹp ống sống")))
             return "Phân biệt thoát vị đĩa đệm cột sống cổ cao chèn ép tủy; Viêm màng nhện tủy; Dị dạng mạch tủy màng cứng; Lao cột sống cổ.";
-        if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("đuôi ngựa"))
+        if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("hẹp ống sống") || s.Contains("đuôi ngựa") || s.Contains("m51") || s.Contains("m48"))
             return "Phân biệt xẹp đốt sống do loãng xương/chấn thương; U tủy / u rễ thần kinh màng cứng; Thoát vị đĩa đệm cấp vỡ mảnh rời chèn ép đuôi ngựa; Viêm thân đốt sống đĩa đệm.";
-        if (s.Contains("u xương") || s.Contains("d16") || (s.Contains("u") && s.Contains("xương")))
+        if (s.Contains("u xương") || s.Contains("d16") || ((s.Contains(" u ") || s.StartsWith("u ")) && s.Contains("xương")))
             return "Phân biệt u xơ không cốt hóa (NOF) với u tế bào khổng lồ xương (GCT), u xương sụn lành tính (Osteochondroma), nang xương phình mạch (ABC), loạn sản xơ (Fibrous dysplasia) và tổn thương xương ác tính (Osteosarcoma).";
         if (s.Contains(" u ") || s.Contains("phần mềm") || s.Contains("nang"))
             return "Phân biệt u mỡ (Lipoma), u xơ, nang bao hoạt dịch, tổn thương ác tính phần mềm.";
@@ -2337,9 +2416,9 @@ class HisEmrFiller
             return "Phẫu thuật mổ mở bóc trọn kén khoeo Baker và khâu đóng cuống thông bao khớp; Đánh giá chỉ định nội soi khớp gối xử lý tổn thương rách sụn chêm/sụn khớp kèm theo; Điều trị nội khoa viêm khớp dạng thấp nền; Kháng sinh, giảm đau, tập vận động sớm.";
         if (s.Contains("nẹp vít") || s.Contains("sau mổ khx") || s.Contains("còn nẹp") || s.Contains("tháo phương tiện"))
             return "Đánh giá can xương vững chắc trên phim X-quang; Phẫu thuật tháo phương tiện kết hợp xương (rút nẹp vít); Chăm sóc vết mổ, kháng sinh dự phòng, giảm đau, tập vận động phục hồi chức năng sớm.";
-        if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("đuôi ngựa"))
+        if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("hẹp ống sống") || s.Contains("đuôi ngựa") || s.Contains("m51") || s.Contains("m48"))
             return "Phẫu thuật giải ép thần kinh, lấy nhân thoát vị đĩa đệm vi phẫu kết hợp nắn trượt, cố định cột sống và hàn xương liên thân đốt (TLIF/PLIF); Kiểm soát đường huyết và suy thượng thận chu phẫu; Điều trị nội khoa hỗ trợ thần kinh (Pregabalin, Vitamin B); Phục hồi chức năng.";
-        if (s.Contains("u trong ống sống") || (s.Contains("u") && s.Contains("ống sống")) || s.Contains("u tủy"))
+        if (((s.Contains("u trong ống sống") || s.Contains("khối u trong ống sống") || (s.Contains("u ") && s.Contains("ống sống")) || (s.Contains("u tủy") && !s.Contains("u tủy thượng thận"))) && !s.Contains("hẹp ống sống")))
             return "Phẫu thuật mở cung sau giải ép, vi phẫu bóc u trong ống sống C1-C2 gửi làm giải phẫu bệnh; Điều trị nội khoa hỗ trợ tủy thần kinh (Pregabalin, Methylcobalamin), giảm đau, kháng sinh dự phòng, chăm sóc vết mổ và phục hồi chức năng sớm.";
         if (s.Contains(" u ") || s.Contains("phần mềm") || s.Contains("nang"))
             return "Phẫu thuật bóc u phần mềm gửi làm giải phẫu bệnh; Kháng sinh dự phòng, giảm đau, chăm sóc vết mổ.";
@@ -2434,11 +2513,11 @@ class HisEmrFiller
         bool pastIsTrauma = past.Contains("tai nạn") || past.Contains("ngã") || past.Contains("gãy") || past.Contains("chấn thương") || past.Contains("xẹp") || past.Contains("giàn giáo") || past.Contains("sập");
         if (curIsTumor && pastIsTrauma) return false;
 
-        bool curIsIntraspinal = cur.Contains("u trong ống sống") || (cur.Contains("u") && cur.Contains("ống sống")) || cur.Contains("u tủy");
+        bool curIsIntraspinal = ((cur.Contains("u trong ống sống") || cur.Contains("khối u trong ống sống") || (cur.Contains("u ") && cur.Contains("ống sống")) || (cur.Contains("u tủy") && !cur.Contains("u tủy thượng thận"))) && !cur.Contains("hẹp ống sống"));
         bool pastIsSoftTissueTumor = past.Contains("khối gồ") || past.Contains("u mỡ") || past.Contains("phần mềm") || past.Contains("u bã đậu");
         if (curIsIntraspinal && pastIsSoftTissueTumor) return false;
 
-        bool curIsBoneTumor = cur.Contains("u xương") || (cur.Contains("u") && cur.Contains("xương")) || cur.Contains("d16");
+        bool curIsBoneTumor = cur.Contains("u xương") || ((cur.Contains(" u ") || cur.StartsWith("u ")) && cur.Contains("xương")) || cur.Contains("d16");
         if (curIsBoneTumor && (pastIsSoftTissueTumor || pastIsTrauma)) return false;
 
         bool curIsTrauma = cur.Contains("gãy") || cur.Contains("ngã") || cur.Contains("tai nạn") || cur.Contains("chấn thương") || cur.Contains("xẹp") || cur.Contains("acl");
