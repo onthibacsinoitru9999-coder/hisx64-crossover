@@ -2709,11 +2709,29 @@ public class HisClinicalCli
         Console.WriteLine(string.Format("✅ ĐÃ XUẤT THÀNH CÔNG DỮ LIỆU {0} BỆNH NHÂN -> Reports/pt01_input.json", listOut.Count));
     }
 
-    public static void ListOrders(string keyword)
+    public static void RestoreDefaultDept57WorkInfo()
+    {
+        try
+        {
+            long[] dept57Rooms = new long[] {
+                931, 5248, 5249, 5250, 5251, 5252, 5253, 5254, 5255, 5256, 
+                5257, 5258, 5259, 5260, 5261, 5262, 5263, 5264, 5265, 5266, 
+                5267, 5539, 6622, 6623, 18679, 18681, 14759, 14787
+            };
+            var workInfo = new WorkInfoSDO
+            {
+                Rooms = dept57Rooms.Select(r => new RoomSDO { RoomId = r }).ToList()
+            };
+            myAdapter.PostData<List<WorkPlaceSDO>>("api/Token/UpdateWorkInfo", mosConsumer, workInfo, param);
+        }
+        catch { }
+    }
+
+    public static V_HIS_TREATMENT ResolveTreatment(string keyword)
     {
         InitSession();
         List<V_HIS_TREATMENT> treatments = null;
-        string kw = keyword.Trim();
+        string kw = (keyword ?? "").Trim();
         long numVal;
         bool isNum = long.TryParse(kw, out numVal);
 
@@ -2760,13 +2778,20 @@ public class HisClinicalCli
             }
         }
 
-        if (treatments == null || treatments.Count == 0)
+        if (treatments == null || treatments.Count == 0) return null;
+        return treatments.LastOrDefault(x => x.IS_PAUSE != 1) ?? treatments.Last();
+    }
+
+    public static void ListOrders(string keyword)
+    {
+        InitSession();
+        var tr = ResolveTreatment(keyword);
+        if (tr == null)
         {
             Console.WriteLine(string.Format("❌ Không tìm thấy bệnh nhân nào khớp với từ khóa: {0}", keyword));
             return;
         }
 
-        var tr = treatments.LastOrDefault(x => x.IS_PAUSE != 1) ?? treatments.Last();
         Console.WriteLine("===============================================================================");
         Console.WriteLine(string.Format("📋 DANH SÁCH Y LỆNH: {0} (Mã BN: {1} | Mã ĐT: {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE));
         Console.WriteLine("===============================================================================");
@@ -2849,6 +2874,191 @@ public class HisClinicalCli
         }
         Console.WriteLine("💡 Hủy cả phiếu: .\\.agents\\skills\\his-clinical-operations\\scripts\\HisClinicalCli.exe cancel-order <ID>");
         Console.WriteLine("💡 Hủy dịch vụ lẻ: .\\.agents\\skills\\his-clinical-operations\\scripts\\HisClinicalCli.exe cancel-service <SS_ID>");
+        Console.WriteLine("===============================================================================");
+    }
+
+    public static void TransferOrders(string keyword, string targetDoctor = null, bool isDryRun = false)
+    {
+        InitSession();
+        var tr = ResolveTreatment(keyword);
+        if (tr == null)
+        {
+            Console.WriteLine(string.Format("❌ Không tìm thấy bệnh nhân nào khớp với từ khóa: {0}", keyword));
+            return;
+        }
+
+        string targetLogin = string.IsNullOrEmpty(targetDoctor) ? currentDoctorLogin : targetDoctor.Trim();
+        string targetName;
+        string targetTitle;
+
+        if (string.Equals(targetLogin, "034727", StringComparison.OrdinalIgnoreCase))
+        {
+            targetName = "Ths.BS NGUYỄN HỮU SÂM";
+            targetTitle = "Thạc sỹ y học";
+        }
+        else if (string.Equals(targetLogin, "vmc", StringComparison.OrdinalIgnoreCase))
+        {
+            targetName = "VŨ MINH CƯỜNG";
+            targetTitle = "Bác sĩ";
+        }
+        else
+        {
+            targetName = targetLogin.ToUpper();
+            targetTitle = "Bác sĩ";
+        }
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("🔄 CHUYỂN Y LỆNH CHƯA XỬ LÝ SANG BÁC SĨ CHỈ ĐỊNH: {0} ({1})", targetName, targetLogin));
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine(string.Format("• Bệnh nhân    : {0} (Mã BN: {1} | Mã ĐT: {2})", tr.TDL_PATIENT_NAME, tr.TDL_PATIENT_CODE, tr.TREATMENT_CODE));
+        Console.WriteLine(string.Format("• BS Tiếp nhận : {0} ({1}) - {2}", targetName, targetLogin, targetTitle));
+        if (isDryRun) Console.WriteLine("⚠️ CHẾ ĐỘ THỬ NGHIỆM (DRY-RUN): Không thay đổi dữ liệu thật.");
+        Console.WriteLine("-------------------------------------------------------------------------------");
+
+        HisServiceReqViewFilter srf = new HisServiceReqViewFilter { TREATMENT_ID = tr.ID };
+        var orders = myAdapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", mosConsumer, srf, param);
+        if (orders == null || orders.Count == 0)
+        {
+            Console.WriteLine("Bệnh nhân chưa có y lệnh nào.");
+            return;
+        }
+
+        // Lọc y lệnh chưa xử lý (Màu trắng, STT_ID == 1, IS_DELETE != 1)
+        var whiteOrders = orders.Where(x => x.SERVICE_REQ_STT_ID == 1 && (x.IS_DELETE == null || x.IS_DELETE == 0)).OrderBy(x => x.INTRUCTION_TIME).ToList();
+        if (whiteOrders.Count == 0)
+        {
+            Console.WriteLine("ℹ️ Bệnh nhân không có y lệnh nào ở trạng thái Chưa thực hiện (màu trắng).");
+            return;
+        }
+
+        Dictionary<long, List<V_HIS_SERE_SERV>> ssMap = new Dictionary<long, List<V_HIS_SERE_SERV>>();
+        try
+        {
+            var reqIds = whiteOrders.Select(x => x.ID).Distinct().ToList();
+            if (reqIds.Count > 0)
+            {
+                HisSereServViewFilter ssf = new HisSereServViewFilter { SERVICE_REQ_IDs = reqIds };
+                var allSs = myAdapter.FetchList<V_HIS_SERE_SERV>("api/HisServiceReq/GetView", mosConsumer, ssf, param);
+                if (allSs != null)
+                {
+                    ssMap = allSs.Where(x => x.SERVICE_REQ_ID.HasValue)
+                                 .GroupBy(x => x.SERVICE_REQ_ID.Value)
+                                 .ToDictionary(g => g.Key, g => g.ToList());
+                }
+            }
+        }
+        catch { }
+
+        int totalPending = whiteOrders.Count;
+        int alreadyTarget = 0;
+        int successCount = 0;
+        int failCount = 0;
+
+        Console.WriteLine(string.Format("🔍 Tìm thấy {0} y lệnh chưa xử lý (màu trắng). Bắt đầu chuyển đổi...\n", totalPending));
+
+        int idx = 1;
+        foreach (var req in whiteOrders)
+        {
+            string timeStr = req.INTRUCTION_TIME.ToString().Length >= 12 
+                ? string.Format("{0}/{1} {2}:{3}", req.INTRUCTION_TIME.ToString().Substring(6, 2), req.INTRUCTION_TIME.ToString().Substring(4, 2), req.INTRUCTION_TIME.ToString().Substring(8, 2), req.INTRUCTION_TIME.ToString().Substring(10, 2)) 
+                : req.INTRUCTION_TIME.ToString();
+
+            string svcs = "";
+            List<V_HIS_SERE_SERV> ssList;
+            if (ssMap.TryGetValue(req.ID, out ssList) && ssList != null && ssList.Count > 0)
+            {
+                svcs = string.Join("; ", ssList.Select(s => string.Format("{0} (SL: {1})", s.TDL_SERVICE_NAME, s.AMOUNT)));
+            }
+
+            if (string.Equals(req.REQUEST_LOGINNAME, targetLogin, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(string.Format("{0:D2}. [BỎ QUA] Phiếu {1} (ID: {2} | {3}) lúc {4}", 
+                    idx++, req.SERVICE_REQ_CODE, req.ID, req.SERVICE_REQ_TYPE_NAME, timeStr));
+                Console.WriteLine(string.Format("    • Đã do {0} ({1}) chỉ định từ trước.", req.REQUEST_USERNAME, req.REQUEST_LOGINNAME));
+                if (!string.IsNullOrEmpty(svcs)) Console.WriteLine(string.Format("    • Dịch vụ: {0}", svcs));
+                Console.WriteLine();
+                alreadyTarget++;
+                continue;
+            }
+
+            Console.WriteLine(string.Format("{0:D2}. 👉 CHUYỂN: Phiếu {1} (ID: {2} | {3}) lúc {4}", 
+                idx++, req.SERVICE_REQ_CODE, req.ID, req.SERVICE_REQ_TYPE_NAME, timeStr));
+            Console.WriteLine(string.Format("    • BS hiện tại: {0} ({1}) -> BS mới: {2} ({3})", 
+                req.REQUEST_USERNAME, req.REQUEST_LOGINNAME, targetName, targetLogin));
+            Console.WriteLine(string.Format("    • Nơi Y/C: {0} (Phòng ID: {1})", req.REQUEST_ROOM_NAME, req.REQUEST_ROOM_ID));
+            if (!string.IsNullOrEmpty(svcs)) Console.WriteLine(string.Format("    • Dịch vụ: {0}", svcs));
+
+            if (isDryRun)
+            {
+                Console.WriteLine("    [DRY-RUN] Bỏ qua thao tác ghi thực tế.");
+                Console.WriteLine();
+                successCount++;
+                continue;
+            }
+
+            try
+            {
+                if (req.REQUEST_ROOM_ID > 0)
+                {
+                    EnsureWorkInfoForRoom(req.REQUEST_ROOM_ID);
+                }
+
+                var rawFilter = new HisServiceReqFilter { ID = req.ID };
+                var rawList = myAdapter.FetchList<HIS_SERVICE_REQ>("api/HisServiceReq/Get", mosConsumer, rawFilter, param);
+                if (rawList != null && rawList.Count > 0)
+                {
+                    var rawReq = rawList[0];
+                    rawReq.REQUEST_LOGINNAME = targetLogin;
+                    rawReq.REQUEST_USERNAME = targetName;
+                    rawReq.REQUEST_USER_TITLE = targetTitle;
+
+                    var pUpd = new CommonParam();
+                    var res = myAdapter.PostData<HIS_SERVICE_REQ>("api/HisServiceReq/UpdateCommonInfo", mosConsumer, rawReq, pUpd);
+                    if (res != null && !pUpd.HasException)
+                    {
+                        Console.WriteLine("    ✔ THÀNH CÔNG: Đã chuyển quyền chỉ định sang " + targetName);
+                        successCount++;
+                    }
+                    else
+                    {
+                        // Fallback to Update
+                        var pUpd2 = new CommonParam();
+                        var res2 = myAdapter.PostData<HIS_SERVICE_REQ>("api/HisServiceReq/Update", mosConsumer, rawReq, pUpd2);
+                        if (res2 != null && !pUpd2.HasException)
+                        {
+                            Console.WriteLine("    ✔ THÀNH CÔNG (qua Update): Đã chuyển quyền chỉ định sang " + targetName);
+                            successCount++;
+                        }
+                        else
+                        {
+                            string errMsg = pUpd.Messages != null && pUpd.Messages.Count > 0 ? string.Join("; ", pUpd.Messages) : (pUpd2.Messages != null ? string.Join("; ", pUpd2.Messages) : "Lỗi từ Backend MOS");
+                            Console.WriteLine("    ❌ THẤT BẠI: " + errMsg);
+                            failCount++;
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("    ❌ THẤT BẠI: Không tải được chi tiết bản ghi HIS_SERVICE_REQ từ API.");
+                    failCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("    ❌ NGOẠI LỆ: " + ex.Message);
+                failCount++;
+            }
+            Console.WriteLine();
+        }
+
+        RestoreDefaultDept57WorkInfo();
+
+        Console.WriteLine("===============================================================================");
+        Console.WriteLine("📊 TỔNG KẾT CHUYỂN Y LỆNH:");
+        Console.WriteLine(string.Format("• Tổng số y lệnh chưa xử lý : {0}", totalPending));
+        Console.WriteLine(string.Format("• Đã đúng tên bác sĩ từ trước: {0}", alreadyTarget));
+        Console.WriteLine(string.Format("• Chuyển thành công          : {0}", successCount));
+        Console.WriteLine(string.Format("• Thất bại                   : {0}", failCount));
         Console.WriteLine("===============================================================================");
     }
 
@@ -4839,6 +5049,7 @@ public class HisClinicalCli
             Console.WriteLine("Cú pháp lệnh:");
             Console.WriteLine("  lookup <patientCode|treatmentCode|name>      : Tra cứu thông tin, buồng giường & Bilan");
             Console.WriteLine("  orders <patientCode|treatmentCode|name>      : Liệt kê danh sách y lệnh & trạng thái màu");
+            Console.WriteLine("  transfer-orders <pat|trCode> [doc] [--dry-run]: Chuyển toàn bộ y lệnh chưa xử lý sang tên BS chỉ định");
             Console.WriteLine("  cancel-order <serviceReqId|reqCode> [roomId] : Hủy/Xóa y lệnh chưa thực hiện (Màu trắng)");
             Console.WriteLine("  cancel-service <sereServId>                  : Hủy/Xóa 1 dịch vụ con lẻ trong phiếu");
             Console.WriteLine("  wardround                                    : Quét danh sách BN toàn bộ buồng bệnh Khoa 57 (710 - 740)");
@@ -5022,6 +5233,14 @@ public class HisClinicalCli
             {
                 if (args.Length < 2) throw new Exception("Thiếu mã BN, mã ĐT hoặc tên bệnh nhân!");
                 ListOrders(args[1]);
+            }
+            else if (cmd == "transfer-orders" || cmd == "chuyen-y-lenh" || cmd == "reassign-orders" || cmd == "transfer")
+            {
+                if (args.Length < 2) throw new Exception("Thiếu mã BN, mã ĐT hoặc tên bệnh nhân!");
+                string patKey = args[1];
+                string targetDoc = args.Length > 2 && !args[2].StartsWith("-") ? args[2] : currentDoctorLogin;
+                bool isDryRun = args.Any(a => a == "--dry-run" || a == "-n");
+                TransferOrders(patKey, targetDoc, isDryRun);
             }
             else if (cmd == "cancel-order" || cmd == "delete-order" || cmd == "cancel-req")
             {
