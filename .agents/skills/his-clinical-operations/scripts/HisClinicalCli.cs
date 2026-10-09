@@ -87,7 +87,7 @@ public class HisClinicalCli
         { "ECG", new ServiceTarget(920, 931, "BM04258", "Điện tim thường (ECG)") },
         { "ECHO_HEART", new ServiceTarget(5569, 1715, "BM00201", "Siêu âm Doppler tim, van tim", "điều dưỡng đưa bằng cáng - cs ii") },
         { "GLUCOSE", new ServiceTarget(5864, 410, "BM10249", "Định lượng Glucose [Máu]") },
-        { "US_ABDOMEN", new ServiceTarget(5567, 17547, "BM00199", "Siêu âm ổ bụng tổng quát", "điều dưỡng đưa bằng cáng - cs ii") },
+        { "US_ABDOMEN", new ServiceTarget(5583, 17547, "BM00163", "Siêu âm ổ bụng (gan mật, tụy, lách, thận, bàng quang)", "điều dưỡng đưa bằng cáng - cs ii") },
         { "US_VASCULAR", new ServiceTarget(5571, 17547, "BM00203", "Siêu âm Doppler mạch máu chi", "điều dưỡng đưa bằng cáng - cs ii") },
         { "DEXA_2POS", new ServiceTarget(161, 6462, "BM08085", "Đo mật độ xương DEXA [2 vị trí]", "điều dưỡng đưa bằng cáng - cs ii") },
         { "XRAY_CHEST", new ServiceTarget(58112, 17552, "BM21074", "X-quang ngực thẳng số hóa") },
@@ -107,7 +107,10 @@ public class HisClinicalCli
         { "QUANTIFERON", new ServiceTarget(36522, 9645, "BM26362", "Mycobacterium tuberculosis Quantiferon (BV Phổi TW)", "", 43) },
         { "MRI_BRACHIAL_PLEXUS", new ServiceTarget(58290, 17552, "BM260119.0620", "Chụp CHT cột sống cổ [Không in phim] (Đánh giá đám rối cánh tay)", "Chụp cộng hưởng từ cột sống cổ [Không in phim] đánh giá tổn thương đám rối cánh tay") },
         { "EMG_UPPER_LIMB", new ServiceTarget(908, 931, "BM01892", "Ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác ngoại biên chi trên", "Ghi điện cơ đo tốc độ dẫn truyền vận động và cảm giác ngoại biên chi trên") },
-        { "XRAY_CLAVICLE", new ServiceTarget(58094, 17552, "BM00245.260119", "Chụp Xquang xương đòn thẳng, nghiêng hoặc chếch [Không in phim]", "Chụp Xquang xương đòn thẳng, nghiêng hoặc chếch [Không in phim]") }
+        { "XRAY_CLAVICLE", new ServiceTarget(58094, 17552, "BM00245.260119", "Chụp Xquang xương đòn thẳng, nghiêng hoặc chếch [Không in phim]", "Chụp Xquang xương đòn thẳng, nghiêng hoặc chếch [Không in phim]") },
+        { "XRAY_LUMBAR", new ServiceTarget(58127, 17552, "BM250101.105.260119", "Chụp Xquang cột sống thắt lưng thẳng nghiêng [số hóa 2 phim] [Không in phim]") },
+        { "XRAY_PELVIS", new ServiceTarget(58093, 17552, "BM00244.260119", "Chụp Xquang khung chậu thẳng [số hóa 1 phim] [Không in phim]") },
+        { "XRAY_FEMUR", new ServiceTarget(58139, 17552, "BM00257.260119", "Chụp Xquang xương đùi thẳng nghiêng [số hóa 2 phim] [Không in phim]") }
     };
 
     public static string ReadLiveTokenFast()
@@ -693,6 +696,44 @@ public class HisClinicalCli
         Console.WriteLine(string.Format("Khoa: {0} | Buồng/Giường: {1} - {2}", tr.END_DEPARTMENT_NAME ?? "Khoa 57", curBed != null ? curBed.BED_ROOM_NAME : "Chưa xếp buồng", curBed != null ? curBed.BED_NAME : "-"));
         Console.WriteLine(string.Format("Chẩn đoán ICD: [{0}] {1} (Chi tiết: {2})", tr.ICD_CODE, tr.ICD_NAME, tr.ICD_TEXT ?? tr.ICD_SUB_CODE));
         Console.WriteLine(string.Format("BHYT: {0} | Trạng thái: {1}", tr.TDL_HEIN_CARD_NUMBER ?? "Không BHYT", tr.IS_PAUSE == 1 ? "ĐÃ RA VIỆN" : "ĐANG NẰM KHOA"));
+
+        try
+        {
+            foreach (var prop in tr.GetType().GetProperties())
+            {
+                string pName = prop.Name.ToUpper();
+                if (pName.Contains("PHONE") || pName.Contains("MOBILE") || pName.Contains("TEL") || 
+                    pName.Contains("RELATIVE") || pName.Contains("CONTACT") || pName.Contains("RELATION"))
+                {
+                    var val = prop.GetValue(tr, null);
+                    if (val != null && !string.IsNullOrEmpty(val.ToString().Trim()))
+                    {
+                        Console.WriteLine(string.Format("📞 {0}: {1}", prop.Name, val));
+                    }
+                }
+            }
+
+            var pf = new HisPatientViewFilter { ID = tr.PATIENT_ID };
+            var pts = myAdapter.FetchList<V_HIS_PATIENT>("api/HisPatient/GetView", mosConsumer, pf, param);
+            if (pts != null && pts.Count > 0)
+            {
+                var pt = pts[0];
+                foreach (var prop in pt.GetType().GetProperties())
+                {
+                    string pName = prop.Name.ToUpper();
+                    if (pName.Contains("PHONE") || pName.Contains("MOBILE") || pName.Contains("TEL") || 
+                        pName.Contains("RELATIVE") || pName.Contains("CONTACT") || pName.Contains("RELATION"))
+                    {
+                        var val = prop.GetValue(pt, null);
+                        if (val != null && !string.IsNullOrEmpty(val.ToString().Trim()))
+                        {
+                            Console.WriteLine(string.Format("📞 [BN] {0}: {1}", prop.Name, val));
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
 
         try
         {

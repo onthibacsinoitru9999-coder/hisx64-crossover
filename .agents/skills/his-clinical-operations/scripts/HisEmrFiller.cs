@@ -1293,7 +1293,16 @@ class HisEmrFiller
                 deptTarget);
         }
 
-        if (s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("tngt") || s.Contains("chày") || s.Contains("gãy"))
+        if (s.Contains("u xương") || s.Contains("d16") || (s.Contains("u") && s.Contains("xương")))
+        {
+            string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
+            return string.Format(
+                "Bệnh nhân phát hiện đau tức và vướng cộm vùng 1/3 trên cẳng chân {0} tăng dần. Khối cứng chắc phát triển từ xương, ấn tức nhẹ khi tì đè hoặc vận động, không sưng nóng đỏ, không sốt. " +
+                "Bệnh nhân đến khám tại Bệnh viện Bạch Mai, được chụp X-quang và chụp cắt lớp vi tính xác định tổn thương tiêu xương vỏ xương 1/3 trên thân xương chày {0} (hướng đến tổn thương lành tính dạng u xơ không cốt hóa - NOF) và được chỉ định nhập viện {1} để theo dõi và điều trị phẫu thuật chuyên khoa.",
+                side, deptTarget);
+        }
+
+        if ((s.Contains("chấn thương") || s.Contains("tai nạn") || s.Contains("tngt") || s.Contains("gãy") || (s.Contains("chày") && !s.Contains("u xương") && !s.Contains("d16") && !s.Contains("u "))))
         {
             return string.Format(
                 "Cách vào viện khoảng vài giờ, theo lời kể bệnh nhân bị chấn thương/tai nạn vào vùng {0}. " +
@@ -1727,7 +1736,20 @@ class HisEmrFiller
                 side);
         }
 
-        if (s.Contains("chày") || s.Contains("mâm chày") || (s.Contains("chấn thương") && s.Contains("gối") && s.Contains("cẳng chân")))
+        if (s.Contains("u xương") || s.Contains("d16") || (s.Contains("u") && s.Contains("xương")))
+        {
+            string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
+            return string.Format(
+                "Khám chuyên khoa Chấn thương Chỉnh hình (Cẳng chân {0}):\n" +
+                "- Cơ năng: Đau tức âm ỉ, vướng cộm vùng 1/3 trên cẳng chân {0}, không biến dạng chi, vận động đi lại bình thường.\n" +
+                "- Nhìn: Vùng 1/3 trên cẳng chân {0} không sưng nề, không biến dạng trục chi, da trên bề mặt khối bình thường, không nóng đỏ, không có lỗ rò hay sẹo mổ cũ.\n" +
+                "- Sờ: Sờ thấy khối gồ nhẹ tại 1/3 trên mặt trước trong thân xương chày {0}, mật độ cứng chắc (mật độ xương), ranh giới tương đối rõ, liên tục với vỏ xương, dính cố định vào thân xương, ấn tức nhẹ tại chỗ, không có lạo xạo xương hay cử động bất thường.\n" +
+                "- Khớp gối lân cận: Biên độ vận động khớp gối {0} trong giới hạn bình thường (gấp duỗi tốt), không tràn dịch bao khớp (dấu hiệu bập bềnh bánh chè (-)), các dây chằng vững (Lachman (-), Ngăn kéo (-)).\n" +
+                "- Thần kinh & Mạch máu: Mạch chày sau và mạch mu chân bên {0} bắt rõ, cảm giác bàn ngón chân bình thường, cơ lực 5/5, các khoang mềm mại, không có hội chứng chèn ép khoang.",
+                side);
+        }
+
+        if (((s.Contains("gãy") || s.Contains("chấn thương") || s.Contains("mâm chày")) && (s.Contains("chày") || s.Contains("cẳng chân"))) && !s.Contains("u xương") && !s.Contains("d16") && !s.Contains("u "))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
             return string.Format(
@@ -1791,8 +1813,10 @@ class HisEmrFiller
         sb.AppendLine("- Các xét nghiệm huyết học, đông máu, sinh hóa máu cơ bản đánh giá trước phẫu thuật/thủ thuật: Công thức máu, Đông máu cơ bản, Glucose, Ure, Creatinin, AST, ALT, Điện giải đồ, Xét nghiệm miễn dịch (HIV, HBsAg, HCV).");
         sb.AppendLine("- Thăm dò chức năng: Điện tâm đồ (ECG), X-quang tim phổi thẳng.");
         
-        string s = ti.IcdName.ToLower();
-        if (s.Contains(" u ") || s.Contains("phần mềm") || s.Contains("nang"))
+        string s = ((ti.IcdName ?? "") + " " + (ti.IcdCode ?? "") + " " + (ti.IcdText ?? "")).ToLower();
+        if (s.Contains("u xương") || s.Contains("d16") || (s.Contains("u") && s.Contains("xương")))
+            sb.AppendLine("- Chụp X-quang cẳng chân thẳng nghiêng; Chụp cắt lớp vi tính (CT Scanner) xương cẳng chân có tiêm thuốc cản quang đánh giá chi tiết tính chất tiêu xương, vỏ xương và đặc xương; Mô bệnh học / Giải phẫu bệnh sau mổ.");
+        else if (s.Contains(" u ") || s.Contains("phần mềm") || s.Contains("nang"))
             sb.AppendLine("- Siêu âm phần mềm khu trú đánh giá kích thước, tính chất âm học và tưới máu của khối u; Chụp MRI/CT Scanner khi có chỉ định xâm lấn sâu; Giải phẫu bệnh khối u sau mổ.");
         else if (s.Contains("xẹp") || s.Contains("đốt sống"))
             sb.AppendLine("- X-quang cột sống thẳng nghiêng, Chụp MRI cột sống thắt lưng đánh giá mức độ phù tủy và xẹp cấp; Đo mật độ xương (DEXA).");
@@ -2041,7 +2065,15 @@ class HisEmrFiller
                 sb.AppendLine("- Thần kinh & Cơ tròn: Cơ lực chi dưới 4-5/5, đại tiểu tiện tự chủ, phản xạ gân xương bình thường.");
             }
         }
-        else if (s.Contains("chày") || s.Contains("mâm chày") || (s.Contains("chấn thương") && s.Contains("gối") && s.Contains("cẳng chân")))
+        else if (s.Contains("u xương") || s.Contains("d16") || (s.Contains("u") && s.Contains("xương")))
+        {
+            string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
+            sb.AppendLine(string.Format("- Triệu chứng khối u xương 1/3 trên thân xương chày {0}: Đau tức âm ỉ, sờ thấy khối gồ cứng chắc liên tục vỏ xương chày {0}, ấn tức nhẹ tại chỗ, không nóng đỏ.", side));
+            sb.AppendLine(string.Format("- Khám khớp gối và cơ năng chi: Khớp gối {0} vận động trong giới hạn bình thường, không tràn dịch bao khớp (dấu hiệu bập bềnh xương bánh chè (-)), không có cử động bất thường hay lạo xạo xương.", side));
+            sb.AppendLine(string.Format("- Thần kinh - Mạch máu ngoại vi: Mạch mu chân và chày sau bên {0} bắt rõ, cảm giác và vận động ngọn chi bình thường, các khoang mềm mại, không có hội chứng chèn ép khoang.", side));
+            sb.AppendLine("- Toàn trạng: Bệnh nhân tỉnh táo, tiếp xúc tốt, thể trạng bình thường, không có hội chứng nhiễm trùng, dấu hiệu sinh tồn ổn định.");
+        }
+        else if ((s.Contains("chày") || s.Contains("mâm chày") || (s.Contains("chấn thương") && s.Contains("gối") && s.Contains("cẳng chân"))) && !s.Contains("u xương") && !s.Contains("d16") && !s.Contains("u "))
         {
             string side = (s.Contains("phải") || s.Contains(" p") || loc.Contains("phải")) ? "phải" : ((s.Contains("trái") || s.Contains(" t") || loc.Contains("trái")) ? "trái" : loc);
             sb.AppendLine(string.Format("- Hội chứng gãy xương (+): Đau chói dữ dội vùng khớp gối và đầu trên cẳng chân {0} sau tai nạn giao thông, sưng nề to, bầm tím dưới da, biến dạng nhẹ góc trục chi, mất hoàn toàn cơ năng vận động chi {0}; ấn điểm đau chói cố định tại đầu trên xương chày, có dấu hiệu lạo xạo xương và cử động bất thường.", side));
@@ -2222,6 +2254,8 @@ class HisEmrFiller
             return "Phân biệt thoát vị đĩa đệm cột sống cổ cao chèn ép tủy; Viêm màng nhện tủy; Dị dạng mạch tủy màng cứng; Lao cột sống cổ.";
         if (s.Contains("thoát vị") || s.Contains("đĩa đệm") || s.Contains("đuôi ngựa"))
             return "Phân biệt xẹp đốt sống do loãng xương/chấn thương; U tủy / u rễ thần kinh màng cứng; Thoát vị đĩa đệm cấp vỡ mảnh rời chèn ép đuôi ngựa; Viêm thân đốt sống đĩa đệm.";
+        if (s.Contains("u xương") || s.Contains("d16") || (s.Contains("u") && s.Contains("xương")))
+            return "Phân biệt u xơ không cốt hóa (NOF) với u tế bào khổng lồ xương (GCT), u xương sụn lành tính (Osteochondroma), nang xương phình mạch (ABC), loạn sản xơ (Fibrous dysplasia) và tổn thương xương ác tính (Osteosarcoma).";
         if (s.Contains(" u ") || s.Contains("phần mềm") || s.Contains("nang"))
             return "Phân biệt u mỡ (Lipoma), u xơ, nang bao hoạt dịch, tổn thương ác tính phần mềm.";
         if (s.Contains("xẹp") || s.Contains("đốt sống"))
@@ -2373,6 +2407,9 @@ class HisEmrFiller
         bool curIsIntraspinal = cur.Contains("u trong ống sống") || (cur.Contains("u") && cur.Contains("ống sống")) || cur.Contains("u tủy");
         bool pastIsSoftTissueTumor = past.Contains("khối gồ") || past.Contains("u mỡ") || past.Contains("phần mềm") || past.Contains("u bã đậu");
         if (curIsIntraspinal && pastIsSoftTissueTumor) return false;
+
+        bool curIsBoneTumor = cur.Contains("u xương") || (cur.Contains("u") && cur.Contains("xương")) || cur.Contains("d16");
+        if (curIsBoneTumor && (pastIsSoftTissueTumor || pastIsTrauma)) return false;
 
         bool curIsTrauma = cur.Contains("gãy") || cur.Contains("ngã") || cur.Contains("tai nạn") || cur.Contains("chấn thương") || cur.Contains("xẹp") || cur.Contains("acl");
         bool pastIsTumor = past.Contains("khối u") || past.Contains("u mỡ") || past.Contains("bóc u") || past.Contains("nang");
