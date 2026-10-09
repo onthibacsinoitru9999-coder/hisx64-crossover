@@ -629,18 +629,31 @@ public class HisCabinetPrescribe
 
             if (serviceReqId > 0)
             {
-                sdo.UsedForServiceReqIds = new List<long> { serviceReqId };
-                sdo.ServiceReqs = new List<TrackingServiceReq>
+                // BẢO LƯU TOÀN BỘ Y LỆNH ĐÃ GÁN TRƯỚC ĐÓ VÀO TỜ ĐIỀU TRỊ NÀY (TRÁNH MẤT GÁN THUỐC CŨ)
+                List<long> allReqIds = new List<long> { serviceReqId };
+                try
                 {
-                    new TrackingServiceReq
+                    var existingSrf = new HisServiceReqViewFilter { TRACKING_ID = trackingId };
+                    var existingReqs = adapter.FetchList<V_HIS_SERVICE_REQ>("api/HisServiceReq/GetView", consumer, existingSrf, cp);
+                    if (existingReqs != null)
                     {
-                        ServiceReqId = serviceReqId,
-                        IsNotShowMedicine = false,
-                        IsNotShowMaterial = false,
-                        IsNotShowOutMedi = false,
-                        IsNotShowOutMate = false
+                        foreach (var er in existingReqs)
+                        {
+                            if (!allReqIds.Contains(er.ID)) allReqIds.Add(er.ID);
+                        }
                     }
-                };
+                }
+                catch { }
+
+                sdo.UsedForServiceReqIds = allReqIds;
+                sdo.ServiceReqs = allReqIds.Select(id => new TrackingServiceReq
+                {
+                    ServiceReqId = id,
+                    IsNotShowMedicine = false,
+                    IsNotShowMaterial = false,
+                    IsNotShowOutMedi = false,
+                    IsNotShowOutMate = false
+                }).ToList();
             }
 
             adapter.PostData<HIS_TRACKING>("api/HisTracking/Update", consumer, sdo, cp);
