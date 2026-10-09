@@ -132,7 +132,7 @@ public class HisClinicalCli
             cur = cur.Parent;
         }
 
-        // 3. Chỉ nhận tiến trình HIS nếu nó chạy đúng từ preferredDir (TUYỆT ĐỐI không đọc từ thư mục HIS khác trên máy)
+        // 3. Quét tiến trình HIS đang chạy (nếu có preferredDir thì ưu tiên, nếu không thì lấy tiến trình HIS đang chạy)
         try
         {
             var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
@@ -143,7 +143,15 @@ public class HisClinicalCli
                     try
                     {
                         string exePath = p.MainModule.FileName;
-                        if (exePath.IndexOf("LBP2900_R150_V330_W64_uk_EN_2", StringComparison.OrdinalIgnoreCase) >= 0)
+                        if (Directory.Exists(preferredDir))
+                        {
+                            if (exePath.IndexOf("LBP2900_R150_V330_W64_uk_EN_2", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                string hisDir = Path.GetDirectoryName(exePath);
+                                candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+                            }
+                        }
+                        else
                         {
                             string hisDir = Path.GetDirectoryName(exePath);
                             candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
@@ -279,6 +287,21 @@ public class HisClinicalCli
         if (!tokenValid)
         {
             tokenCode = null; // Ép đăng nhập mới qua ACS!
+        }
+        else if (!string.IsNullOrEmpty(tokenCode))
+        {
+            try
+            {
+                string payload = tokenCode + "|" + DateTime.Now.Ticks + "|" + (string.IsNullOrEmpty(currentDoctorLogin) ? "034727" : currentDoctorLogin);
+                File.WriteAllText(cacheFile, payload, Encoding.UTF8);
+                string hnToken = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "doctor_hn.token");
+                File.WriteAllText(hnToken, payload, Encoding.UTF8);
+                string rootHn = Path.Combine(Directory.GetCurrentDirectory(), "doctor_hn.token");
+                if (rootHn != hnToken) File.WriteAllText(rootHn, payload, Encoding.UTF8);
+                string rootStandalone = Path.Combine(Directory.GetCurrentDirectory(), "doctor_standalone.token");
+                File.WriteAllText(rootStandalone, payload, Encoding.UTF8);
+            }
+            catch { }
         }
 
         // 3. Tự động ĐĂNG NHẬP ĐỘC LẬP qua ACS bằng nick 034727

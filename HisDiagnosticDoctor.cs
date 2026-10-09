@@ -59,7 +59,7 @@ public class HisDiagnosticDoctor
             cur = cur.Parent;
         }
 
-        // 3. Chỉ quét tiến trình HIS nếu chạy đúng từ preferredDir (TUYỆT ĐỐI không đọc từ thư mục HIS khác trên máy)
+        // 3. Quét tiến trình HIS đang chạy (nếu có preferredDir thì ưu tiên, nếu không thì lấy tiến trình HIS đang chạy)
         try
         {
             var procs = System.Diagnostics.Process.GetProcessesByName("HIS");
@@ -70,7 +70,15 @@ public class HisDiagnosticDoctor
                     try
                     {
                         string exePath = p.MainModule.FileName;
-                        if (exePath.IndexOf("LBP2900_R150_V330_W64_uk_EN_2", StringComparison.OrdinalIgnoreCase) >= 0)
+                        if (Directory.Exists(preferredDir))
+                        {
+                            if (exePath.IndexOf("LBP2900_R150_V330_W64_uk_EN_2", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                string hisDir = Path.GetDirectoryName(exePath);
+                                candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
+                            }
+                        }
+                        else
                         {
                             string hisDir = Path.GetDirectoryName(exePath);
                             candidates.Insert(0, Path.Combine(hisDir, "Logs", "LogSystem.txt"));
@@ -177,7 +185,19 @@ public class HisDiagnosticDoctor
             try
             {
                 ClientTokenManager tokenManager = new ClientTokenManager("HIS");
-                var token = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                string defaultPass = Environment.GetEnvironmentVariable("HIS_PASSWORD");
+                if (string.IsNullOrEmpty(defaultPass)) defaultPass = Environment.GetEnvironmentVariable("HIS_PASS");
+                if (string.IsNullOrEmpty(defaultPass)) defaultPass = "981";
+
+                var token = tokenManager.Login(param, "034727", defaultPass, "2.390.0");
+                if (token == null && defaultPass != "981")
+                {
+                    token = tokenManager.Login(param, "034727", "981", "2.390.0");
+                }
+                if (token == null)
+                {
+                    token = tokenManager.Login(param, "034727", "998199", "2.390.0");
+                }
                 if (token != null)
                 {
                     tokenCode = token.TokenCode;
@@ -187,15 +207,15 @@ public class HisDiagnosticDoctor
                     token = tokenManager.Login(param, "vmc", "789789", "2.390.0");
                     if (token != null) tokenCode = token.TokenCode;
                 }
+            }
+            catch { }
+        }
 
-                if (!string.IsNullOrEmpty(tokenCode))
-                {
-                    try
-                    {
-                        File.WriteAllText(tokenCandidates[0], tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8);
-                    }
-                    catch { }
-                }
+        if (!string.IsNullOrEmpty(tokenCode))
+        {
+            try
+            {
+                File.WriteAllText(tokenCandidates[0], tokenCode + "|" + DateTime.Now.Ticks + "|034727", Encoding.UTF8);
             }
             catch { }
         }
