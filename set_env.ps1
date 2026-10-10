@@ -112,7 +112,17 @@ if (Test-Path "$scriptDir\.venv\Scripts\python.exe") {
             } catch {}
         }
     }
+
+    if (-not $pythonFound) {
+        $uvPy = Get-ChildItem -Path "$env:APPDATA\uv\python" -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($uvPy) {
+            $pythonFound = $uvPy.FullName
+            Prepend-Path (Split-Path -Parent $pythonFound)
+        }
+    }
 }
+
+Prepend-Path "$env:USERPROFILE\.local\bin"
 
 if ($pythonFound) {
     $env:PYTHON = $pythonFound
