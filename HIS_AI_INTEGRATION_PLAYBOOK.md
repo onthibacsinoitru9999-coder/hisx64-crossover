@@ -2651,3 +2651,37 @@ Khi bác sĩ buồng bệnh hoặc bác sĩ điều trị cần điều chỉnh,
   4. Chuẩn hóa `LyDoVaoVien`: Khi tiếp đón nhập nhóm ICD hành chính *"Các bệnh đĩa đệm gian đốt sống khác"* hoặc *"Đau lưng"*, tự động chuyển thành lý do lâm sàng chuẩn: `"Đau cột sống thắt lưng, tê bì hai chân"`.
 
 
+
+
+---
+
+## 48. QUY CHUẨN TỰ ĐỘNG HÓA DICOM VISION AI & BÓC TÁCH TỔN THƯƠNG (COLAB PRO + CLOUDFLARE TUNNEL)
+
+### 48.1. Bản Chất Kiến Trúc Phân Luồng
+- **Máy chủ Tính toán**: Google Colab Pro (GPU A100 / L4 / T4, High-RAM, Background Execution 24h).
+- **Mã nguồn Server**: `Tools/ColabDicomAiServer.ipynb` và `Tools/colab_dicom_server.py`.
+- **Cổng kết nối**: Cloudflare Quick Tunnel (`trycloudflare.com`), miễn phí 100%, không cần đăng ký tài khoản hay cấu hình port forwarding.
+- **Máy trạm Lâm sàng (Client)**:
+  * `HisDicomAiDoctor.bat` / `HisDicomAiDoctor.ps1`: Client CLI bắn file DICOM lên server, nhận JSON, giải mã base64 ảnh và sinh file HTML/MD.
+  * `HisDicomAiWorkflow.bat` / `HisDicomAiWorkflow.ps1`: Bộ điều phối workflow tự động hóa toàn diện.
+
+### 48.2. Quy Trình 3 Chế Độ Vận Hành
+1. **Chế độ 1 - 1-Click theo Mã BN (`HisDicomAiWorkflow.bat <MãBN>`)**:
+   - Tự động lấy file DICOM của bệnh nhân từ hệ thống PACS/RIS Bạch Mai (`HisPacsUploader`).
+   - Tự động đẩy file lên Colab Pro.
+   - AI áp dụng Windowing tối ưu xương/cột sống (Bone Windowing) $\rightarrow$ Florence-2 / Vision LLM xác định tọa độ tổn thương.
+   - **Tự động CẮT VÙNG TỔN THƯƠNG (Crop ROI)** phóng to kèm lề 20% và vẽ khung đỏ trên phim toàn cảnh.
+   - Trích xuất mô tả hình ảnh (Findings), Kết luận (Impression kèm mã ICD-10) và Hướng xử trí.
+   - Lưu báo cáo HTML vào `Reports\DicomAiReports\`.
+   - **Thông báo hoàn tất**: Phát âm thanh Windows, hiện bong bóng thông báo (Balloon Tip) và tự động mở tab báo cáo HTML trên trình duyệt.
+2. **Chế độ 2 - Giám sát thư mục (`HisDicomAiWorkflow.bat --watch`)**:
+   - Theo dõi liên tục thư mục `DicomInbox\`.
+   - Khi có file `.dcm` mới xuất hiện (do bác sĩ hoặc KTV kéo thả vào), script tự động phát hiện, gửi lên Colab, xử lý xong lưu trữ file gốc sang `DicomInbox\Processed\` và bật báo cáo lên màn hình.
+3. **Chế độ 3 - File trực tiếp (`HisDicomAiWorkflow.bat "C:\path\to\film.dcm"`)**:
+   - Phân tích trực diện một file DICOM bất kỳ trên ổ cứng hoặc kéo thả trực tiếp file vào icon `HisDicomAiWorkflow.bat`.
+
+### 48.3. Bảng Tham Số & File Cấu Hình
+- `colab_endpoint.txt`: Lưu URL cổng Cloudflare Tunnel (cập nhật qua `.\HisDicomAiWorkflow.bat -SetUrl <URL>`).
+- Thư mục ảnh cắt ROI: `Reports\DicomAiReports\Images\Crop_<MãBN>_<Timestamp>.jpg`.
+- Thư mục ảnh toàn cảnh có khung đỏ: `Reports\DicomAiReports\Images\Annot_<MãBN>_<Timestamp>.jpg`.
+- File báo cáo kết quả: `Reports\DicomAiReports\Report_<MãBN>_<Timestamp>.html`.
